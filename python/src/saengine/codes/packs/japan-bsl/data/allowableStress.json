@@ -1,0 +1,62 @@
+{
+  "$schema": "../../../schemas/allowableStress.schema.json",
+  "$sources": [
+    "BSL Enforcement Order Art. 90 (steel and bars) and Art. 91 (concrete): the long-term and short-term allowable stresses; MLIT Notification No. 2464 of 2000 (the standard strength F of steel and bars)",
+    "AIJ Standard for Structural Calculation of Reinforced Concrete Structures 2018: Art. 5-6 (allowable stresses), Art. 13 (flexure and axial force of the elastic section), Art. 15 (shear of beams and columns)",
+    "AIJ Design Standard for Steel Structures 2005, Ch 5 (allowable stresses of tension, shear, compression and bending)"
+  ],
+  "source": "BSL Enforcement Order Art. 90-91 and the AIJ RC and steel standards (the primary design's allowable stress calculation)",
+  "method": "elasticSection",
+  "longTerm": ["L1", "L2"],
+  "concrete": {
+    "longShare": 0.3333333333,
+    "shortShare": 0.6666666667,
+    "shearShare": 0.0333333333,
+    "shearOffset": 0.49,
+    "shearSlope": 0.01,
+    "shortShearFactor": 1.5,
+    "modularRatio": 15.0,
+    "leverArm": 0.875
+  },
+  "rebar": {
+    "grades": {
+      "SR235": {"fy": 235, "long": 155, "short": 235, "shearLong": 155, "shearShort": 235},
+      "SD295": {"fy": 295, "long": 195, "short": 295, "shearLong": 195, "shearShort": 295},
+      "SD345": {"fy": 345, "long": 215, "longLarge": 195, "short": 345, "shearLong": 195, "shearShort": 345},
+      "SD390": {"fy": 390, "long": 215, "longLarge": 195, "short": 390, "shearLong": 195, "shearShort": 390},
+      "SD490": {"fy": 490, "long": 215, "longLarge": 195, "short": 490, "shearLong": 195, "shearShort": 490}
+    },
+    "largeFrom": 28.6
+  },
+  "shear": {
+    "alphaNumerator": 4.0,
+    "alphaMin": 1.0,
+    "beamAlphaMax": 2.0,
+    "columnAlphaMax": 1.5,
+    "reinforcementShare": 0.5,
+    "pwOffset": 0.002,
+    "pwMax": 0.012,
+    "longWithBars": false
+  },
+  "steel": {
+    "longDivisor": 1.5,
+    "shortFactor": 1.5,
+    "shearDivisor": 1.7320508,
+    "modulus": 205000.0,
+    "compression": {"limitShare": 0.6, "parabola": 0.4, "nuBase": 1.5, "nuSlope": 0.6666666667, "elastic": 0.277},
+    "bending": {"base": 0.6666666667, "slope": 0.2666666667, "flangeConstant": 89000.0, "momentGradient": 1.0}
+  },
+  "sources": {
+    "longTerm": "BSL Enforcement Order Art. 82(2) table: the long-term rows (G + P, G + P + 0.7S); the others short-term",
+    "concrete": "BSL EO Art. 91 and AIJ RC Standard Art. 6: compression Fc/3 long-term, 2Fc/3 short-term; shear fs = min(Fc/30, 0.49 + Fc/100) long-term, × 1.5 short-term; n = 15 (AIJ RC Standard Art. 5, for Fc up to 27 MPa: SAEngine takes 15 for every grade, see VERIFY.md); j = 7/8 d",
+    "rebar": "BSL EO Art. 90 and AIJ RC Standard Art. 6: long-term ft and fc of the main bars SR235 155, SD295 195, SD345/SD390/SD490 215 (195 for D29 and larger), short-term F; shear reinforcement wft 195 long-term (SR235 155), F short-term (SD490: see VERIFY.md)",
+    "shear": "AIJ RC Standard 2018 Art. 15: Qa = b j (α fs + 0.5 wft (pw - 0.002)) short-term, b j α fs long-term, α = 4 / (M/(Q d) + 1), 1 <= α <= 2 (beams), 1.5 (columns), pw at most 1.2 %",
+    "steel": "BSL EO Art. 90 and AIJ Steel Standard 2005 Ch 5: ft = F/1.5, fs = ft/√3, fc = (1 - 0.4 (λ/Λ)²) F/ν with ν = 3/2 + (2/3)(λ/Λ)² for λ <= Λ, 0.277 F/(λ/Λ)² beyond, Λ = √(π² E / (0.6 F)); fb the larger of F (2/3 - (4/15)(lb/i)²/(C Λ²)) and 89 000 / (lb h / Af), at most ft, C = 1.0 (SAEngine: uniform moment, on the safe side); short-term × 1.5"
+  },
+  "clauses": {
+    "flexure": "RC Standard Art. 13",
+    "axial": "RC Standard Art. 13",
+    "shear": "RC Standard Art. 15",
+    "steel": "Steel Standard Ch 5"
+  }
+}

@@ -1,0 +1,3988 @@
+{
+  "$defs": {
+    "BearingFactorRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C8: the factors of qnu = c Nc sc dc ic + q (Nq - 1) sq dq iq + ½ γ B Nγ sγ dγ iγ\nby the flow value Nφ = tan²(45° + φ/2) (method ``flowValue``, IS 6403): Nc, Nq of\nPrandtl-Reissner, Nγ = gammaFactor (Nq + 1) tan φ; shape 1 + a B/L (c, q), 1 - b B/L (γ),\nsquare and circle rows; depth dc = 1 + c Df/B √Nφ, dq = dγ = 1 + d Df/B √Nφ from φ at\nleast depthPhiMin (else 1); inclination (1 - α/90)² (c, q), (1 - α/φ)² (γ).",
+      "properties": {
+        "method": {
+          "const": "flowValue",
+          "default": "flowValue",
+          "title": "Method",
+          "type": "string"
+        },
+        "gammaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Gammafactor",
+          "type": "number"
+        },
+        "shape": {
+          "description": "(sc, sq slope, sγ slope).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shape",
+          "type": "array"
+        },
+        "square": {
+          "description": "(sc, sq, sγ) of squares.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Square",
+          "type": "array"
+        },
+        "circle": {
+          "description": "(sc, sq, sγ) of circles.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circle",
+          "type": "array"
+        },
+        "depth": {
+          "description": "(dc coefficient, dq = dγ coefficient).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depth",
+          "type": "array"
+        },
+        "depthPhiMin": {
+          "description": "dq = dγ = 1 below this φ [°].",
+          "minimum": 0,
+          "title": "Depthphimin",
+          "type": "number"
+        },
+        "undrainedNc": {
+          "description": "Nc at φ = 0.",
+          "exclusiveMinimum": 0,
+          "title": "Undrainednc",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gammaFactor",
+        "shape",
+        "square",
+        "circle",
+        "depth",
+        "depthPhiMin",
+        "undrainedNc"
+      ],
+      "title": "BearingFactorRules",
+      "type": "object"
+    },
+    "BoredDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of bored cast-in-situ piles and drilled shafts.",
+      "properties": {
+        "minFc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfc",
+          "type": "number"
+        },
+        "minDiameter": {
+          "description": "Least shaft diameter [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mindiameter",
+          "type": "number"
+        },
+        "diameterStep": {
+          "description": "Shafts sized in steps of this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Diameterstep",
+          "type": "number"
+        },
+        "minFy": {
+          "description": "Least fy of the longitudinal bars [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfy",
+          "type": "number"
+        },
+        "minSteel": {
+          "description": "Least As/Ac by the gross area Ac [m²].",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Minsteel",
+          "type": "array"
+        },
+        "minBars": {
+          "description": "Least number of longitudinal bars.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        },
+        "largeDiameter": {
+          "description": "From this diameter [mm] the bars are large.",
+          "exclusiveMinimum": 0,
+          "title": "Largediameter",
+          "type": "number"
+        },
+        "largeMinBar": {
+          "description": "Least bar diameter of large piles [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Largeminbar",
+          "type": "number"
+        },
+        "cover": {
+          "description": "Least cover to the cage [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "minHoopPitch": {
+          "description": "Hoops not closer than this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Minhooppitch",
+          "type": "number"
+        },
+        "reinforcedDepth": {
+          "description": "Bars at least this below the cut-off [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Reinforceddepth",
+          "type": "number"
+        },
+        "casingExtra": {
+          "description": "And this below a temporary casing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Casingextra",
+          "type": "number"
+        },
+        "guidance": {
+          "items": {
+            "$ref": "#/$defs/BoredGuidanceRow"
+          },
+          "title": "Guidance",
+          "type": "array"
+        },
+        "guidanceFy": {
+          "description": "fy the guidance assumes [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Guidancefy",
+          "type": "number"
+        },
+        "cement": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least cement content by placement [kg/m³].",
+          "propertyNames": {
+            "enum": [
+              "dry",
+              "submerged"
+            ]
+          },
+          "title": "Cement",
+          "type": "object"
+        },
+        "waterCement": {
+          "description": "Recommended water/cement ratio.",
+          "exclusiveMinimum": 0,
+          "title": "Watercement",
+          "type": "number"
+        },
+        "mixes": {
+          "items": {
+            "$ref": "#/$defs/BoredMix"
+          },
+          "title": "Mixes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "minFc",
+        "minDiameter",
+        "diameterStep",
+        "minFy",
+        "minSteel",
+        "minBars",
+        "largeDiameter",
+        "largeMinBar",
+        "cover",
+        "minHoopPitch",
+        "reinforcedDepth",
+        "casingExtra",
+        "guidance",
+        "guidanceFy",
+        "cement",
+        "waterCement",
+        "mixes"
+      ],
+      "title": "BoredDetailing",
+      "type": "object"
+    },
+    "BoredGuidanceRow": {
+      "additionalProperties": false,
+      "description": "A row of the bored piles' build-ability guidance: bars and hoops by diameter [mm].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "diameter": {
+          "exclusiveMinimum": 0,
+          "title": "Diameter",
+          "type": "number"
+        },
+        "bar": {
+          "exclusiveMinimum": 0,
+          "title": "Bar",
+          "type": "number"
+        },
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "hoop": {
+          "exclusiveMinimum": 0,
+          "title": "Hoop",
+          "type": "number"
+        },
+        "pitch": {
+          "exclusiveMinimum": 0,
+          "title": "Pitch",
+          "type": "number"
+        }
+      },
+      "required": [
+        "diameter",
+        "bar",
+        "count",
+        "hoop",
+        "pitch"
+      ],
+      "title": "BoredGuidanceRow",
+      "type": "object"
+    },
+    "BoredMix": {
+      "additionalProperties": false,
+      "description": "A recommended concrete mix of bored piles: its slump [mm] and conditions of use.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "slump": {
+          "exclusiveMinimum": 0,
+          "title": "Slump",
+          "type": "number"
+        },
+        "use": {
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "slump",
+        "use"
+      ],
+      "title": "BoredMix",
+      "type": "object"
+    },
+    "CastInPlaceDetailing": {
+      "additionalProperties": false,
+      "description": "Driven cast-in-place concrete piles.",
+      "properties": {
+        "minButtArea": {
+          "description": "Least area at the butt [mm²].",
+          "exclusiveMinimum": 0,
+          "title": "Minbuttarea",
+          "type": "number"
+        },
+        "minTip": {
+          "description": "Least diameter at the tip [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mintip",
+          "type": "number"
+        },
+        "cover": {
+          "description": "Least clear cover [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Cover",
+          "type": "number"
+        },
+        "corrosiveCover": {
+          "description": "Least clear cover in corrosive ground or under water or slurry [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Corrosivecover",
+          "type": "number"
+        },
+        "unsupportedBarsBelow": {
+          "description": "Bars this far below the plane of lateral restraint [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Unsupportedbarsbelow",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minButtArea",
+        "minTip",
+        "cover",
+        "corrosiveCover",
+        "unsupportedBarsBelow"
+      ],
+      "title": "CastInPlaceDetailing",
+      "type": "object"
+    },
+    "ColumnBaseTransfer": {
+      "additionalProperties": false,
+      "properties": {
+        "phi": {
+          "description": "φ of bearing on concrete.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "bearing": {
+          "description": "Bearing strength φ (this × f'c) A1.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "areaRatioMax": {
+          "description": "√(A2/A1) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Arearatiomax",
+          "type": "number"
+        },
+        "dowelRatio": {
+          "description": "Least area across the interface / Ag of the column.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Dowelratio",
+          "type": "number"
+        },
+        "minBars": {
+          "description": "Least number of bars across the interface.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "phi",
+        "bearing",
+        "areaRatioMax",
+        "dowelRatio",
+        "minBars"
+      ],
+      "title": "ColumnBaseTransfer",
+      "type": "object"
+    },
+    "CompressionTestRules": {
+      "additionalProperties": false,
+      "description": "Interpretation of axial compression load tests.",
+      "properties": {
+        "testLoad": {
+          "$ref": "#/$defs/TestLoadFactors"
+        },
+        "movement": {
+          "description": "Single pile: the load at this settlement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Movement",
+          "type": "number"
+        },
+        "movementShare": {
+          "description": "... times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Movementshare",
+          "type": "number"
+        },
+        "diameterShare": {
+          "description": "Single pile: the load at this × D ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diametershare",
+          "type": "number"
+        },
+        "underReamedShare": {
+          "description": "(this × the bulb of an under-reamed pile) ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Underreamedshare",
+          "type": "number"
+        },
+        "diameterLoadShare": {
+          "description": "... times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diameterloadshare",
+          "type": "number"
+        },
+        "groupMovement": {
+          "description": "Group: the load at this settlement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Groupmovement",
+          "type": "number"
+        },
+        "groupMovementShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Groupmovementshare",
+          "type": "number"
+        },
+        "groupSecondMovement": {
+          "description": "Group: the load at this settlement ...",
+          "exclusiveMinimum": 0,
+          "title": "Groupsecondmovement",
+          "type": "number"
+        },
+        "groupSecondShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Groupsecondshare",
+          "type": "number"
+        },
+        "davissonOffset": {
+          "description": "Davisson's offset [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Davissonoffset",
+          "type": "number"
+        },
+        "davissonDiameter": {
+          "description": "... + D / this.",
+          "exclusiveMinimum": 0,
+          "title": "Davissondiameter",
+          "type": "number"
+        },
+        "bsShare": {
+          "description": "Ultimate at a settlement of this × D.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bsshare",
+          "type": "number"
+        },
+        "bsAllowableShare": {
+          "description": "Allowable this × that load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bsallowableshare",
+          "type": "number"
+        },
+        "isMovement": {
+          "description": "IS: also the load at this settlement [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ismovement",
+          "type": "number"
+        },
+        "butlerHoySlope": {
+          "description": "Tangent at this settlement per ton [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Butlerhoyslope",
+          "type": "number"
+        },
+        "butlerHoyTon": {
+          "description": "The ton [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Butlerhoyton",
+          "type": "number"
+        },
+        "brinchHansenShare": {
+          "description": "Settlement twice that under this × the load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Brinchhansenshare",
+          "type": "number"
+        },
+        "failureSafety": {
+          "description": "Ultimate from a test over this.",
+          "exclusiveMinimum": 0,
+          "title": "Failuresafety",
+          "type": "number"
+        },
+        "minShare": {
+          "description": "At least this share of the piles tested.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Minshare",
+          "type": "number"
+        },
+        "minBored": {
+          "description": "At least this many bored piles tested.",
+          "minimum": 0,
+          "title": "Minbored",
+          "type": "integer"
+        },
+        "integrityShare": {
+          "description": "Integrity tests on this share of the piles.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Integrityshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "movement",
+        "movementShare",
+        "diameterShare",
+        "underReamedShare",
+        "diameterLoadShare",
+        "groupMovement",
+        "groupMovementShare",
+        "groupSecondMovement",
+        "groupSecondShare",
+        "davissonOffset",
+        "davissonDiameter",
+        "bsShare",
+        "bsAllowableShare",
+        "isMovement",
+        "butlerHoySlope",
+        "butlerHoyTon",
+        "brinchHansenShare",
+        "failureSafety",
+        "minShare",
+        "minBored",
+        "integrityShare"
+      ],
+      "title": "CompressionTestRules",
+      "type": "object"
+    },
+    "DesignResistanceRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 22.13330.2016 5.6.7 type, :func:`saengine.soil.bearing.design_resistance`):\nthe design resistance of the founding soil, the mean pressure under the footing at most\nR = γc1 γc2 / k (Mγ kz b γ + Mq d q' + Mc c) with q' the effective overburden at the base\n(d γ'), Mγ, Mq, Mc by φ (``factors``: (φ [°], Mγ, Mq, Mc) rows, linear between), γc1 by the\nsoil's behaviour (``conditionFactors``), γc2 for the structure, k by how the strength was\nfound, kz = 1 below ``kzWidth``, else z0/b + kzOffset. In place of qa = (qu - σ'v)/FS of the\nfounding layer (the deeper layers keep the parent's check); net of the total overburden\nlike every qa.",
+      "properties": {
+        "method": {
+          "const": "frictionAngleFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "description": "(φ [°], Mγ, Mq, Mc) rows.",
+          "items": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Factors",
+          "type": "array"
+        },
+        "conditionFactors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "γc1 by the founding layer's behaviour (granular, cohesive).",
+          "title": "Conditionfactors",
+          "type": "object"
+        },
+        "structureFactor": {
+          "description": "γc2.",
+          "exclusiveMinimum": 0,
+          "title": "Structurefactor",
+          "type": "number"
+        },
+        "reliability": {
+          "description": "k (1.1: strength from tables or correlations).",
+          "exclusiveMinimum": 0,
+          "title": "Reliability",
+          "type": "number"
+        },
+        "kzWidth": {
+          "description": "kz = 1 for b below this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Kzwidth",
+          "type": "number"
+        },
+        "kzDepth": {
+          "description": "z0 [m] of kz = z0/b + kzOffset.",
+          "exclusiveMinimum": 0,
+          "title": "Kzdepth",
+          "type": "number"
+        },
+        "kzOffset": {
+          "minimum": 0,
+          "title": "Kzoffset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors",
+        "conditionFactors",
+        "structureFactor",
+        "reliability",
+        "kzWidth",
+        "kzDepth",
+        "kzOffset"
+      ],
+      "title": "DesignResistanceRule",
+      "type": "object"
+    },
+    "DrilledShaft": {
+      "additionalProperties": false,
+      "description": "Unit values of drilled shafts (bored piles of more than ``minDiameter``).",
+      "properties": {
+        "minDiameter": {
+          "description": "A bored pile above this [mm] is a drilled shaft.",
+          "exclusiveMinimum": 0,
+          "title": "Mindiameter",
+          "type": "number"
+        },
+        "alpha": {
+          "description": "α up to ``alphaLimit``.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Alpha",
+          "type": "number"
+        },
+        "alphaLimit": {
+          "description": "cu [kPa] up to which α = ``alpha``.",
+          "exclusiveMinimum": 0,
+          "title": "Alphalimit",
+          "type": "number"
+        },
+        "alphaHigh": {
+          "description": "[cu kPa, α] above ``alphaLimit`` (the adhesion factor figure).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Alphahigh",
+          "type": "array"
+        },
+        "sideTop": {
+          "description": "No skin friction over this top length [mm].",
+          "minimum": 0,
+          "title": "Sidetop",
+          "type": "number"
+        },
+        "sideBottom": {
+          "description": "Nor over this many diameters at the bottom.",
+          "minimum": 0,
+          "title": "Sidebottom",
+          "type": "number"
+        },
+        "baseMax": {
+          "description": "fb in clay at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Basemax",
+          "type": "number"
+        },
+        "clayReduceAbove": {
+          "description": "Base diameter [mm] above which Fr applies.",
+          "exclusiveMinimum": 0,
+          "title": "Clayreduceabove",
+          "type": "number"
+        },
+        "frNumerator": {
+          "exclusiveMinimum": 0,
+          "title": "Frnumerator",
+          "type": "number"
+        },
+        "frWidthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Frwidthfactor",
+          "type": "number"
+        },
+        "omega1": {
+          "description": "[a, b, max]: ω1 = a + b L/Db ≤ max.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Omega1",
+          "type": "array"
+        },
+        "omega2": {
+          "description": "[c, min, max]: ω2 = c √(cu/σr).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Omega2",
+          "type": "array"
+        },
+        "referenceWidth": {
+          "description": "Br [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Referencewidth",
+          "type": "number"
+        },
+        "referenceStress": {
+          "description": "σr [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Referencestress",
+          "type": "number"
+        },
+        "betaIntercept": {
+          "exclusiveMinimum": 0,
+          "title": "Betaintercept",
+          "type": "number"
+        },
+        "betaSlope": {
+          "description": "β = intercept - slope √(z/Br).",
+          "exclusiveMinimum": 0,
+          "title": "Betaslope",
+          "type": "number"
+        },
+        "betaMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "β at most this; empty: none.",
+          "title": "Betamax"
+        },
+        "lowN": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "β × N60/this below this N60; empty: none.",
+          "title": "Lown"
+        },
+        "skinMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fs at most this [kPa].",
+          "title": "Skinmax"
+        },
+        "sandBase": {
+          "description": "fb = this × σr × N60 [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Sandbase",
+          "type": "number"
+        },
+        "sandBaseMax": {
+          "exclusiveMinimum": 0,
+          "title": "Sandbasemax",
+          "type": "number"
+        },
+        "sandBaseDepth": {
+          "description": "N60 the mean over this × Db below the base.",
+          "exclusiveMinimum": 0,
+          "title": "Sandbasedepth",
+          "type": "number"
+        },
+        "sandReduceAbove": {
+          "description": "Base diameter [mm] above which Fr applies.",
+          "exclusiveMinimum": 0,
+          "title": "Sandreduceabove",
+          "type": "number"
+        },
+        "sandFr": {
+          "description": "Fr = this × Br / Db ≤ 1.",
+          "exclusiveMinimum": 0,
+          "title": "Sandfr",
+          "type": "number"
+        },
+        "lateralRatio": {
+          "description": "K/K0 by construction method.",
+          "items": {
+            "$ref": "#/$defs/ShaftConstruction"
+          },
+          "title": "Lateralratio",
+          "type": "array"
+        },
+        "frictionRatio": {
+          "description": "δ/φ by construction method.",
+          "items": {
+            "$ref": "#/$defs/ShaftConstruction"
+          },
+          "title": "Frictionratio",
+          "type": "array"
+        },
+        "zetaLow": {
+          "description": "ζ of a shaft at ``spacingLow`` diameters in a group.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Zetalow",
+          "type": "number"
+        },
+        "spacingLow": {
+          "exclusiveMinimum": 0,
+          "title": "Spacinglow",
+          "type": "number"
+        },
+        "clayFullSpacing": {
+          "description": "ζ = 1 from this spacing (× B) in clay.",
+          "exclusiveMinimum": 0,
+          "title": "Clayfullspacing",
+          "type": "number"
+        },
+        "sandFullSpacing": {
+          "description": "ζ = 1 from this spacing (× B) in sand.",
+          "exclusiveMinimum": 0,
+          "title": "Sandfullspacing",
+          "type": "number"
+        },
+        "punchingSpan": {
+          "description": "qE = qLo + H / (this × B) (qUP - qLo) ≤ qUP.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingspan",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minDiameter",
+        "alpha",
+        "alphaLimit",
+        "alphaHigh",
+        "sideTop",
+        "sideBottom",
+        "baseMax",
+        "clayReduceAbove",
+        "frNumerator",
+        "frWidthFactor",
+        "omega1",
+        "omega2",
+        "referenceWidth",
+        "referenceStress",
+        "betaIntercept",
+        "betaSlope",
+        "sandBase",
+        "sandBaseMax",
+        "sandBaseDepth",
+        "sandReduceAbove",
+        "sandFr",
+        "lateralRatio",
+        "frictionRatio",
+        "zetaLow",
+        "spacingLow",
+        "clayFullSpacing",
+        "sandFullSpacing",
+        "punchingSpan"
+      ],
+      "title": "DrilledShaft",
+      "type": "object"
+    },
+    "DrivenDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of driven precast concrete piles.",
+      "properties": {
+        "minFc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minfc",
+          "type": "number"
+        },
+        "hardFc": {
+          "description": "Least f'c for hard driving [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Hardfc",
+          "type": "number"
+        },
+        "hardDrivingStress": {
+          "description": "Driving stress above which it is hard [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Harddrivingstress",
+          "type": "number"
+        },
+        "maxSlenderness": {
+          "description": "L/B at most this (else a segmental pile).",
+          "exclusiveMinimum": 0,
+          "title": "Maxslenderness",
+          "type": "number"
+        },
+        "steelByLength": {
+          "description": "Least As/Ag by L/B.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Steelbylength",
+          "type": "array"
+        },
+        "minTie": {
+          "description": "Least tie diameter [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mintie",
+          "type": "number"
+        },
+        "tieEnd": {
+          "description": "Least tie volume over the gross volume at the ends.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tieend",
+          "type": "number"
+        },
+        "tieBody": {
+          "description": "Least tie volume over the gross volume in the body.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiebody",
+          "type": "number"
+        },
+        "tieEndLength": {
+          "description": "The ends: this × B from each end.",
+          "exclusiveMinimum": 0,
+          "title": "Tieendlength",
+          "type": "number"
+        },
+        "serviceStress": {
+          "description": "Service stress at most this × f'c on Ag.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Servicestress",
+          "type": "number"
+        },
+        "bucklingCu": {
+          "description": "Below this cu [kPa] the pile may buckle.",
+          "exclusiveMinimum": 0,
+          "title": "Bucklingcu",
+          "type": "number"
+        },
+        "impact": {
+          "description": "Handling: the weight × (1 + this) for impact.",
+          "minimum": 0,
+          "title": "Impact",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minFc",
+        "hardFc",
+        "hardDrivingStress",
+        "maxSlenderness",
+        "steelByLength",
+        "minTie",
+        "tieEnd",
+        "tieBody",
+        "tieEndLength",
+        "serviceStress",
+        "bucklingCu",
+        "impact"
+      ],
+      "title": "DrivenDetailing",
+      "type": "object"
+    },
+    "FootingCombination": {
+      "additionalProperties": false,
+      "description": "A load combination of the geotechnical design of shallow foundations: ``{case: factor}``\nwith D the dead load (D and SD), L the normal live load (L and Lr), W and E the wind and\nearthquake (each direction, each sign), B the buoyancy (uplift) of the water at the base.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "factors"
+      ],
+      "title": "FootingCombination",
+      "type": "object"
+    },
+    "FoundationConcrete": {
+      "additionalProperties": false,
+      "description": "A row of the foundation concrete table.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "enum": [
+            "footing",
+            "bored",
+            "driven"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "cement": {
+          "description": "Least cement content [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Cement",
+          "type": "number"
+        },
+        "fc": {
+          "description": "Least f'c [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fc",
+          "type": "number"
+        },
+        "slump": {
+          "description": "Slump range [mm].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Slump",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cement",
+        "fc",
+        "slump"
+      ],
+      "title": "FoundationConcrete",
+      "type": "object"
+    },
+    "JanbuRow": {
+      "additionalProperties": false,
+      "description": "A soil of the modulus number table: the range of M and the stress exponent j, matched\nto a layer by its soil type and class (sand and silt by density; clay by consistency,\nloose / medium / dense standing for soft / medium stiff / stiff); a row with no soil types\nis listed for reference only.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "soilTypes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Soiltypes",
+          "type": "array"
+        },
+        "density": {
+          "items": {
+            "enum": [
+              "loose",
+              "medium",
+              "dense"
+            ],
+            "type": "string"
+          },
+          "title": "Density",
+          "type": "array"
+        },
+        "M": {
+          "description": "Range of the modulus number (high, low).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "M",
+          "type": "array"
+        },
+        "j": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "J",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "M",
+        "j"
+      ],
+      "title": "JanbuRow",
+      "type": "object"
+    },
+    "LateralTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "testLoad": {
+          "description": "Tests to at least this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Testload",
+          "type": "number"
+        },
+        "headMovement": {
+          "description": "The load at this head movement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Headmovement",
+          "type": "number"
+        },
+        "headShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Headshare",
+          "type": "number"
+        },
+        "totalMovement": {
+          "description": "The load at this total displacement [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Totalmovement",
+          "type": "number"
+        },
+        "totalShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Totalshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "headMovement",
+        "headShare",
+        "totalMovement",
+        "totalShare"
+      ],
+      "title": "LateralTestRules",
+      "type": "object"
+    },
+    "LayerwiseSettlement": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: s = ψs Σ p0 / Esi (zi ᾱi - zi-1 ᾱi-1) (GB 50007 5.3.5 type,\n:func:`saengine.soil.characteristic_bearing.layerwise_settlement`): ᾱ the mean vertical\nstress coefficient under the centre (Boussinesq, four corner rectangles), Esi =\noedometricFactor × the layer's E, down to zn = b (a - c ln b) (``depthCoefficients``) or\nthe log's bottom; ψs by the equivalent Ēs (``psi``: (Ēs [MPa], ψs at p0 >= fak, ψs at p0\n<= 0.75 fak), linear between, the end values outside), the first column taken (p0 >= fak:\nSAEngine practice, on the safe side).",
+      "properties": {
+        "method": {
+          "const": "layerwiseSummation",
+          "title": "Method",
+          "type": "string"
+        },
+        "psi": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Psi",
+          "type": "array"
+        },
+        "depthCoefficients": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Depthcoefficients",
+          "type": "array"
+        },
+        "oedometricFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Oedometricfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "psi",
+        "depthCoefficients",
+        "oedometricFactor"
+      ],
+      "title": "LayerwiseSettlement",
+      "type": "object"
+    },
+    "MachineAmplitude": {
+      "additionalProperties": false,
+      "description": "Permissible amplitudes [mm] for a range of operating speeds, as (low, high) ranges; the\nengine takes the low end.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "description": "Operating speeds up to this [rpm].",
+          "exclusiveMinimum": 0,
+          "title": "Upto",
+          "type": "number"
+        },
+        "inclusive": {
+          "default": false,
+          "description": "``upTo`` itself is in the row.",
+          "title": "Inclusive",
+          "type": "boolean"
+        },
+        "horizontal": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Horizontal",
+          "type": "array"
+        },
+        "vertical": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Vertical",
+          "type": "array"
+        }
+      },
+      "required": [
+        "upTo",
+        "horizontal",
+        "vertical"
+      ],
+      "title": "MachineAmplitude",
+      "type": "object"
+    },
+    "MachineFoundationRules": {
+      "additionalProperties": false,
+      "description": "Foundations of machines under dynamic forces: the impact rule, resonance, permissible\namplitudes, static pressure, eccentricity, ground water and the lumped-parameter\nsingle-degree-of-freedom method with its stiffness and damping relations.",
+      "properties": {
+        "method": {
+          "const": "lumpedSdof",
+          "description": "Engine method (``lumpedSdof``: one mass on one spring and dashpot).",
+          "title": "Method",
+          "type": "string"
+        },
+        "impactRatio": {
+          "description": "Impact forces are designed for when the live load causing the impact exceeds this share of the dead load (or on loose granular soil, cranes, heavy machinery, moving equipment).",
+          "exclusiveMinimum": 0,
+          "title": "Impactratio",
+          "type": "number"
+        },
+        "speedClasses": {
+          "items": {
+            "$ref": "#/$defs/MachineSpeedClass"
+          },
+          "minItems": 1,
+          "title": "Speedclasses",
+          "type": "array"
+        },
+        "frequencyRatioBelow": {
+          "description": "f/fn below this: a stiff foundation.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencyratiobelow",
+          "type": "number"
+        },
+        "frequencyRatioAbove": {
+          "description": "f/fn at least this: a soft foundation.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencyratioabove",
+          "type": "number"
+        },
+        "amplitudes": {
+          "description": "Permissible amplitudes by operating speed, when the maker gives none.",
+          "items": {
+            "$ref": "#/$defs/MachineAmplitude"
+          },
+          "title": "Amplitudes",
+          "type": "array"
+        },
+        "hammerAmplitude": {
+          "description": "Permissible amplitude of hammers [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hammeramplitude",
+          "type": "number"
+        },
+        "staticPressure": {
+          "description": "Static soil pressure at most this × qa.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Staticpressure",
+          "type": "number"
+        },
+        "eccentricity": {
+          "description": "Centre of gravity of machine and block off the base's centroid by at most this × the base dimension.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eccentricity",
+          "type": "number"
+        },
+        "waterDepth": {
+          "description": "Ground water at least this × the base width below the base.",
+          "exclusiveMinimum": 0,
+          "title": "Waterdepth",
+          "type": "number"
+        },
+        "participatingMass": {
+          "description": "Range of the participating soil mass ms / mf (the method envelopes it).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Participatingmass",
+          "type": "array"
+        },
+        "damping": {
+          "description": "Usual range of the damping factor D of soils (warned outside).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Damping",
+          "type": "array"
+        },
+        "barkanCoefficient": {
+          "description": "k = this × E √A / (1 - μ...).",
+          "exclusiveMinimum": 0,
+          "title": "Barkancoefficient",
+          "type": "number"
+        },
+        "barkanPoisson": {
+          "description": "Forms of Barkan's denominator enveloped: ``linear`` 1 - μ, ``square`` 1 - μ².",
+          "items": {
+            "enum": [
+              "linear",
+              "square"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Barkanpoisson",
+          "type": "array"
+        },
+        "plateOffset": {
+          "description": "Cohesionless soil: k = kp ((B + this) / (Bp + this))² [m].",
+          "exclusiveMinimum": 0,
+          "title": "Plateoffset",
+          "type": "number"
+        },
+        "decrement": {
+          "description": "D from the logarithmic decrement: ``exact`` δ / √(4π² + δ²), ``approximate`` δ / 2π.",
+          "enum": [
+            "exact",
+            "approximate"
+          ],
+          "title": "Decrement",
+          "type": "string"
+        },
+        "hysteresisDivisor": {
+          "description": "D = ΔW / (this × W).",
+          "exclusiveMinimum": 0,
+          "title": "Hysteresisdivisor",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "method",
+        "impactRatio",
+        "speedClasses",
+        "frequencyRatioBelow",
+        "frequencyRatioAbove",
+        "amplitudes",
+        "hammerAmplitude",
+        "staticPressure",
+        "eccentricity",
+        "waterDepth",
+        "participatingMass",
+        "damping",
+        "barkanCoefficient",
+        "barkanPoisson",
+        "plateOffset",
+        "decrement",
+        "hysteresisDivisor"
+      ],
+      "title": "MachineFoundationRules",
+      "type": "object"
+    },
+    "MachineSpeedClass": {
+      "additionalProperties": false,
+      "description": "A class of machines by operating speed, with the side of resonance its foundation must\nkeep to.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Operating speeds up to this [rpm]; empty: all above.",
+          "title": "Upto"
+        },
+        "inclusive": {
+          "default": false,
+          "description": "``upTo`` itself is in the class.",
+          "title": "Inclusive",
+          "type": "boolean"
+        },
+        "allowed": {
+          "description": "``below``: frequency ratio under ``frequencyRatioBelow`` (a stiff foundation); ``above``: at least ``frequencyRatioAbove`` (a soft one); both: either.",
+          "items": {
+            "enum": [
+              "below",
+              "above"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "allowed"
+      ],
+      "title": "MachineSpeedClass",
+      "type": "object"
+    },
+    "PileCapRules": {
+      "additionalProperties": false,
+      "description": "Pile spacing and the cap's edges and pile embedment.",
+      "properties": {
+        "spacing": {
+          "description": "Least c/c spacing × D.",
+          "exclusiveMinimum": 0,
+          "title": "Spacing",
+          "type": "number"
+        },
+        "spacingMin": {
+          "description": "Least c/c spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmin",
+          "type": "number"
+        },
+        "frictionSpacing": {
+          "description": "Least c/c spacing × D of friction piles.",
+          "exclusiveMinimum": 0,
+          "title": "Frictionspacing",
+          "type": "number"
+        },
+        "edgeDistance": {
+          "description": "Least clear distance pile face to cap edge [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Edgedistance",
+          "type": "number"
+        },
+        "embedment": {
+          "description": "Least embedment of the piles in the cap [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Embedment",
+          "type": "number"
+        },
+        "singlePileDiameter": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A single pile under a column at least this diameter [mm].",
+          "title": "Singlepilediameter"
+        }
+      },
+      "required": [
+        "spacing",
+        "spacingMin",
+        "frictionSpacing",
+        "edgeDistance",
+        "embedment"
+      ],
+      "title": "PileCapRules",
+      "type": "object"
+    },
+    "PileDetailing": {
+      "additionalProperties": false,
+      "description": "Structural detailing of piles by kind, and the foundation concrete.",
+      "properties": {
+        "bored": {
+          "$ref": "#/$defs/BoredDetailing"
+        },
+        "driven": {
+          "$ref": "#/$defs/DrivenDetailing"
+        },
+        "castInPlace": {
+          "$ref": "#/$defs/CastInPlaceDetailing"
+        },
+        "drilledShaftBarsBelow": {
+          "description": "Drilled shafts: bars this far below the plane of lateral restraint [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Drilledshaftbarsbelow",
+          "type": "number"
+        },
+        "corrosiveCover": {
+          "description": "Least cover of piles on a corrosive site [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Corrosivecover",
+          "type": "number"
+        },
+        "concrete": {
+          "items": {
+            "$ref": "#/$defs/FoundationConcrete"
+          },
+          "title": "Concrete",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bored",
+        "driven",
+        "castInPlace",
+        "drilledShaftBarsBelow",
+        "corrosiveCover",
+        "concrete"
+      ],
+      "title": "PileDetailing",
+      "type": "object"
+    },
+    "PileDowndrag": {
+      "additionalProperties": false,
+      "description": "Negative skin friction (downdrag) and swelling uplift on piles.",
+      "properties": {
+        "method": {
+          "const": "neutralPoint",
+          "description": "Engine method (``neutralPoint``: load transfer to the neutral point).",
+          "title": "Method",
+          "type": "string"
+        },
+        "settlingSoils": {
+          "description": "Soil types that settle (fill, organic, ...).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Settlingsoils",
+          "type": "array"
+        },
+        "softClay": {
+          "description": "Soft clays settle too.",
+          "title": "Softclay",
+          "type": "boolean"
+        },
+        "dragloadFactor": {
+          "description": "Load factor on the dragload in the section.",
+          "exclusiveMinimum": 0,
+          "title": "Dragloadfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "settlingSoils",
+        "softClay",
+        "dragloadFactor"
+      ],
+      "title": "PileDowndrag",
+      "type": "object"
+    },
+    "PileEarthPressure": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C8 (method ``earthPressure``): cohesive base Nc cu (constant), skin α cu (α of\n``static``); cohesionless skin K σ'v tan δ, δ = deltaShare φ, K by pile kind; base\n½ D γ' Nγ + σ'v Nq (Nq of ``static.nq``, Nγ = gammaFactor (Nq + 1) tan φ), σ'v constant\nbelow criticalDepth × D.",
+      "properties": {
+        "nc": {
+          "exclusiveMinimum": 0,
+          "title": "Nc",
+          "type": "number"
+        },
+        "k": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "propertyNames": {
+            "enum": [
+              "bored",
+              "driven"
+            ]
+          },
+          "title": "K",
+          "type": "object"
+        },
+        "deltaShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Deltashare",
+          "type": "number"
+        },
+        "gammaFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Gammafactor",
+          "type": "number"
+        },
+        "criticalDepth": {
+          "exclusiveMinimum": 0,
+          "title": "Criticaldepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nc",
+        "k",
+        "deltaShare",
+        "gammaFactor",
+        "criticalDepth"
+      ],
+      "title": "PileEarthPressure",
+      "type": "object"
+    },
+    "PileLateral": {
+      "additionalProperties": false,
+      "description": "Lateral load on piles: the head deflection, the group ratios, unbraced piles.",
+      "properties": {
+        "allowableDeflection": {
+          "description": "Allowable head deflection [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Allowabledeflection",
+          "type": "number"
+        },
+        "individualNormal": {
+          "description": "Individual beyond this × B normal to H.",
+          "exclusiveMinimum": 0,
+          "title": "Individualnormal",
+          "type": "number"
+        },
+        "individualParallel": {
+          "description": "And beyond this × B parallel to it.",
+          "exclusiveMinimum": 0,
+          "title": "Individualparallel",
+          "type": "number"
+        },
+        "groupRatio": {
+          "description": "[in-line c/c × B, ratio of the lateral resistance in the group].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Groupratio",
+          "type": "array"
+        },
+        "unbracedCu": {
+          "description": "Soil below this cu [kPa] gives no lateral support.",
+          "exclusiveMinimum": 0,
+          "title": "Unbracedcu",
+          "type": "number"
+        },
+        "soilFailure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileSoilFailure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pyAnalysis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PilePyAnalysis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "allowableDeflection",
+        "individualNormal",
+        "individualParallel",
+        "groupRatio",
+        "unbracedCu"
+      ],
+      "title": "PileLateral",
+      "type": "object"
+    },
+    "PileLoadTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "$ref": "#/$defs/CompressionTestRules"
+        },
+        "uplift": {
+          "$ref": "#/$defs/UpliftTestRules"
+        },
+        "lateral": {
+          "$ref": "#/$defs/LateralTestRules"
+        }
+      },
+      "required": [
+        "compression",
+        "uplift",
+        "lateral"
+      ],
+      "title": "PileLoadTestRules",
+      "type": "object"
+    },
+    "PilePyAnalysis": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P7, method ``nonlinearSprings``: the pile a beam on nonlinear p-y springs\n(:mod:`saengine.substructure.pile_lateral_soil`): soft clay (cu below ``stiffClayCu``) by\n``softClay``, stiff clay by ``stiffClay``, sand by ``sand``; ε50 by cu bands, the initial\nmodulus k of sand by φ', above and below the water table; EI × ``inertiaFactor``.",
+      "properties": {
+        "method": {
+          "const": "nonlinearSprings",
+          "default": "nonlinearSprings",
+          "title": "Method",
+          "type": "string"
+        },
+        "softClay": {
+          "const": "matlockSoftClay",
+          "default": "matlockSoftClay",
+          "title": "Softclay",
+          "type": "string"
+        },
+        "stiffClay": {
+          "default": "stiffClayNoWater",
+          "enum": [
+            "stiffClayNoWater",
+            "matlockSoftClay"
+          ],
+          "title": "Stiffclay",
+          "type": "string"
+        },
+        "sand": {
+          "const": "apiSand",
+          "default": "apiSand",
+          "title": "Sand",
+          "type": "string"
+        },
+        "stiffClayCu": {
+          "description": "cu at or above this [kPa]: stiff clay.",
+          "exclusiveMinimum": 0,
+          "title": "Stiffclaycu",
+          "type": "number"
+        },
+        "clayJ": {
+          "description": "J of the clay's ultimate resistance.",
+          "exclusiveMinimum": 0,
+          "title": "Clayj",
+          "type": "number"
+        },
+        "strain50": {
+          "description": "(cu up to [kPa], ε50) bands; the last for larger cu.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Strain50",
+          "type": "array"
+        },
+        "sandModulus": {
+          "description": "(φ' [°], k above, k below the water table [MN/m³]), linear between.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Sandmodulus",
+          "type": "array"
+        },
+        "sandCoefficient": {
+          "description": "A = max(a - b z/D, 0.9) of static loading: (a, b).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Sandcoefficient",
+          "type": "array"
+        },
+        "inertiaFactor": {
+          "description": "EI of the analysis × this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Inertiafactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stiffClayCu",
+        "clayJ",
+        "strain50",
+        "sandModulus",
+        "sandCoefficient",
+        "inertiaFactor"
+      ],
+      "title": "PilePyAnalysis",
+      "type": "object"
+    },
+    "PileRules": {
+      "additionalProperties": false,
+      "description": "Deep foundation rules: the static method by id, its values, drilled shafts, the SPT\nrelations and the settlement of piles.",
+      "properties": {
+        "staticMethod": {
+          "description": "Engine method of the static pile capacity (``alphaBeta``: α in clay, β and Nq in sand, with the critical depth; alpha 9 C8 ``earthPressure``: α in clay with a constant Nc, K σ'v tan δ and ½ D γ Nγ + σ'v Nq in sand, IS 2911-1-2 Annex B).",
+          "enum": [
+            "alphaBeta",
+            "earthPressure"
+          ],
+          "title": "Staticmethod",
+          "type": "string"
+        },
+        "earthPressure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileEarthPressure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The values of ``earthPressure`` (C8)."
+        },
+        "soilClasses": {
+          "$ref": "#/$defs/PileSoilClasses"
+        },
+        "static": {
+          "$ref": "#/$defs/PileStatic"
+        },
+        "drilledShaft": {
+          "$ref": "#/$defs/DrilledShaft"
+        },
+        "spt": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/SptRelation"
+            },
+            "propertyNames": {
+              "enum": [
+                "clay",
+                "sand",
+                "silt"
+              ]
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "enum": [
+              "bored",
+              "driven"
+            ]
+          },
+          "title": "Spt",
+          "type": "object"
+        },
+        "settlement": {
+          "$ref": "#/$defs/PileSettlement"
+        },
+        "detailing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileDetailing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structural detailing; empty: not covered by the pack."
+        },
+        "lateral": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileLateral"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lateral load rules; empty: not covered by the pack."
+        },
+        "loadTests": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileLoadTestRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Load test interpretation; empty: not covered by the pack."
+        },
+        "downdrag": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PileDowndrag"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Downdrag and swelling uplift; empty: not covered by the pack."
+        }
+      },
+      "required": [
+        "staticMethod",
+        "soilClasses",
+        "static",
+        "drilledShaft",
+        "spt",
+        "settlement"
+      ],
+      "title": "PileRules",
+      "type": "object"
+    },
+    "PileSettlement": {
+      "additionalProperties": false,
+      "description": "Settlement of single piles and pile groups.",
+      "properties": {
+        "axialShare": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "a in Sax = (Qp + a Qs) L / (A Ep): clay and silt, sand.",
+          "propertyNames": {
+            "enum": [
+              "cohesive",
+              "granular"
+            ]
+          },
+          "title": "Axialshare",
+          "type": "object"
+        },
+        "cp": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "denseSand",
+                "looseSand",
+                "stiffClay",
+                "softClay",
+                "denseSilt",
+                "looseSilt"
+              ]
+            },
+            "type": "object"
+          },
+          "propertyNames": {
+            "enum": [
+              "driven",
+              "bored"
+            ]
+          },
+          "title": "Cp",
+          "type": "object"
+        },
+        "csIntercept": {
+          "exclusiveMinimum": 0,
+          "title": "Csintercept",
+          "type": "number"
+        },
+        "csSlope": {
+          "description": "Cs = (intercept + slope L/D) Cp.",
+          "exclusiveMinimum": 0,
+          "title": "Csslope",
+          "type": "number"
+        },
+        "skinDenominator": {
+          "description": "Ssf = Cs Qs / (X qo) with X the embedded length or the diameter.",
+          "enum": [
+            "length",
+            "diameter"
+          ],
+          "title": "Skindenominator",
+          "type": "string"
+        },
+        "groupWidthExponent": {
+          "description": "Sg = St (B/D)^this.",
+          "exclusiveMinimum": 0,
+          "title": "Groupwidthexponent",
+          "type": "number"
+        },
+        "groupCountExponent": {
+          "description": "Rs = n^this.",
+          "exclusiveMinimum": 0,
+          "title": "Groupcountexponent",
+          "type": "number"
+        },
+        "blockDepth": {
+          "description": "The group as a block at this × L below its head.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Blockdepth",
+          "type": "number"
+        },
+        "referenceStress": {
+          "description": "σr [kPa] of the modulus number method.",
+          "exclusiveMinimum": 0,
+          "title": "Referencestress",
+          "type": "number"
+        },
+        "modulus": {
+          "items": {
+            "$ref": "#/$defs/JanbuRow"
+          },
+          "title": "Modulus",
+          "type": "array"
+        }
+      },
+      "required": [
+        "axialShare",
+        "cp",
+        "csIntercept",
+        "csSlope",
+        "skinDenominator",
+        "groupWidthExponent",
+        "groupCountExponent",
+        "blockDepth",
+        "referenceStress",
+        "modulus"
+      ],
+      "title": "PileSettlement",
+      "type": "object"
+    },
+    "PileSoilClasses": {
+      "additionalProperties": false,
+      "description": "Where a layer's density or consistency class starts: granular soil by its mean N60,\ncohesive soil by its undrained shear strength cu.",
+      "properties": {
+        "mediumN": {
+          "description": "N60 at and above which sand is medium dense.",
+          "exclusiveMinimum": 0,
+          "title": "Mediumn",
+          "type": "number"
+        },
+        "denseN": {
+          "description": "N60 at and above which sand is dense.",
+          "exclusiveMinimum": 0,
+          "title": "Densen",
+          "type": "number"
+        },
+        "mediumCu": {
+          "description": "cu [kPa] at and above which clay is medium stiff.",
+          "exclusiveMinimum": 0,
+          "title": "Mediumcu",
+          "type": "number"
+        },
+        "stiffCu": {
+          "description": "cu [kPa] at and above which clay is stiff.",
+          "exclusiveMinimum": 0,
+          "title": "Stiffcu",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mediumN",
+        "denseN",
+        "mediumCu",
+        "stiffCu"
+      ],
+      "title": "PileSoilClasses",
+      "type": "object"
+    },
+    "PileSoilFailure": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P7, method ``broms``: the ultimate lateral load of a single pile against soil\nfailure by Broms (1964), short or long, free or fixed head, from the soil averaged over\n``averagingDepth`` × D below the head: cohesive 9 cu D below ``cohesiveGap`` × D\n(``passiveCohesive``), granular ``passiveGranular`` Kp γ' D z; allowed Hu /\n``factorOfSafety`` × the group ratio (:mod:`saengine.substructure.pile_lateral_soil`).",
+      "properties": {
+        "method": {
+          "const": "broms",
+          "default": "broms",
+          "title": "Method",
+          "type": "string"
+        },
+        "factorOfSafety": {
+          "description": "Allowable lateral load = Hu / this.",
+          "exclusiveMinimum": 0,
+          "title": "Factorofsafety",
+          "type": "number"
+        },
+        "passiveCohesive": {
+          "description": "Cohesive: the soil reaction × cu D.",
+          "exclusiveMinimum": 0,
+          "title": "Passivecohesive",
+          "type": "number"
+        },
+        "cohesiveGap": {
+          "description": "Cohesive: no reaction over this × D.",
+          "minimum": 0,
+          "title": "Cohesivegap",
+          "type": "number"
+        },
+        "passiveGranular": {
+          "description": "Granular: the reaction × Kp γ' D z.",
+          "exclusiveMinimum": 0,
+          "title": "Passivegranular",
+          "type": "number"
+        },
+        "averagingDepth": {
+          "description": "Soil averaged over this × D below the head.",
+          "exclusiveMinimum": 0,
+          "title": "Averagingdepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factorOfSafety",
+        "passiveCohesive",
+        "cohesiveGap",
+        "passiveGranular",
+        "averagingDepth"
+      ],
+      "title": "PileSoilFailure",
+      "type": "object"
+    },
+    "PileStatic": {
+      "additionalProperties": false,
+      "description": "The static (α / β) method of driven piles, and bored piles by its shares\n(``staticMethod`` \"alphaBeta\"): α by cu, Nc = base (1 + slope L/Db) ≤ max, β of sand by φ,\nNq by density (and by φ from the figure), the critical depth by density.",
+      "properties": {
+        "alphaFull": {
+          "description": "[cu, α]: α at and below this cu [kPa].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Alphafull",
+          "type": "array"
+        },
+        "alphaLow": {
+          "description": "[cu, α]: α at and above this cu [kPa].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Alphalow",
+          "type": "array"
+        },
+        "alphaDivisor": {
+          "description": "Between them α = 1 - (cu - alphaFull cu) / this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Alphadivisor",
+          "type": "number"
+        },
+        "ncBase": {
+          "exclusiveMinimum": 0,
+          "title": "Ncbase",
+          "type": "number"
+        },
+        "ncSlope": {
+          "exclusiveMinimum": 0,
+          "title": "Ncslope",
+          "type": "number"
+        },
+        "ncMax": {
+          "exclusiveMinimum": 0,
+          "title": "Ncmax",
+          "type": "number"
+        },
+        "clayBaseMax": {
+          "description": "fb = cu Nc at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Claybasemax",
+          "type": "number"
+        },
+        "sandBeta": {
+          "description": "[φ°, β] of sand (interpolated; the end values outside).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Sandbeta",
+          "type": "array"
+        },
+        "nq": {
+          "description": "[φ°, Nq], the bearing capacity figure.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Nq",
+          "type": "array"
+        },
+        "nqDensity": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Nq range by density, interpolated in N60 over the class's range.",
+          "propertyNames": {
+            "enum": [
+              "loose",
+              "medium",
+              "dense"
+            ]
+          },
+          "title": "Nqdensity",
+          "type": "object"
+        },
+        "baseStressMax": {
+          "description": "σ'v at the base at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Basestressmax",
+          "type": "number"
+        },
+        "criticalDepth": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Depth (× D) below which σ'v of sand stays constant.",
+          "propertyNames": {
+            "enum": [
+              "loose",
+              "medium",
+              "dense"
+            ]
+          },
+          "title": "Criticaldepth",
+          "type": "object"
+        },
+        "boredSkin": {
+          "description": "Bored piles: this × the driven pile's fs.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Boredskin",
+          "type": "number"
+        },
+        "boredBase": {
+          "description": "Bored piles: this × the driven pile's fb.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Boredbase",
+          "type": "number"
+        }
+      },
+      "required": [
+        "alphaFull",
+        "alphaLow",
+        "alphaDivisor",
+        "ncBase",
+        "ncSlope",
+        "ncMax",
+        "clayBaseMax",
+        "sandBeta",
+        "nq",
+        "nqDensity",
+        "baseStressMax",
+        "criticalDepth",
+        "boredSkin",
+        "boredBase"
+      ],
+      "title": "PileStatic",
+      "type": "object"
+    },
+    "PresumptiveBearing": {
+      "additionalProperties": false,
+      "description": "A row of the presumptive (allowable) bearing values for lightly loaded structures.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "groups": {
+          "description": "USCS groups of the row.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Groups",
+          "type": "array"
+        },
+        "qa": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[kPa]; empty: by investigation.",
+          "title": "Qa"
+        },
+        "waterReduction": {
+          "default": false,
+          "description": "Reduced by ``presumptiveWaterReduction`` near water.",
+          "title": "Waterreduction",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "PresumptiveBearing",
+      "type": "object"
+    },
+    "RaftStiffness": {
+      "additionalProperties": false,
+      "description": "The rigid / flexible classification of a raft by the beam on elastic foundation:\nλ = (ks / (4 Ec I / b))^¼ of a unit strip; rigid when the largest column spacing is below\n``spacingFactor`` / λ and adjacent spacings vary by at most ``spacingVariation``.",
+      "properties": {
+        "method": {
+          "const": "beamOnElasticFoundation",
+          "default": "beamOnElasticFoundation",
+          "title": "Method",
+          "type": "string"
+        },
+        "spacingFactor": {
+          "description": "Rigid when the spacing < this / λ.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingfactor",
+          "type": "number"
+        },
+        "spacingVariation": {
+          "description": "Adjacent spacings within this share.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spacingvariation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spacingFactor",
+        "spacingVariation"
+      ],
+      "title": "RaftStiffness",
+      "type": "object"
+    },
+    "RetainingWallFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "sliding": {
+          "default": 1.5,
+          "description": "Least factor of safety on sliding.",
+          "minimum": 1,
+          "title": "Sliding",
+          "type": "number"
+        },
+        "overturning": {
+          "default": 1.5,
+          "description": "Least factor of safety on overturning.",
+          "minimum": 1,
+          "title": "Overturning",
+          "type": "number"
+        },
+        "seismic": {
+          "default": 1.1,
+          "description": "Least factor on sliding and overturning with earthquake.",
+          "minimum": 1,
+          "title": "Seismic",
+          "type": "number"
+        },
+        "passive": {
+          "default": 2.0,
+          "description": "Factor of safety on the passive resistance in front (counted only where the soil in front cannot be removed).",
+          "minimum": 1,
+          "title": "Passive",
+          "type": "number"
+        },
+        "flotation": {
+          "default": 1.1,
+          "description": "Least factor of safety against flotation: (flotationDead × W) / U.",
+          "minimum": 1,
+          "title": "Flotation",
+          "type": "number"
+        },
+        "flotationDead": {
+          "default": 1.0,
+          "description": "Factor on the dead load holding the structure down (0.9D).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flotationdead",
+          "type": "number"
+        },
+        "baseFriction": {
+          "default": 0.6666666666666666,
+          "description": "Base friction angle as a share of φ' (tan δb, δb = r φ').",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Basefriction",
+          "type": "number"
+        },
+        "frictionCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A fixed friction factor μ between the base and the soil for every soil (no adhesion); empty: tan(baseFriction φ') and the adhesion on clay.",
+          "title": "Frictioncoefficient"
+        },
+        "adhesion": {
+          "default": 0.5,
+          "description": "Base adhesion as a share of cu on a clay without φ'.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Adhesion",
+          "type": "number"
+        },
+        "hFactor": {
+          "default": 1.6,
+          "description": "Load factor on the lateral earth pressure H.",
+          "exclusiveMinimum": 0,
+          "title": "Hfactor",
+          "type": "number"
+        },
+        "yieldingKh": {
+          "default": 0.5,
+          "description": "kh of a wall free to yield as a share of the peak ground acceleration.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Yieldingkh",
+          "type": "number"
+        },
+        "baseCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clear cover [mm] of the base's bars cast against the earth; empty: the wall's own cover.",
+          "title": "Basecover"
+        }
+      },
+      "title": "RetainingWallFactors",
+      "type": "object"
+    },
+    "SettlementLimit": {
+      "additionalProperties": false,
+      "description": "Permissible settlement of one column of the table: the maximum [mm], the differential\nsettlement as a share of L (the column spacing) and the angular distortion δ / L.",
+      "properties": {
+        "total": {
+          "exclusiveMinimum": 0,
+          "title": "Total",
+          "type": "number"
+        },
+        "differential": {
+          "exclusiveMinimum": 0,
+          "title": "Differential",
+          "type": "number"
+        },
+        "angular": {
+          "exclusiveMinimum": 0,
+          "title": "Angular",
+          "type": "number"
+        }
+      },
+      "required": [
+        "total",
+        "differential",
+        "angular"
+      ],
+      "title": "SettlementLimit",
+      "type": "object"
+    },
+    "SettlementLimitRow": {
+      "additionalProperties": false,
+      "description": "A type of structure: its limits by foundation (``isolated``, ``raft``) and soil column\n(``sand`` = sand and hard clay, ``plasticClay``); a missing raft entry: not given.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "isolated": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettlementLimit"
+          },
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "plasticClay"
+            ]
+          },
+          "title": "Isolated",
+          "type": "object"
+        },
+        "raft": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SettlementLimit"
+          },
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "plasticClay"
+            ]
+          },
+          "title": "Raft",
+          "type": "object"
+        },
+        "lengthHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "L/H of a load-bearing wall row (interpolated between).",
+          "title": "Lengthheight"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isolated"
+      ],
+      "title": "SettlementLimitRow",
+      "type": "object"
+    },
+    "ShaftConstruction": {
+      "additionalProperties": false,
+      "description": "A row of the drilled shafts' K/K0 or δ/φ table by construction method.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "value"
+      ],
+      "title": "ShaftConstruction",
+      "type": "object"
+    },
+    "ShallowFoundations": {
+      "additionalProperties": false,
+      "description": "The geotechnical rules of shallow foundations (footings and rafts): load combinations,\nallowable increase, factors of safety, depths, thicknesses, presumptive values, subgrade\nmoduli, permissible settlements and the force transfer at the column base.",
+      "properties": {
+        "bearingCombinations": {
+          "description": "For the bearing pressure (shear strength) of footings and rafts.",
+          "items": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "title": "Bearingcombinations",
+          "type": "array"
+        },
+        "stabilityCombinations": {
+          "description": "For overturning and sliding (the dead load resisting).",
+          "items": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "title": "Stabilitycombinations",
+          "type": "array"
+        },
+        "settlementCombinations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FootingCombination"
+          },
+          "propertyNames": {
+            "enum": [
+              "granular",
+              "cohesive"
+            ]
+          },
+          "title": "Settlementcombinations",
+          "type": "object"
+        },
+        "lateralIncrease": {
+          "description": "qa × this with wind or earthquake (none for gravity alone).",
+          "minimum": 1,
+          "title": "Lateralincrease",
+          "type": "number"
+        },
+        "factorOfSafety": {
+          "description": "Range of the factor of safety on the bearing capacity (warned outside).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Factorofsafety",
+          "type": "array"
+        },
+        "kern": {
+          "description": "Resultant preferably within this × B of the centre.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Kern",
+          "type": "number"
+        },
+        "overturning": {
+          "description": "Least FS against overturning.",
+          "minimum": 1,
+          "title": "Overturning",
+          "type": "number"
+        },
+        "sliding": {
+          "description": "Least FS against sliding.",
+          "minimum": 1,
+          "title": "Sliding",
+          "type": "number"
+        },
+        "friction": {
+          "description": "Friction factor between foundation and soil.",
+          "exclusiveMinimum": 0,
+          "title": "Friction",
+          "type": "number"
+        },
+        "minDepth": {
+          "description": "Least depth below the natural ground [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Mindepth",
+          "type": "number"
+        },
+        "exteriorDepth": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cohesive",
+                  "granular",
+                  "temporary"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Least depth of exterior footings [mm]; null: the code sets none beyond minDepth (not checked).",
+          "title": "Exteriordepth"
+        },
+        "raftDepth": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cohesive",
+                  "granular"
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Least depth of rafts [mm]; null: the code sets none beyond minDepth.",
+          "title": "Raftdepth"
+        },
+        "slopeDistance": {
+          "description": "Distance from a footing's centre to the slope face at its base level, at least this × B.",
+          "exclusiveMinimum": 0,
+          "title": "Slopedistance",
+          "type": "number"
+        },
+        "spreadAngle": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Largest load spread (horizontal per vertical) by footing material.",
+          "title": "Spreadangle",
+          "type": "object"
+        },
+        "stepLap": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Lap at a change of level: at least this × the thickness or × the step.",
+          "propertyNames": {
+            "enum": [
+              "thickness",
+              "stepHeight"
+            ]
+          },
+          "title": "Steplap",
+          "type": "object"
+        },
+        "minThickness": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least depth above the bottom bars (RC on soil, on piles) or thickness [mm].",
+          "propertyNames": {
+            "enum": [
+              "soil",
+              "piles",
+              "plainConcrete",
+              "masonry"
+            ]
+          },
+          "title": "Minthickness",
+          "type": "object"
+        },
+        "presumptive": {
+          "items": {
+            "$ref": "#/$defs/PresumptiveBearing"
+          },
+          "title": "Presumptive",
+          "type": "array"
+        },
+        "presumptiveWaterReduction": {
+          "description": "Share of the presumptive value with the water table within B of the base.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Presumptivewaterreduction",
+          "type": "number"
+        },
+        "subgrade": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/SubgradeRow"
+            },
+            "type": "array"
+          },
+          "propertyNames": {
+            "enum": [
+              "granular",
+              "cohesive"
+            ]
+          },
+          "title": "Subgrade",
+          "type": "object"
+        },
+        "settlementLimits": {
+          "items": {
+            "$ref": "#/$defs/SettlementLimitRow"
+          },
+          "title": "Settlementlimits",
+          "type": "array"
+        },
+        "settlementGuide": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "The general rule for pad footings: total on sand, on clay, differential [mm].",
+          "propertyNames": {
+            "enum": [
+              "sand",
+              "clay",
+              "differential"
+            ]
+          },
+          "title": "Settlementguide",
+          "type": "object"
+        },
+        "columnBase": {
+          "$ref": "#/$defs/ColumnBaseTransfer"
+        },
+        "tieBeams": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TieBeamRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tie beams between foundations; empty: not covered."
+        },
+        "settlementRigidity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The elastic (Steinbrenner, flexible centre) settlement of clay under an isolated footing × this for a rigid footing; empty: not reduced.",
+          "title": "Settlementrigidity"
+        },
+        "raftStiffness": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RaftStiffness"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rafts classed rigid when the column spacing is below spacingFactor / λ (method ``beamOnElasticFoundation``); empty: not classified."
+        },
+        "bearingFactors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BearingFactorRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The shape, depth and inclination factors of the bearing capacity equation by method (``flowValue``); empty: SAEngine's Vesic / De Beer / Hansen set."
+        },
+        "widthDepthCorrection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WidthDepthCorrection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fa = fak + ηb γ (b - 3) + ηd γm (d - 0.5) of a qa given without a soil report (method ``widthDepthCorrection``); empty: qa as given."
+        },
+        "layerwiseSettlement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LayerwiseSettlement"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The settlement of footings by the layer-wise summation with the empirical factor ψs (method ``layerwiseSummation``); empty: SAEngine's methods."
+        },
+        "designResistance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DesignResistanceRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "R = γc1 γc2 / k (Mγ kz b γ + Mq d γ' + Mc c) of the soil report's founding layer in place of the bearing capacity over FS (method ``frictionAngleFactors``); empty: the bearing capacity equation."
+        }
+      },
+      "required": [
+        "bearingCombinations",
+        "stabilityCombinations",
+        "settlementCombinations",
+        "lateralIncrease",
+        "factorOfSafety",
+        "kern",
+        "overturning",
+        "sliding",
+        "friction",
+        "minDepth",
+        "exteriorDepth",
+        "raftDepth",
+        "slopeDistance",
+        "spreadAngle",
+        "stepLap",
+        "minThickness",
+        "presumptive",
+        "presumptiveWaterReduction",
+        "subgrade",
+        "settlementLimits",
+        "settlementGuide",
+        "columnBase"
+      ],
+      "title": "ShallowFoundations",
+      "type": "object"
+    },
+    "SptRelation": {
+      "additionalProperties": false,
+      "description": "SPT relations of one pile kind and soil: fs = skin N̄60 ≤ skinMax, fb = base N60\n(× L/D when ``baseCapN`` is given, then also ≤ baseCapN N60) ≤ baseMax [kPa].",
+      "properties": {
+        "skin": {
+          "exclusiveMinimum": 0,
+          "title": "Skin",
+          "type": "number"
+        },
+        "skinMax": {
+          "exclusiveMinimum": 0,
+          "title": "Skinmax",
+          "type": "number"
+        },
+        "base": {
+          "exclusiveMinimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "baseMax": {
+          "exclusiveMinimum": 0,
+          "title": "Basemax",
+          "type": "number"
+        },
+        "baseCapN": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basecapn"
+        }
+      },
+      "required": [
+        "skin",
+        "skinMax",
+        "base",
+        "baseMax"
+      ],
+      "title": "SptRelation",
+      "type": "object"
+    },
+    "StrutAndTie": {
+      "additionalProperties": false,
+      "properties": {
+        "tieArm": {
+          "description": "Lever arm of the tie as a share of the effective depth.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tiearm",
+          "type": "number"
+        },
+        "betaCCC": {
+          "description": "βn of a C-C-C node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaccc",
+          "type": "number"
+        },
+        "betaCCT": {
+          "description": "βn of a C-C-T node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betacct",
+          "type": "number"
+        },
+        "betaCTT": {
+          "default": 0.6,
+          "description": "βn of a C-T-T node.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betactt",
+          "type": "number"
+        },
+        "betaPrism": {
+          "default": 1.0,
+          "description": "βs of a prism-shaped strut.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaprism",
+          "type": "number"
+        },
+        "betaBottle": {
+          "default": 0.75,
+          "description": "βs of a bottle-shaped strut with distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottle",
+          "type": "number"
+        },
+        "betaBottlePlain": {
+          "default": 0.6,
+          "description": "βs of a bottle-shaped strut without distributed web steel.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betabottleplain",
+          "type": "number"
+        },
+        "minAngle": {
+          "default": 25.0,
+          "description": "Least angle between a strut and a tie [degrees].",
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "webRatio": {
+          "default": 0.003,
+          "description": "Distributed web steel ratio that confines a bottle-shaped strut.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Webratio",
+          "type": "number"
+        },
+        "general": {
+          "default": false,
+          "description": "The pack covers strut-and-tie models of any D-region (the general model editor); false: only the deep members' own models.",
+          "title": "General",
+          "type": "boolean"
+        },
+        "effective": {
+          "default": 0.85,
+          "description": "fce = effective × β × f'c of a strut and of a nodal zone.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Effective",
+          "type": "number"
+        },
+        "betaTension": {
+          "default": 0.4,
+          "description": "βs of a strut in a tension member or a tension flange.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betatension",
+          "type": "number"
+        },
+        "betaOther": {
+          "default": 0.6,
+          "description": "βs of every other strut (times λ).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Betaother",
+          "type": "number"
+        },
+        "lightweightBottle": {
+          "default": true,
+          "description": "βs of a bottle-shaped strut without its web steel is times λ.",
+          "title": "Lightweightbottle",
+          "type": "boolean"
+        },
+        "webRatioFcMax": {
+          "default": 40.0,
+          "description": "f'c [MPa] up to which the web ratio satisfies the strut's crack control; above it the transverse tension of the 2:1 spread is checked.",
+          "exclusiveMinimum": 0,
+          "title": "Webratiofcmax",
+          "type": "number"
+        },
+        "webAngleMin": {
+          "default": 40.0,
+          "description": "Least angle [degrees] of web steel in one direction only to the strut.",
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Webanglemin",
+          "type": "number"
+        },
+        "spreadSlope": {
+          "default": 2.0,
+          "description": "The strut's compression spreads at this longitudinal to 1 transverse.",
+          "exclusiveMinimum": 0,
+          "title": "Spreadslope",
+          "type": "number"
+        },
+        "deltaFpBonded": {
+          "default": 420.0,
+          "description": "Δfp [MPa] of bonded prestressed steel in a tie.",
+          "minimum": 0,
+          "title": "Deltafpbonded",
+          "type": "number"
+        },
+        "deltaFpUnbonded": {
+          "default": 70.0,
+          "description": "Δfp [MPa] of unbonded prestressed steel in a tie.",
+          "minimum": 0,
+          "title": "Deltafpunbonded",
+          "type": "number"
+        },
+        "dRegionDepth": {
+          "default": 1.0,
+          "description": "A D-region extends this × h from a force or geometric discontinuity.",
+          "exclusiveMinimum": 0,
+          "title": "Dregiondepth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tieArm",
+        "betaCCC",
+        "betaCCT"
+      ],
+      "title": "StrutAndTie",
+      "type": "object"
+    },
+    "SubgradeRow": {
+      "additionalProperties": false,
+      "description": "A band of the indicative modulus of subgrade reaction (300 mm plate): granular soil by\nSPT N, cohesive soil by the unconfined compressive strength qu [kPa]; ``k`` the range\n[kN/m³] over the band (dry or moist), ``submerged`` below the water table.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "low": {
+          "minimum": 0,
+          "title": "Low",
+          "type": "number"
+        },
+        "high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Empty: open-ended.",
+          "title": "High"
+        },
+        "k": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "K",
+          "type": "array"
+        },
+        "submerged": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submerged"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "low",
+        "k"
+      ],
+      "title": "SubgradeRow",
+      "type": "object"
+    },
+    "TestLoadFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "description": "A test pile to this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Initial",
+          "type": "number"
+        },
+        "routine": {
+          "description": "A working pile to this × the design load.",
+          "exclusiveMinimum": 0,
+          "title": "Routine",
+          "type": "number"
+        }
+      },
+      "required": [
+        "initial",
+        "routine"
+      ],
+      "title": "TestLoadFactors",
+      "type": "object"
+    },
+    "TieBeamRules": {
+      "additionalProperties": false,
+      "description": "Tie beams between foundations: the strut-tie force and the least size.",
+      "properties": {
+        "forceShare": {
+          "description": "Force: this × the larger footing or column load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Forceshare",
+          "type": "number"
+        },
+        "zones": {
+          "description": "Seismic zones that require them (else reported only).",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Zones",
+          "type": "array"
+        },
+        "spanDivisor": {
+          "description": "Least dimension: the clear span / this ...",
+          "exclusiveMinimum": 0,
+          "title": "Spandivisor",
+          "type": "number"
+        },
+        "sizeMax": {
+          "description": "... need not exceed this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Sizemax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "forceShare",
+        "zones",
+        "spanDivisor",
+        "sizeMax"
+      ],
+      "title": "TieBeamRules",
+      "type": "object"
+    },
+    "UpliftTestRules": {
+      "additionalProperties": false,
+      "properties": {
+        "testLoad": {
+          "$ref": "#/$defs/TestLoadFactors"
+        },
+        "movement": {
+          "description": "The load at this uplift [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Movement",
+          "type": "number"
+        },
+        "movementShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Movementshare",
+          "type": "number"
+        },
+        "breakShare": {
+          "description": "This × the load at the clear break.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Breakshare",
+          "type": "number"
+        },
+        "failureSafety": {
+          "exclusiveMinimum": 0,
+          "title": "Failuresafety",
+          "type": "number"
+        },
+        "transientTestSafety": {
+          "description": "FS on a tested uplift due to W or E.",
+          "exclusiveMinimum": 0,
+          "title": "Transienttestsafety",
+          "type": "number"
+        },
+        "transientAnalysisSafety": {
+          "description": "FS on an analysed uplift by W or E.",
+          "exclusiveMinimum": 0,
+          "title": "Transientanalysissafety",
+          "type": "number"
+        }
+      },
+      "required": [
+        "testLoad",
+        "movement",
+        "movementShare",
+        "breakShare",
+        "failureSafety",
+        "transientTestSafety",
+        "transientAnalysisSafety"
+      ],
+      "title": "UpliftTestRules",
+      "type": "object"
+    },
+    "WidthDepthCorrection": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: fa = fak + ηb γ (b - width[0]) + ηd γm (d - depthFrom) (GB 50007 5.2.4\ntype, :mod:`saengine.soil.characteristic_bearing`), b within ``width`` [m], d the founding\ndepth below the natural ground [m] (no depth term above depthFrom), (ηb, ηd) of the soil\nkind ``soil`` (a project's Code Value), γ = γm = ``unitWeight`` [kN/m³] (no soil report:\nSAEngine practice).",
+      "properties": {
+        "method": {
+          "const": "widthDepthCorrection",
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "soil": {
+          "description": "The soil kind of ``factors`` taken.",
+          "title": "Soil",
+          "type": "string"
+        },
+        "width": {
+          "description": "b within (low, high) [m].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width",
+          "type": "array"
+        },
+        "depthFrom": {
+          "description": "[m]",
+          "minimum": 0,
+          "title": "Depthfrom",
+          "type": "number"
+        },
+        "unitWeight": {
+          "description": "γ and γm [kN/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Unitweight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors",
+        "soil",
+        "width",
+        "depthFrom",
+        "unitWeight"
+      ],
+      "title": "WidthDepthCorrection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "pileSafety": {
+      "additionalProperties": {
+        "maxItems": 4,
+        "minItems": 4,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Pilesafety",
+      "type": "object"
+    },
+    "pileControls": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Pilecontrols",
+      "type": "array"
+    },
+    "partialSkin": {
+      "title": "Partialskin",
+      "type": "number"
+    },
+    "partialBase": {
+      "title": "Partialbase",
+      "type": "number"
+    },
+    "sptSafety": {
+      "title": "Sptsafety",
+      "type": "number"
+    },
+    "noLoadTestSafety": {
+      "title": "Noloadtestsafety",
+      "type": "number"
+    },
+    "loadTestSafety": {
+      "title": "Loadtestsafety",
+      "type": "number"
+    },
+    "strutAndTie": {
+      "$ref": "#/$defs/StrutAndTie"
+    },
+    "retainingWall": {
+      "$ref": "#/$defs/RetainingWallFactors",
+      "description": "Stability factors and load factors of retaining and basement walls."
+    },
+    "shallow": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShallowFoundations"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Shallow foundations; empty: the pack does not cover their geotechnical rules (the engine's general checks only)."
+    },
+    "piles": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PileRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Deep foundation rules; empty: the pack does not cover the static method, the SPT relations and the pile settlement."
+    },
+    "machine": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MachineFoundationRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Machine foundations under dynamic forces; empty: not covered by the pack."
+    },
+    "upliftSkin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Share of the skin friction resisting uplift: Tult = this × Qs + W; empty: the pack gives none (the pile's weight alone).",
+      "title": "Upliftskin"
+    },
+    "pileCap": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PileCapRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Pile spacing, cap edges and embedment; empty: not covered."
+    }
+  },
+  "required": [
+    "pileSafety",
+    "pileControls",
+    "partialSkin",
+    "partialBase",
+    "sptSafety",
+    "noLoadTestSafety",
+    "loadTestSafety",
+    "strutAndTie"
+  ],
+  "title": "FoundationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.foundations/1"
+}

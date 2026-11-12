@@ -1,0 +1,2202 @@
+{
+	"schema": "saengine.boq/1",
+	"source": {
+		"bim": "1a25eafca53bb41580583dce394f0cf7fc6c1426",
+		"objects": "d3804ef057d089493e2ae8e936ee66349bb9e36b",
+		"materials": "885c6bd9931f67a9ad64a7012d7924ac01e28489",
+		"materialIds": [
+			"A572-50",
+			"B420DWR",
+			"C24.1",
+			"C27.6",
+			"PPR",
+			"uPVC"
+		],
+		"substructure": "7ef7b3bcff7c43d6c98116a6f6b2e0200e170cbe",
+		"mep": "e5e43a374bbf6169cf6323154ba578fb2bf32096",
+		"settings": "fe329f8351df78af4c4980a95d5ca6d0310b7ccd"
+	},
+	"items": [
+		{
+			"code": "E.01",
+			"group": "earthwork",
+			"description": "Excavation for foundations",
+			"quantity": 8.6,
+			"unit": "m3",
+			"kind": "excavation",
+			"byStory": {
+				"BASE": 8.6
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 8.6
+				}
+			]
+		},
+		{
+			"code": "E.02",
+			"group": "earthwork",
+			"description": "Excavation for ground tanks",
+			"quantity": 56.12,
+			"unit": "m3",
+			"kind": "excavation",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"detail": "Underground reservoir",
+					"quantity": 38.916
+				},
+				{
+					"element": "SEP1",
+					"detail": "Septic tank",
+					"quantity": 17.204
+				}
+			]
+		},
+		{
+			"code": "E.03",
+			"group": "earthwork",
+			"description": "Backfill around foundations",
+			"quantity": 6.833,
+			"unit": "m3",
+			"kind": "backfill",
+			"byStory": {
+				"BASE": 6.833
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 6.833
+				}
+			]
+		},
+		{
+			"code": "C.01",
+			"group": "concrete",
+			"description": "Lean concrete (blinding) under foundations, 75 mm",
+			"quantity": 0.266,
+			"unit": "m3",
+			"kind": "blinding",
+			"byStory": {
+				"BASE": 0.266
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 0.266
+				}
+			]
+		},
+		{
+			"code": "C.02",
+			"group": "concrete",
+			"description": "Concrete C24.1 in footings",
+			"quantity": 1.5,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "footing",
+			"byStory": {
+				"BASE": 1.5
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"quantity": 1.5
+				}
+			]
+		},
+		{
+			"code": "C.03",
+			"group": "concrete",
+			"description": "Concrete C24.1 in columns",
+			"quantity": 6.945,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "column",
+			"byStory": {
+				"L1": 4.545,
+				"L2": 0.768
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.768
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.75
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.759
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.759
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.75
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "type C400x600",
+					"quantity": 0.759
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "type C400x600",
+					"quantity": 0.768
+				},
+				{
+					"element": "M1",
+					"quantity": 1.632
+				}
+			]
+		},
+		{
+			"code": "C.04",
+			"group": "concrete",
+			"description": "Concrete C24.1 in walls",
+			"quantity": 2.884,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "wall",
+			"byStory": {
+				"L1": 2.884
+			},
+			"breakdown": [
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "type W250",
+					"quantity": 2.884
+				}
+			]
+		},
+		{
+			"code": "C.05",
+			"group": "concrete",
+			"description": "Concrete C24.1 in beams",
+			"quantity": 3.536,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "beam",
+			"byStory": {
+				"L1": 3.536
+			},
+			"breakdown": [
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "type B300x500",
+					"quantity": 0.686
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "type B300x500",
+					"quantity": 0.832
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "type B300x500",
+					"quantity": 0.714
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "type B300x500",
+					"quantity": 0.842
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "type B300x500",
+					"quantity": 0.463
+				}
+			]
+		},
+		{
+			"code": "C.06",
+			"group": "concrete",
+			"description": "Concrete C24.1 in slabs",
+			"quantity": 8.098,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "slab",
+			"byStory": {
+				"L1": 8.098
+			},
+			"breakdown": [
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "type S150",
+					"quantity": 2.848
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "type S150",
+					"quantity": 5.25
+				}
+			]
+		},
+		{
+			"code": "C.07",
+			"group": "concrete",
+			"description": "Concrete C24.1 in stairs",
+			"quantity": 2.32,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "staircase",
+			"byStory": {
+				"BASE": 2.32
+			},
+			"breakdown": [
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"quantity": 2.32
+				}
+			]
+		},
+		{
+			"code": "C.08",
+			"group": "concrete",
+			"description": "Concrete C24.1 in water and septic tanks",
+			"quantity": 3.875,
+			"unit": "m3",
+			"material": "C24.1",
+			"kind": "tank",
+			"byStory": {
+				"L1": 3.875
+			},
+			"breakdown": [
+				{
+					"element": "T1",
+					"story": "L1",
+					"quantity": 3.875
+				}
+			]
+		},
+		{
+			"code": "C.09",
+			"group": "concrete",
+			"description": "Concrete C27.6 in water and septic tanks",
+			"quantity": 15.32,
+			"unit": "m3",
+			"material": "C27.6",
+			"kind": "tank",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "UGR1",
+					"quantity": 9.6
+				},
+				{
+					"element": "SEP1",
+					"quantity": 5.72
+				}
+			]
+		},
+		{
+			"code": "R.01",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 10 mm bars",
+			"quantity": 1602.185,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 10.0,
+			"byStory": {
+				"L1": 1524.815,
+				"L2": 25.123
+			},
+			"breakdown": [
+				{
+					"element": "M1",
+					"detail": "ties",
+					"quantity": 52.247
+				},
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "bar mark C1-H1 (bar bending schedule)",
+					"quantity": 25.123
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-V1 (bar bending schedule)",
+					"quantity": 101.852
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-H1 (bar bending schedule)",
+					"quantity": 103.21
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-U1 (bar bending schedule)",
+					"quantity": 15.772
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-J2 (bar bending schedule)",
+					"quantity": 21.389
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-Y1 (bar bending schedule)",
+					"quantity": 31.25
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-U2 (bar bending schedule)",
+					"quantity": 17.037
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-J1 (bar bending schedule)",
+					"quantity": 21.466
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-Q1 (bar bending schedule)",
+					"quantity": 48.673
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 35.847
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 43.813
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 37.291
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 44.16
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-S1 (bar bending schedule)",
+					"quantity": 27.747
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-BX2 (bar bending schedule)",
+					"quantity": 118.519
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-TX1 (bar bending schedule)",
+					"quantity": 69.815
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-BY1 (bar bending schedule)",
+					"quantity": 130.247
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "bar mark S1-TY1 (bar bending schedule)",
+					"quantity": 68.519
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-BX1 (bar bending schedule)",
+					"quantity": 140.741
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-TX2 (bar bending schedule)",
+					"quantity": 35.556
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-BY1 (bar bending schedule)",
+					"quantity": 146.528
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "bar mark S1-TY1 (bar bending schedule)",
+					"quantity": 77.654
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-N1 (bar bending schedule)",
+					"quantity": 27.562
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-LN1 (bar bending schedule)",
+					"quantity": 9.429
+				}
+			]
+		},
+		{
+			"code": "R.02",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 12 mm bars",
+			"quantity": 182.289,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 12.0,
+			"byStory": {
+				"L1": 141.867
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"detail": "bar mark F1-BX1 (bar bending schedule)",
+					"quantity": 18.089
+				},
+				{
+					"element": "F1",
+					"detail": "bar mark F1-BY1 (bar bending schedule)",
+					"quantity": 22.333
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-M1 (bar bending schedule)",
+					"quantity": 82.667
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-T1 (bar bending schedule)",
+					"quantity": 39.822
+				},
+				{
+					"element": "ST1",
+					"story": "L1",
+					"detail": "bar mark ST1-L1 (bar bending schedule)",
+					"quantity": 19.378
+				}
+			]
+		},
+		{
+			"code": "R.03",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 16 mm bars",
+			"quantity": 443.141,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 16.0,
+			"byStory": {
+				"L1": 443.141
+			},
+			"breakdown": [
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-G1 (bar bending schedule)",
+					"quantity": 37.294
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "bar mark W1-G2 (bar bending schedule)",
+					"quantity": 37.294
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T2 (bar bending schedule)",
+					"quantity": 15.863
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T2 (bar bending schedule)",
+					"quantity": 18.507
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T7 (bar bending schedule)",
+					"quantity": 5.652
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T7 (bar bending schedule)",
+					"quantity": 6.595
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T11 (bar bending schedule)",
+					"quantity": 1.605
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T11 (bar bending schedule)",
+					"quantity": 1.872
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T4 (bar bending schedule)",
+					"quantity": 3.282
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T4 (bar bending schedule)",
+					"quantity": 3.829
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-T9 (bar bending schedule)",
+					"quantity": 1.842
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-T9 (bar bending schedule)",
+					"quantity": 2.149
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 17.468
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B3 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 17.468
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B9 (bar bending schedule)",
+					"quantity": 3.61
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B9 (bar bending schedule)",
+					"quantity": 4.212
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "bar mark B1-B8 (bar bending schedule)",
+					"quantity": 3.647
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "bar mark B1-B8 (bar bending schedule)",
+					"quantity": 4.255
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T1 (bar bending schedule)",
+					"quantity": 16.046
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T1 (bar bending schedule)",
+					"quantity": 18.72
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T6 (bar bending schedule)",
+					"quantity": 5.689
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T6 (bar bending schedule)",
+					"quantity": 6.637
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T10 (bar bending schedule)",
+					"quantity": 1.659
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T10 (bar bending schedule)",
+					"quantity": 1.936
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T5 (bar bending schedule)",
+					"quantity": 3.209
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T5 (bar bending schedule)",
+					"quantity": 3.744
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-T8 (bar bending schedule)",
+					"quantity": 1.878
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-T8 (bar bending schedule)",
+					"quantity": 2.191
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 17.468
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B2 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 17.468
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B1 (bar bending schedule)",
+					"quantity": 20.379
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B7 (bar bending schedule)",
+					"quantity": 3.829
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B7 (bar bending schedule)",
+					"quantity": 4.467
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "bar mark B1-B6 (bar bending schedule)",
+					"quantity": 3.866
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "bar mark B1-B6 (bar bending schedule)",
+					"quantity": 4.51
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-T3 (bar bending schedule)",
+					"quantity": 18.489
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-T13 (bar bending schedule)",
+					"quantity": 3.042
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-T12 (bar bending schedule)",
+					"quantity": 3.358
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-B5 (bar bending schedule)",
+					"quantity": 18.489
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "bar mark B1-B4 (bar bending schedule)",
+					"quantity": 18.489
+				}
+			]
+		},
+		{
+			"code": "R.04",
+			"group": "reinforcement",
+			"description": "Reinforcement B420DWR, 20 mm bars",
+			"quantity": 834.568,
+			"unit": "kg",
+			"material": "B420DWR",
+			"diameter": 20.0,
+			"byStory": {
+				"L1": 582.099,
+				"L2": 84.568
+			},
+			"breakdown": [
+				{
+					"element": "M1",
+					"detail": "longitudinal",
+					"quantity": 167.901
+				},
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-V2 (bar bending schedule)",
+					"quantity": 67.901
+				},
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "bar mark C1-D1 (bar bending schedule)",
+					"quantity": 91.358
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "bar mark C1-V1 (bar bending schedule)",
+					"quantity": 84.568
+				}
+			]
+		},
+		{
+			"code": "F.01",
+			"group": "formwork",
+			"description": "Formwork to footings",
+			"quantity": 3.5,
+			"unit": "m2",
+			"kind": "footing",
+			"byStory": {
+				"BASE": 3.5
+			},
+			"breakdown": [
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "sides",
+					"quantity": 3.5
+				}
+			]
+		},
+		{
+			"code": "F.02",
+			"group": "formwork",
+			"description": "Formwork to columns",
+			"quantity": 57.875,
+			"unit": "m2",
+			"kind": "column",
+			"byStory": {
+				"L1": 37.875,
+				"L2": 6.4
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.4
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.25
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.25
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "sides",
+					"quantity": 6.325
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "sides",
+					"quantity": 6.4
+				},
+				{
+					"element": "M1",
+					"detail": "sides",
+					"quantity": 13.6
+				}
+			]
+		},
+		{
+			"code": "F.03",
+			"group": "formwork",
+			"description": "Formwork to walls",
+			"quantity": 23.07,
+			"unit": "m2",
+			"kind": "wall",
+			"byStory": {
+				"L1": 23.07
+			},
+			"breakdown": [
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "both faces",
+					"quantity": 23.07
+				}
+			]
+		},
+		{
+			"code": "F.04",
+			"group": "formwork",
+			"description": "Formwork to beams",
+			"quantity": 32.089,
+			"unit": "m2",
+			"kind": "beam",
+			"byStory": {
+				"L1": 32.089
+			},
+			"breakdown": [
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 6.172
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 7.493
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 6.44
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 7.59
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "sides and soffit",
+					"quantity": 4.393
+				}
+			]
+		},
+		{
+			"code": "F.05",
+			"group": "formwork",
+			"description": "Formwork to slabs",
+			"quantity": 50.867,
+			"unit": "m2",
+			"kind": "slab",
+			"byStory": {
+				"L1": 50.867
+			},
+			"breakdown": [
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "soffit",
+					"quantity": 16.518
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "edges",
+					"quantity": 2.779
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "soffit",
+					"quantity": 31.57
+				}
+			]
+		},
+		{
+			"code": "F.06",
+			"group": "formwork",
+			"description": "Formwork to stairs",
+			"quantity": 15.577,
+			"unit": "m2",
+			"kind": "staircase",
+			"byStory": {
+				"BASE": 15.577
+			},
+			"breakdown": [
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "soffit",
+					"quantity": 8.737
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "risers",
+					"quantity": 3.84
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "landing soffit",
+					"quantity": 3.0
+				}
+			]
+		},
+		{
+			"code": "F.07",
+			"group": "formwork",
+			"description": "Formwork to water and septic tanks",
+			"quantity": 146.69,
+			"unit": "m2",
+			"kind": "tank",
+			"byStory": {
+				"L1": 39.29
+			},
+			"breakdown": [
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "inside and outside faces",
+					"quantity": 39.29
+				},
+				{
+					"element": "UGR1",
+					"detail": "inside and outside faces",
+					"quantity": 64.6
+				},
+				{
+					"element": "SEP1",
+					"detail": "inside and outside faces",
+					"quantity": 42.8
+				}
+			]
+		},
+		{
+			"code": "S.01",
+			"group": "steel",
+			"description": "Structural steel A572-50, SHS 150x150x8 (33.9 kg/m) in braces",
+			"quantity": 230.828,
+			"unit": "kg",
+			"material": "A572-50",
+			"kind": "brace",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "M2",
+					"detail": "6.80 m × 33.95 kg/m",
+					"quantity": 230.828
+				}
+			]
+		},
+		{
+			"code": "P.01",
+			"group": "mep",
+			"description": "Sleeves Ø100 mm through beams",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "sleeve",
+			"byStory": {
+				"L1": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "OP1",
+					"story": "L1",
+					"detail": "DN100 drain",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.02",
+			"group": "mep",
+			"description": "Pipes, cold water, Ø50 mm PPR",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "pipe",
+			"diameter": 50.0,
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "R1",
+					"story": "BASE",
+					"detail": "cold water riser",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.03",
+			"group": "mep",
+			"description": "Pipes, soil, Ø100 mm uPVC",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "pipe",
+			"diameter": 100.0,
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "SS1",
+					"story": "BASE",
+					"detail": "soil stack",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.04",
+			"group": "mep",
+			"description": "Sanitary fixtures: water closets",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.05",
+			"group": "mep",
+			"description": "Sanitary fixtures: wash basins",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.06",
+			"group": "mep",
+			"description": "Sanitary fixtures: kitchen sinks",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.07",
+			"group": "mep",
+			"description": "Sanitary fixtures: floor drains",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "fixture",
+			"byStory": {
+				"BASE": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "BASE",
+					"story": "BASE",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.08",
+			"group": "mep",
+			"description": "Ducts, supply air, 650 x 250 mm",
+			"quantity": 7.5,
+			"unit": "m",
+			"kind": "duct",
+			"byStory": {
+				"BASE": 7.5
+			},
+			"breakdown": [
+				{
+					"element": "SD1",
+					"story": "BASE",
+					"quantity": 7.5
+				}
+			]
+		},
+		{
+			"code": "P.09",
+			"group": "mep",
+			"description": "HVAC plant: VRF outdoor unit",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "plant",
+			"byStory": {
+				"L1": 2.0
+			},
+			"breakdown": [
+				{
+					"element": "ODU1",
+					"story": "L1",
+					"quantity": 1.0
+				},
+				{
+					"element": "ODU2",
+					"story": "L1",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.10",
+			"group": "mep",
+			"description": "Cable trays 300 x 100 mm",
+			"quantity": 5.0,
+			"unit": "m",
+			"kind": "tray",
+			"byStory": {
+				"BASE": 5.0
+			},
+			"breakdown": [
+				{
+					"element": "CT1",
+					"story": "BASE",
+					"quantity": 5.0
+				}
+			]
+		},
+		{
+			"code": "P.11",
+			"group": "mep",
+			"description": "Rising mains: busbar trunking 200 x 150 mm",
+			"quantity": 3.2,
+			"unit": "m",
+			"kind": "riser",
+			"byStory": {
+				"BASE": 3.2
+			},
+			"breakdown": [
+				{
+					"element": "ER1",
+					"story": "BASE",
+					"quantity": 3.2
+				}
+			]
+		},
+		{
+			"code": "P.12",
+			"group": "mep",
+			"description": "Electrical equipment: generator",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "equipment",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "G1",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.13",
+			"group": "mep",
+			"description": "Electrical equipment: transformer",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "equipment",
+			"byStory": {
+				"BASE": 1.0
+			},
+			"breakdown": [
+				{
+					"element": "TX1",
+					"story": "BASE",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.14",
+			"group": "mep",
+			"description": "Lightning: bonding terminals welded to the column bars (roof and base)",
+			"quantity": 4.0,
+			"unit": "nr",
+			"kind": "bonding",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "C4",
+					"detail": "type C400x600",
+					"quantity": 2.0
+				},
+				{
+					"element": "C3",
+					"detail": "type C400x600",
+					"quantity": 2.0
+				}
+			]
+		},
+		{
+			"code": "P.15",
+			"group": "mep",
+			"description": "Lightning: earth inspection box recesses",
+			"quantity": 2.0,
+			"unit": "nr",
+			"kind": "bonding",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "C4",
+					"detail": "type C400x600",
+					"quantity": 1.0
+				},
+				{
+					"element": "C3",
+					"detail": "type C400x600",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "P.16",
+			"group": "mep",
+			"description": "Portable fire extinguishers",
+			"quantity": 1.0,
+			"unit": "nr",
+			"kind": "fire",
+			"byStory": {},
+			"breakdown": [
+				{
+					"element": "fire",
+					"quantity": 1.0
+				}
+			]
+		},
+		{
+			"code": "MT.01",
+			"group": "materials",
+			"description": "Cement (OPC)",
+			"quantity": 17992.31,
+			"unit": "kg",
+			"kind": "cement",
+			"byStory": {
+				"L1": 9248.376,
+				"L2": 309.658,
+				"BASE": 1599.23
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 309.658
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 302.4
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 302.4
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 306.029
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 309.658
+				},
+				{
+					"element": "M1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 658.022
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 276.595
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 335.334
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 287.885
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 339.293
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 186.625
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 1162.728
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 1148.273
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 2116.8
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 935.428
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 59.002
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 604.8
+				},
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 1562.299
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 3870.72
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 2306.304
+				}
+			]
+		},
+		{
+			"code": "MT.02",
+			"group": "materials",
+			"description": "Cement (OPC) in 50 kg bags",
+			"quantity": 359.846,
+			"unit": "bag",
+			"kind": "bags",
+			"byStory": {
+				"L1": 184.968,
+				"L2": 6.193,
+				"BASE": 31.985
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.193
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.048
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.048
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.121
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 6.193
+				},
+				{
+					"element": "M1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 13.16
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 5.532
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.707
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 5.758
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.786
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 3.732
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 23.255
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 22.965
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 42.336
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 18.709
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 1.18
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 12.096
+				},
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 31.246
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 77.414
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 46.126
+				}
+			]
+		},
+		{
+			"code": "MT.03",
+			"group": "materials",
+			"description": "Sand (fine aggregate)",
+			"quantity": 664.038,
+			"unit": "cft",
+			"kind": "sand",
+			"byStory": {
+				"L1": 340.212,
+				"L2": 11.391,
+				"BASE": 61.0
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.391
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.124
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.124
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.258
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 11.391
+				},
+				{
+					"element": "M1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 24.206
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 10.175
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 12.336
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 10.59
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 12.481
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 6.865
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 42.772
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 42.241
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 77.869
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 34.411
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 4.341
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 22.248
+				},
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 57.471
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 142.389
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 84.84
+				}
+			]
+		},
+		{
+			"code": "MT.04",
+			"group": "materials",
+			"description": "Stone chips (coarse aggregate)",
+			"quantity": 1328.076,
+			"unit": "cft",
+			"kind": "stone",
+			"byStory": {
+				"L1": 680.424,
+				"L2": 22.782,
+				"BASE": 122.0
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.782
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.248
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.248
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.515
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 22.782
+				},
+				{
+					"element": "M1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 48.412
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 20.35
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 24.671
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 21.18
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 24.963
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 13.73
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 85.545
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 84.481
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 155.738
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 68.822
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 8.682
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 44.497
+				},
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 114.942
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 284.778
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 169.68
+				}
+			]
+		},
+		{
+			"code": "MT.05",
+			"group": "materials",
+			"description": "Water",
+			"quantity": 9036.664,
+			"unit": "l",
+			"kind": "water",
+			"byStory": {
+				"L1": 4161.769,
+				"L2": 139.346,
+				"BASE": 733.224
+			},
+			"breakdown": [
+				{
+					"element": "C1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 139.346
+				},
+				{
+					"element": "C2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 136.08
+				},
+				{
+					"element": "C3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
+				},
+				{
+					"element": "C4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
+				},
+				{
+					"element": "C5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 136.08
+				},
+				{
+					"element": "C6",
+					"story": "L1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 137.713
+				},
+				{
+					"element": "C7",
+					"story": "L2",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 139.346
+				},
+				{
+					"element": "M1",
+					"detail": "Concrete C24.1 in columns",
+					"quantity": 296.11
+				},
+				{
+					"element": "B1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 124.468
+				},
+				{
+					"element": "B2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 150.9
+				},
+				{
+					"element": "B3",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 129.548
+				},
+				{
+					"element": "B4",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 152.682
+				},
+				{
+					"element": "B5",
+					"story": "L1",
+					"detail": "Concrete C24.1 in beams",
+					"quantity": 83.981
+				},
+				{
+					"element": "W1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in walls",
+					"quantity": 523.228
+				},
+				{
+					"element": "S1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 516.723
+				},
+				{
+					"element": "S2",
+					"story": "L1",
+					"detail": "Concrete C24.1 in slabs",
+					"quantity": 952.56
+				},
+				{
+					"element": "ST1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in stairs",
+					"quantity": 420.943
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Lean concrete (blinding) under foundations, 75 mm",
+					"quantity": 40.121
+				},
+				{
+					"element": "F1",
+					"story": "BASE",
+					"detail": "Concrete C24.1 in footings",
+					"quantity": 272.16
+				},
+				{
+					"element": "T1",
+					"story": "L1",
+					"detail": "Concrete C24.1 in water and septic tanks",
+					"quantity": 703.035
+				},
+				{
+					"element": "UGR1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 2322.432
+				},
+				{
+					"element": "SEP1",
+					"detail": "Concrete C27.6 in water and septic tanks",
+					"quantity": 1383.782
+				}
+			]
+		}
+	],
+	"notes": [
+		"Concrete: slabs are measured over their whole outline and full thickness, less openings. Beams are measured between the faces of the columns they meet and below the slab: the part of a beam, column or wall within a slab's depth is measured with the slab. Columns run their full height and walls their whole length (less wall openings), each less that slab depth. Nothing else is deducted where members meet (beam/beam and wall/column joints); special-structure members are measured node to node and their areas over their whole outline, with no deduction where they meet.",
+		"Reinforcement is measured from the detailed bars of the drawings for every element they detail: the bar bending schedule's number × cutting length per bar mark, with the code's laps, hooks and bends, cut-off bars and the stirrups of each zone at its spacing, so the bill and the schedule agree per bar size. Elements the drawings do not detail (see below) are measured by estimating rules: longitudinal bars over the member's full length (beams centreline to centreline) with a lap of 40 bar diameters at every joint between 12 m stock lengths, stirrups and ties at their centre line plus two 135° hooks of 10 diameters, length / spacing + 1 of them, meshes as area / spacing of bar per layer and direction, without bends or anchorages. Chairs and wastage are not included; bar mass is d²/162 kg/m.",
+		"Formwork is measured to the cast faces: beam sides and soffit, column perimeter by height, slab soffit and edges, wall faces, footing sides. Faces cast against another member are not formed (slab soffit over beams, columns and walls; their faces within the slab's depth; slab edges over them); nothing else is deducted where members meet.",
+		"Foundations are measured from 9 Substructure (the footings of the building model are not): footings, pile caps and rafts over their plan by their thickness, formwork to their sides (and a raft's edges), bars as meshes over the plan. Piles: concrete of the full length below the cap (bored piles round, driven precast piles square or round as the pile type gives), bars as for columns, moulds of driven precast piles on three faces (cast flat). Tie beams: concrete and stirrups between the faces of the foundations they tie, longitudinal bars centre to centre of the foundations, formwork to their two sides. Retaining walls: the base over its plan by its thickness and the stem by its mean thickness and height, formwork to the stem's faces and the base's edges, bars as meshes (vertical bars through the base, no laps at the base or anchorage hooks).",
+		"Earthwork: each foundation and tie beam is dug with vertical sides 300 mm beyond its edges (working space), from the finished ground of Project Settings → Foundation down to the underside of the blinding; where pits overlap the overlap is measured once (each element's share scaled to suit). Blinding (lean concrete) 75 mm thick, 75 mm beyond the edges of foundations and tie beams. Backfill is the excavation less the foundations, tie beams and blinding below the ground; column stubs and pedestals below the ground are not deducted. No battered sides, dewatering, shoring, disposal of surplus spoil or bored pile spoil are measured.",
+		"Equipment plinths of 7 MEP: concrete of their footprint by their height, formwork to their four sides (no reinforcement measured). Sleeves and openings through beams, slabs and walls are counted by host kind and size (number), for the services' coordination; their concrete is not deducted (it is small), and the slab openings cut by shafts are not counted.",
+		"Plumbing of 7 MEP: reinforced concrete tanks (overhead, underground, septic, rainwater) by their walls, partitions, base (with its toe) and roof at the thicknesses entered, else those the tank design proposes; formwork to their inside and outside faces, the base's edges and the roof's soffit; their bars by diameter from the tank's last design (the bars per m² of each panel + 10 % for laps), measured once the plumbing report has designed them. Ground tanks are dug with 300 mm working space each side. Soak wells and masonry or prefabricated tanks are not measured. Risers and stacks are measured vertically from the story they start at to their top story, at their entered or sized base diameter (branches and fittings are not measured); fixtures are counted by kind.",
+		"HVAC and electrical of 7 MEP, for the structure's coordination: ducts by system and size, measured along their plan path (risers vertically from the story they start at to their top story; ducts with no size entered are not measured); cable trays by width and side height along their path; rising mains (busbars, cable risers) vertically by size; plant and electrical equipment counted by kind (their weights are in the analysis, their bases are not measured). Lightning protection with the columns' reinforcement as down conductors: per down-conductor column a bonding terminal at the roof and an earth terminal at the base (welded to the continuous bars) and an earth inspection box recess, counted (number).",
+		"Fire protection of 7 MEP: fire tanks measured as the plumbing tanks (concrete, formwork, ground tanks' excavation, bars from their last design); fire pipes by nominal size: risers vertically from the story they start at to their top outlet, mains along their path, each sprinklered floor's branch lines and cross main estimated from its heads (a head's spacing of branch pipe each, the cross main the side of the floor's square); sprinkler heads, landing valves with hose cabinets (one a floor a standpipe), floor control valve sets, riser gate and check valves, Siamese connections, pump sets, portable extinguishers, call points and detectors counted (number). Fittings, hangers and supports are not measured (their loads are in the report).",
+		"Materials: cement in kg (and in 50 kg bags), sand and stone chips in cft (1 m³ = 35.3147 cft) and water in litres, taken off the concrete and the masonry's mortar by the mixes in 03 Materials. A nominal mix (cement : sand : stone by volume) is shared out of its dry volume, 1.54 × the wet volume for concrete and 1.3 × for mortar; brickwork takes 0.23 m³ of wet mortar per m³. Cement weighs 1440 kg/m³ loose. A design mix gives kg per m³; its sand and stone are turned into volumes at 1600 and 1450 kg/m³ loose. Water from the water/cement ratio. These are estimating practice values, not code values; no wastage is added. The bags are shown rounded up (a part bag is bought whole); the bill keeps the exact number.",
+		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"Materials: concrete C27.6 has no mix: 1:1.5:3 assumed (f'c 27.6 MPa); the blinding (lean concrete) 1:3:6 assumed, a nominal mix of IS 456:2000 Table 9 by strength with that table's water (enter the mix in 03 Materials to replace it).",
+		"Reinforcement of the elements the drawings detail: measured from their detailed bars, the bars of the bar bending schedule (11 Exports, Drawings): number × cutting length per bar mark, with the code's laps at their places, the hooks and bends, cut-off bars and the stirrups and ties of each zone at its spacing (BS 8666 cutting lengths rounded up to 25 mm), so that this bill and the schedule agree per bar size.",
+		"Measured from the detailed bars: 1 footing, 7 columns, 1 wall, 3 beam lines, 2 slabs, 1 stair (F1, C1, C2, C3, C4, C5, C6, C7, W1, B1+B2, B3+B4, B5, S1, S2, ST1).",
+		"Measured by the estimating rules above (not detailed in the drawings): M1."
+	],
+	"problems": [
+		"T1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"UGR1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)",
+		"SEP1: its bars are not measured: it has no current design (open the Plumbing results of 7 MEP, or Run All, to design the tanks)"
+	],
+	"notMeasured": 3
+}

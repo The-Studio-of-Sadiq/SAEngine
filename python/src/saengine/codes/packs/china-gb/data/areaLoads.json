@@ -1,0 +1,103 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$sources": [
+    "GB 55001-2021 Table 4.2.2; GB 50009-2012 Tables 5.1.1, 5.3.1"
+  ],
+  "source": "GB 55001-2021 4.2.2 (the general code, with the raised values of 2021) and GB 50009-2012 Table 5.1.1: uniformly distributed floor live loads [kN/m²] by use; roofs GB 50009 Table 5.3.1 (not accessible 0.5, roof gardens 3.0). GB gives no general concentrated floor load; the other tables (partitions, vehicles, barriers, impact) are the parent's, named BNBC 2020.",
+  "uses": {
+    "$replace": true,
+    "residential": {
+      "name": "1(1) dwellings, dormitories, hotels (住宅 宿舍 旅馆)",
+      "live": 2.0
+    },
+    "balcony": {
+      "name": "Balconies (阳台)",
+      "live": 2.5
+    },
+    "residentialPublic": {
+      "name": "Hotel rooms, hospital wards (旅馆 病房)",
+      "live": 2.0
+    },
+    "office": {
+      "name": "Offices, classrooms, outpatient rooms (办公楼 教室 门诊室)",
+      "live": 2.5
+    },
+    "officeCorridor": {
+      "name": "Corridors and lobbies of offices and restaurants (走廊 门厅)",
+      "live": 3.0
+    },
+    "classroom": {
+      "name": "Classrooms (教室)",
+      "live": 2.5
+    },
+    "hospitalWard": {
+      "name": "Hospital wards (医院病房)",
+      "live": 2.0
+    },
+    "operatingRoom": {
+      "name": "Laboratories (试验室)",
+      "live": 3.0
+    },
+    "assemblyFixed": {
+      "name": "Halls and theatres with fixed seats (礼堂 剧场)",
+      "live": 3.5
+    },
+    "assemblyMovable": {
+      "name": "Stands without fixed seats (无固定座位的看台)",
+      "live": 4.0
+    },
+    "retailGround": {
+      "name": "Shops, exhibition halls, station halls (商店 展览厅)",
+      "live": 4.0
+    },
+    "retailUpper": {
+      "name": "Shops, upper floors (商店)",
+      "live": 4.0
+    },
+    "storageLight": {
+      "name": "Book stores, archives, storage rooms (书库 档案库 储藏室)",
+      "live": 6.0
+    },
+    "parking": {
+      "name": "Car passages and garages, one-way slabs (汽车通道及停车库)",
+      "live": 4.0
+    },
+    "stairs": {
+      "name": "Stairs, other than dwellings (楼梯)",
+      "live": 3.5
+    },
+    "stairsDwelling": {
+      "name": "Stairs of multi-storey dwellings (多层住宅楼梯)",
+      "live": 2.0
+    },
+    "roof": {
+      "name": "Roofs, not accessible (不上人屋面)",
+      "live": 0.5,
+      "roof": true
+    },
+    "roofGarden": {
+      "name": "Roof gardens (屋顶花园)",
+      "live": 3.0
+    },
+    "dining": {
+      "name": "Canteens, restaurants (食堂 餐厅)",
+      "live": 3.0
+    },
+    "libraryReading": {
+      "name": "Reading rooms, meeting rooms (阅览室 会议室)",
+      "live": 3.0
+    },
+    "libraryStacks": {
+      "name": "Book stores with compact shelving (密集柜书库)",
+      "live": 12.0
+    },
+    "gymnasium": {
+      "name": "Gymnasiums, stages (健身房 演出舞台)",
+      "live": 4.5
+    },
+    "manufacturingLight": {
+      "name": "Fan and lift machine rooms (通风机房 电梯机房)",
+      "live": 8.0
+    }
+  }
+}

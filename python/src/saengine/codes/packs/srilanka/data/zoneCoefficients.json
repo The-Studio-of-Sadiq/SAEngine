@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Sri Lanka: no national seismic code is in force for buildings; seismic design is not covered (VERIFY.md S5)"
+  ],
+  "source": "Sri Lanka: seismic design is not covered by this pack (the published seismic guidance is not reliably known to SAEngine): agR 0, no earthquake cases. A project that needs a seismic check enters agR as Z (Location: Custom) and the parent's EN 1998-1 recommended spectrum applies (named EN 1998-1 in the report).",
+  "zones": {
+    "0": 0.0
+  }
+}

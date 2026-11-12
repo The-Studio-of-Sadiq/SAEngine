@@ -1,0 +1,6 @@
+{
+  "$notes": {
+    "waveCombination": "SAEngine practice (conservative): the moving-water and the breaking-wave loads are added"
+  },
+  "waveCombination": "sum"
+}

@@ -1,0 +1,143 @@
+{
+  "$schema": "../../../schemas/anchors.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Appendix K (Anchoring to Concrete), Sec K.1-K.9, Eqs 6.K.1-6.K.32 (part 2 pp. 526-564, gazette pp. 4307-4345)",
+    "BNBC 2020 Part 6 Sec 10.10.9 (Anchor Rods and Embedments) (part 2 p. 138, gazette p. 3919)"
+  ],
+  "source": "BNBC 2020 Part 6 Appendix K (Anchoring to Concrete)",
+  "phi": {
+    "steelTensionDuctile": 0.75,
+    "steelShearDuctile": 0.65,
+    "steelTensionBrittle": 0.65,
+    "steelShearBrittle": 0.6,
+    "concreteShear": { "A": 0.75, "B": 0.7 },
+    "concreteTension": {
+      "castIn": { "A": 0.75, "B": 0.7 },
+      "category1": { "A": 0.75, "B": 0.65 },
+      "category2": { "A": 0.65, "B": 0.55 },
+      "category3": { "A": 0.55, "B": 0.45 }
+    },
+    "anchorReinforcement": 0.75
+  },
+  "steel": {
+    "futaOfFya": 1.9,
+    "futaMax": 860,
+    "shearStud": 1.0,
+    "shearBolt": 0.6,
+    "groutPad": 0.8,
+    "threadConstant": 0.9743
+  },
+  "concreteStrengthMax": { "castIn": 70, "postInstalled": 55 },
+  "breakoutTension": {
+    "kc": { "castIn": 10, "postInstalled": 7 },
+    "kcMaxPostInstalled": 10,
+    "exponent": 1.5,
+    "deepCoefficient": 3.9,
+    "deepExponent": 1.6666666666666667,
+    "deepHefMin": 280,
+    "deepHefMax": 635,
+    "projection": 1.5,
+    "edgeBase": 0.7,
+    "edgeSlope": 0.3,
+    "uncrackedCastIn": 1.25,
+    "uncrackedPostInstalled": 1.4,
+    "narrowEdges": 3,
+    "spacingShare": 0.3333333333333333,
+    "eccentricity": 0.6666666666666666
+  },
+  "pullout": {
+    "headed": 8,
+    "hooked": 0.9,
+    "hookMin": 3,
+    "hookMax": 4.5,
+    "uncracked": 1.4
+  },
+  "sideFace": {
+    "coefficient": 13,
+    "deepRatio": 2.5,
+    "cornerRatioMax": 3,
+    "cornerDivisor": 4,
+    "groupSpacing": 6
+  },
+  "breakoutShear": {
+    "coefficient": 0.6,
+    "weldedCoefficient": 0.66,
+    "weldedMinThickness": 10,
+    "weldedMinSpacing": 65,
+    "lengthExponent": 0.2,
+    "exponent": 1.5,
+    "bearingLengthMax": 8,
+    "projectedArea": 4.5,
+    "projection": 1.5,
+    "edgeBase": 0.7,
+    "edgeSlope": 0.3,
+    "parallel": 2,
+    "uncracked": 1.4,
+    "crackedNoBar": 1.0,
+    "crackedEdgeBar": 1.2,
+    "crackedEdgeBarStirrups": 1.4,
+    "edgeBarMin": 13,
+    "stirrupSpacingMax": 100,
+    "narrowEdges": 3,
+    "eccentricity": 0.6666666666666666
+  },
+  "pryout": { "shortHef": 65, "kcpShort": 1.0, "kcpLong": 2.0 },
+  "interaction": { "threshold": 0.2, "limit": 1.2 },
+  "applicability": { "diameterMax": 50, "embedmentMax": 635 },
+  "spacing": {
+    "untorquedCastIn": 4,
+    "torqued": 6,
+    "edgeTorquedCastIn": 6,
+    "edgePostInstalled": { "undercut": 6, "torqueControlled": 8, "displacementControlled": 10 },
+    "criticalEdge": { "undercut": 2.5, "torqueControlled": 4, "displacementControlled": 4 },
+    "postInstalledDepthShare": 0.6666666666666666,
+    "postInstalledDepthLess": 100
+  },
+  "seismic": {
+    "categories": ["C", "D"],
+    "concreteFactor": 0.75,
+    "reducedFactor": 0.4,
+    "studWallFactor": 0.5
+  },
+  "estimates": {
+    "nutAcrossFlats": 1.5,
+    "threadPitch": { "16": 2.0, "20": 2.5, "24": 3.0, "30": 3.5, "36": 4.0 },
+    "note": "SAEngine practice, not a code value: geometry used when the anchor's own is not entered. The bearing area of a headed bolt's nut is taken as a hexagon of 1.5 d across the flats less the rod (the regular hex nut; heavy hex nuts are larger, so this is on the safe side); the thread pitch of the coarse metric series gives the threads per mm nt of Ase = π/4 (da - 0.9743/nt)²."
+  },
+  "sources": {
+    "scope": "BNBC 2020 Part 6 Sec K.2.1-K.2.4 (part 2 pp. 530-531, gazette pp. 4311-4312): cast-in and post-installed anchors; specialty inserts, through bolts, adhesive anchors and fatigue/impact loads excluded",
+    "general": "BNBC 2020 Part 6 Sec K.3.1-K.3.2 (part 2 p. 531, gazette p. 4312): elastic analysis; design strength not less than the largest required strength",
+    "seismic": "BNBC 2020 Part 6 Sec K.3.3-K.3.3.6 (part 2 pp. 531-533, gazette pp. 4312-4314): Seismic Design Category C or D: concrete modes × 0.75 assuming cracked concrete; steel of a ductile element to govern, or a yielding attachment, or 0.4 (stud bearing walls 0.5) × the design strength; not for plastic hinge zones",
+    "concreteStrengthMax": "BNBC 2020 Part 6 Sec K.3.5 (part 2 p. 533, gazette p. 4314): f'c not above 70 MPa (cast-in) and 55 MPa (post-installed)",
+    "lightweight": "BNBC 2020 Part 6 Sec K.3.4 (part 2 p. 533, gazette p. 4314): λ as Sec 6.1.8.1",
+    "design": "BNBC 2020 Part 6 Sec K.4.1.1-K.4.1.3, Eqs 6.K.1-6.K.2 (part 2 pp. 534-535, gazette pp. 4315-4316): φNn >= Nua, φVn >= Vua, the lowest of all failure modes",
+    "applicability": "BNBC 2020 Part 6 Sec K.4.2.2 (part 2 p. 536, gazette p. 4317): the breakout method holds for da <= 50 mm and hef <= 635 mm",
+    "phi": "BNBC 2020 Part 6 Sec K.4.4 (part 2 pp. 537-538, gazette pp. 4318-4319): ductile steel 0.75/0.65, brittle 0.65/0.60; concrete Condition A (supplementary reinforcement) / B; pullout and pryout always Condition B",
+    "steelTension": "BNBC 2020 Part 6 Sec K.5.1.2, Eq 6.K.3 (part 2 pp. 539-540, gazette pp. 4320-4321): Nsa = n Ase,N futa, futa <= min(1.9 fya, 860 MPa); Ase = π/4 (da - 0.9743/nt)²",
+    "breakoutTension": "BNBC 2020 Part 6 Sec K.5.2.1-K.5.2.2, Eqs 6.K.4-6.K.8 (part 2 pp. 540-542, gazette pp. 4321-4323): ANc/ANco ψec ψed ψc ψcp Nb, ANco = 9 hef², Nb = kc λ √f'c hef^1.5 (kc 10 cast-in, 7 post-installed), or 3.9 λ √f'c hef^(5/3) for cast-in headed anchors with 280 <= hef <= 635 mm",
+    "narrowTension": "BNBC 2020 Part 6 Sec K.5.2.3 (part 2 p. 542, gazette p. 4323): within 1.5 hef of three or more edges, hef is the greater of ca,max/1.5 and one third of the largest spacing",
+    "eccentricityTension": "BNBC 2020 Part 6 Sec K.5.2.4, Eq 6.K.9 (part 2 p. 543, gazette p. 4324): ψec,N = 1 / (1 + 2e'N / 3hef) <= 1, per axis, the product for two axes",
+    "edgeTension": "BNBC 2020 Part 6 Sec K.5.2.5, Eqs 6.K.10-6.K.11 (part 2 p. 544, gazette p. 4325): ψed,N = 0.7 + 0.3 ca,min/1.5hef below 1.5 hef",
+    "crackingTension": "BNBC 2020 Part 6 Sec K.5.2.6 (part 2 p. 545, gazette p. 4326): uncracked ψc,N 1.25 cast-in, 1.4 post-installed (kc = 7)",
+    "splitting": "BNBC 2020 Part 6 Sec K.5.2.7, Eqs 6.K.12-6.K.13 (part 2 p. 546, gazette p. 4327): ψcp,N = ca,min/cac >= 1.5hef/cac for post-installed anchors in uncracked concrete without supplementary reinforcement",
+    "anchorReinforcement": "BNBC 2020 Part 6 Sec K.5.2.9 and K.6.2.9 (part 2 pp. 547, 558, gazette pp. 4328, 4339): anchor reinforcement developed on both sides of the breakout surface replaces the breakout strength, φ 0.75",
+    "pullout": "BNBC 2020 Part 6 Sec K.5.3.1-K.5.3.6, Eqs 6.K.14-6.K.16 (part 2 pp. 548-549, gazette pp. 4329-4330): Npn = ψc,P Np, Np = 8 Abrg f'c (headed), 0.9 f'c eh da with 3 da <= eh <= 4.5 da (hooked), post-installed from ACI 355.2 tests; ψc,P 1.4 uncracked",
+    "sideFace": "BNBC 2020 Part 6 Sec K.5.4.1-K.5.4.2, Eqs 6.K.17-6.K.18 (part 2 p. 549, gazette p. 4330): headed anchors with hef > 2.5 ca1: Nsb = 13 ca1 √Abrg λ √f'c, × (1 + ca2/ca1)/4 for ca2 < 3 ca1; groups Nsbg = (1 + s/6ca1) Nsb for s < 6 ca1",
+    "steelShear": "BNBC 2020 Part 6 Sec K.6.1.2-K.6.1.3, Eqs 6.K.19-6.K.20 (part 2 pp. 550-551, gazette pp. 4331-4332): Vsa = n Ase,V futa (headed studs), 0.6 n Ase,V futa (headed and hooked bolts, post-installed); × 0.80 on built-up grout pads",
+    "breakoutShear": "BNBC 2020 Part 6 Sec K.6.2.1-K.6.2.2, Eqs 6.K.21-6.K.24 (part 2 pp. 551-553, gazette pp. 4332-4334): AVc/AVco ψec ψed ψc ψh Vb, AVco = 4.5 ca1², Vb = 0.6 (le/da)^0.2 √da λ √f'c ca1^1.5, le = hef <= 8 da; parallel to an edge twice the perpendicular value with ψed,V = 1; at a corner each edge, the least",
+    "weldedShear": "BNBC 2020 Part 6 Sec K.6.2.3, Eq 6.K.25 (part 2 p. 555, gazette p. 4336): 0.66 for cast-in anchors welded to an attachment at least max(10 mm, da/2) thick, s >= 65 mm",
+    "narrowShear": "BNBC 2020 Part 6 Sec K.6.2.4 (part 2 p. 556, gazette p. 4337): with three or more edges, ca1 <= the greatest of ca2/1.5, ha/1.5 and one third of the largest spacing",
+    "eccentricityShear": "BNBC 2020 Part 6 Sec K.6.2.5, Eq 6.K.26 (part 2 pp. 556-557, gazette pp. 4337-4338): ψec,V = 1 / (1 + 2e'V / 3ca1) <= 1",
+    "edgeShear": "BNBC 2020 Part 6 Sec K.6.2.6, Eqs 6.K.27-6.K.28 (part 2 p. 557, gazette p. 4338): ψed,V = 0.7 + 0.3 ca2/1.5ca1 below 1.5 ca1",
+    "crackingShear": "BNBC 2020 Part 6 Sec K.6.2.7 (part 2 p. 558, gazette p. 4339): ψc,V 1.4 uncracked; cracked 1.0, 1.2 with an edge bar of No. 13 or more, 1.4 with the bar inside stirrups at <= 100 mm",
+    "thickness": "BNBC 2020 Part 6 Sec K.6.2.8, Eq 6.K.29 (part 2 p. 558, gazette p. 4339): ψh,V = √(1.5 ca1/ha) >= 1",
+    "pryout": "BNBC 2020 Part 6 Sec K.6.3.1, Eqs 6.K.30-6.K.31 (part 2 p. 560, gazette p. 4341): Vcp = kcp Ncb(g), kcp 1.0 for hef < 65 mm, 2.0 otherwise",
+    "interaction": "BNBC 2020 Part 6 Sec K.7.1-K.7.3, Eq 6.K.32 (part 2 pp. 560-561, gazette pp. 4341-4342): full strength where the other ratio is <= 0.2, else Nua/φNn + Vua/φVn <= 1.2",
+    "spacing": "BNBC 2020 Part 6 Sec K.8.1-K.8.3 (part 2 p. 562, gazette p. 4343): spacing 4 da untorqued cast-in, 6 da torqued and post-installed; edges: the cover of Sec 8.1.7 (untorqued cast-in), 6 da torqued cast-in; post-installed 6/8/10 da",
+    "postInstalledDepth": "BNBC 2020 Part 6 Sec K.8.5 (part 2 p. 563, gazette p. 4344): hef of expansion and undercut anchors <= the greater of 2/3 ha and ha - 100 mm",
+    "criticalEdge": "BNBC 2020 Part 6 Sec K.8.6 (part 2 p. 563, gazette p. 4344): cac 2.5 hef undercut, 4 hef torque- and displacement-controlled",
+    "anchorRods": "BNBC 2020 Part 6 Sec 10.10.9 (part 2 p. 138, gazette p. 3919): anchor rods resist the net tension of the column base moments, as threaded parts of Table 6.10.10; base shear by bearing or friction where possible",
+    "momentBase": "SAEngine practice, not BNBC (Sec 10.10.9 requires the rod tension from the base moment but gives no method): a rigid plate on a rectangular bearing block at the design bearing stress φc Pp / A1 of Sec 10.10.8, the rods on the tension side in equilibrium",
+    "estimates": "SAEngine practice, not a code value: the nut bearing area and thread pitch used when the anchor's own are not entered"
+  }
+}

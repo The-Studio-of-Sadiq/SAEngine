@@ -1,0 +1,17 @@
+{
+  "name": "Building",
+  "gridsX": [6000, 6000, 6000],
+  "gridsY": [5000, 5000],
+  "storyCount": 6,
+  "groundHeight": 3600,
+  "typicalHeight": 3200,
+  "system": "rcFrame",
+  "concrete": "C27.6",
+  "rebar": "B420DWR",
+  "footing": "isolated",
+  "occupancy": "residential",
+  "occupancyCategory": "II",
+  "location": "dhaka",
+  "siteClass": "SD",
+  "siteClassSource": "assumed"
+}

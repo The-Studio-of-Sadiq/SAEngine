@@ -1,0 +1,121 @@
+{
+  "$schema": "../../../schemas/steel.schema.json",
+  "$sources": [
+    "IS 800:2007 Section 10 (connections: holes, spacing, edges, welds) and Sections 6 and 8 (the connection elements in tension and shear)"
+  ],
+  "source": "IS 800:2007 (limit state; the member, bolt and weld strengths are in steelLimitState). This table changes the BNBC 2020 steel table it extends where the connection checks read it: the hole sizes, spacing and edges, the fillet weld sizes, and the resistance factors of the connection elements written as the IS 800 strengths (1/γm and the 1/√3 of shear). The base plate bearing is IS 800 7.4.1 (alpha 9 C9b); the other entries (HSS joints, the column side under flange forces, ponding, bracing) are BNBC 2020's.",
+  "phi": {
+    "tensionYield": 0.9091,
+    "tensionRupture": 0.72,
+    "compression": 0.9091,
+    "plateFlexure": 0.9091,
+    "shearYielding": 0.8748,
+    "shearRupture": 0.6928,
+    "concreteBearing": 1.0
+  },
+  "connections": {
+    "holes": {
+      "12": 13,
+      "14": 15,
+      "16": 18,
+      "20": 22,
+      "22": 24,
+      "24": 26,
+      "27": 30,
+      "30": 33,
+      "36": 39
+    },
+    "holeOver": 3.0,
+    "netHoleAllowance": 0.0,
+    "edgeRolled": {
+      "12": 19.5,
+      "14": 22.5,
+      "16": 27,
+      "20": 33,
+      "22": 36,
+      "24": 39,
+      "27": 45,
+      "30": 49.5,
+      "36": 58.5
+    },
+    "edgeSheared": {
+      "12": 22.1,
+      "14": 25.5,
+      "16": 30.6,
+      "20": 37.4,
+      "22": 40.8,
+      "24": 44.2,
+      "27": 51,
+      "30": 56.1,
+      "36": 66.3
+    },
+    "edgeOverRolled": 1.65,
+    "edgeOverSheared": 1.87,
+    "minSpacing": 2.5,
+    "maxEdgeThickness": 12.0,
+    "maxEdge": 1000.0,
+    "filletMin": [
+      [
+        10,
+        3
+      ],
+      [
+        20,
+        5
+      ],
+      [
+        32,
+        6
+      ],
+      [
+        null,
+        8
+      ]
+    ],
+    "filletMaxThin": 1.5,
+    "filletMaxReduce": 1.5,
+    "concreteBearingFull": 0.6,
+    "concreteBearingPartial": 0.6,
+    "concreteBearingMax": 0.6,
+    "references": {
+      "Eqs 6.10.169-170a": "IS 800:2007 10.3.6",
+      "Eq 6.10.168": "IS 800:2007 10.3.3",
+      "Eq 6.10.171": "IS 800:2007 10.4.3",
+      "Eq 6.10.172a": "IS 800:2007 10.4.6",
+      "Eq 6.10.173a": "IS 800:2007 10.3.4",
+      "Eq 6.10.178": "IS 800:2007 6.4.1",
+      "Eqs 6.10.162-163": "IS 800:2007 10.5.7",
+      "Eq 6.10.162-163": "IS 800:2007 10.5.7",
+      "Sec 10.10.3.6": "IS 800:2007 10.3.5",
+      "Sec 10.10.3.7": "IS 800:2007 10.3.6",
+      "Sec 10.10.3.8": "IS 800:2007 10.4.3",
+      "Sec 10.10.3.9": "IS 800:2007 10.4.6",
+      "Sec 10.10.3.10": "IS 800:2007 10.3.4",
+      "Sec 10.10.3.3": "IS 800:2007 10.2.2",
+      "Sec 10.10.3.5": "IS 800:2007 10.2.4.3",
+      "Table 6.10.11": "IS 800:2007 Table 19",
+      "Table 6.10.12": "IS 800:2007 10.2.4.2",
+      "Table 6.10.7": "IS 800:2007 Table 21",
+      "Table 6.10.10 [f]": "IS 800:2007 10.3.3.1",
+      "Table 6.10.10 note [f]": "IS 800:2007 10.3.3.1",
+      "Table 6.10.10": "IS 800:2007 10.3.3",
+      "Sec 10.10.2.2.2": "IS 800:2007 10.5.8.1",
+      "Sec 10.10.4.2": "IS 800:2007 8.4",
+      "Sec 10.10.4.3": "IS 800:2007 6.4.1",
+      "Sec 10.10.4.1": "IS 800:2007 6.2-6.3",
+      "Sec 10.2.3.13.2": "IS 800:2007 10.2.1",
+      "Sec 10.10.8": "IS 800:2007 7.4.1",
+      "Eqs 6.10.183-184": "IS 800:2007 7.4.1"
+    }
+  },
+  "sources": {
+    "phiIS": "IS 800:2007 as resistance factors of the shared connection checks: tension yielding 1/γm0 = 0.9091 (6.2), net rupture 0.9/γm1 = 0.72 (6.3.1), plate compression and flexure 1/γm0 (7.1.2, 8.2.1.2), shear yielding Av fy/(√3 γm0) = 0.8748 × 0.6 fy Av (8.4.1), shear rupture 0.9 Avn fu/(√3 γm1) = 0.6928 × 0.6 fu Avn (6.4.1); γm0 1.10, γm1 1.25 (Table 5)",
+    "holesIS": "IS 800:2007 10.2.1, Table 19: standard clearance holes d + 1 (12-14 mm), d + 2 (16-24 mm), d + 3 (above 24 mm); net areas on the hole diameter d0 (10.2.1)",
+    "edgesIS": "IS 800:2007 10.2.4.2: least edge and end distance 1.5 d0 (rolled, machine flame cut, sawn or planed edges), 1.7 d0 (sheared or hand flame cut); larger bolts 1.65 d / 1.87 d (SAEngine: 1.5 and 1.7 times d + 3 at 36 mm, rounded up)",
+    "spacingIS": "IS 800:2007 10.2.2: least pitch 2.5 d",
+    "maxEdgeIS": "IS 800:2007 10.2.4.3: largest edge distance 12 t ε (ε = √(250/fy)); taken as 12 t (ε = 1, E250 steel) with no upper limit in mm",
+    "filletIS": "IS 800:2007 10.5.2.3, Table 21: least fillet size 3, 5, 6, 8 mm for the thicker part up to 10, 20, 32 mm and above (SAEngine's check passes the thinner part: less strict where the parts differ); 10.5.8.1: the largest size along a square edge t - 1.5 mm",
+    "concreteBearingIS": "IS 800:2007 7.4.1: the design bearing strength of the concrete under a base plate 0.6 fck (the project's concrete strength read as fck), no φ and no increase for a larger supporting area (SAEngine reading; IS 456 34.4 allows 0.45 fck √(A1/A2) at a column base); alpha 9 C9b",
+    "referencesIS": "The connection notes name the IS 800:2007 clauses of the strengths and rules the pack replaces; the rules it keeps from the parent are named as BNBC 2020's (steelLimitState connections.parentCode)"
+  }
+}

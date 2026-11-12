@@ -1,0 +1,56 @@
+{
+  "$schema": "../../../schemas/nonlinearStability.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 10 adopts AISC 360-05 and gives no geometrically and materially nonlinear analysis with imperfections; the imperfections, material factors and path are SAEngine practice on the AISC 360 basis (out-of-plumbness and out-of-straightness of the direct analysis method); plated parts by EN 1993-1-5 Annex C, cables by EN 1993-1-11 (SAEngine practice); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 gives no method (Part 6 Chapter 10, the AISC 360-05 basis): out-of-plumbness L/500 and out-of-straightness L/1000, EN 1993-1-5 Annex C for plated parts, EN 1993-1-11 for cables",
+  "bow": {
+    "method": "fixedRatio",
+    "fixedRatio": 1000.0,
+    "source": "AISC 360-05 Appendix 7 Sec 7.3 (out-of-straightness L/1000), the basis of BNBC 2020 Part 6 Ch 10; SAEngine practice"
+  },
+  "sway": {
+    "method": "fixedRatio",
+    "baseRatio": 500.0,
+    "source": "AISC 360-05 Appendix 7 Sec 7.3 (out-of-plumbness L/500); SAEngine practice"
+  },
+  "eigenmode": {
+    "method": "memberBow",
+    "source": "SAEngine practice: the mode scaled to the bow amplitude of the member moving most"
+  },
+  "plates": {
+    "method": "panelRatio",
+    "panelRatio": 200.0,
+    "source": "EN 1993-1-5 Annex C Table C.2 (b/200), SAEngine practice"
+  },
+  "yieldFactor": 0.9,
+  "stiffnessFactor": 0.9,
+  "hardeningRatio": 0.0001,
+  "requiredFactor": 1.0,
+  "path": {
+    "method": "arcLength",
+    "steps": 100,
+    "maxDisplacementRatio": 10.0,
+    "dropShare": 0.2,
+    "source": "SAEngine practice"
+  },
+  "cables": {
+    "breakingShare": 0.741,
+    "source": "EN 1993-1-11 Sec 6.2 FRd = Fuk / (1.5 γR), γR = 0.90 (SAEngine practice)"
+  },
+  "clauses": {
+    "basis": "Part 6 Chapter 10 (AISC 360-05 basis), SAEngine practice",
+    "bow": "AISC 360-05 Appendix 7 Sec 7.3 (practice)",
+    "sway": "AISC 360-05 Appendix 7 Sec 7.3 (practice)",
+    "eigenmode": "SAEngine practice",
+    "plates": "EN 1993-1-5 Annex C (practice)",
+    "material": "AISC 360 Appendix 1 (practice)",
+    "cables": "EN 1993-1-11 Sec 6.2 (practice)"
+  },
+  "sources": {
+    "yieldFactor": "AISC 360 Appendix 1 Sec 1.3 (0.9 Fy in the analysis), SAEngine practice",
+    "stiffnessFactor": "AISC 360 Appendix 1 Sec 1.3 (0.9 E), SAEngine practice",
+    "hardeningRatio": "EN 1993-1-5 Annex C Sec C.6 (nominal plateau slope), SAEngine practice"
+  },
+  "note": "BNBC 2020 has no GMNIA rules: these values are SAEngine practice, stated in the results."
+}

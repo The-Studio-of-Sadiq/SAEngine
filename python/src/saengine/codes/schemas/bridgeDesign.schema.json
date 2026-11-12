@@ -1,0 +1,244 @@
+{
+  "$defs": {
+    "BridgeLoadFactors": {
+      "additionalProperties": false,
+      "description": "Load factors of the components (DC), the wearing surface and utilities (DW) and the\ntraffic with its dynamic allowance (LL).",
+      "properties": {
+        "dc": {
+          "exclusiveMinimum": 0,
+          "title": "Dc",
+          "type": "number"
+        },
+        "dw": {
+          "exclusiveMinimum": 0,
+          "title": "Dw",
+          "type": "number"
+        },
+        "ll": {
+          "exclusiveMinimum": 0,
+          "title": "Ll",
+          "type": "number"
+        }
+      },
+      "required": [
+        "dc",
+        "dw",
+        "ll"
+      ],
+      "title": "BridgeLoadFactors",
+      "type": "object"
+    },
+    "BridgePrestress": {
+      "additionalProperties": false,
+      "description": "Stress limits of prestressed girders: compression as shares of f'ci or f'c, tension as\ncoefficients of the root of the strength or as stresses (``tensionForm``).",
+      "properties": {
+        "transferCompression": {
+          "description": "At transfer: compression <= this f'ci.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Transfercompression",
+          "type": "number"
+        },
+        "transferTension": {
+          "description": "At transfer: tension <= this.",
+          "minimum": 0,
+          "title": "Transfertension",
+          "type": "number"
+        },
+        "permanentCompression": {
+          "description": "Service, permanent loads: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Permanentcompression",
+          "type": "number"
+        },
+        "totalCompression": {
+          "description": "Service, all loads: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Totalcompression",
+          "type": "number"
+        },
+        "serviceTension": {
+          "description": "Service: tension <= this.",
+          "minimum": 0,
+          "title": "Servicetension",
+          "type": "number"
+        },
+        "tensionForm": {
+          "default": "root",
+          "description": "'root': coefficient × √f'c [MPa]; 'absolute': MPa.",
+          "enum": [
+            "root",
+            "absolute"
+          ],
+          "title": "Tensionform",
+          "type": "string"
+        },
+        "relaxedYield": {
+          "default": 0.9,
+          "description": "fpy = this fpu (low relaxation).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Relaxedyield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "transferCompression",
+        "transferTension",
+        "permanentCompression",
+        "totalCompression",
+        "serviceTension"
+      ],
+      "title": "BridgePrestress",
+      "type": "object"
+    },
+    "BridgeRating": {
+      "additionalProperties": false,
+      "description": "Load rating RF = (C - γDC DC - γDW DW) / (γL (LL + IM)), C = φc φs φ Rn.",
+      "properties": {
+        "dc": {
+          "exclusiveMinimum": 0,
+          "title": "Dc",
+          "type": "number"
+        },
+        "dw": {
+          "exclusiveMinimum": 0,
+          "title": "Dw",
+          "type": "number"
+        },
+        "dwMeasured": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "γDW when the wearing surface was measured.",
+          "title": "Dwmeasured"
+        },
+        "inventory": {
+          "description": "γL at the inventory level.",
+          "exclusiveMinimum": 0,
+          "title": "Inventory",
+          "type": "number"
+        },
+        "operating": {
+          "description": "γL at the operating level.",
+          "exclusiveMinimum": 0,
+          "title": "Operating",
+          "type": "number"
+        },
+        "systemMin": {
+          "default": 0.85,
+          "description": "φc φs, at least this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Systemmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "dc",
+        "dw",
+        "inventory",
+        "operating"
+      ],
+      "title": "BridgeRating",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The bridge girders' checks: strength and service load factors, the prestressed girders'\nstress limits and the load rating of existing bridges. The resistances are the pack's\nconcrete methods (its φ or partial factors).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "loadFactors",
+      "default": "loadFactors",
+      "title": "Method",
+      "type": "string"
+    },
+    "strength": {
+      "$ref": "#/$defs/BridgeLoadFactors"
+    },
+    "service": {
+      "$ref": "#/$defs/BridgeLoadFactors"
+    },
+    "tensionLive": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factor on the traffic in the prestressed girders' service tension check (none: the service factor).",
+      "title": "Tensionlive"
+    },
+    "prestress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BridgePrestress"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "rating": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BridgeRating"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "thermalCoefficient": {
+      "default": 1e-05,
+      "description": "α of the deck for its expansion joints [1/°C].",
+      "exclusiveMinimum": 0,
+      "title": "Thermalcoefficient",
+      "type": "number"
+    }
+  },
+  "required": [
+    "strength",
+    "service"
+  ],
+  "title": "BridgeDesignTable",
+  "type": "object",
+  "$id": "saengine.codePack.bridgeDesign/1"
+}

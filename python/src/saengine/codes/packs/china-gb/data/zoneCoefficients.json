@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "GB 50011-2010 Table 5.1.4-1 (αmax of the frequent earthquake)"
+  ],
+  "source": "GB 50011 Table 5.1.4-1: the maximum horizontal seismic influence coefficient αmax of the frequent earthquake (多遇地震) by intensity; the zones 1-6 are SAEngine's slots for 6 (0.05g), 7 (0.10g), 7 (0.15g), 8 (0.20g), 8 (0.30g) and 9 (0.40g)",
+  "zones": {
+    "1": 0.04,
+    "2": 0.08,
+    "3": 0.12,
+    "4": 0.16,
+    "5": 0.24,
+    "6": 0.32
+  }
+}

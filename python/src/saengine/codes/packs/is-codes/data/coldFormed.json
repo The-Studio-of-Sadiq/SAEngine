@@ -1,0 +1,69 @@
+{
+  "$schema": "../../../schemas/coldFormed.schema.json",
+  "$sources": [
+    "IS 801:1975 Code of practice for use of cold-formed light gauge steel structural members in general building construction"
+  ],
+  "source": "IS 801:1975 by permissible stresses (kgf/cm² constants): limiting widths (5.2.1.1), the lip's least depth (5.2.2.1), compression (6.6), bending (6.3), shear (6.4), combined (6.7); the working forces are the factored ones / 1.5 (SAEngine practice); see VERIFY.md",
+  "method": "effectiveSection",
+  "E": 203395.0,
+  "G": 78000.0,
+  "effectiveWidth": {
+    "method": "limitingWidth",
+    "factors": [
+      1435.0,
+      2120.0,
+      465.0,
+      530.0
+    ],
+    "kInternal": 4.0,
+    "kOutstand": 0.43,
+    "stressUnit": 0.0980665
+  },
+  "distortional": {
+    "method": "lipAdequacy",
+    "factors": [
+      2.8,
+      281200.0,
+      4.8
+    ],
+    "poisson": 0.3,
+    "stressUnit": 0.0980665
+  },
+  "resistance": {
+    "format": "allowableStress",
+    "factors": {
+      "tension": 0.6,
+      "compression": 0.5217,
+      "flexure": 0.6,
+      "shear": 0.4,
+      "shearA": 1275.0,
+      "shearB": 5850000.0
+    },
+    "loadFactor": 1.5,
+    "bucklingCurve": "allowable",
+    "interaction": "amplified",
+    "shearLimits": [
+      4590.0,
+      4590.0
+    ],
+    "shearYield": 0.4
+  },
+  "thicknessMax": 25.0,
+  "widthRatioMax": {
+    "web": 150.0,
+    "flange": 60.0,
+    "lip": 60.0
+  },
+  "clauses": {
+    "code": "IS 801:1975",
+    "effectiveWidth": "IS 801:1975 5.2.1.1",
+    "distortional": "IS 801:1975 5.2.2.1",
+    "lip": "IS 801:1975 5.2.2.1",
+    "tension": "IS 801:1975 6.1",
+    "compression": "IS 801:1975 6.6.1",
+    "flexure": "IS 801:1975 6.3",
+    "shear": "IS 801:1975 6.4.1",
+    "combined": "IS 801:1975 6.7.2",
+    "limits": "IS 801:1975 5.2.3, 5.2.4"
+  }
+}

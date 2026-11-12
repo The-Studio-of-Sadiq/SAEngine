@@ -1,0 +1,264 @@
+{
+  "$defs": {
+    "JoistBridging": {
+      "additionalProperties": false,
+      "description": "Rows of bridging: the chords' slenderness between bridging lines out of the plane.",
+      "properties": {
+        "topChord": {
+          "description": "Top chord L / ry between bridging lines, at most.",
+          "exclusiveMinimum": 0,
+          "title": "Topchord",
+          "type": "number"
+        },
+        "bottomChord": {
+          "description": "Bottom chord L / ry between bridging, at most.",
+          "exclusiveMinimum": 0,
+          "title": "Bottomchord",
+          "type": "number"
+        }
+      },
+      "required": [
+        "topChord",
+        "bottomChord"
+      ],
+      "title": "JoistBridging",
+      "type": "object"
+    },
+    "JoistLoadRow": {
+      "additionalProperties": false,
+      "description": "A joist designation of the catalogue load tables.",
+      "properties": {
+        "designation": {
+          "title": "Designation",
+          "type": "string"
+        },
+        "depth": {
+          "description": "Nominal depth [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Approximate mass [kg/m].",
+          "title": "Weight"
+        },
+        "spans": {
+          "items": {
+            "$ref": "#/$defs/JoistLoadSpan"
+          },
+          "minItems": 1,
+          "title": "Spans",
+          "type": "array"
+        }
+      },
+      "required": [
+        "designation",
+        "depth",
+        "spans"
+      ],
+      "title": "JoistLoadRow",
+      "type": "object"
+    },
+    "JoistLoadSpan": {
+      "additionalProperties": false,
+      "description": "One span of a catalogue row: the factored total load capacity and the live load for the\ncatalogue's deflection limit.",
+      "properties": {
+        "span": {
+          "description": "Span [m].",
+          "exclusiveMinimum": 0,
+          "title": "Span",
+          "type": "number"
+        },
+        "total": {
+          "description": "Total load capacity [kN/m] (the table's format).",
+          "exclusiveMinimum": 0,
+          "title": "Total",
+          "type": "number"
+        },
+        "live": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live load for the limit [kN/m].",
+          "title": "Live"
+        }
+      },
+      "required": [
+        "span",
+        "total"
+      ],
+      "title": "JoistLoadSpan",
+      "type": "object"
+    },
+    "JoistPanelMoment": {
+      "additionalProperties": false,
+      "description": "The top chord carries the deck's load between panel points as a continuous member:\nM = w l² / divisor of the panel length l.",
+      "properties": {
+        "endPanel": {
+          "description": "Divisor of the end panels.",
+          "exclusiveMinimum": 0,
+          "title": "Endpanel",
+          "type": "number"
+        },
+        "interiorPanel": {
+          "description": "Divisor of the interior panels.",
+          "exclusiveMinimum": 0,
+          "title": "Interiorpanel",
+          "type": "number"
+        }
+      },
+      "required": [
+        "endPanel",
+        "interiorPanel"
+      ],
+      "title": "JoistPanelMoment",
+      "type": "object"
+    },
+    "JoistSlenderness": {
+      "additionalProperties": false,
+      "description": "Largest slenderness ratios L / r of the joist's members.",
+      "properties": {
+        "topChordInterior": {
+          "description": "Top chord, interior panels (in the plane).",
+          "exclusiveMinimum": 0,
+          "title": "Topchordinterior",
+          "type": "number"
+        },
+        "topChordEnd": {
+          "description": "Top chord, end panels.",
+          "exclusiveMinimum": 0,
+          "title": "Topchordend",
+          "type": "number"
+        },
+        "compressionWeb": {
+          "description": "Web members in compression.",
+          "exclusiveMinimum": 0,
+          "title": "Compressionweb",
+          "type": "number"
+        },
+        "tension": {
+          "description": "Members in tension (chords and webs).",
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        }
+      },
+      "required": [
+        "topChordInterior",
+        "topChordEnd",
+        "compressionWeb",
+        "tension"
+      ],
+      "title": "JoistSlenderness",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Open-web steel joists and joist girders by the joist specification of the pack. The\nchords and webs are designed by the pack's steel member checks (as every pack's generic\nopen-web truss); this table adds the specification's rules. ``loadTables``: the catalogue\nrows (designation, spans) a joist with a ``designation`` is also rated by; empty: only the\ntruss design.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "specification",
+      "default": "specification",
+      "title": "Method",
+      "type": "string"
+    },
+    "slenderness": {
+      "$ref": "#/$defs/JoistSlenderness"
+    },
+    "panelMoment": {
+      "$ref": "#/$defs/JoistPanelMoment"
+    },
+    "leastWebShare": {
+      "description": "Web members carry at least this share of the end reaction (the least vertical shear).",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Leastwebshare",
+      "type": "number"
+    },
+    "webK": {
+      "default": 1.0,
+      "description": "K of the web members in compression.",
+      "exclusiveMinimum": 0,
+      "title": "Webk",
+      "type": "number"
+    },
+    "interaction": {
+      "default": "linear",
+      "description": "Top chord axial force and panel moment: linear, or the bilinear form (P/Pc ≥ 0.2: P/Pc + 8/9 M/Mc; else P/2Pc + M/Mc).",
+      "enum": [
+        "linear",
+        "bilinear"
+      ],
+      "title": "Interaction",
+      "type": "string"
+    },
+    "bridging": {
+      "$ref": "#/$defs/JoistBridging"
+    },
+    "loadFormat": {
+      "default": "lrfd",
+      "description": "The catalogue's total loads: factored (compared with the strength combinations) or allowable (with the service combinations).",
+      "enum": [
+        "lrfd",
+        "asd"
+      ],
+      "title": "Loadformat",
+      "type": "string"
+    },
+    "loadTables": {
+      "items": {
+        "$ref": "#/$defs/JoistLoadRow"
+      },
+      "title": "Loadtables",
+      "type": "array"
+    }
+  },
+  "required": [
+    "slenderness",
+    "panelMoment",
+    "leastWebShare",
+    "bridging"
+  ],
+  "title": "SteelJoistsTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelJoists/1"
+}

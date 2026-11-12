@@ -1,0 +1,1353 @@
+"""Fiber sections of frame members for nonlinear (pushover) analysis.
+
+The elastic analysis model represents a member by its section constants (EA, EI, GJ). A pushover
+must follow the members as they crack and yield, so each frame becomes a force-based fiber
+element (``forceBeamColumn``): its section is cut into small areas ("fibers"), each following
+the stress-strain curve of its material, and the section forces come from integrating them.
+
+Sections are built from the object types of Part 4:
+
+- reinforced concrete (rectangle or circle with reinforcement): an unconfined cover, a core
+  confined by the ties or spiral, and the longitudinal bars as point fibers;
+- steel (I, T, L, U, hollow and solid shapes): the plates of the shape.
+
+Material curves (stresses in Pa, compression negative):
+
+- concrete: ``Concrete02`` (Kent-Park with linear tension softening). The core's strength and
+  strain capacity rise with the volume of confining steel ρs (modified Kent-Park,
+  K = 1 + ρs·fyh/f'c; Scott, Park and Priestley ultimate strain εcu = 0.004 + 0.9·ρs·fyh/300);
+  the cover loses its strength by a strain of 0.006 (spalling);
+- steel: ``Steel02`` (Giuffré-Menegotto-Pinto) with 1 % strain hardening.
+
+Torsion stays elastic (GJ of the gross section): fiber sections carry axial force and bending.
+Concrete members without reinforcement and members of other materials stay elastic.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from itertools import pairwise
+from typing import Any
+
+from saengine.library.materials import Material
+from saengine.library.objects import (
+    CircleHollowProfile,
+    CircleProfile,
+    IShapeProfile,
+    LShapeProfile,
+    RectangleHollowProfile,
+    RectangleProfile,
+    TShapeProfile,
+    UShapeProfile,
+)
+from saengine.library.sections import section_properties
+
+MM = 1e-3
+MPA = 1e6
+
+#: Strain-hardening ratio of reinforcing and structural steel.
+HARDENING = 0.01
+#: Strain at the peak stress of unconfined concrete.
+EPS_C0 = 0.002
+#: Strain by which unconfined (cover) concrete has spalled.
+EPS_SPALL = 0.006
+
+#: Fibers across a section's depth and width (concrete core), and through a steel plate.
+FIBERS_DEPTH = 12
+FIBERS_WIDTH = 6
+FIBERS_PLATE = 2
+
+
+@dataclass
+class FiberMaterials:
+    """The uniaxial materials of the fiber sections, shared between sections."""
+
+    materials: list[dict[str, Any]] = field(default_factory=list)
+    #: Ids start after this one (the model's own materials come first).
+    offset: int = 0
+    _ids: dict[tuple[Any, ...], int] = field(default_factory=dict)
+
+    def _add(self, key: tuple[Any, ...], value: dict[str, Any]) -> int:
+        if key not in self._ids:
+            self._ids[key] = self.offset + len(self.materials) + 1
+            self.materials.append({"id": self._ids[key], **value})
+        return self._ids[key]
+
+    def concrete(
+        self, material: Material, confinement: float = 0.0, fyh: float = 0.0, role: str = ""
+    ) -> int:
+        """Concrete02 of ``material``: unconfined (cover) or confined by ``confinement`` = ρs
+        of ties of yield strength ``fyh`` [MPa] (core). ``role`` names an unconfined concrete
+        that is not cover ("core" of a member without ties, "web" of a wall): the acceptance
+        check (:mod:`saengine.fem.acceptance`) skips only the cover, which may spall."""
+        from saengine.design.rc_detailing import material_modulus
+
+        fc = material.concrete.fc if material.concrete else 20.0
+        ec = material_modulus(material, fc=fc)[0]
+        ft = (material.concrete.ft if material.concrete and material.concrete.ft else None) or (
+            0.62 * math.sqrt(fc)
+        )
+        if confinement > 0:
+            k = 1 + confinement * fyh / fc
+            fpc, epsc0 = k * fc, EPS_C0 * k
+            fpcu, eps_u = 0.2 * k * fc, max(0.004 + 0.9 * confinement * fyh / 300, EPS_SPALL)
+            name = f"{material.id} core"
+        else:
+            fpc, epsc0, fpcu, eps_u = fc, EPS_C0, 0.0, EPS_SPALL
+            name = f"{material.id} {role or 'cover'}"
+        return self._add(
+            ("concrete", material.id, round(confinement, 6), role if confinement <= 0 else ""),
+            {
+                "name": name,
+                "type": "Concrete02",
+                "fpc": -fpc * MPA,
+                "epsc0": -epsc0,
+                "fpcu": -fpcu * MPA,
+                "epsU": -eps_u,
+                "lambda_": 0.1,
+                "ft": ft * MPA,
+                # Tension softens to zero over ten times the cracking strain ft/Ec.
+                "Ets": 0.1 * ec * MPA,
+            },
+        )
+
+    def steel(self, material: Material) -> int:
+        fy = material.steel.fy if material.steel else 250.0
+        return self._add(
+            ("steel", material.id),
+            {
+                "name": material.id,
+                "type": "Steel02",
+                "Fy": fy * MPA,
+                "E0": (material.mechanical.E or 200_000) * MPA,
+                "b": HARDENING,
+                "R0": 18.0,
+                "cR1": 0.925,
+                "cR2": 0.15,
+            },
+        )
+
+
+@dataclass
+class _Section:
+    """A section being built, in the profile's own axes: x across its width, y along its depth
+    (up for a beam), origin at the middle of its bounding box [m]."""
+
+    patches: list[dict[str, Any]] = field(default_factory=list)
+    fibres: list[tuple[float, float, float, int]] = field(default_factory=list)  # x, y, area, mat
+
+    def rect(
+        self, material: int, x0: float, y0: float, x1: float, y1: float, nx: int, ny: int
+    ) -> None:
+        if x1 - x0 > 1e-9 and y1 - y0 > 1e-9:
+            self.patches.append(
+                {"kind": "rect", "mat": material, "box": (x0, y0, x1, y1), "n": (nx, ny)}
+            )
+
+    def ring(self, material: int, r0: float, r1: float, n_circ: int, n_rad: int) -> None:
+        if r1 - r0 > 1e-9:
+            self.patches.append(
+                {"kind": "circ", "mat": material, "r": (r0, r1), "n": (n_circ, n_rad)}
+            )
+
+    def bar(self, material: int, x: float, y: float, dia: float) -> None:
+        self.fibres.append((x, y, math.pi * dia**2 / 4, material))
+
+    def centroid(self) -> tuple[float, float]:
+        """Area centroid of the patches (bars ignored: they sit symmetrically or nearly so)."""
+        area = sx = sy = 0.0
+        for p in self.patches:
+            if p["kind"] == "rect":
+                x0, y0, x1, y1 = p["box"]
+                a = (x1 - x0) * (y1 - y0)
+                area, sx, sy = area + a, sx + a * (x0 + x1) / 2, sy + a * (y0 + y1) / 2
+            else:
+                r0, r1 = p["r"]
+                area += math.pi * (r1**2 - r0**2)  # centred on the origin
+        return (sx / area, sy / area) if area else (0.0, 0.0)
+
+
+def fiber_section(
+    section_id: int,
+    name: str,
+    object_type: Any,
+    materials: dict[str, Material],
+    library: FiberMaterials,
+    vertical: bool,
+    quarter_turns: int,
+) -> dict[str, Any] | None:
+    """The FiberSection of a member of ``object_type``, in the element's local axes, or None when
+    it stays elastic (no reinforcement for concrete, no profile or material supported)."""
+    material = materials.get(object_type.material)
+    profile = getattr(object_type, "profile", None)
+    if material is None or profile is None:
+        return None
+    category = material.category.value
+    if category == "concrete":
+        built = _concrete(object_type, profile, material, materials, library)
+    elif category == "steel":
+        built = _steel(profile, library.steel(material))
+    else:
+        built = None
+    if built is None:
+        return None
+
+    # Profile axes -> element axes. A beam's depth is its local z (up) and its width local y;
+    # a column's depth lies along global Y (local -y) and its width along global X (local z),
+    # and a quarter turn swaps them (see derive.local_axes and derive.section).
+    cx, cy = built.centroid()
+
+    def local(x: float, y: float) -> tuple[float, float]:
+        x, y = x - cx, y - cy
+        if not vertical:
+            return (x, y)
+        return (-x, -y) if quarter_turns % 2 else (-y, x)
+
+    patches: list[dict[str, Any]] = []
+    for p in built.patches:
+        if p["kind"] == "rect":
+            x0, y0, x1, y1 = p["box"]
+            (ya, za), (yb, zb) = local(x0, y0), local(x1, y1)
+            nx, ny = p["n"]
+            # Along local y lies the profile's x for a beam, its y for a column.
+            ny_local, nz_local = (nx, ny) if not vertical or quarter_turns % 2 else (ny, nx)
+            patches.append(
+                {
+                    "kind": "rect",
+                    "material_id": p["mat"],
+                    "n_fib_y": ny_local,
+                    "n_fib_z": nz_local,
+                    "y_i": min(ya, yb),
+                    "z_i": min(za, zb),
+                    "y_j": max(ya, yb),
+                    "z_j": max(za, zb),
+                }
+            )
+        else:
+            r0, r1 = p["r"]
+            yc, zc = local(0.0, 0.0)
+            n_circ, n_rad = p["n"]
+            patches.append(
+                {
+                    "kind": "circ",
+                    "material_id": p["mat"],
+                    "n_fib_circ": n_circ,
+                    "n_fib_rad": n_rad,
+                    "y_center": yc,
+                    "z_center": zc,
+                    "r_inner": r0,
+                    "r_outer": r1,
+                }
+            )
+    fibres = []
+    for x, y, area, mat in built.fibres:
+        yl, zl = local(x, y)
+        fibres.append({"y": yl, "z": zl, "area": area, "material_id": mat})
+    props = section_properties(profile)
+    if category == "concrete":
+        from saengine.design.rc_detailing import material_modulus
+
+        e = material_modulus(material)[0] * MPA
+    else:
+        e = (material.mechanical.E or 0.0) * MPA
+    nu = (
+        material.mechanical.nu
+        if material.mechanical.nu is not None
+        else (0.2 if category == "concrete" else 0.3)
+    )
+    return {
+        "id": section_id,
+        "name": name,
+        "type": "FiberSection",
+        "GJ": max(e / (2 * (1 + nu)) * props.j * MM**4, 1.0),
+        "patches": patches,
+        "layers": [],
+        "fibres": fibres,
+    }
+
+
+def _concrete(
+    object_type: Any,
+    profile: Any,
+    material: Material,
+    materials: dict[str, Material],
+    library: FiberMaterials,
+) -> _Section | None:
+    reinforcement = getattr(object_type, "reinforcement", None)
+    if reinforcement is None or not reinforcement.longitudinal:
+        return None
+    rebar = materials.get(reinforcement.material)
+    if rebar is None:
+        return None
+    bar_mat = library.steel(rebar)
+    ties = reinforcement.transverse
+    tie_dia = ties.dia * MM if ties else 0.0
+    cover = reinforcement.cover * MM
+    to_core = cover + tie_dia / 2  # core: to the centre line of the ties
+    fyh = rebar.steel.fy if rebar.steel else 420.0
+    s = _Section()
+
+    if isinstance(profile, RectangleProfile):
+        b, h = profile.xDim * MM, profile.yDim * MM
+        bc, hc = b - 2 * to_core, h - 2 * to_core
+        if bc <= 0 or hc <= 0:
+            return None
+        rho = 0.0
+        if ties and ties.spacing > 0:
+            tie_area = math.pi * tie_dia**2 / 4
+            rho = ties.legs * tie_area * (bc + hc) / (bc * hc * ties.spacing * MM)
+        core = library.concrete(material, rho, fyh, role="core")
+        shell = library.concrete(material)
+        s.rect(core, -bc / 2, -hc / 2, bc / 2, hc / 2, FIBERS_WIDTH, FIBERS_DEPTH)
+        s.rect(shell, -b / 2, hc / 2, b / 2, h / 2, FIBERS_WIDTH, 1)
+        s.rect(shell, -b / 2, -h / 2, b / 2, -hc / 2, FIBERS_WIDTH, 1)
+        s.rect(shell, -b / 2, -hc / 2, -bc / 2, hc / 2, 1, FIBERS_DEPTH)
+        s.rect(shell, bc / 2, -hc / 2, b / 2, hc / 2, 1, FIBERS_DEPTH)
+        for group in reinforcement.longitudinal:
+            d = group.dia * MM
+            to_bar = cover + tie_dia + d / 2
+            xb, yb = b / 2 - to_bar, h / 2 - to_bar
+            for x, y in _bars_in_rectangle(group.position, group.count, xb, yb):
+                s.bar(bar_mat, x, y, d)
+        return s
+
+    if isinstance(profile, CircleProfile):
+        r = profile.radius * MM
+        rc = r - to_core
+        if rc <= 0:
+            return None
+        rho = 0.0
+        if ties and ties.spacing > 0:
+            rho = 4 * (math.pi * tie_dia**2 / 4) / (2 * rc * ties.spacing * MM)
+        core = library.concrete(material, rho, fyh, role="core")
+        s.ring(core, 0.0, rc, 16, 8)
+        s.ring(library.concrete(material), rc, r, 16, 1)
+        for group in reinforcement.longitudinal:
+            d = group.dia * MM
+            rb = r - cover - tie_dia - d / 2
+            for k in range(group.count):
+                a = 2 * math.pi * k / group.count
+                s.bar(bar_mat, rb * math.cos(a), rb * math.sin(a), d)
+        return s
+    return None
+
+
+def _bars_in_rectangle(
+    position: str, count: int, xb: float, yb: float
+) -> list[tuple[float, float]]:
+    """Bar centres of a group within the rectangle ±xb × ±yb (bar centre lines)."""
+
+    def spread(n: int, a: float, b: float) -> list[float]:
+        return [(a + b) / 2] if n == 1 else [a + (b - a) * i / (n - 1) for i in range(n)]
+
+    if position == "top":
+        return [(x, yb) for x in spread(count, -xb, xb)]
+    if position == "bottom":
+        return [(x, -yb) for x in spread(count, -xb, xb)]
+    if position == "sides":
+        # Between the top and bottom bars, half on each side.
+        per_side = [count - count // 2, count // 2]
+        result = []
+        for side, n in zip((-xb, xb), per_side, strict=True):
+            result += [(side, -yb + 2 * yb * (i + 1) / (n + 1)) for i in range(n)]
+        return result
+    # Perimeter: the four corners, then the rest along the sides in proportion to their length.
+    if count < 4:
+        return [(x, 0.0) for x in spread(count, -xb, xb)]
+    rest = count - 4
+    across = round(rest * xb / (xb + yb) / 2)  # between the corners of the top, and the bottom
+    along = (rest - 2 * across) // 2  # between the corners of each side
+    top = across + (rest - 2 * across - 2 * along)  # an odd bar goes to the top
+
+    def inner(n: int, half: float) -> list[float]:
+        return [-half + 2 * half * (i + 1) / (n + 1) for i in range(n)]
+
+    result = [(-xb, -yb), (xb, -yb), (xb, yb), (-xb, yb)]
+    result += [(x, yb) for x in inner(top, xb)] + [(x, -yb) for x in inner(across, xb)]
+    result += [(xb, y) for y in inner(along, yb)] + [(-xb, y) for y in inner(along, yb)]
+    return result
+
+
+def _steel(profile: Any, mat: int) -> _Section | None:
+    s = _Section()
+    n, p = FIBERS_DEPTH, FIBERS_PLATE
+    if isinstance(profile, RectangleProfile):
+        b, h = profile.xDim * MM, profile.yDim * MM
+        s.rect(mat, -b / 2, -h / 2, b / 2, h / 2, FIBERS_WIDTH, n)
+    elif isinstance(profile, CircleProfile):
+        s.ring(mat, 0.0, profile.radius * MM, 16, 8)
+    elif isinstance(profile, CircleHollowProfile):
+        r = profile.radius * MM
+        s.ring(mat, r - profile.wallThickness * MM, r, 24, p)
+    elif isinstance(profile, RectangleHollowProfile):
+        b, h, t = profile.xDim * MM, profile.yDim * MM, profile.wallThickness * MM
+        s.rect(mat, -b / 2, h / 2 - t, b / 2, h / 2, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2, b / 2, -h / 2 + t, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2 + t, -b / 2 + t, h / 2 - t, p, n)
+        s.rect(mat, b / 2 - t, -h / 2 + t, b / 2, h / 2 - t, p, n)
+    elif isinstance(profile, IShapeProfile):
+        b, h = profile.overallWidth * MM, profile.overallDepth * MM
+        tf, tw = profile.flangeThickness * MM, profile.webThickness * MM
+        s.rect(mat, -b / 2, h / 2 - tf, b / 2, h / 2, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2, b / 2, -h / 2 + tf, FIBERS_WIDTH, p)
+        s.rect(mat, -tw / 2, -h / 2 + tf, tw / 2, h / 2 - tf, p, n)
+    elif isinstance(profile, TShapeProfile):
+        b, h = profile.flangeWidth * MM, profile.depth * MM
+        tf, tw = profile.flangeThickness * MM, profile.webThickness * MM
+        s.rect(mat, -b / 2, h / 2 - tf, b / 2, h / 2, FIBERS_WIDTH, p)
+        s.rect(mat, -tw / 2, -h / 2, tw / 2, h / 2 - tf, p, n)
+    elif isinstance(profile, UShapeProfile):
+        b, h = profile.flangeWidth * MM, profile.depth * MM
+        tf, tw = profile.flangeThickness * MM, profile.webThickness * MM
+        s.rect(mat, -b / 2, h / 2 - tf, b / 2, h / 2, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2, b / 2, -h / 2 + tf, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2 + tf, -b / 2 + tw, h / 2 - tf, p, n)
+    elif isinstance(profile, LShapeProfile):
+        b, h, t = profile.width * MM, profile.depth * MM, profile.thickness * MM
+        s.rect(mat, -b / 2, -h / 2, b / 2, -h / 2 + t, FIBERS_WIDTH, p)
+        s.rect(mat, -b / 2, -h / 2 + t, -b / 2 + t, h / 2, p, n)
+    else:
+        return None
+    return s
+
+
+# ───────────────────────────── the pushover model ─────────────────────────────
+
+#: Re-walk 4 R4B-4: the equation solver of the gravity and pushover cases. The rigid diaphragms
+#: tie each floor's node to all of that floor's nodes, so a banded solver's band spans the floor
+#: and every Newton iteration factors it: the sparse solver of the linear cases
+#: (``saengine.fem.derive.SOLVER``), with the same displacements.
+NONLINEAR_SOLVER = "UmfPack"
+
+#: Share of the live load on the structure while it is pushed (with D and SD), as in its
+#: seismic weight.
+LIVE_SHARE = 0.25
+
+
+def nonlinear_copy(
+    linear: dict[str, Any],
+    section_keys: dict[int, tuple[str, int, bool]],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    node_weight: dict[int, float],
+    fibre_walls_on: bool,
+    walls: list[WallSpec] | None = None,
+    label: str = "pushover",
+) -> tuple[dict[str, Any] | None, list[str], dict[int, int], dict[int, float]]:
+    """A copy of the derived analysis model ``linear`` with its members nonlinear: frames as
+    force-based fiber elements (``section_keys`` maps each elastic section id to its object
+    type, quarter turns and whether it is vertical), reinforced concrete walls without openings
+    (``walls``) as fibre wall elements (:func:`fibre_walls`) when ``fibre_walls_on``; slabs stay
+    elastic shells. Shared by the pushover and the nonlinear time histories (B36); ``label``
+    starts the notes. Returns ``(model or None, notes, {dropped node: node it moved to}, the
+    node weights with the dropped nodes moved)``."""
+    import copy
+
+    notes: list[str] = []
+    project = copy.deepcopy(linear)
+    own = project.get("materials", [])
+    library = FiberMaterials(offset=max((m["id"] for m in own), default=0))
+
+    # ── fiber sections, one per elastic frame section that can have one ──
+    fiber_of: dict[int, int] = {}
+    elastic_types: set[str] = set()
+    for elastic_id, (type_id, turns, vertical) in section_keys.items():
+        object_type = types.get(type_id)
+        section = None
+        if object_type is not None:
+            section = fiber_section(
+                len(project["sections"]) + 1,
+                f"{type_id} {'column' if vertical else 'beam'} fibers",
+                object_type,
+                materials,
+                library,
+                vertical,
+                turns,
+            )
+        if section is None:
+            elastic_types.add(type_id)
+            continue
+        project["sections"].append(section)
+        fiber_of[elastic_id] = section["id"]
+    if elastic_types:
+        notes.append(
+            f"{label}: members of "
+            + ", ".join(sorted(elastic_types))
+            + " stay elastic (concrete without reinforcement, or a profile or material without "
+            "a fiber section)"
+        )
+    project["materials"] = [*own, *library.materials]
+
+    vertical_ids = {sid for sid, (_, _, vertical) in section_keys.items() if vertical}
+    frames = 0
+    for element in project["elements"]:
+        if element["type"] != "ElasticBeamColumn" or element["section_id"] not in fiber_of:
+            continue
+        frames += 1
+        column = element["section_id"] in vertical_ids
+        element.update(
+            {
+                "type": "ForceBeamColumn",
+                "section_id": fiber_of[element["section_id"]],
+                "integration_points": 5,
+                "integration": "Lobatto",
+                # A force-based element iterates for its own deformations; ten iterations
+                # (OpenSees' default) are too few once its concrete crushes.
+                "max_iter": 100,
+                "tolerance": 1e-10,
+                # Columns carry the gravity load through the sway: P-Delta.
+                "geom_transf": "PDelta" if column else "Linear",
+            }
+        )
+        element.pop("rho", None)
+        element.pop("consistent_mass", None)
+    moved: dict[int, int] = {}
+    walled = 0
+    if walls and fibre_walls_on:
+        walled, moved = fibre_walls(project, walls, types, materials, library, notes)
+        project["materials"] = [*own, *library.materials]
+        node_weight = _moved_weights(node_weight, moved)
+    if label != "pushover":
+        notes[:] = [n.replace("pushover:", f"{label}:", 1) for n in notes]
+    if not frames and not walled:
+        return (
+            None,
+            [*notes, f"{label}: no frame member has a fiber section; no {label} model"],
+            {},
+            {},
+        )
+    shells = {e["name"].split("#")[0] for e in project["elements"] if e["type"] == "Shell"}
+    elastic_walls = sorted(w.id for w in walls or [] if w.id in shells)
+    if elastic_walls:
+        notes.append(
+            f"{label}: walls "
+            + ", ".join(elastic_walls)
+            + " stay elastic shells, which the code's nonlinear model asks for only where an "
+            "element stays elastic; check that they do"
+        )
+    if any(e["type"] == "Shell" for e in project["elements"]):
+        notes.append(f"{label}: shell slabs stay elastic")
+    return project, notes, moved, node_weight
+
+
+def gravity_pattern(project: dict[str, Any], keep_records: bool = False) -> int:
+    """Add the gravity load pattern G (D + SD + :data:`LIVE_SHARE` L) of a nonlinear copy and
+    return its id. The other load patterns, time series, spectra and records go, except the
+    plain patterns (and with ``keep_records`` the ground motions, their time series and
+    uniform excitations)."""
+    by_name = {p["name"]: p for p in project["load_patterns"]}
+    nodal: dict[int, list[float]] = {}
+    element_loads: dict[int, list[float]] = {}
+    for name, factor in (("D", 1.0), ("SD", 1.0), ("L", LIVE_SHARE)):
+        pattern = by_name.get(name, {})
+        for load in pattern.get("nodal_loads", []):
+            total = nodal.setdefault(load["node_id"], [0.0] * 6)
+            for k, f in enumerate(load["forces"]):
+                total[k] += factor * f
+        for load in pattern.get("element_loads", []):
+            total = element_loads.setdefault(load["element_id"], [0.0] * 3)
+            for k, key in enumerate(("wx", "wy", "wz")):
+                total[k] += factor * load.get(key, 0.0)
+    kept = {"Plain", "UniformExcitation"} if keep_records else {"Plain"}
+    if not keep_records:
+        project["time_series"] = [s for s in project["time_series"] if s["id"] == 1]
+        project["ground_motions"] = []
+    project["load_patterns"] = [p for p in project["load_patterns"] if p["type"] in kept]
+    project["spectra"] = []
+    gravity_id = max(p["id"] for p in project["load_patterns"]) + 1
+    project["load_patterns"].append(
+        {
+            "id": gravity_id,
+            "name": "G",
+            "type": "Plain",
+            "time_series_id": 1,
+            "nodal_loads": [
+                {"node_id": n, "forces": [round(f, 3) for f in v]} for n, v in sorted(nodal.items())
+            ],
+            "element_loads": [
+                {"element_id": e, "wx": round(v[0], 3), "wy": round(v[1], 3), "wz": round(v[2], 3)}
+                for e, v in sorted(element_loads.items())
+            ],
+        }
+    )
+    return gravity_id
+
+
+def gravity_case(case_id: int, pattern_id: int) -> dict[str, Any]:
+    """The gravity case of a nonlinear model: the pattern G in ten load steps."""
+    return {
+        "id": case_id,
+        "name": "G: Gravity (D + SD + 0.25L)",
+        "type": "Static",
+        "pattern_ids": [pattern_id],
+        "n_steps": 10,
+        "load_factor_increment": 0.1,
+        "system": NONLINEAR_SOLVER,
+        "constraints": "Plain",
+        "integrator": "LoadControl",
+        "algorithm": "Newton",
+        "test": "NormDispIncr",
+        "tolerance": 1e-8,
+        "max_iter": 50,
+    }
+
+
+def pushover_model(
+    linear: dict[str, Any],
+    section_keys: dict[int, tuple[str, int, bool]],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    node_weight: dict[int, float],
+    base: float,
+    options: Any,
+    walls: list[WallSpec] | None = None,
+    modes: Callable[[dict[str, Any], list[str]], dict[str, dict[int, float]]] | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The pushover model (``08 FEM/pushover.osmodel``) of the derived analysis model ``linear``.
+
+    The same nodes, floors, supports and loads; members nonlinear (:func:`nonlinear_copy`). It
+    holds one gravity case (D + SD + 0.25 L) and a pushover per direction, driving the roof to
+    ``options.targetDrift`` percent of the height above ``base`` [m] after the gravity loads.
+
+    The lateral load follows ``options.pattern``: ``firstMode`` the fundamental mode of the
+    linear model in the direction times the masses (``modes(linear, directions)`` gives the
+    forces per node; :func:`fundamental_mode_forces` by default), ``seismic`` the storey forces
+    of the linear model, ``uniform`` the masses.
+    """
+    notes: list[str] = []
+    mode_forces: dict[str, dict[int, float]] = {}
+    pattern_kind = getattr(options, "pattern", "seismic")
+    if pattern_kind == "firstMode":
+        try:
+            mode_forces = (modes or fundamental_mode_forces)(linear, list(options.directions))
+        except Exception as error:  # noqa: BLE001 - the pushover falls back to the storey forces
+            notes.append(f"pushover: the fundamental modes could not be worked out ({error})")
+            mode_forces = {}
+    project, more, moved, node_weight = nonlinear_copy(
+        linear,
+        section_keys,
+        types,
+        materials,
+        node_weight,
+        getattr(options, "fibreWalls", True),
+        walls,
+    )
+    notes += more
+    if project is None:
+        return None, notes
+    gravity_id = gravity_pattern(project)
+
+    coords = {n["id"]: n["coords"] for n in project["nodes"]}
+    supports = [n["id"] for n in project["nodes"] if all(n.get("restraint") or [])]
+    control = _control_node(project, node_weight)
+    height = coords[control][2] - base
+    if height <= 0 or not supports:
+        return None, [*notes, "pushover: the structure has no height above its supports"]
+    target = options.targetDrift / 100 * height
+
+    analyses: list[dict[str, Any]] = [gravity_case(1, gravity_id)]
+    for axis in options.directions:
+        dof = 1 if axis == "X" else 2
+        forces = _moved_weights(mode_forces.get(axis, {}), moved)
+        if forces:
+            pattern_id = _mode_pattern(project, axis, dof, forces)
+        else:
+            if pattern_kind == "firstMode":
+                notes.append(
+                    f"pushover {axis}: no fundamental mode in {axis}; the lateral load follows "
+                    "the storey forces"
+                )
+            kind = "seismic" if pattern_kind == "firstMode" else pattern_kind
+            pattern_id = _lateral_pattern(project, axis, dof, kind, node_weight, notes)
+        analyses.append(
+            {
+                "id": len(analyses) + 1,
+                "name": f"P{axis}: Pushover {axis}",
+                "type": "Pushover",
+                "pattern_ids": [pattern_id],
+                "control_node": control,
+                "control_dof": dof,
+                "target_disp": round(target, 6),
+                "step_size": round(target / options.steps, 9),
+                "base_nodes": supports,
+                "preload_case_ids": [1],
+                "system": NONLINEAR_SOLVER,
+                "algorithm": "Newton",
+                "test": "NormDispIncr",
+                "tolerance": 1e-6,
+                "max_iter": 50,
+            }
+        )
+    project["analyses"] = analyses
+    meta = project["meta"]
+    project["meta"] = {
+        **meta,
+        "name": f"{meta['name']} (pushover)",
+        "description": meta["description"].replace(
+            "Derived by SAEngine", "Pushover model derived by SAEngine", 1
+        ),
+    }
+    return project, notes
+
+
+def _control_node(project: dict[str, Any], node_weight: dict[int, float]) -> int:
+    """The roof node pushed: the top floor's own node (rigid floors), else the highest node
+    with mass nearest the middle of the roof."""
+    coords = {n["id"]: n["coords"] for n in project["nodes"]}
+    retained = [
+        c["retained_node"] for c in project.get("mp_constraints", []) if "retained_node" in c
+    ]
+    if retained:
+        return max(retained, key=lambda n: coords[n][2])
+    top = max(c[2] for c in coords.values())
+    roof = [n for n, c in coords.items() if abs(c[2] - top) < 1e-6]
+    weighted = [n for n in roof if node_weight.get(n)] or roof
+    cx = sum(coords[n][0] for n in weighted) / len(weighted)
+    cy = sum(coords[n][1] for n in weighted) / len(weighted)
+    return min(weighted, key=lambda n: (coords[n][0] - cx) ** 2 + (coords[n][1] - cy) ** 2)
+
+
+def _lateral_pattern(
+    project: dict[str, Any],
+    axis: str,
+    dof: int,
+    kind: str,
+    node_weight: dict[int, float],
+    notes: list[str],
+) -> int:
+    """The id of the reference lateral load pattern of a pushover in ``axis``."""
+    seismic = next((p for p in project["load_patterns"] if p["name"] == f"E{axis}"), None)
+    if kind == "seismic" and seismic and seismic["nodal_loads"]:
+        return seismic["id"]
+    if kind == "seismic":
+        notes.append(
+            f"pushover {axis}: no story forces (special structure or no seismic zone); the "
+            "lateral load follows the masses"
+        )
+    pattern_id = max(p["id"] for p in project["load_patterns"]) + 1
+    project["load_patterns"].append(
+        {
+            "id": pattern_id,
+            "name": f"U{axis}",
+            "type": "Plain",
+            "time_series_id": 1,
+            "nodal_loads": [
+                {"node_id": n, "forces": [round(w, 3) if k == dof - 1 else 0.0 for k in range(6)]}
+                for n, w in sorted(node_weight.items())
+                if w > 0
+            ],
+            "element_loads": [],
+        }
+    )
+    return pattern_id
+
+
+def _mode_pattern(project: dict[str, Any], axis: str, dof: int, forces: dict[int, float]) -> int:
+    """A lateral load pattern ``M<axis>`` of the given nodal forces in ``dof``."""
+    pattern_id = max(p["id"] for p in project["load_patterns"]) + 1
+    project["load_patterns"].append(
+        {
+            "id": pattern_id,
+            "name": f"M{axis}",
+            "type": "Plain",
+            "time_series_id": 1,
+            "nodal_loads": [
+                {"node_id": n, "forces": [round(f, 3) if k == dof - 1 else 0.0 for k in range(6)]}
+                for n, f in sorted(forces.items())
+                if abs(f) > 0
+            ],
+            "element_loads": [],
+        }
+    )
+    return pattern_id
+
+
+def _moved_weights(values: dict[int, float], moved: dict[int, int]) -> dict[int, float]:
+    """``values`` per node with the nodes of ``moved`` summed into the nodes they moved to."""
+    if not moved:
+        return values
+    result: dict[int, float] = {}
+    for node, value in values.items():
+        target = moved.get(node, node)
+        result[target] = result.get(target, 0.0) + value
+    return result
+
+
+# ───────────────────────── the nonlinear time history model (B36) ─────────────────────────
+
+#: Modes of the nonlinear time history model's modal case (the fundamental periods).
+HISTORY_MODES = 12
+
+
+#: P5: the second period of Rayleigh damping as a share of the first, where the code pack
+#: gives none (SAEngine practice: the damping then stays near the ratio from about T1/5 to T1).
+RAYLEIGH_SECOND_SHARE = 0.2
+
+
+def history_model(
+    linear: dict[str, Any],
+    section_keys: dict[int, tuple[str, int, bool]],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    node_weight: dict[int, float],
+    options: Any,
+    walls: list[WallSpec] | None = None,
+    amplitudes: dict[int, float] | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The nonlinear time history model (``08 FEM/nonlinear-history.osmodel``) of the derived
+    analysis model ``linear``: its members nonlinear (:func:`nonlinear_copy`), its records,
+    their time series and uniform excitations kept, with the time series' factors replaced by
+    ``amplitudes`` (series id -> factor: the records scaled to the code pack's nonlinear
+    target, :func:`saengine.fem.records.suite_factors`).
+
+    Cases: the gravity loads G (D + SD + 0.25 L); a modal case (the fundamental periods of the
+    suite check); per time history of ``linear`` a Transient case after G, damped on its first
+    mode in proportion to the committed stiffness (``options.damping`` or the record's own),
+    keeping the peak strains of the fibres of the members' end sections (the acceptance,
+    :mod:`saengine.fem.acceptance`). P5: the pack's damping (``nonlinearHistory.procedure.
+    damping``, the project's ``dampingModel`` over it: Rayleigh at T1 and a share of it), and,
+    where the pack checks hinges, the end sections' deformations at every step."""
+    histories = [a for a in linear.get("analyses", []) if a.get("type") == "Transient"]
+    if not histories:
+        return None, ["nonlinear time history: the model has no time history; add records"]
+    project, notes, _, _ = nonlinear_copy(
+        linear,
+        section_keys,
+        types,
+        materials,
+        node_weight,
+        getattr(options, "fibreWalls", True),
+        walls,
+        label="nonlinear time history",
+    )
+    if project is None:
+        return None, notes
+    gravity_id = gravity_pattern(project, keep_records=True)
+    for series in project["time_series"]:
+        if amplitudes and int(series["id"]) in amplitudes:
+            series["factor"] = float(amplitudes[int(series["id"])])
+    analyses: list[dict[str, Any]] = [
+        gravity_case(1, gravity_id),
+        {
+            "id": 2,
+            "name": "Modal (initial stiffness)",
+            "type": "Modal",
+            "n_modes": HISTORY_MODES,
+            "solver": "auto",
+        },
+    ]
+    damping = getattr(options, "damping", None)
+    # P5: the damping and the hinge check by the code pack (saengine.fem.nonlinear_history).
+    from saengine.fem import nonlinear_history
+
+    rule = nonlinear_history.table()
+    pack_damping = rule.procedure.damping if rule is not None else None
+    model = getattr(options, "dampingModel", "pack")
+    if model == "pack":
+        model = pack_damping.method if pack_damping is not None else "mode1Stiffness"
+    if damping is None and pack_damping is not None and pack_damping.ratio is not None:
+        damping = pack_damping.ratio
+    second_share = (
+        pack_damping.secondPeriodShare
+        if pack_damping is not None and pack_damping.secondPeriodShare
+        else RAYLEIGH_SECOND_SHARE
+    )
+    keep_hinges = bool(
+        getattr(options, "checkHinges", True)
+        and rule is not None
+        and rule.acceptance.method == "hingeRotation"
+    )
+    for history in histories:
+        name = str(history.get("name", "")).removeprefix("TH: ")
+        case = {
+            "id": len(analyses) + 1,
+            "name": f"NTH: {name}",
+            "type": "Transient",
+            "pattern_ids": list(history["pattern_ids"]),
+            "dt": history["dt"],
+            "n_steps": history["n_steps"],
+            "system": "BandGeneral",
+            "algorithm": "Newton",
+            "test": "NormDispIncr",
+            "tolerance": 1e-6,
+            "max_iter": 50,
+            "rayleigh_mode1_damping": damping
+            if damping is not None
+            else history.get("rayleigh_mode1_damping", 0.05),
+            "rayleigh_mode1_stiffness": "committed",
+            "record_fibre_peaks": True,
+            "preload_case_ids": [1],
+        }
+        if model == "rayleigh":
+            case["rayleigh_second_period_share"] = second_share
+        if keep_hinges:
+            case["record_section_deformations"] = True
+        analyses.append(case)
+    project["analyses"] = analyses
+    meta = project["meta"]
+    project["meta"] = {
+        **meta,
+        "name": f"{meta['name']} (nonlinear time history)",
+        "description": meta["description"].replace(
+            "Derived by SAEngine", "Nonlinear time history model derived by SAEngine", 1
+        ),
+    }
+    notes.append(
+        f"nonlinear time history: {len(histories)} record{'s' if len(histories) != 1 else ''} "
+        "after the gravity loads, with the fibre members"
+    )
+    return project, notes
+
+
+# ─────────────────────────── the fundamental mode (load pattern) ───────────────────────────
+
+#: Acceleration due to gravity [m/s²].
+G_ACCEL = 9.80665
+#: Modes worked out to find the fundamental mode of each direction.
+MODES = 12
+#: Seconds the eigen analysis of the fundamental modes may take.
+MODES_TIMEOUT = 900
+
+
+def mode_forces(
+    nodes: list[dict[str, Any]], shapes: dict[int, dict[int, Any]], directions: list[str]
+) -> dict[str, dict[int, float]]:
+    """Per direction the nodal forces mᵢ·g·φᵢ of the fundamental mode in it: the mode with
+    the largest effective mass in the direction (``shapes``: mode -> node -> vector), signed
+    so that it pushes the structure the positive way, scaled so the largest force is the
+    largest weight of a node."""
+    mass = {int(n["id"]): list(n.get("mass") or [0.0] * 6) for n in nodes}
+    result: dict[str, dict[int, float]] = {}
+    for axis in directions:
+        d = 0 if axis == "X" else 1
+        best, best_mass = None, 0.0
+        for mode in sorted(shapes):
+            gamma = norm = 0.0
+            for node, vector in shapes[mode].items():
+                m = mass.get(int(node))
+                if not m:
+                    continue
+                v = [float(x) for x in vector]
+                gamma += m[d] * v[d]
+                norm += sum(m[k] * v[k] ** 2 for k in range(min(len(v), len(m))))
+            effective = gamma**2 / norm if norm > 0 else 0.0
+            if effective > best_mass * (1 + 1e-9):
+                best, best_mass = mode, effective
+        if best is None:
+            continue
+        forces = {
+            int(n): mass[int(n)][d] * G_ACCEL * float(v[d])
+            for n, v in shapes[best].items()
+            if int(n) in mass and mass[int(n)][d] > 0
+        }
+        total = sum(forces.values())
+        if not total:
+            continue
+        sign = 1.0 if total > 0 else -1.0
+        largest = max(abs(f) for f in forces.values())
+        weight = max(mass[n][d] for n in forces) * G_ACCEL
+        result[axis] = {n: sign * f / largest * weight for n, f in forces.items()}
+    return result
+
+
+def fundamental_mode_forces(
+    linear: dict[str, Any], directions: list[str]
+) -> dict[str, dict[int, float]]:
+    """:func:`mode_forces` of the derived analysis model ``linear``: its eigen analysis
+    (:data:`MODES` modes) run in a temporary folder by OpenSees Studio's runner."""
+    import json
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    from opensees_studio.services.result_store import load_manifest, load_results
+
+    model = {
+        **linear,
+        "analyses": [{"id": 1, "name": "Fundamental modes", "type": "Modal", "n_modes": MODES}],
+        "spectra": [],
+        "ground_motions": [],
+    }
+    with tempfile.TemporaryDirectory(prefix="saengine-modes-") as folder:
+        path = Path(folder) / "modes.osmodel"
+        out = Path(folder) / "out"
+        path.write_text(json.dumps(model), encoding="utf-8")
+        run = subprocess.run(
+            [sys.executable, "-P", "-m", "opensees_studio.run", "--project", str(path)]
+            + ["--cases", "1", "--out", str(out)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=MODES_TIMEOUT,
+            cwd=folder,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if run.returncode != 0:
+            raise RuntimeError((run.stderr or run.stdout or "the eigen analysis failed")[-300:])
+        (entry,) = load_manifest(str(out))["cases"]
+        results = load_results(entry, str(out))
+        return mode_forces(linear.get("nodes", []), results.mode_shapes, directions)
+
+
+# ───────────────────────────────────── fibre walls ─────────────────────────────────────
+
+#: Shear area of a rectangle as a share of its area.
+SHEAR_AREA = 5 / 6
+#: Rigid arms: their stiffness as a multiple of the wall's concrete, over a 1 m deep section.
+RIGID_FACTOR = 100.0
+#: Fibres along a wall's web per metre, and at most.
+WEB_FIBRES_PER_M = 8
+WEB_FIBRES_MAX = 40
+
+
+@dataclass
+class WallSpec:
+    """A wall of the building, for its fibre wall elements (plan points in m)."""
+
+    id: str
+    type: str
+    start: tuple[float, float]
+    end: tuple[float, float]
+    openings: bool = False
+
+
+def wall_fiber_section(
+    section_id: int,
+    name: str,
+    wall_type: Any,
+    length: float,
+    materials: dict[str, Material],
+    library: FiberMaterials,
+) -> dict[str, Any] | None:
+    """The fibre section of a reinforced concrete wall ``length`` m long, in the element's
+    local axes: y across the thickness, z along the length (the element's ``vecxz`` along the
+    wall). Boundary elements (or end bars with ties) are cores at both ends, confined by their
+    hoops; the web is unconfined. The section also carries ``shear`` (G·(5/6)·A [N]) and ``E``
+    [Pa] for the caller to take out. None without concrete, reinforcement or vertical bars."""
+    material = materials.get(wall_type.material)
+    bars = wall_type.reinforcement
+    if material is None or material.category.value != "concrete" or bars is None:
+        return None
+    rebar = materials.get(bars.material)
+    if rebar is None or (bars.vertical is None and bars.boundary is None):
+        return None
+    t, half = wall_type.thickness * MM, length / 2
+    cover = bars.cover * MM
+    if t <= 2 * cover or length <= 4 * cover:
+        return None
+    bar_mat = library.steel(rebar)
+    plain = library.concrete(material)
+    web_concrete = library.concrete(material, role="web")
+    fyh = rebar.steel.fy if rebar.steel else 420.0
+    patches: list[dict[str, Any]] = []
+    fibres: list[dict[str, Any]] = []
+
+    def rect(mat: int, y0: float, z0: float, y1: float, z1: float, ny: int, nz: int) -> None:
+        if y1 - y0 > 1e-9 and z1 - z0 > 1e-9:
+            patches.append(
+                {
+                    "kind": "rect",
+                    "material_id": mat,
+                    "n_fib_y": ny,
+                    "n_fib_z": nz,
+                    "y_i": y0,
+                    "z_i": z0,
+                    "y_j": y1,
+                    "z_j": z1,
+                }
+            )
+
+    def bar(y: float, z: float, dia: float) -> None:
+        fibres.append({"y": y, "z": z, "area": math.pi * dia**2 / 4, "material_id": bar_mat})
+
+    def spread(n: int, a: float, b: float) -> list[float]:
+        return [(a + b) / 2] if n == 1 else [a + (b - a) * i / (n - 1) for i in range(n)]
+
+    boundary = bars.boundary
+    zone = min(boundary.length * MM, half) if boundary else 0.0
+    if boundary is not None and zone > 2 * cover:
+        hoop = boundary.hoop
+        hoop_dia = hoop.dia * MM if hoop else 0.0
+        tc, lc = t - 2 * cover, zone - cover  # the confined core of one end
+        rho = 0.0
+        if hoop and hoop.spacing > 0:
+            area = math.pi * hoop_dia**2 / 4
+            rho = (hoop.legsAcross * area * tc + hoop.legsAlong * area * lc) / (
+                tc * lc * hoop.spacing * MM
+            )
+        core = library.concrete(material, rho, fyh, role="core")
+        d = boundary.dia * MM
+        y_bar = t / 2 - cover - hoop_dia - d / 2
+        first_row = max(1, boundary.count - boundary.count // 2)
+        for side in (1.0, -1.0):
+            a, b = sorted((side * (half - zone), side * (half - cover)))
+            rect(core, -tc / 2, a, tc / 2, b, 2, 4)
+            a, b = sorted((side * (half - zone), side * half))
+            rect(plain, tc / 2, a, t / 2, b, 1, 4)
+            rect(plain, -t / 2, a, -tc / 2, b, 1, 4)
+            a, b = sorted((side * (half - cover), side * half))
+            rect(plain, -tc / 2, a, tc / 2, b, 2, 1)
+            outer = side * (half - cover - hoop_dia - d / 2)
+            inner = side * (half - zone + cover)
+            for y, n in ((y_bar, first_row), (-y_bar, boundary.count - first_row)):
+                for z in spread(n, outer, inner) if n else []:
+                    bar(y, z, d)
+    else:
+        zone = 0.0
+    web = half - zone
+    if web > 1e-6:
+        n = min(WEB_FIBRES_MAX, max(4, round(2 * web * WEB_FIBRES_PER_M)))
+        rect(web_concrete, -t / 2, -web, t / 2, web, 2, n)
+    mesh = bars.vertical
+    if mesh is not None and mesh.spacing > 0:
+        d, s = mesh.dia * MM, mesh.spacing * MM
+        if zone > 0:  # between the boundary zones, the first a spacing in
+            count = max(0, round(2 * web / s) - 1)
+            zs = [-web + 2 * web * (i + 1) / (count + 1) for i in range(count)]
+        else:
+            end = half - cover - d / 2
+            zs = spread(max(2, int(2 * end / s) + 1), -end, end)
+        ys = (0.0,) if bars.layers == 1 else (t / 2 - cover - d / 2, -(t / 2 - cover - d / 2))
+        for z in zs:
+            for y in ys:
+                bar(y, z, d)
+    if not fibres:
+        return None
+    from saengine.design.rc_detailing import material_modulus
+
+    fc = material.concrete.fc if material.concrete else 20.0
+    e = material_modulus(material, fc=fc)[0] * MPA
+    nu = material.mechanical.nu if material.mechanical.nu is not None else 0.2
+    shear_g = e / (2 * (1 + nu))
+    return {
+        "id": section_id,
+        "name": name,
+        "type": "FiberSection",
+        "GJ": max(shear_g * length * t**3 / 3, 1.0),
+        "patches": patches,
+        "layers": [],
+        "fibres": fibres,
+        "shear": shear_g * SHEAR_AREA * length * t,
+        "E": e,
+    }
+
+
+def fibre_walls(
+    project: dict[str, Any],
+    walls: list[WallSpec],
+    types: dict[str, Any],
+    materials: dict[str, Material],
+    library: FiberMaterials,
+    notes: list[str],
+) -> tuple[int, dict[int, int]]:
+    """Replace the shells of each reinforced concrete wall without openings by fibre wall
+    elements (a "wide column" model): at every height where the wall's mesh meets the rest of
+    the model (floors, beams, columns, supports) a node on the wall's centre line, tied to the
+    wall's nodes there by rigid arms; between those nodes a force-based element with the wall's
+    fibre section (:func:`wall_fiber_section`) and an elastic shear stiffness G·(5/6)·A. The
+    wall's other nodes go; their loads and masses move to the centre node of the nearest
+    height kept.
+
+    Returns the number of walls converted and ``{dropped node: node its loads moved to}``."""
+    nodes = {n["id"]: n for n in project["nodes"]}
+    coords = {i: n["coords"] for i, n in nodes.items()}
+    constrained = {
+        n
+        for c in project.get("mp_constraints", [])
+        for n in [c.get("retained_node"), *c.get("constrained_nodes", [])]
+        if n is not None
+    }
+    of_wall: dict[str, list[dict[str, Any]]] = {}
+    for element in project["elements"]:
+        if element["type"] == "Shell":
+            of_wall.setdefault(element["name"].split("#")[0], []).append(element)
+    moved: dict[int, int] = {}
+    converted, skipped = 0, []
+    next_node = max(nodes) + 1
+    for wall in walls:
+        shells = of_wall.get(wall.id)
+        wall_type = types.get(wall.type)
+        if not shells or wall_type is None:
+            continue
+        if wall.openings:
+            skipped.append(f"{wall.id} (openings)")
+            continue
+        sx, sy = wall.start
+        ex, ey = wall.end
+        length = math.hypot(ex - sx, ey - sy)
+        # The wall's nodes, and those it shares with the rest of the model.
+        shell_ids = {s["id"] for s in shells}
+        wall_nodes = {n for s in shells for n in s["nodes"]}
+        shared = {
+            n
+            for element in project["elements"]
+            if element["id"] not in shell_ids
+            for n in element.get("nodes", [])
+            if n in wall_nodes
+        }
+        shared |= {
+            n for n in wall_nodes if n in constrained or any(nodes[n].get("restraint") or [])
+        }
+        heights = sorted({round(coords[n][2], 6) for n in shared})
+        if len(heights) < 2:
+            skipped.append(f"{wall.id} (not tied to the model at two heights)")
+            continue
+        section = wall_fiber_section(
+            len(project["sections"]) + 1,
+            f"{wall.type} wall fibers",
+            wall_type,
+            length,
+            materials,
+            library,
+        )
+        if section is None:
+            skipped.append(f"{wall.id} (no reinforced concrete with vertical bars)")
+            continue
+        shear, e = section.pop("shear"), section.pop("E")
+        project["sections"].append(section)
+        shear_material = library._add(
+            ("elastic", round(shear)),
+            {"name": f"{wall.type} wall shear", "type": "Elastic", "E": shear},
+        )
+        aggregated = len(project["sections"]) + 1
+        project["sections"].append(
+            {
+                "id": aggregated,
+                "name": f"{wall.type} wall fibers and shear",
+                "type": "SectionAggregator",
+                "section_id": section["id"],
+                "pairings": [
+                    {"material_id": shear_material, "dof": "Vy"},
+                    {"material_id": shear_material, "dof": "Vz"},
+                ],
+            }
+        )
+        rigid = len(project["sections"]) + 1
+        thickness = wall_type.thickness * MM
+        project["sections"].append(
+            {
+                "id": rigid,
+                "name": f"{wall.id} rigid arms",
+                "type": "ElasticSection",
+                "E": RIGID_FACTOR * e,
+                "A": thickness,
+                "Iz": thickness / 12,
+                "Iy": thickness**3 / 12,
+                "G": RIGID_FACTOR * e / 2.4,
+                "J": thickness**3 / 3,
+            }
+        )
+        project["elements"] = [e2 for e2 in project["elements"] if e2["id"] not in shell_ids]
+        elements = project["elements"]
+        mid = ((sx + ex) / 2, (sy + ey) / 2)
+        along = [round((ex - sx) / length, 9), round((ey - sy) / length, 9), 0.0]
+        centre: dict[float, int] = {}
+        for z in heights:
+            here = next(
+                (
+                    n
+                    for n in shared
+                    if abs(coords[n][2] - z) < 1e-6
+                    and math.hypot(coords[n][0] - mid[0], coords[n][1] - mid[1]) < 1e-3
+                ),
+                None,
+            )
+            if here is not None:  # a node of the wall's mesh is on its centre line
+                centre[z] = here
+                continue
+            fixed = any(
+                all(nodes[n].get("restraint") or []) for n in shared if abs(coords[n][2] - z) < 1e-6
+            )
+            node = {
+                "id": next_node,
+                "name": "",
+                "coords": [round(mid[0], 6), round(mid[1], 6), z],
+                "mass": [0.0] * 6,
+                "restraint": [True] * 6 if fixed else [False] * 6,
+            }
+            project["nodes"].append(node)
+            nodes[next_node] = node
+            coords[next_node] = node["coords"]
+            centre[z] = next_node
+            next_node += 1
+        next_element = max((e2["id"] for e2 in elements), default=0) + 1
+        for k, (lower, upper) in enumerate(pairwise(heights)):
+            elements.append(
+                {
+                    "id": next_element,
+                    "name": wall.id if k == 0 else f"{wall.id}#{k + 1}",
+                    "type": "ForceBeamColumn",
+                    "nodes": [centre[lower], centre[upper]],
+                    "section_id": aggregated,
+                    "integration_points": 5,
+                    "integration": "Lobatto",
+                    "max_iter": 100,
+                    "tolerance": 1e-10,
+                    "geom_transf": "PDelta",
+                    "vecxz": along,
+                }
+            )
+            next_element += 1
+        for n in sorted(shared - set(centre.values())):
+            elements.append(
+                {
+                    "id": next_element,
+                    "name": f"{wall.id}/arm",
+                    "type": "ElasticBeamColumn",
+                    "nodes": [centre[round(coords[n][2], 6)], n],
+                    "section_id": rigid,
+                    "geom_transf": "Linear",
+                    "vecxz": [0.0, 0.0, 1.0],
+                }
+            )
+            next_element += 1
+        # The wall's other nodes go, their loads and masses to the nearest centre node.
+        for n in wall_nodes - shared:
+            z = coords[n][2]
+            moved[n] = centre[min(heights, key=lambda h, z=z: abs(h - z))]
+        converted += 1
+    if moved:
+        _move_nodes(project, moved)
+    if converted:
+        notes.append(
+            f"pushover: {converted} wall{'s' if converted != 1 else ''} as fibre wall elements "
+            "(one per storey on the wall's centre line, rigid arms to the floors, elastic shear)"
+        )
+    if skipped:
+        notes.append("pushover: walls kept as elastic shells: " + ", ".join(skipped))
+    return converted, moved
+
+
+def _move_nodes(project: dict[str, Any], moved: dict[int, int]) -> None:
+    """Drop the nodes of ``moved``: their masses and nodal loads go to the nodes they moved to;
+    element loads on elements no longer there go."""
+    nodes = {n["id"]: n for n in project["nodes"]}
+    for old, new in moved.items():
+        mass = nodes[old].get("mass") or [0.0] * 6
+        target = nodes[new]
+        own = target.get("mass") or [0.0] * 6
+        target["mass"] = [round(a + b, 6) for a, b in zip(own, mass, strict=True)]
+    project["nodes"] = [n for n in project["nodes"] if n["id"] not in moved]
+    alive = {e["id"] for e in project["elements"]}
+    for pattern in project.get("load_patterns", []):
+        summed: dict[int, list[float]] = {}
+        for load in pattern.get("nodal_loads", []):
+            node = moved.get(load["node_id"], load["node_id"])
+            total = summed.setdefault(node, [0.0] * len(load["forces"]))
+            for k, f in enumerate(load["forces"]):
+                total[k] += f
+        pattern["nodal_loads"] = [
+            {"node_id": n, "forces": [round(f, 6) for f in v]} for n, v in summed.items()
+        ]
+        if "element_loads" in pattern:
+            pattern["element_loads"] = [
+                load for load in pattern["element_loads"] if load["element_id"] in alive
+            ]
+    for constraint in project.get("mp_constraints", []):
+        if "constrained_nodes" in constraint:
+            constraint["constrained_nodes"] = [
+                n for n in constraint["constrained_nodes"] if n not in moved
+            ]

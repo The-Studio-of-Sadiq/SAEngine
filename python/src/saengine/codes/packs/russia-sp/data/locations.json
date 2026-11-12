@@ -1,0 +1,312 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SP 14.13330.2018 Appendix A (the OSR-2015 intensities of the settlements on the maps A, B and C, MSK-64)",
+    "SP 20.13330.2016 Appendix E (maps of the snow and wind regions), Tables 10.1 and 11.1"
+  ],
+  "source": "SP 14.13330.2018 Appendix A: the city's intensity on the OSR-2015 maps A, B and C (zone = SAEngine's slot of it: 5 and below 0, 6 1, 7 2, 8 3, 9 4, 10 5; the map taken by the occupancy category, seismic.hazardMaps); SP 20.13330.2016: the city's wind region (w0 entered as the speed V = √(w0 / 0.613) [m/s, w0 in N/m²]) and snow region (Sg as the town's groundSnow). Every city's three intensities and its regions are marked U in VERIFY.md: check them against Appendix A and the maps of Appendix E for the site's own settlement. Elsewhere: Custom, enter Z = A (0.1, 0.2, 0.4 g) and V.",
+  "default": "moscow",
+  "locations": {
+    "moscow": {
+      "name": "Moscow (OSR-2015 A 5, B 5, C 6; wind I, snow III)",
+      "zone": 0,
+      "mapZones": {
+        "A": 0,
+        "B": 0,
+        "C": 1
+      },
+      "zoneLabel": "5 (A), 5 (B), 6 (C)",
+      "windSpeed": 19.37,
+      "groundSnow": 1.5
+    },
+    "saintPetersburg": {
+      "name": "Saint Petersburg (OSR-2015 A 5, B 5, C 5; wind II, snow III)",
+      "zone": 0,
+      "mapZones": {
+        "A": 0,
+        "B": 0,
+        "C": 0
+      },
+      "zoneLabel": "5 (A), 5 (B), 5 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 1.5
+    },
+    "novosibirsk": {
+      "name": "Novosibirsk (OSR-2015 A 6, B 7, C 8; wind III, snow IV)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 2,
+        "C": 3
+      },
+      "zoneLabel": "6 (A), 7 (B), 8 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 2.0
+    },
+    "yekaterinburg": {
+      "name": "Yekaterinburg (OSR-2015 A 6, B 6, C 7; wind I, snow III)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 1,
+        "C": 2
+      },
+      "zoneLabel": "6 (A), 6 (B), 7 (C)",
+      "windSpeed": 19.37,
+      "groundSnow": 1.5
+    },
+    "kazan": {
+      "name": "Kazan (OSR-2015 A 6, B 6, C 7; wind II, snow IV)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 1,
+        "C": 2
+      },
+      "zoneLabel": "6 (A), 6 (B), 7 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 2.0
+    },
+    "nizhnyNovgorod": {
+      "name": "Nizhny Novgorod (OSR-2015 A 5, B 5, C 6; wind I, snow IV)",
+      "zone": 0,
+      "mapZones": {
+        "A": 0,
+        "B": 0,
+        "C": 1
+      },
+      "zoneLabel": "5 (A), 5 (B), 6 (C)",
+      "windSpeed": 19.37,
+      "groundSnow": 2.0
+    },
+    "samara": {
+      "name": "Samara (OSR-2015 A 5, B 6, C 7; wind III, snow IV)",
+      "zone": 0,
+      "mapZones": {
+        "A": 0,
+        "B": 1,
+        "C": 2
+      },
+      "zoneLabel": "5 (A), 6 (B), 7 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 2.0
+    },
+    "omsk": {
+      "name": "Omsk (OSR-2015 A 5, B 6, C 6; wind II, snow III)",
+      "zone": 0,
+      "mapZones": {
+        "A": 0,
+        "B": 1,
+        "C": 1
+      },
+      "zoneLabel": "5 (A), 6 (B), 6 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 1.5
+    },
+    "rostovOnDon": {
+      "name": "Rostov-on-Don (OSR-2015 A 6, B 7, C 8; wind III, snow II)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 2,
+        "C": 3
+      },
+      "zoneLabel": "6 (A), 7 (B), 8 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.0
+    },
+    "krasnodar": {
+      "name": "Krasnodar (OSR-2015 A 7, B 8, C 9; wind IV, snow II)",
+      "zone": 2,
+      "mapZones": {
+        "A": 2,
+        "B": 3,
+        "C": 4
+      },
+      "zoneLabel": "7 (A), 8 (B), 9 (C)",
+      "windSpeed": 27.98,
+      "groundSnow": 1.0
+    },
+    "sochi": {
+      "name": "Sochi (OSR-2015 A 8, B 9, C 9; wind IV, snow II)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 27.98,
+      "groundSnow": 1.0
+    },
+    "makhachkala": {
+      "name": "Makhachkala (OSR-2015 A 9, B 9, C 10; wind V, snow I)",
+      "zone": 4,
+      "mapZones": {
+        "A": 4,
+        "B": 4,
+        "C": 5
+      },
+      "zoneLabel": "9 (A), 9 (B), 10 (C)",
+      "windSpeed": 31.29,
+      "groundSnow": 0.5
+    },
+    "grozny": {
+      "name": "Grozny (OSR-2015 A 8, B 9, C 9; wind IV, snow I)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 27.98,
+      "groundSnow": 0.5
+    },
+    "vladikavkaz": {
+      "name": "Vladikavkaz (OSR-2015 A 8, B 9, C 9; wind III, snow II)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.0
+    },
+    "barnaul": {
+      "name": "Barnaul (OSR-2015 A 6, B 7, C 8; wind III, snow III)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 2,
+        "C": 3
+      },
+      "zoneLabel": "6 (A), 7 (B), 8 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.5
+    },
+    "gornoAltaysk": {
+      "name": "Gorno-Altaysk (OSR-2015 A 8, B 9, C 9; wind II, snow III)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 1.5
+    },
+    "krasnoyarsk": {
+      "name": "Krasnoyarsk (OSR-2015 A 6, B 7, C 8; wind III, snow III)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 2,
+        "C": 3
+      },
+      "zoneLabel": "6 (A), 7 (B), 8 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.5
+    },
+    "kyzyl": {
+      "name": "Kyzyl (OSR-2015 A 8, B 9, C 9; wind II, snow I)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 0.5
+    },
+    "irkutsk": {
+      "name": "Irkutsk (OSR-2015 A 8, B 9, C 9; wind III, snow II)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.0
+    },
+    "ulanUde": {
+      "name": "Ulan-Ude (OSR-2015 A 8, B 9, C 9; wind III, snow I)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 0.5
+    },
+    "chita": {
+      "name": "Chita (OSR-2015 A 7, B 8, C 9; wind II, snow I)",
+      "zone": 2,
+      "mapZones": {
+        "A": 2,
+        "B": 3,
+        "C": 4
+      },
+      "zoneLabel": "7 (A), 8 (B), 9 (C)",
+      "windSpeed": 22.12,
+      "groundSnow": 0.5
+    },
+    "khabarovsk": {
+      "name": "Khabarovsk (OSR-2015 A 7, B 8, C 9; wind III, snow II)",
+      "zone": 2,
+      "mapZones": {
+        "A": 2,
+        "B": 3,
+        "C": 4
+      },
+      "zoneLabel": "7 (A), 8 (B), 9 (C)",
+      "windSpeed": 24.9,
+      "groundSnow": 1.0
+    },
+    "vladivostok": {
+      "name": "Vladivostok (OSR-2015 A 6, B 7, C 8; wind IV, snow II)",
+      "zone": 1,
+      "mapZones": {
+        "A": 1,
+        "B": 2,
+        "C": 3
+      },
+      "zoneLabel": "6 (A), 7 (B), 8 (C)",
+      "windSpeed": 27.98,
+      "groundSnow": 1.0
+    },
+    "yuzhnoSakhalinsk": {
+      "name": "Yuzhno-Sakhalinsk (OSR-2015 A 8, B 9, C 9; wind IV, snow VI)",
+      "zone": 3,
+      "mapZones": {
+        "A": 3,
+        "B": 4,
+        "C": 4
+      },
+      "zoneLabel": "8 (A), 9 (B), 9 (C)",
+      "windSpeed": 27.98,
+      "groundSnow": 3.0
+    },
+    "petropavlovskKamchatsky": {
+      "name": "Petropavlovsk-Kamchatsky (OSR-2015 A 9, B 9, C 10; wind VII, snow VII)",
+      "zone": 4,
+      "mapZones": {
+        "A": 4,
+        "B": 4,
+        "C": 5
+      },
+      "zoneLabel": "9 (A), 9 (B), 10 (C)",
+      "windSpeed": 37.24,
+      "groundSnow": 3.5
+    }
+  }
+}

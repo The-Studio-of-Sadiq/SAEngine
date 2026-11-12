@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "IS 456:2000 6.1.2, 8.2.4.1 and Table 5; 5.6.1 (verify)"
+  ],
+  "source": "IS 456:2000 (the project's concrete fc read as the characteristic cube strength fck); the other limits of the table SAEngine practice",
+  "structuralFcMin": 20.0,
+  "rebarFyMax": 600.0,
+  "sources": {
+    "concreteStrain": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "steelShearModulus": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "seismicFcMin": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "lightweightFcMax": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "lightweightDensity": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "seismicRebarFy": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "fyActualMargin": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "fuFyMin": "SAEngine practice: the value of the pack this one extends, kept where IS 456:2000 gives no value or the pack does not enter one yet (verify)",
+    "structuralFcMin": "IS 456:2000 6.1.2, 8.2.4.1 and Table 5: reinforced concrete at least M 20 (fck 20 MPa, mild exposure)",
+    "rebarFyMax": "IS 456:2000 5.6.1: high strength deformed bars of IS 1786, the highest grade Fe 600 of IS 1786:2008 (fy 600 MPa) (verify: IS 456:2000 itself names Fe 415 to Fe 550; IS 13920:2016 5.3 limits ductile members to grades up to Fe 550D, not checked by this limit)"
+  }
+}

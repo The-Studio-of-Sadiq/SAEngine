@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SS EN 1991-1-4 National Annex (vb,0 for Singapore) and SS EN 1998 (not adopted)"
+  ],
+  "source": "SS EN 1991-1-4 NA: one fundamental basic wind velocity vb,0 = 20 m/s for the whole of Singapore; no seismic zone (zoneCoefficients).",
+  "default": "singapore",
+  "locations": {
+    "singapore": {
+      "name": "Singapore",
+      "zone": 0,
+      "windSpeed": 20.0
+    }
+  }
+}

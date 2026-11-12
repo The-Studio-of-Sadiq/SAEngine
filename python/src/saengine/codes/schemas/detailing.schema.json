@@ -1,0 +1,1788 @@
+{
+  "$defs": {
+    "BarBends": {
+      "additionalProperties": false,
+      "description": "Least inside bend diameters, as a multiple of db.",
+      "properties": {
+        "steps": {
+          "description": "(db up to [mm], factor) in ascending db; bars above the last: its factor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "transverseMax": {
+          "description": "Stirrups and ties up to this db [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Transversemax",
+          "type": "number"
+        },
+        "transverse": {
+          "description": "... bend at this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Transverse",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steps",
+        "transverseMax",
+        "transverse"
+      ],
+      "title": "BarBends",
+      "type": "object"
+    },
+    "BarDetailing": {
+      "additionalProperties": false,
+      "description": "The bar detailing rules of the drawings: hooks, bends, development, laps, splice zones and\nbar extents.",
+      "properties": {
+        "hooks": {
+          "$ref": "#/$defs/BarHooks"
+        },
+        "bends": {
+          "$ref": "#/$defs/BarBends"
+        },
+        "development": {
+          "$ref": "#/$defs/BarDevelopment"
+        },
+        "laps": {
+          "$ref": "#/$defs/BarLaps"
+        },
+        "splices": {
+          "$ref": "#/$defs/BarSplices"
+        },
+        "extents": {
+          "$ref": "#/$defs/BarExtents"
+        },
+        "notes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Short notes the formulas print, by key: 'ldMin', 'excess' (the sub-clause after the term), 'simplifiedOther' (said of small bars in other cases); none: nothing.",
+          "title": "Notes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "hooks",
+        "bends",
+        "development",
+        "laps",
+        "splices",
+        "extents"
+      ],
+      "title": "BarDetailing",
+      "type": "object"
+    },
+    "BarDevelopment": {
+      "additionalProperties": false,
+      "description": "Development lengths of deformed bars (straight in tension and compression, hooked).",
+      "properties": {
+        "sqrtFcMax": {
+          "description": "√f'c used at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Sqrtfcmax",
+          "type": "number"
+        },
+        "ldMin": {
+          "description": "ld in tension at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ldmin",
+          "type": "number"
+        },
+        "ldcMin": {
+          "description": "ldc in compression at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Ldcmin",
+          "type": "number"
+        },
+        "smallBarMax": {
+          "description": "'Small' bars up to this db [mm] (k, ψs).",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarmax",
+          "type": "number"
+        },
+        "simplifiedGood": {
+          "description": "Simplified form, spacing and cover met: k of (small, larger) bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Simplifiedgood",
+          "type": "array"
+        },
+        "simplifiedOther": {
+          "description": "Simplified form, other cases: k of (small, larger) bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Simplifiedother",
+          "type": "array"
+        },
+        "general": {
+          "description": "General form: the k of the denominator.",
+          "exclusiveMinimum": 0,
+          "title": "General",
+          "type": "number"
+        },
+        "confinementMax": {
+          "description": "(cb + Ktr)/db at most.",
+          "exclusiveMinimum": 0,
+          "title": "Confinementmax",
+          "type": "number"
+        },
+        "ktr": {
+          "description": "Ktr = this × Atr / (s n).",
+          "exclusiveMinimum": 0,
+          "title": "Ktr",
+          "type": "number"
+        },
+        "psiTop": {
+          "description": "ψt of top bars.",
+          "minimum": 1,
+          "title": "Psitop",
+          "type": "number"
+        },
+        "psiTEMax": {
+          "description": "ψt ψe at most.",
+          "exclusiveMinimum": 0,
+          "title": "Psitemax",
+          "type": "number"
+        },
+        "psiSSmall": {
+          "description": "ψs of small bars (1.0 for larger).",
+          "exclusiveMinimum": 0,
+          "title": "Psissmall",
+          "type": "number"
+        },
+        "compression": {
+          "description": "ldc = max(a fy db / (λ √f'c), b fy db).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compression",
+          "type": "array"
+        },
+        "compressionConfined": {
+          "description": "ldc × this inside spirals or close ties.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressionconfined",
+          "type": "number"
+        },
+        "hookCover": {
+          "description": "ldh × this with the side and tail cover.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookcover",
+          "type": "number"
+        },
+        "hookConfined": {
+          "description": "ldh × this inside close ties.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hookconfined",
+          "type": "number"
+        },
+        "hookQualify": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookQualify"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When the detailing earns the hook's cover and confinement credits (None: never)."
+        },
+        "hookMethod": {
+          "default": "linear",
+          "description": "ldh: 'linear' (0.24 ψe fy db / (λ √f'c) × hookCover, hookConfined) or 'powerDiameter' (fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c), ``hook``).",
+          "enum": [
+            "linear",
+            "powerDiameter"
+          ],
+          "title": "Hookmethod",
+          "type": "string"
+        },
+        "hook": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookDevelopment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The values of hookMethod 'powerDiameter'."
+        },
+        "headed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadedDevelopment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ldt of headed bars in tension (None: not covered)."
+        },
+        "psiG": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Grade factor ψg of ld: (fy up to [MPa], ψg) ascending; above the last: its ψg. None: no grade factor (1.0).",
+          "title": "Psig"
+        }
+      },
+      "required": [
+        "sqrtFcMax",
+        "ldMin",
+        "ldcMin",
+        "smallBarMax",
+        "simplifiedGood",
+        "simplifiedOther",
+        "general",
+        "confinementMax",
+        "ktr",
+        "psiTop",
+        "psiTEMax",
+        "psiSSmall",
+        "compression",
+        "compressionConfined",
+        "hookCover",
+        "hookConfined"
+      ],
+      "title": "BarDevelopment",
+      "type": "object"
+    },
+    "BarExtents": {
+      "additionalProperties": false,
+      "description": "Bar extents at supports and the first stirrup.",
+      "properties": {
+        "intoSupport": {
+          "description": "Bottom bars into the support at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Intosupport",
+          "type": "number"
+        },
+        "slabTopExtent": {
+          "description": "Slab top bars from the support face: this × ln.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Slabtopextent",
+          "type": "number"
+        },
+        "firstStirrup": {
+          "description": "First stirrup from the face [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Firststirrup",
+          "type": "number"
+        },
+        "cutoffDb": {
+          "description": "Bars beyond the cut-off point: max(d, this × db).",
+          "exclusiveMinimum": 0,
+          "title": "Cutoffdb",
+          "type": "number"
+        },
+        "negativeSpan": {
+          "description": "Negative steel past inflection: ... ln / this.",
+          "exclusiveMinimum": 0,
+          "title": "Negativespan",
+          "type": "number"
+        },
+        "positiveSimple": {
+          "description": "1/this of the positive steel into supports (simple).",
+          "exclusiveMinimum": 0,
+          "title": "Positivesimple",
+          "type": "number"
+        },
+        "positiveContinuous": {
+          "description": "... (continuous members).",
+          "exclusiveMinimum": 0,
+          "title": "Positivecontinuous",
+          "type": "number"
+        }
+      },
+      "required": [
+        "intoSupport",
+        "slabTopExtent",
+        "firstStirrup",
+        "cutoffDb",
+        "negativeSpan",
+        "positiveSimple",
+        "positiveContinuous"
+      ],
+      "title": "BarExtents",
+      "type": "object"
+    },
+    "BarHooks": {
+      "additionalProperties": false,
+      "description": "Standard hooks: the straight tail beyond the bend, in bar diameters (db) and [mm].",
+      "properties": {
+        "main180Db": {
+          "description": "Main bars, 180° hooks: tail this × db ...",
+          "exclusiveMinimum": 0,
+          "title": "Main180Db",
+          "type": "number"
+        },
+        "main180Min": {
+          "description": "... and at least this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Main180Min",
+          "type": "number"
+        },
+        "main90Db": {
+          "description": "Main bars, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Main90Db",
+          "type": "number"
+        },
+        "tieSmallMax": {
+          "description": "Stirrups and ties up to this db are 'small' [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Tiesmallmax",
+          "type": "number"
+        },
+        "tie90SmallDb": {
+          "description": "Small ties, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Tie90Smalldb",
+          "type": "number"
+        },
+        "tie90LargeDb": {
+          "description": "Larger ties, 90° hooks: tail this × db.",
+          "exclusiveMinimum": 0,
+          "title": "Tie90Largedb",
+          "type": "number"
+        },
+        "tie135Db": {
+          "description": "Ties, 135° hooks: tail this × db ...",
+          "exclusiveMinimum": 0,
+          "title": "Tie135Db",
+          "type": "number"
+        },
+        "closedMin": {
+          "description": "... closed ties and seismic hooks: and at least this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Closedmin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "main180Db",
+        "main180Min",
+        "main90Db",
+        "tieSmallMax",
+        "tie90SmallDb",
+        "tie90LargeDb",
+        "tie135Db",
+        "closedMin"
+      ],
+      "title": "BarHooks",
+      "type": "object"
+    },
+    "BarLaps": {
+      "additionalProperties": false,
+      "description": "Lap splices of deformed bars.",
+      "properties": {
+        "min": {
+          "description": "Every lap at least [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "classA": {
+          "description": "Class A tension lap: this × ld.",
+          "exclusiveMinimum": 0,
+          "title": "Classa",
+          "type": "number"
+        },
+        "classB": {
+          "description": "Class B tension lap: this × ld.",
+          "exclusiveMinimum": 0,
+          "title": "Classb",
+          "type": "number"
+        },
+        "classAProvided": {
+          "description": "Class A only when As,prov/As,req >= this ...",
+          "exclusiveMinimum": 0,
+          "title": "Classaprovided",
+          "type": "number"
+        },
+        "classAShare": {
+          "description": "... and at most this share of the bars spliced.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Classashare",
+          "type": "number"
+        },
+        "noLapDb": {
+          "description": "Bars of this db and larger are not lapped [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Nolapdb",
+          "type": "number"
+        },
+        "compression": {
+          "description": "Compression lap: this × fy db (fy up to the limit).",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "compressionFyLimit": {
+          "description": "... fy limit [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Compressionfylimit",
+          "type": "number"
+        },
+        "compressionHigh": {
+          "description": "Above the limit: (a fy - b) db.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Compressionhigh",
+          "type": "array"
+        },
+        "lowFc": {
+          "description": "f'c below this [MPa] ...",
+          "exclusiveMinimum": 0,
+          "title": "Lowfc",
+          "type": "number"
+        },
+        "lowFcFactor": {
+          "description": "... compression laps × this.",
+          "minimum": 1,
+          "title": "Lowfcfactor",
+          "type": "number"
+        },
+        "spiralDeformed": {
+          "description": "Spiral laps: this × db (deformed uncoated).",
+          "exclusiveMinimum": 0,
+          "title": "Spiraldeformed",
+          "type": "number"
+        },
+        "spiralOther": {
+          "description": "Spiral laps: this × db (other bars).",
+          "exclusiveMinimum": 0,
+          "title": "Spiralother",
+          "type": "number"
+        },
+        "wallYield": {
+          "description": "Special walls: laps where bars may yield, × ld.",
+          "minimum": 1,
+          "title": "Wallyield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "classA",
+        "classB",
+        "classAProvided",
+        "classAShare",
+        "noLapDb",
+        "compression",
+        "compressionFyLimit",
+        "compressionHigh",
+        "lowFc",
+        "lowFcFactor",
+        "spiralDeformed",
+        "spiralOther",
+        "wallYield"
+      ],
+      "title": "BarLaps",
+      "type": "object"
+    },
+    "BarSpacing": {
+      "additionalProperties": false,
+      "description": "Least clear spacing of parallel bars (the 3D rebar cages' congestion check).",
+      "properties": {
+        "layerMin": {
+          "description": "Bars in a layer: at least this clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Layermin",
+          "type": "number"
+        },
+        "layerDb": {
+          "description": "Bars in a layer: at least this many db clear.",
+          "exclusiveMinimum": 0,
+          "title": "Layerdb",
+          "type": "number"
+        },
+        "betweenLayers": {
+          "description": "Between layers of bars, clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Betweenlayers",
+          "type": "number"
+        },
+        "columnMin": {
+          "description": "Column bars: at least this clear [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Columnmin",
+          "type": "number"
+        },
+        "columnDb": {
+          "description": "Column bars: at least this many db clear.",
+          "exclusiveMinimum": 0,
+          "title": "Columndb",
+          "type": "number"
+        }
+      },
+      "required": [
+        "layerMin",
+        "layerDb",
+        "betweenLayers",
+        "columnMin",
+        "columnDb"
+      ],
+      "title": "BarSpacing",
+      "type": "object"
+    },
+    "BarSplices": {
+      "additionalProperties": false,
+      "description": "Where laps may be, and the hoops over them, in members of special moment frames.",
+      "properties": {
+        "beamExclusionDepths": {
+          "description": "No laps in beams within the joint or this × h of its faces.",
+          "exclusiveMinimum": 0,
+          "title": "Beamexclusiondepths",
+          "type": "number"
+        },
+        "hoopDepthShare": {
+          "description": "Hoops over laps at most this × d ...",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Hoopdepthshare",
+          "type": "number"
+        },
+        "hoopMax": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hoopmax",
+          "type": "number"
+        },
+        "columnRegion": {
+          "description": "Column laps only within (from, to) shares of the clear height.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Columnregion",
+          "type": "array"
+        }
+      },
+      "required": [
+        "beamExclusionDepths",
+        "hoopDepthShare",
+        "hoopMax",
+        "columnRegion"
+      ],
+      "title": "BarSplices",
+      "type": "object"
+    },
+    "CrackControl": {
+      "additionalProperties": false,
+      "description": "Spacing of the bars nearest the tension face: s <= coefficient (reference / fs) -\ncoverFactor cc, and <= cap (reference / fs) [mm, MPa].",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "reference": {
+          "description": "Reference stress [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Reference",
+          "type": "number"
+        },
+        "coverFactor": {
+          "minimum": 0,
+          "title": "Coverfactor",
+          "type": "number"
+        },
+        "cap": {
+          "exclusiveMinimum": 0,
+          "title": "Cap",
+          "type": "number"
+        },
+        "serviceStressShare": {
+          "description": "fs may be taken as this × fy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Servicestressshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "reference",
+        "coverFactor",
+        "cap",
+        "serviceStressShare"
+      ],
+      "title": "CrackControl",
+      "type": "object"
+    },
+    "FlangeTension": {
+      "additionalProperties": false,
+      "description": "Tension steel of T-beam flanges and the effective flange width.",
+      "properties": {
+        "spanShare": {
+          "description": "Spread over at most this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spanshare",
+          "type": "number"
+        },
+        "bothSidesSpan": {
+          "description": "Slab both sides: bf <= this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bothsidesspan",
+          "type": "number"
+        },
+        "bothSidesThickness": {
+          "description": "... overhang <= this × hf each side.",
+          "exclusiveMinimum": 0,
+          "title": "Bothsidesthickness",
+          "type": "number"
+        },
+        "oneSideSpan": {
+          "description": "Slab one side: overhang <= this × span.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Onesidespan",
+          "type": "number"
+        },
+        "oneSideThickness": {
+          "description": "... and <= this × hf.",
+          "exclusiveMinimum": 0,
+          "title": "Onesidethickness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanShare",
+        "bothSidesSpan",
+        "bothSidesThickness",
+        "oneSideSpan",
+        "oneSideThickness"
+      ],
+      "title": "FlangeTension",
+      "type": "object"
+    },
+    "HeadedDevelopment": {
+      "additionalProperties": false,
+      "description": "C2: ldt = fy ψe ψp ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min), ψc\nas the hooks' (``hook``); ψp = ``psiP`` without the ties (1.0 with them).",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "minDb": {
+          "exclusiveMinimum": 0,
+          "title": "Mindb",
+          "type": "number"
+        },
+        "min": {
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "psiP": {
+          "minimum": 1,
+          "title": "Psip",
+          "type": "number"
+        },
+        "psiO": {
+          "minimum": 1,
+          "title": "Psio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "minDb",
+        "min",
+        "psiP",
+        "psiO"
+      ],
+      "title": "HeadedDevelopment",
+      "type": "object"
+    },
+    "HookDevelopment": {
+      "additionalProperties": false,
+      "description": "C2: ldh = fy ψe ψr ψo ψc db^exponent / (coefficient λ √f'c) >= max(minDb db, min):\nψr = ``psiR`` without the confining ties (1.0 with them), ψo = ``psiO`` without the side\ncover inside the core (1.0 with it), ψc = f'c / psiCDivisor + psiCBase below psiCFcMax,\nelse 1.0.",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "minDb": {
+          "exclusiveMinimum": 0,
+          "title": "Mindb",
+          "type": "number"
+        },
+        "min": {
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "psiR": {
+          "minimum": 1,
+          "title": "Psir",
+          "type": "number"
+        },
+        "psiO": {
+          "minimum": 1,
+          "title": "Psio",
+          "type": "number"
+        },
+        "psiCFcMax": {
+          "exclusiveMinimum": 0,
+          "title": "Psicfcmax",
+          "type": "number"
+        },
+        "psiCDivisor": {
+          "exclusiveMinimum": 0,
+          "title": "Psicdivisor",
+          "type": "number"
+        },
+        "psiCBase": {
+          "exclusiveMinimum": 0,
+          "title": "Psicbase",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "minDb",
+        "min",
+        "psiR",
+        "psiO",
+        "psiCFcMax",
+        "psiCDivisor",
+        "psiCBase"
+      ],
+      "title": "HookDevelopment",
+      "type": "object"
+    },
+    "HookQualify": {
+      "additionalProperties": false,
+      "description": "2026-11-10 (column-top anchorage): when the detailing of a hooked bar earns the pack's\nreductions of ldh: the side and end cover one (``hookCover``, or ψo = 1.0 of the power form)\nand the confinement one (``hookConfined``, or ψr = 1.0). A value left out (None) is no\ncondition of that kind; a credit with no condition given is never earned.",
+      "properties": {
+        "maxDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bars up to this db only [mm].",
+          "title": "Maxdb"
+        },
+        "sideCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cover: the side cover normal to the hook's plane >= this [mm] ...",
+          "title": "Sidecover"
+        },
+        "sideCoverDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or >= this × db.",
+          "title": "Sidecoverdb"
+        },
+        "tailCover": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cover: and the cover beyond a 90° hook's tail >= this [mm].",
+          "title": "Tailcover"
+        },
+        "tieSpacingDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Confined: ties perpendicular to the bar at most this × db apart along ldh ...",
+          "title": "Tiespacingdb"
+        },
+        "barSpacingDb": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or the hooked bars at least this × db apart (centres) ...",
+          "title": "Barspacingdb"
+        },
+        "tieAreaRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... or the ties' area along ldh Ath >= this × the bars' Ahs.",
+          "title": "Tiearearatio"
+        }
+      },
+      "title": "HookQualify",
+      "type": "object"
+    },
+    "Joints": {
+      "additionalProperties": false,
+      "description": "Plain numbers of special moment frame beam-column joints.",
+      "properties": {
+        "probableStress": {
+          "description": "Probable stress factor of bars (1.25 fy).",
+          "minimum": 1,
+          "title": "Probablestress",
+          "type": "number"
+        },
+        "strongColumnRatio": {
+          "description": "ΣMnc/ΣMnb least.",
+          "minimum": 1,
+          "title": "Strongcolumnratio",
+          "type": "number"
+        },
+        "axialLimit": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axiallimit",
+          "type": "number"
+        },
+        "gamma": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Gamma",
+          "type": "object"
+        },
+        "vcZeroAxial": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Vczeroaxial",
+          "type": "number"
+        }
+      },
+      "required": [
+        "probableStress",
+        "strongColumnRatio",
+        "axialLimit",
+        "gamma",
+        "vcZeroAxial"
+      ],
+      "title": "Joints",
+      "type": "object"
+    },
+    "LintelLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "minBearing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Minbearing",
+          "type": "number"
+        },
+        "bearing": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "deflectionRatio": {
+          "description": "span / deflection limit",
+          "exclusiveMinimum": 0,
+          "title": "Deflectionratio",
+          "type": "number"
+        },
+        "probable": {
+          "minimum": 1,
+          "title": "Probable",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minBearing",
+        "bearing",
+        "deflectionRatio",
+        "probable"
+      ],
+      "title": "LintelLimits",
+      "type": "object"
+    },
+    "ShearFriction": {
+      "additionalProperties": false,
+      "description": "Shear transfer across a plane: Vn = Avf fy μ (+ permanent compression), μ = factor λ.",
+      "properties": {
+        "mu": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Surface -> μ / λ.",
+          "minProperties": 1,
+          "title": "Mu",
+          "type": "object"
+        },
+        "roughLimits": {
+          "description": "Monolithic or roughened normal weight: Vn <= min(a f'c, b + c f'c, d) Ac.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Roughlimits",
+          "type": "array"
+        },
+        "otherLimits": {
+          "description": "Other cases: Vn <= min(a f'c, b) Ac.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Otherlimits",
+          "type": "array"
+        },
+        "roughSurfaces": {
+          "description": "The surfaces the rough limits apply to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Roughsurfaces",
+          "type": "array"
+        },
+        "fyMax": {
+          "description": "fy of shear-friction steel at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        },
+        "roughness": {
+          "description": "Roughened to a full amplitude of about [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Roughness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "mu",
+        "roughLimits",
+        "otherLimits",
+        "roughSurfaces",
+        "fyMax",
+        "roughness"
+      ],
+      "title": "ShearFriction",
+      "type": "object"
+    },
+    "SkinSteel": {
+      "additionalProperties": false,
+      "description": "Longitudinal skin steel on the side faces of deep beams.",
+      "properties": {
+        "depthOver": {
+          "description": "Needed where h exceeds this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Depthover",
+          "type": "number"
+        },
+        "extentShare": {
+          "description": "Over this × h from the tension face.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Extentshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "depthOver",
+        "extentShare"
+      ],
+      "title": "SkinSteel",
+      "type": "object"
+    },
+    "SpecialFrames": {
+      "additionalProperties": false,
+      "description": "Plain-number limits of special moment frame members.",
+      "properties": {
+        "axialShare": {
+          "description": "Pu/(Ag·f'c) above which a member is a column.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Axialshare",
+          "type": "number"
+        },
+        "beamRhoMax": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Beamrhomax",
+          "type": "number"
+        },
+        "columnRho": {
+          "description": "(least, largest) ρ of columns.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Columnrho",
+          "type": "array"
+        },
+        "beamMinWidth": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Beamminwidth",
+          "type": "number"
+        },
+        "beamMinRatio": {
+          "description": "Least width/depth of beams.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beamminratio",
+          "type": "number"
+        },
+        "columnMinDimension": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Columnmindimension",
+          "type": "number"
+        },
+        "columnMinRatio": {
+          "description": "Least short/long side of columns.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnminratio",
+          "type": "number"
+        },
+        "fytConfinementMax": {
+          "description": "Largest fyt of confinement [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fytconfinementmax",
+          "type": "number"
+        },
+        "hxMax": {
+          "description": "Largest hx [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Hxmax",
+          "type": "number"
+        },
+        "unsupportedClear": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Unsupportedclear",
+          "type": "number"
+        },
+        "beamFirstHoop": {
+          "description": "First hoop from the column face [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Beamfirsthoop",
+          "type": "number"
+        },
+        "columnSpliceDivisor": {
+          "description": "Ties over the lap splices of columns at most least dimension / divisor.",
+          "exclusiveMinimum": 0,
+          "title": "Columnsplicedivisor",
+          "type": "number"
+        },
+        "columnSpliceCap": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "... and at most this [mm]; None: no fixed cap.",
+          "title": "Columnsplicecap"
+        },
+        "columnSpliceZone": {
+          "description": "... and at most the spacing of the end zones (lo) of the column.",
+          "title": "Columnsplicezone",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "axialShare",
+        "beamRhoMax",
+        "columnRho",
+        "beamMinWidth",
+        "beamMinRatio",
+        "columnMinDimension",
+        "columnMinRatio",
+        "fytConfinementMax",
+        "hxMax",
+        "unsupportedClear",
+        "beamFirstHoop",
+        "columnSpliceDivisor",
+        "columnSpliceCap",
+        "columnSpliceZone"
+      ],
+      "title": "SpecialFrames",
+      "type": "object"
+    },
+    "SpecialWalls": {
+      "additionalProperties": false,
+      "description": "Plain numbers of special structural walls.",
+      "properties": {
+        "relaxedShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Relaxedshare",
+          "type": "number"
+        },
+        "twoCurtainShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Twocurtainshare",
+          "type": "number"
+        },
+        "driftMin": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Driftmin",
+          "type": "number"
+        },
+        "stressRequired": {
+          "description": "Boundary elements required above · f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressrequired",
+          "type": "number"
+        },
+        "stressStop": {
+          "description": "Boundary elements may stop below · f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressstop",
+          "type": "number"
+        },
+        "fytConfinementMax": {
+          "exclusiveMinimum": 0,
+          "title": "Fytconfinementmax",
+          "type": "number"
+        },
+        "hxMax": {
+          "exclusiveMinimum": 0,
+          "title": "Hxmax",
+          "type": "number"
+        },
+        "couplingHoopSpacingMax": {
+          "description": "Largest spacing of the hoops over a diagonally reinforced coupling beam's whole section [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinghoopspacingmax",
+          "type": "number"
+        },
+        "couplingHoopDb": {
+          "description": "... and at most this many diameters of the diagonal bars.",
+          "exclusiveMinimum": 0,
+          "title": "Couplinghoopdb",
+          "type": "number"
+        },
+        "couplingLegSpacingMax": {
+          "description": "Largest spacing of those hoops' legs and crossties, each way [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinglegspacingmax",
+          "type": "number"
+        },
+        "couplingEmbedment": {
+          "description": "Diagonal bars embedded into the wall piers at least this many tension development lengths.",
+          "exclusiveMinimum": 0,
+          "title": "Couplingembedment",
+          "type": "number"
+        },
+        "couplingGroupWidthShare": {
+          "description": "Hoops around each group of diagonal bars: out-to-out at least · bw parallel to the web width.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplinggroupwidthshare",
+          "type": "number"
+        },
+        "couplingGroupDepthShare": {
+          "description": "... and at least · bw along the other sides.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplinggroupdepthshare",
+          "type": "number"
+        },
+        "couplingGroupLegSpacingMax": {
+          "description": "Largest spacing of the crossties or hoop legs around each group, perpendicular to the diagonal bars [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplinggrouplegspacingmax",
+          "type": "number"
+        },
+        "couplingPerimeterRatio": {
+          "description": "Bars around a coupling beam's perimeter with hoops around each group: area each way at least · bw s.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Couplingperimeterratio",
+          "type": "number"
+        },
+        "couplingPerimeterSpacingMax": {
+          "description": "... at most this far apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Couplingperimeterspacingmax",
+          "type": "number"
+        },
+        "pierLengthRatioMax": {
+          "description": "A wall pier: a vertical wall segment beside an opening with lw/bw at most this ...",
+          "exclusiveMinimum": 0,
+          "title": "Pierlengthratiomax",
+          "type": "number"
+        },
+        "pierHeightRatioMin": {
+          "description": "... and its clear height over lw at least this.",
+          "exclusiveMinimum": 0,
+          "title": "Pierheightratiomin",
+          "type": "number"
+        },
+        "pierAlternativeRatio": {
+          "description": "Wall piers with lw/bw above this may take the alternative to the column rules (hoops, capacity-design shear).",
+          "exclusiveMinimum": 0,
+          "title": "Pieralternativeratio",
+          "type": "number"
+        },
+        "pierHoopSpacingMax": {
+          "description": "Largest vertical spacing of the wall pier's hoops (the alternative) [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Pierhoopspacingmax",
+          "type": "number"
+        },
+        "pierHoopExtension": {
+          "description": "The wall pier's hoops extend at least this above and below its clear height [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Pierhoopextension",
+          "type": "number"
+        },
+        "driftFactor": {
+          "default": 1.0,
+          "description": "Displacement-based boundary elements: c >= lw / (600 · this · max(δu/hw, driftMin)).",
+          "minimum": 1,
+          "title": "Driftfactor",
+          "type": "number"
+        },
+        "curtainAspect": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Two curtains also where hw/lw is at least this (None: by the shear only).",
+          "title": "Curtainaspect"
+        },
+        "shearAmplification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WallShearAmplification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design shear Ve = Ωv ωv Vu of special walls (None: Vu of the analysis)."
+        }
+      },
+      "required": [
+        "relaxedShare",
+        "twoCurtainShare",
+        "driftMin",
+        "stressRequired",
+        "stressStop",
+        "fytConfinementMax",
+        "hxMax",
+        "couplingHoopSpacingMax",
+        "couplingHoopDb",
+        "couplingLegSpacingMax",
+        "couplingEmbedment",
+        "couplingGroupWidthShare",
+        "couplingGroupDepthShare",
+        "couplingGroupLegSpacingMax",
+        "couplingPerimeterRatio",
+        "couplingPerimeterSpacingMax",
+        "pierLengthRatioMax",
+        "pierHeightRatioMin",
+        "pierAlternativeRatio",
+        "pierHoopSpacingMax",
+        "pierHoopExtension"
+      ],
+      "title": "SpecialWalls",
+      "type": "object"
+    },
+    "StructuralIntegrity": {
+      "additionalProperties": false,
+      "description": "Continuous bars of cast-in-place beams.",
+      "properties": {
+        "perimeterTopShare": {
+          "description": "Perimeter beams: top >= this × As- at supports.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Perimetertopshare",
+          "type": "number"
+        },
+        "perimeterBottomShare": {
+          "description": "... bottom >= this × As+ at midspan.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Perimeterbottomshare",
+          "type": "number"
+        },
+        "otherBottomShare": {
+          "description": "Other beams: bottom >= this × As+ at midspan.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Otherbottomshare",
+          "type": "number"
+        },
+        "minBars": {
+          "description": "... and never fewer bars than this.",
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "perimeterTopShare",
+        "perimeterBottomShare",
+        "otherBottomShare",
+        "minBars"
+      ],
+      "title": "StructuralIntegrity",
+      "type": "object"
+    },
+    "TendonSpacing": {
+      "additionalProperties": false,
+      "description": "Bonded tendons of Class C members: Δfps in place of fs in the crack-control spacing.",
+      "properties": {
+        "share": {
+          "description": "Tendons apart at most this × the bar spacing limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "mixedShare": {
+          "description": "A bar and a tendon apart at most this × the limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Mixedshare",
+          "type": "number"
+        },
+        "deltaMax": {
+          "description": "Δfps at most [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Deltamax",
+          "type": "number"
+        },
+        "deltaExempt": {
+          "description": "Δfps up to this: (a) and (b) do not apply [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Deltaexempt",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share",
+        "mixedShare",
+        "deltaMax",
+        "deltaExempt"
+      ],
+      "title": "TendonSpacing",
+      "type": "object"
+    },
+    "WallShearAmplification": {
+      "additionalProperties": false,
+      "description": "C2: the design shear of special walls, Ve = Ωv ωv Vu <= cap Vu. Ωv = ``omega`` where\nhw/lw exceeds ``aspect`` (else 1.0); ωv = a + ns/b (``dynamicLow``) up to\n``dynamicStoreys`` storeys, a + ns/b (``dynamicHigh``) at most ``dynamicMax`` above, 1.0\nwhere hw/lw is below ``dynamicAspect``.",
+      "properties": {
+        "aspect": {
+          "exclusiveMinimum": 0,
+          "title": "Aspect",
+          "type": "number"
+        },
+        "omega": {
+          "minimum": 1,
+          "title": "Omega",
+          "type": "number"
+        },
+        "dynamicAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Dynamicaspect",
+          "type": "number"
+        },
+        "dynamicLow": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamiclow",
+          "type": "array"
+        },
+        "dynamicHigh": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Dynamichigh",
+          "type": "array"
+        },
+        "dynamicStoreys": {
+          "minimum": 1,
+          "title": "Dynamicstoreys",
+          "type": "integer"
+        },
+        "dynamicMax": {
+          "minimum": 1,
+          "title": "Dynamicmax",
+          "type": "number"
+        },
+        "cap": {
+          "minimum": 1,
+          "title": "Cap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "aspect",
+        "omega",
+        "dynamicAspect",
+        "dynamicLow",
+        "dynamicHigh",
+        "dynamicStoreys",
+        "dynamicMax",
+        "cap"
+      ],
+      "title": "WallShearAmplification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "special": {
+      "$ref": "#/$defs/SpecialFrames"
+    },
+    "joints": {
+      "$ref": "#/$defs/Joints"
+    },
+    "walls": {
+      "$ref": "#/$defs/SpecialWalls"
+    },
+    "lintels": {
+      "$ref": "#/$defs/LintelLimits"
+    },
+    "spacing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BarSpacing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "crackControl": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrackControl"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "skin": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkinSteel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "flangeTension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FlangeTension"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "integrity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuralIntegrity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shearFriction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearFriction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tendonSpacing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TendonSpacing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bars": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BarDetailing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "special",
+    "joints",
+    "walls",
+    "lintels"
+  ],
+  "title": "DetailingTable",
+  "type": "object",
+  "$id": "saengine.codePack.detailing/1"
+}

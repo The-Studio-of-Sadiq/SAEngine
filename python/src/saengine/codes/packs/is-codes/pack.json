@@ -1,0 +1,288 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "is-codes",
+  "name": "Indian Standards (IS)",
+  "edition": "Indian Standards",
+  "country": "IN",
+  "version": "0.5.0",
+  "extends": "bnbc2020",
+  "covers": [
+    "locations",
+    "detailing",
+    "plumbing",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "areaLoads",
+    "deadLoads",
+    "liveReduction",
+    "combinations",
+    "seismic",
+    "wind",
+    "concreteMethods",
+    "concrete",
+    "foundations",
+    "steelLimitState",
+    "steel",
+    "steelSections",
+    "serviceability",
+    "masonry",
+    "timber",
+    "composite",
+    "stairMethods",
+    "designClauses",
+    "coldFormed",
+    "steelFire",
+    "barSchedule",
+    "concreteTime",
+    "cfdWind",
+    "fabrication",
+    "movingLoads",
+    "bridgeDesign"
+  ],
+  "description": "Indian Standards. Loads (alpha 9 track C7): unit weights (IS 875 Part 1), imposed loads and their reduction (Part 2), wind by Vz = Vb k1 k2 k3 k4 (Part 3:2015), load combinations (Part 5 with IS 456 Table 18 and IS 1893 6.3.4), earthquake to IS 1893 (Part 1):2016. Concrete and foundations (alpha 9 track C8): IS 456:2000 limit state design (design strengths 0.67 fck/1.5 and fy/1.15, the 0.36 fck xu block, xu,max, shear by τc of Table 19 and τc,max, least stirrups, torsion by the equivalent shear and moment, punching ks τc, columns with emin, the additional moments of slender columns and the αn load contour, deflection by span/depth with the modification factors and Annex C, crack width Annex F, cover and mix by exposure, development and lap lengths by τbd, member steel limits, two-way slabs by Annex D, flat slab end spans by αc, wall shear 32.4, footings 34), IS 13920:2016 ductile detailing (beams, columns with special confining reinforcement, strong column 1.4, joints, special shear walls, boundary elements, coupling beams), IS 6403 bearing capacity factors and IS 2911 (Part 1/Sec 2) static pile capacity. Steel and the other materials (alpha 9 track C9): IS 800:2007 limit state design of steel members (section classification Table 2, tension, compression by the buckling curves, flexure with lateral-torsional buckling, shear with web buckling, combined forces), connections (bolts in shear, bearing and tension, friction grip bolts, block shear, fillet welds, holes and edges) and the Section 12 seismic frame rules, the deflection limits of Table 6, the IS 808 section list (ISMB, ISMC, angles), IS 1905:1987 unreinforced masonry by permissible stresses, IS 883:1994 timber, IS 11384:1985 composite beams. Services and the tables not in covers come from BNBC 2020 (the pack this one extends). Every value names its clause; VERIFY.md lists them for checking against the printed codes. Remainder (alpha 9 track C9b): column shear with the axial factor δ (IS 456 40.2.2), the walls' empirical axial strength (32.2.5), corner torsion steel of restrained slabs (Annex D-1.8), deep beams by the lever arm (29), corbels (28), stairs by the slab rules (33), the torsion links in Design Reinforcement and the required steel (41), the IS 13920 joints in the joints view; IS 800 base plate bearing (7.4.1), the ISLB, ISWB and ISHB sections of IS 808, bolts of class 4.6; IS 1893 damping factors (Table 4) and the vertical motion (6.4.6), the cyclone-prone k4 and Kd of IS 875 (Part 3); the masonry earthquake strengthening by IS 4326 zones. Leftovers (alpha 9 track C12): IS 1343 prestressed slabs (losses, stresses at transfer and service with the tension limits as stresses), IS 8009 rigidity factor and IS 1904 permissible settlements, IS 2950 raft stiffness, IS 3370 water tanks (crack width 0.2 mm or the working stress method, surface zone steel, cover 45 mm), IS 456 29.3.2 support steel of continuous deep beams, IS 875-3 gust factor method (Clause 10) and Annex C k3, IS 1893 7.6.2 (b) wall-building period and 7.8.2 design eccentricity, IS 16700 sway. Bridges (alpha 9 L9): IRC:6 Class A and Class 70R traffic loads with the lane rules, the reduction for several lanes and the impact factor; IRC:6 Annex B load factors and IRC:112 prestressed stress limits.",
+  "sources": [
+    {
+      "id": "IS875-1",
+      "title": "IS 875 (Part 1) Code of practice for design loads (other than earthquake): dead loads",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-2",
+      "title": "IS 875 (Part 2) Code of practice for design loads (other than earthquake): imposed loads",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-3",
+      "title": "IS 875 (Part 3) Design loads (other than earthquake) for buildings and structures: wind loads",
+      "edition": "2015",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS875-5",
+      "title": "IS 875 (Part 5) Code of practice for design loads (other than earthquake): special loads and combinations",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS1893-1",
+      "title": "IS 1893 (Part 1) Criteria for earthquake resistant design of structures: general provisions and buildings",
+      "edition": "2016",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS456",
+      "title": "IS 456 Plain and reinforced concrete - code of practice",
+      "edition": "2000",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS13920",
+      "title": "IS 13920 Ductile design and detailing of reinforced concrete structures subjected to seismic forces - code of practice",
+      "edition": "2016",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS6403",
+      "title": "IS 6403 Code of practice for determination of bearing capacity of shallow foundations",
+      "edition": "1981",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS2911-1-2",
+      "title": "IS 2911 (Part 1/Sec 2) Design and construction of pile foundations: bored cast in-situ concrete piles",
+      "edition": "2010",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS800",
+      "title": "IS 800 General construction in steel - code of practice",
+      "edition": "2007",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS808",
+      "title": "IS 808 Dimensions for hot rolled steel beam, column, channel and angle sections",
+      "edition": "1989",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS1905",
+      "title": "IS 1905 Code of practice for structural use of unreinforced masonry",
+      "edition": "1987",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS883",
+      "title": "IS 883 Design of structural timber in building - code of practice",
+      "edition": "1994",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS11384",
+      "title": "IS 11384 Code of practice for composite construction in structural steel and concrete",
+      "edition": "1985",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS4326",
+      "title": "IS 4326 Earthquake resistant design and construction of buildings - code of practice",
+      "edition": "2013",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS801",
+      "title": "IS 801 Code of practice for use of cold-formed light gauge steel structural members in general building construction",
+      "edition": "1975",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS1343",
+      "title": "IS 1343 Code of practice for prestressed concrete",
+      "edition": "1980",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS8009-1",
+      "title": "IS 8009 (Part 1) Code of practice for calculation of settlements of foundations: shallow foundations subjected to symmetrical static vertical loads",
+      "edition": "1976",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS1904",
+      "title": "IS 1904 Code of practice for design and construction of foundations in soils: general requirements",
+      "edition": "1986",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS2950-1",
+      "title": "IS 2950 (Part 1) Code of practice for design and construction of raft foundations",
+      "edition": "1981",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS3370-1",
+      "title": "IS 3370 (Part 1) Concrete structures for the storage of liquids: general requirements",
+      "edition": "2009",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS3370-2",
+      "title": "IS 3370 (Part 2) Concrete structures for the storage of liquids: reinforced concrete structures",
+      "edition": "2009",
+      "publisher": "Bureau of Indian Standards"
+    },
+    {
+      "id": "IS16700",
+      "title": "IS 16700 Criteria for structural safety of tall concrete buildings",
+      "edition": "2017",
+      "publisher": "Bureau of Indian Standards"
+    }
+  ],
+  "clauses": {
+    "cfdWind": [
+      "IS 875 (Part 3):2015 Sec 6.3.2.1 (z0) and Sec 10 (wind tunnel studies): the CFD wind tunnel link gives engineer-supplied wind loads to be validated"
+    ],
+    "locations": [
+      "IS 875 (Part 3):2015 Annex A",
+      "IS 1893 (Part 1):2016 Annex E"
+    ],
+    "zoneCoefficients": [
+      "IS 1893 (Part 1):2016 Table 3"
+    ],
+    "occupancyCategories": [
+      "IS 1893 (Part 1):2016 Table 8",
+      "IS 875 (Part 3):2015 Table 1"
+    ],
+    "areaLoads": [
+      "IS 875 (Part 2):1987 Tables 1 and 2"
+    ],
+    "deadLoads": [
+      "IS 875 (Part 1):1987 Table 1"
+    ],
+    "liveReduction": [
+      "IS 875 (Part 2):1987 Clause 3.2, Table 3"
+    ],
+    "combinations": [
+      "IS 875 (Part 5):1987 Clause 8.4",
+      "IS 456:2000 Table 18",
+      "IS 1893 (Part 1):2016 Clause 6.3.4"
+    ],
+    "seismic": [
+      "IS 1893 (Part 1):2016 Clauses 6-7 (7.6.2 (b) wall buildings, 7.8.2 design eccentricity)"
+    ],
+    "wind": [
+      "IS 875 (Part 3):2015 Clauses 6-7, 10 (gust factor method), Annex C (k3)"
+    ],
+    "concreteMethods": [
+      "IS 456:2000",
+      "IS 13920:2016"
+    ],
+    "concrete": [
+      "IS 456:2000 6.2.3.1",
+      "IS 1343:1980 Clauses 18-22 (prestressed concrete)"
+    ],
+    "foundations": [
+      "IS 6403:1981",
+      "IS 2911 (Part 1/Sec 2):2010",
+      "IS 456:2000 34.4",
+      "IS 8009 (Part 1):1976 (rigidity factor), IS 1904:1986 (permissible settlements)",
+      "IS 2950 (Part 1):1981 (raft stiffness)"
+    ],
+    "steelLimitState": [
+      "IS 800:2007 Sections 3, 5-10, 12"
+    ],
+    "steel": [
+      "IS 800:2007 7.4.1, 10.2, Tables 19, 21"
+    ],
+    "steelSections": [
+      "IS 808:1989"
+    ],
+    "serviceability": [
+      "IS 800:2007 5.6.1, Table 6",
+      "IS 16700:2017 5.4.1 (sway)"
+    ],
+    "masonry": [
+      "IS 1905:1987",
+      "IS 4326:2013"
+    ],
+    "timber": [
+      "IS 883:1994"
+    ],
+    "composite": [
+      "IS 11384:1985"
+    ],
+    "stairMethods": [
+      "IS 456:2000 33"
+    ],
+    "designClauses": [
+      "IS 456:2000 33.1"
+    ],
+    "coldFormed": [
+      "IS 801:1975 Code of practice for use of cold-formed light gauge steel structural members in general building construction"
+    ],
+    "steelFire": [
+      "IS 800:2007 Section 16"
+    ],
+    "plumbing": [
+      "IS 3370 (Parts 1-2):2009 (the RC water tanks only; the building services are the default pack's)"
+    ],
+    "fabrication": [
+      "IS 813 weld symbols drawn as ISO 2553 system A; SAEngine practice drilling allowances for the shop drawings and NC files"
+    ]
+  },
+  "basis": {
+    "general": "IS 875 (Parts 1-3, 5), IS 1893 (Part 1):2016",
+    "concrete": "IS 456:2000 (limit state) and IS 13920:2016 (ductile detailing), foundations by IS 6403 (bearing capacity), IS 2911 (Part 1/Sec 2) (piles) and IS 456 Clause 34 (footings); other concrete and foundation methods from BNBC 2020 Part 6 Chapters 3 and 6 until covered",
+    "steel": "IS 800:2007 (limit state, method steelLimitState; Section 16 fire), IS 801:1975 (cold-formed members); the connection rules the method does not cover, HSS joints and the composite columns from BNBC 2020 Part 6 Chapters 10 and 13",
+    "method": "Limit state design (IS 456)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null,
+  "tableCodes": {
+    "concrete": "IS 1343:1980",
+    "detailing.shearFriction": "IS 456:2000"
+  }
+}

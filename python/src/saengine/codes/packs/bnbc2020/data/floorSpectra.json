@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/floorSpectra.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.15 designs nonstructural components by an amplified height formula and gives no floor response spectra",
+    "SAEngine practice where BNBC 2020 is silent: in-structure spectra by time history or the direct spectrum-to-spectrum method (random vibration), peaks broadened ±15 % (ASCE 4-16 Ch 6, US NRC Regulatory Guide 1.122 practice); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (Part 6 Sec 2.5.15 gives the component forces by height only): floor response spectra by time history or the direct method, broadened ±15 % (ASCE 4-16 Ch 6 practice)",
+  "methods": ["timeHistory", "spectrumToSpectrum"],
+  "broadening": 0.15,
+  "damping": [0.02, 0.03, 0.05, 0.07],
+  "componentDamping": 0.05,
+  "periods": [0.02, 4.0, 120],
+  "direct": { "duration": 20.0, "iterations": 8 },
+  "components": {
+    "method": "spectralAcceleration",
+    "rigidPeriod": 0.06,
+    "flexibleAlpha": 1.0,
+    "divideByR": true,
+    "bounds": true
+  },
+  "sources": {
+    "broadening": "SAEngine practice: ±15 % peak broadening of in-structure spectra (ASCE 4-16 Sec 6.2, US NRC RG 1.122)",
+    "components": "SAEngine practice: Fc = Sa_floor(Tc) Wc Ic / Rc within the Sec 2.5.15 least and largest force; rigid components (αc = 1) at Tc = 0.06 s, flexible ones (αc > 1, period not entered) at the spectrum's peak"
+  }
+}

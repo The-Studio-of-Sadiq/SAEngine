@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/floorVibration.schema.json",
+  "$sources": [
+    "EN 1990 Annex A1.4.4 (vibration limits of floors agreed for the project, with ISO 10137); SCI P354 (2009) for steel and composite floors and Concrete Society CCIP-016 (2006) for concrete floors: the response factor, resonant below 10 Hz, transient above; ISO 10137:2007 Annex C multiplying factors; see VERIFY.md"
+  ],
+  "source": "EN 1990 A1.4.4 with SCI P354 (steel and composite floors) and CCIP-016 (concrete floors): the response factor against the ISO 10137 multiplying factors",
+  "steelMethod": "responseFactor",
+  "concreteMethod": "responseFactor",
+  "compositeDynamicModulus": 1.1,
+  "clauses": {
+    "required": "EN 1990 Annex A1.4.4 (vibration criteria for the project, ISO 10137)",
+    "responseFactor": "SCI P354 / CCIP-016 response factor (resonant below 10 Hz, transient above), ISO 10137:2007 Annex C multiplying factors",
+    "walkingAcceleration": "SAEngine practice where the Eurocodes give no method (a project choosing it): AISC Design Guide 11 2nd ed. Eq 4-1 (ap/g = P0 exp(-0.35 fn)/(β W), P0 0.29 kN), Tables 4-1 (ao/g) and 4-2 (β), Eq 3-3 (fn = 0.18 √(g/Δ))"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BSL Enforcement Order Art. 82(2) table: the long-term and short-term stresses by the combination of G (fixed load), P (live load), S (snow), W (wind) and K (seismic force), ordinary and heavy-snow areas",
+    "BSL Enforcement Order Art. 82(2) note: where uplift or overturning is checked, P by the actual state (taken as 0)"
+  ],
+  "source": "BSL Enforcement Order Art. 82: the allowable stress combinations (the members' primary design checks them against the long-term and the short-term allowable stresses, allowableStress.longTerm naming the long-term rows): long-term G + P (ordinary areas), G + P + 0.7S (heavy-snow areas); short-term G + P + S, G + P + W (and G + P + 0.35S + W in heavy-snow areas), G + P + K (G + P + 0.35S + K). D stands for G, L and Lr for P, E for K. The heavy-snow rows are formed wherever the project has a snow case S (in an ordinary area they are on the safe side). The strength combinations are SAEngine practice for sizing the bars with the parent's strength method (not the law's): the long-term rows × 1.5 (about F / ft of the long-term allowable bar stress), the short-term rows × 1.0 (ft = F).",
+  "loadCases": {
+    "Lr": "Roof live load",
+    "S": "Snow"
+  },
+  "allowable": [
+    {"id": "L1", "name": "D + L (long-term)", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: long-term G + P"},
+    {"id": "L2", "name": "D + L + 0.7S (long-term, heavy snow)", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 0.7, "H": 1.0}, "source": "BSL EO Art. 82(2) table: long-term G + P + 0.7S in heavy-snow areas"},
+    {"id": "S1", "name": "D + L + S", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: short-term snow G + P + S"},
+    {"id": "W1", "name": "D + L + W", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "W": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: short-term wind G + P + W"},
+    {"id": "W2", "name": "D + L + 0.35S + W", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 0.35, "W": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: short-term wind in heavy-snow areas G + P + 0.35S + W"},
+    {"id": "E1", "name": "D + L + E", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "E": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: short-term earthquake G + P + K"},
+    {"id": "E2", "name": "D + L + 0.35S + E", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 0.35, "E": 1.0, "H": 1.0}, "source": "BSL EO Art. 82(2) table: short-term earthquake in heavy-snow areas G + P + 0.35S + K"},
+    {"id": "W0", "name": "D + W (uplift)", "factors": {"D": 1.0, "W": 1.0}, "source": "BSL EO Art. 82(2) note: uplift and overturning with P by the actual state (SAEngine: P = 0)"},
+    {"id": "E0", "name": "D + E (uplift)", "factors": {"D": 1.0, "E": 1.0}, "source": "BSL EO Art. 82(2) note: uplift and overturning with P by the actual state (SAEngine: P = 0)"}
+  ],
+  "strength": [
+    {"id": "1", "name": "1.5(D + L)", "factors": {"D": 1.5, "F": 1.5, "L": 1.5, "Lr": 1.5, "H": 1.5}, "source": "SAEngine practice: the long-term G + P × 1.5 for the bar sizing by the parent's strength method"},
+    {"id": "2", "name": "1.5(D + L + 0.7S)", "factors": {"D": 1.5, "F": 1.5, "L": 1.5, "Lr": 1.5, "S": 1.05, "H": 1.5}, "source": "SAEngine practice: the long-term G + P + 0.7S × 1.5"},
+    {"id": "3", "name": "D + L + S", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 1.0, "H": 1.0}, "source": "BSL EO Art. 82 short-term (SAEngine practice for the sizing)"},
+    {"id": "4", "name": "D + L + W", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "W": 1.0, "H": 1.0}, "source": "BSL EO Art. 82 short-term (SAEngine practice for the sizing)"},
+    {"id": "5", "name": "D + L + 0.35S + W", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 0.35, "W": 1.0, "H": 1.0}, "source": "BSL EO Art. 82 short-term (SAEngine practice for the sizing)"},
+    {"id": "6", "name": "D + L + E", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "E": 1.0, "H": 1.0}, "source": "BSL EO Art. 82 short-term (SAEngine practice for the sizing)"},
+    {"id": "7", "name": "D + L + 0.35S + E", "factors": {"D": 1.0, "F": 1.0, "L": 1.0, "Lr": 1.0, "S": 0.35, "E": 1.0, "H": 1.0}, "source": "BSL EO Art. 82 short-term (SAEngine practice for the sizing)"},
+    {"id": "8", "name": "D + W", "factors": {"D": 1.0, "W": 1.0}, "source": "BSL EO Art. 82 note (uplift; SAEngine practice for the sizing)"},
+    {"id": "9", "name": "D + E", "factors": {"D": 1.0, "E": 1.0}, "source": "BSL EO Art. 82 note (uplift; SAEngine practice for the sizing)"}
+  ],
+  "gravity": [
+    {"name": "1.5D", "factors": {"D": 1.5}},
+    {"name": "1.5(D + L)", "factors": {"D": 1.5, "L": 1.5}}
+  ],
+  "service": [
+    {"id": "1", "name": "D + L", "factors": {"D": 1.0, "L": 1.0, "Lr": 1.0}, "source": "BSL EO Art. 82(4) and MOC Notification 1459 of 2000: deflection under the long-term loads"},
+    {"id": "2", "name": "D + L (sustained)", "factors": {"D": 1.0, "L": 1.0}, "source": "MOC Notification 1459: the long-term deflection (× the creep factor of the notification: not applied here, see VERIFY.md)"},
+    {"id": "3", "name": "D + L + W", "factors": {"D": 1.0, "L": 1.0, "W": 1.0}, "source": "Lateral deflection under the short-term wind (SAEngine practice)"}
+  ],
+  "temperature": [
+    {"name": "D + L + T", "factors": {"D": 1.0, "T": 1.0, "L": 1.0}},
+    {"name": "D + L - T", "factors": {"D": 1.0, "T": -1.0, "L": 1.0}}
+  ],
+  "creepShrinkage": [],
+  "seismicDeadUpper": 1.0,
+  "seismicDeadLower": 1.0,
+  "overstrength": "The Building Standard Law has no overstrength factor: the members' capacity comes from the required horizontal capacity Qun = Ds Fes Qud (horizontalCapacity). SAEngine's Em = Ω0 E uses Ω0 = 2.0 of the systems (SAEngine practice, about Ds / C0 of rank B frames)",
+  "optionalCases": ["F", "H", "T", "R", "S"],
+  "alternates": {},
+  "withLateral": [],
+  "exceptions": {},
+  "pDeltaPreload": {"D": 1.0, "SD": 1.0, "F": 1.0, "L": 1.0},
+  "sources": {
+    "allowable": "BSL Enforcement Order Art. 82(2) table and its note (VERIFY.md)",
+    "strength": "SAEngine practice for the bar sizing by the parent's strength method (not the law's)",
+    "service": "MOC Notification 1459 of 2000 (deflection of beams and slabs) and SAEngine practice",
+    "temperature": "The law gives no temperature combination: T with the long-term loads at 1.0 (SAEngine practice)",
+    "pDeltaPreload": "The gravity part of the short-term earthquake combination, G + P"
+  },
+  "clauses": {
+    "strength": "Art. 82 (SAEngine sizing practice)",
+    "allowable": "Art. 82(2)",
+    "temperature": "SAEngine practice",
+    "settlement": "Art. 82, T including differential settlement (SAEngine practice)"
+  }
+}

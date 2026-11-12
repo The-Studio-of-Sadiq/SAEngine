@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "INBC Part 9 (deformed bars of ISIRI 3132: Φ8-Φ32; SAEngine's selection)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "main": [12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "column": [14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 32.0],
+    "slab": [8.0, 10.0, 12.0, 14.0],
+    "stirrup": [8.0, 10.0, 12.0],
+    "wall": [10.0, 12.0, 14.0, 16.0],
+    "boundary": [14.0, 16.0, 18.0, 20.0, 22.0, 25.0],
+    "hoop": [8.0, 10.0, 12.0],
+    "lintel": [10.0, 12.0, 14.0, 16.0, 20.0],
+    "tank": [10.0, 12.0, 14.0, 16.0, 20.0],
+    "foundation": [12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0]
+  },
+  "barMasses": {"$replace": true},
+  "barNames": {
+    "$replace": true,
+    "8": "Φ8",
+    "10": "Φ10",
+    "12": "Φ12",
+    "14": "Φ14",
+    "16": "Φ16",
+    "18": "Φ18",
+    "20": "Φ20",
+    "22": "Φ22",
+    "25": "Φ25",
+    "28": "Φ28",
+    "32": "Φ32"
+  },
+  "sources": {
+    "barDiameters": "SAEngine practice: the metric deformed bars rolled in Iran (ISIRI 3132, 8 to 32 mm); the sets by use are SAEngine's",
+    "barNames": "Iranian practice: Φ + the diameter"
+  }
+}

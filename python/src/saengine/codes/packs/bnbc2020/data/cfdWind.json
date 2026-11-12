@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/cfdWind.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.4.16 (Method 3, wind tunnel procedure) and Sec 1.5.3.5 (wind tunnel test); the code has no numerical (CFD) procedure",
+    "SAEngine practice where BNBC 2020 is silent: directions every 30°, z0 by exposure from the ASCE 7 commentary's typical values, the CFD storey forces at least 80 % of the code's (after ASCE 7-22 Sec 31.4.3); see VERIFY.md"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.4.16 (wind tunnel procedure); SAEngine practice for the CFD values the code does not give",
+  "directionStep": 30,
+  "roughness": { "A": 0.3, "B": 0.02, "C": 0.005 },
+  "lowerLimit": 0.8,
+  "validation": "BNBC 2020 accepts wind loads from a wind tunnel test (Method 3) meeting the test conditions of Sec 2.4.16.2: a modelled atmospheric boundary layer and its turbulence scales, geometric similarity of the building and its surroundings, blockage, the pressure gradient, Reynolds number effects and the instrumentation. A CFD simulation is not such a test.",
+  "sources": {
+    "directionStep": "SAEngine practice: 12 directions every 30° (BNBC 2020 gives no number of directions)",
+    "roughness": "SAEngine practice: z0 of exposures A, B, C (BNBC 2020 Sec 2.4.6.3) as the typical z0 of the corresponding ASCE 7 exposures B, C, D (ASCE 7-22 Commentary Table C26.7-1)",
+    "lowerLimit": "SAEngine practice after ASCE 7-22 Sec 31.4.3 (BNBC 2020 Sec 2.4.16 gives no lower limit)",
+    "validation": "BNBC 2020 Part 6 Sec 2.4.16.2 (test conditions) and Sec 1.5.3.5"
+  },
+  "clauses": {
+    "procedure": "Part 6 Sec 2.4.16",
+    "conditions": "Part 6 Sec 2.4.16.2",
+    "dynamic": "Part 6 Sec 1.5.3.5"
+  }
+}

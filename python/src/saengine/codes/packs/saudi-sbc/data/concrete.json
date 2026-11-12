@@ -1,0 +1,111 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "SBC 304-2018 Sec 20.2 (SASO / SBC 304 bar sizes, SAEngine's selection)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      25,
+      28,
+      32
+    ],
+    "main": [
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      25,
+      28,
+      32
+    ],
+    "column": [
+      16,
+      18,
+      20,
+      22,
+      25,
+      28,
+      32
+    ],
+    "slab": [
+      8,
+      10,
+      12,
+      14,
+      16
+    ],
+    "stirrup": [
+      8,
+      10,
+      12
+    ],
+    "wall": [
+      10,
+      12,
+      14,
+      16,
+      18,
+      20
+    ],
+    "boundary": [
+      16,
+      18,
+      20,
+      22,
+      25,
+      28,
+      32
+    ],
+    "hoop": [
+      10,
+      12
+    ],
+    "lintel": [
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      25
+    ],
+    "tank": [
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      25
+    ],
+    "foundation": [
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      25
+    ]
+  },
+  "barMasses": {"$replace": true},
+  "barNames": {
+    "$replace": true
+  },
+  "sources": {
+    "barDiameters": "SAEngine practice: the metric deformed bars rolled in the Kingdom (SASO standards, 8 to 32 mm); SBC 304 sets the grades, not the sizes"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/deadLoads.schema.json",
+  "$sources": [
+    "SAEngine practice: unit weights of walls and plasters (EN 1991-1-1 Sec 4.1 leaves the nominal densities to the materials; see VERIFY.md)"
+  ],
+  "source": "SAEngine practice: unit weights of walls and plasters (EN 1991-1-1 Sec 4.1 leaves the nominal densities to the materials; see VERIFY.md)",
+  "sources": {
+    "masonry.burntClayBrick": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "masonry.sandLimeBrick": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "plaster.cement": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "plaster.lime": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "wallTypes": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

@@ -1,0 +1,957 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import './media/drawings.css';
+import { $, addDisposableListener, append, clearNode, EventType, getActiveElement, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { parse } from '../../../../base/common/json.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { DrawingPreviewInput, IDrawingPreviewSheet } from './drawingPreviewInput.js';
+import {
+	drawingSetKey, drawingSettingsRows, drawingsDescription, DRAWINGS_DWG_COMMAND, DRAWINGS_GENERATE_COMMAND, DRAWINGS_ISSUE_COMMAND, DRAWINGS_LIST_COMMAND, findPreviewSheet, generateArgs, generateLabel, IDrawingSet, IDrawingSettings, IDrawingSheet, officeStandardFile, withOfficeStandard,
+	IDrawingsIssueArgs, issueProblemsQuestion, issuePurposes, keepSelection, previewSheet, readDrawingSet, readDrawingSettings, registerSummary, selectedSheets, sheetRevisionText,
+} from './drawingsModel.js';
+import { EditorFrame } from './editorFrame.js';
+import { CAD_OPEN_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND } from './projectArchiveModel.js';
+import { saveProjectEdits } from './projectEdits.js';
+import { formatDate } from '../../../services/saengineProject/common/formatting.js';
+
+const REVEAL_IN_OS_COMMAND = 'revealFileInOS';
+/** Project Settings (part 2), where the title block is filled in (`drawings.*`). */
+const OPEN_SETTINGS_COMMAND = 'saengine.project.openSettings';
+
+function formatTime(time: number): string {
+	const date = new Date(time);
+	const now = new Date();
+	return formatDate(date, {
+		day: 'numeric', month: 'short', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+		hour: '2-digit', minute: '2-digit',
+	});
+}
+
+interface IThumbnail extends IDisposable {
+	readonly url: string;
+	readonly key: string;
+	readonly png: URI;
+}
+
+/**
+ * Part 11's Drawings: the structural drawing sheets generated from the model and its design,
+ * with their title block settings. It lives in the exports list as one section that renders
+ * itself: the exports page appends {@link element} where it belongs and calls {@link setProject}.
+ *
+ * The heading (with the Generate button) is built once and updated in place; the
+ * settings are rebuilt only when they change, and the sheet list only when the backend's answer
+ * changes, giving the focus back to the same control. Ticking sheets changes nothing but the
+ * ticks and the button, so the keyboard stays where it is.
+ */
+export class DrawingsSection extends Disposable {
+
+	readonly element: HTMLElement;
+
+	private root: URI | undefined;
+	private set: IDrawingSet | undefined;
+	private settings: IDrawingSettings = readDrawingSettings(undefined);
+	private listed = false;
+	private busy = false;
+	/** Why the drawings cannot be generated now (an empty building model), as the other exports say. */
+	private blocked: string | undefined;
+	private selection = new Set<string>();
+	private settingsOpen = true;
+	private listVersion = 0;
+
+	private readonly description: HTMLElement;
+	private readonly when: HTMLElement;
+	private readonly generateButton: Button;
+	private readonly settingsBlock: HTMLElement;
+	private readonly setSlot: HTMLElement;
+	/** What the sheet list was built from (undefined: not built). */
+	private renderedSetKey: string | undefined;
+	private allCheck: Checkbox | undefined;
+	private readonly sheetChecks = new Map<string, Checkbox>();
+	/** The thumbnail pictures on the page, by the sheet picture they show. */
+	private readonly thumbImages = new Map<string, HTMLImageElement[]>();
+	/** The section's controls by a name that stays the same when they are built again. */
+	private readonly focusTargets = new Map<string, { readonly element: HTMLElement; focus(): void }>();
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	/** The section's height or its drawings may have changed (the page's scrollbar and footer follow). */
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	/** The sheets generated and when, for the page's footer (undefined: none yet). */
+	get generated(): { readonly sheets: number; readonly time?: number } | undefined {
+		return this.set?.sheets.length ? { sheets: this.set.sheets.length, time: this.set.generatedAt } : undefined;
+	}
+
+	private readonly settingsDisposables = this._register(new DisposableStore());
+	private readonly setDisposables = this._register(new DisposableStore());
+	private readonly projectDisposables = this._register(new DisposableStore());
+	/** Thumbnail blob URLs by picture (with the time of the generation they belong to). */
+	private readonly thumbnails = this._register(new DisposableMap<string, IThumbnail>());
+	private readonly listScheduler = this._register(new RunOnceScheduler(() => void this.list(), 1500));
+	private readonly settingsScheduler = this._register(new RunOnceScheduler(() => void this.readSettings(), 300));
+
+	constructor(
+		private readonly frame: EditorFrame,
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileService: IFileService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
+	) {
+		super();
+		this.element = $('section.exports-kind.exports-drawings', { 'aria-label': localize('drawings.title', "Drawings") });
+		this.element.hidden = true;
+
+		const row = append(this.element, $('.exports-row'));
+		append(row, $(`span.exports-icon${ThemeIcon.asCSSSelector(Codicon.symbolRuler)}`));
+		const text = append(row, $('.exports-text'));
+		append(text, $('.exports-title', undefined, localize('drawings.title', "Drawings")));
+		this.description = append(text, $('.exports-description'));
+		this.when = append(row, $('.exports-when'));
+		const actions = append(row, $('.exports-actions.drawings-generate'));
+		this.generateButton = this._register(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
+		this.named(this.generateButton.element, 'generate');
+		this._register(this.generateButton.onDidClick(() => void this.generate()));
+
+		this.settingsBlock = append(this.element, $('.drawings-settings'));
+		this.setSlot = append(this.element, $('.drawings-set'));
+
+		this._register(CommandsRegistry.onDidRegisterCommand(id => {
+			if (id === DRAWINGS_LIST_COMMAND) {
+				void this.list();
+			} else if (id === DRAWINGS_GENERATE_COMMAND || id === CAD_OPEN_COMMAND || id === REVEAL_IN_OS_COMMAND) {
+				this.update();
+			}
+		}));
+	}
+
+	private get available(): boolean {
+		return !!CommandsRegistry.getCommand(DRAWINGS_GENERATE_COMMAND);
+	}
+
+	private get settingsFile(): URI | undefined {
+		const part = partById('settings');
+		return this.root && part?.mainFile ? joinPath(this.root, part.folder, part.mainFile) : undefined;
+	}
+
+	/** The exports page's gate: the same reason every other export is blocked for, or undefined. */
+	setBlocked(reason: string | undefined): void {
+		if (reason !== this.blocked) {
+			this.blocked = reason;
+			this.updateHeading();
+			this.updateSelection();
+		}
+	}
+
+	/** Follows the project at `root` (undefined: none open): its last drawings and its settings. */
+	setProject(root: URI | undefined): void {
+		if (root?.toString() === this.root?.toString()) {
+			return;
+		}
+		this.projectDisposables.clear();
+		this.thumbnails.clearAndDisposeAll();
+		this.root = root;
+		this.set = undefined;
+		this.listed = false;
+		this.selection.clear();
+		this.settings = readDrawingSettings(undefined);
+		if (root) {
+			this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
+				const settingsFile = this.settingsFile;
+				if (settingsFile && e.contains(settingsFile)) {
+					this.settingsScheduler.schedule();
+				}
+				// A sheet picture written again (at the same path): its thumbnail is read again.
+				for (const [id, thumbnail] of [...this.thumbnails]) {
+					if (e.contains(thumbnail.png)) {
+						this.thumbnails.deleteAndDispose(id);
+						void this.showThumbnail(thumbnail.png);
+					}
+				}
+				// The drawings go out of date when the model or the design changes: ask the backend again.
+				if (!this.busy && e.affects(root)) {
+					this.listScheduler.schedule();
+				}
+			}));
+			void this.readSettings();
+			void this.list();
+		}
+		this.renderSettings();
+		this.update(true);
+	}
+
+	/**
+	 * Notes the control that has the focus in the section; the returned function gives it back
+	 * to the same control (after the page or the section was built again).
+	 */
+	captureFocus(): () => void {
+		const active = getActiveElement();
+		let name: string | undefined;
+		for (const [key, target] of this.focusTargets) {
+			if (active && target.element.contains(active) && this.element.contains(target.element)) {
+				name = key;
+			}
+		}
+		if (!name) {
+			return () => { };
+		}
+		return () => {
+			// Controls built again are found under their names; the ones gone are forgotten.
+			for (const [key, target] of [...this.focusTargets]) {
+				if (!this.element.contains(target.element)) {
+					this.focusTargets.delete(key);
+				}
+			}
+			const target = this.focusTargets.get(name);
+			if (target && !this.element.contains(getActiveElement())) {
+				target.focus();
+			}
+		};
+	}
+
+	/** Gives a control a name that outlives a rebuild of its part (see {@link captureFocus}). */
+	private named<T extends HTMLElement>(element: T, name: string, focus: () => void = () => element.focus()): T {
+		this.focusTargets.set(name, { element, focus });
+		return element;
+	}
+
+	private async readSettings(): Promise<void> {
+		const file = this.settingsFile;
+		if (!file) {
+			return;
+		}
+		let settings: IDrawingSettings;
+		try {
+			settings = readDrawingSettings(parse((await this.fileService.readFile(file)).value.toString()));
+		} catch {
+			settings = readDrawingSettings(undefined);
+		}
+		if (file.toString() === this.settingsFile?.toString()) {
+			const changed = JSON.stringify(settings) !== JSON.stringify(this.settings);
+			this.settings = settings;
+			if (changed) {
+				this.renderSettings();
+				this.update();
+			}
+		}
+	}
+
+	/** The project settings as saved (the open edits saved first), or undefined after a message. */
+	private async savedSettings(root: URI): Promise<unknown | undefined> {
+		const unsaved = await saveProjectEdits(this.workingCopyService, root);
+		if (unsaved.length) {
+			this.notificationService.warn(localize('drawings.standardUnsaved', "Save Project Settings first: the office standard is read from the saved file."));
+			return undefined;
+		}
+		const file = this.settingsFile;
+		if (!file) {
+			return undefined;
+		}
+		try {
+			return parse((await this.fileService.readFile(file)).value.toString());
+		} catch {
+			return {};
+		}
+	}
+
+	/** Writes the project's office standard (`drawings.standard`) to a file of the engineer's choice. */
+	private async saveOfficeStandard(): Promise<void> {
+		const root = this.root;
+		if (!root) {
+			return;
+		}
+		const settings = await this.savedSettings(root);
+		if (settings === undefined) {
+			return;
+		}
+		const target = await this.fileDialogService.showSaveDialog({
+			title: localize('drawings.saveStandardTitle', "Save Office Standard"),
+			defaultUri: joinPath(dirname(root), 'office-standard.json'),
+			filters: [{ name: localize('drawings.standardFilter', "Office drafting standard (*.json)"), extensions: ['json'] }],
+		});
+		if (!target) {
+			return;
+		}
+		try {
+			await this.fileService.writeFile(target, VSBuffer.fromString(officeStandardFile(settings)));
+		} catch (error) {
+			this.notificationService.error(localize('drawings.saveStandardFailed', "The office standard could not be saved: {0}", toErrorMessage(error)));
+		}
+	}
+
+	/** Replaces the project's office standard with that of a file; the sheets follow it when drawn again. */
+	private async loadOfficeStandard(): Promise<void> {
+		const root = this.root;
+		const file = this.settingsFile;
+		if (!root || !file) {
+			return;
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('drawings.loadStandardTitle', "Load Office Standard"),
+			canSelectFiles: true,
+			canSelectMany: false,
+			defaultUri: dirname(root),
+			filters: [{ name: localize('drawings.standardFilter', "Office drafting standard (*.json)"), extensions: ['json'] }],
+		});
+		if (!picked?.length) {
+			return;
+		}
+		let standard: unknown;
+		try {
+			standard = parse((await this.fileService.readFile(picked[0])).value.toString());
+		} catch (error) {
+			this.notificationService.error(localize('drawings.loadStandardFailed', "The office standard could not be read: {0}", toErrorMessage(error)));
+			return;
+		}
+		const settings = await this.savedSettings(root);
+		if (settings === undefined) {
+			return;
+		}
+		const updated = withOfficeStandard(settings, standard);
+		if (!updated) {
+			this.notificationService.error(localize('drawings.notStandard', "That file is not an office drafting standard."));
+			return;
+		}
+		try {
+			await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(updated, undefined, '\t') + '\n'));
+		} catch (error) {
+			this.notificationService.error(localize('drawings.loadStandardFailed', "The office standard could not be read: {0}", toErrorMessage(error)));
+			return;
+		}
+		this.notificationService.info(localize('drawings.standardLoaded', "Office standard loaded into Project Settings > Drawings. Generate the drawings to apply it."));
+		this.settingsScheduler.schedule();
+	}
+
+	/** The last generation, as the backend has it (with its staleness). */
+	private async list(): Promise<void> {
+		const root = this.root;
+		if (!root || !CommandsRegistry.getCommand(DRAWINGS_LIST_COMMAND)) {
+			this.listed = true;
+			this.update();
+			return;
+		}
+		const version = ++this.listVersion;
+		let set: IDrawingSet | undefined;
+		try {
+			set = readDrawingSet(await this.commandService.executeCommand(DRAWINGS_LIST_COMMAND, { projectRoot: root.fsPath }), root);
+		} catch {
+			set = undefined;
+		}
+		if (version !== this.listVersion || root.toString() !== this.root?.toString()) {
+			return;
+		}
+		const wasListed = this.listed;
+		this.listed = true;
+		if (wasListed && drawingSetKey(set) === drawingSetKey(this.set)) {
+			return; // the same answer: the page stays as it is
+		}
+		this.setDrawings(set);
+		this.update();
+	}
+
+	private setDrawings(set: IDrawingSet | undefined): void {
+		const issued = (s: IDrawingSet | undefined) => s?.register?.issues[s.register.issues.length - 1]?.code;
+		const reissued = issued(set) !== issued(this.set);
+		this.set = set;
+		this.selection = keepSelection(set, this.selection);
+		this.updatePreviews();
+		if (reissued) {
+			this.renderSettings(); // its Revision row says the revision last issued
+		}
+	}
+
+	/** Open previews follow the new generation (title, staleness); an unchanged sheet is left alone. */
+	private updatePreviews(): void {
+		const set = this.set;
+		if (!set) {
+			return;
+		}
+		for (const editor of this.editorService.editors) {
+			if (editor instanceof DrawingPreviewInput) {
+				const next = findPreviewSheet(set, editor.sheet.png, this.root);
+				if (next) {
+					editor.update(next);
+				}
+			}
+		}
+	}
+
+	// ───────────────────────────── rendering ─────────────────────────────
+
+	/** Brings the page up to date: the heading in place, the sheet list when its answer changed (or `rebuild`). */
+	private update(rebuild = false): void {
+		this.element.hidden = !this.root;
+		if (!this.root) {
+			this.setDisposables.clear();
+			clearNode(this.setSlot);
+			this.renderedSetKey = undefined;
+			return;
+		}
+		this.updateHeading();
+		const key = `${drawingSetKey(this.set)}|${!!CommandsRegistry.getCommand(CAD_OPEN_COMMAND)}|${!!CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)}`;
+		if (rebuild || key !== this.renderedSetKey) {
+			const restoreFocus = this.captureFocus();
+			this.renderedSetKey = key;
+			this.renderSet();
+			restoreFocus();
+		}
+		this.updateSelection();
+		this._onDidChange.fire();
+	}
+
+	private updateHeading(): void {
+		const set = this.set;
+		const available = this.available;
+		this.element.classList.toggle('made', !!set?.sheets.length);
+		this.element.classList.toggle('stale', !!set?.stale);
+		this.description.textContent = this.busy ? localize('drawings.generating', "Generating the drawings...") : !set?.sheets.length && this.blocked ? this.blocked : drawingsDescription(set, available);
+		this.description.classList.toggle('stale', !!set?.stale && !this.busy);
+		if (set?.generatedAt) {
+			this.when.textContent = formatTime(set.generatedAt);
+			this.when.classList.remove('muted');
+		} else {
+			// Until the backend has listed the last generation, the set may well exist: say so
+			// rather than "Not made yet".
+			this.when.textContent = !available ? '' : this.listed ? localize('drawings.notMade', "Not made yet") : localize('drawings.listing', "Looking for drawings...");
+			this.when.classList.add('muted');
+		}
+	}
+
+	/** The ticks and what the Generate button says about them (nothing is built again). */
+	private updateSelection(): void {
+		const set = this.set;
+		const selected = selectedSheets(set, this.selection).length;
+		this.generateButton.label = generateLabel(set, selected);
+		this.generateButton.enabled = this.available && !this.busy && this.listed && !this.blocked;
+		this.generateButton.setTitle(this.blocked ?? '');
+		this.generateButton.secondary = !!set?.sheets.length && !set.stale && !selected;
+		if (this.allCheck) {
+			this.allCheck.checked = !!set?.sheets.length && set.sheets.every(s => this.selection.has(s.number));
+		}
+		for (const [number, check] of this.sheetChecks) {
+			check.checked = this.selection.has(number);
+		}
+	}
+
+	/** The title block and sheet settings; filled in under Project Settings (`drawings.*`). */
+	private renderSettings(): void {
+		const restoreFocus = this.captureFocus();
+		this.settingsDisposables.clear();
+		const block = this.settingsBlock;
+		clearNode(block);
+		block.classList.toggle('closed', !this.settingsOpen);
+		const header = this.named(append(block, $<HTMLButtonElement>('button.drawings-settings-toggle', { type: 'button', 'aria-expanded': String(this.settingsOpen) })), 'settings');
+		const chevron = append(header, $(ThemeIcon.asCSSSelector(this.settingsOpen ? Codicon.chevronDown : Codicon.chevronRight)));
+		append(header, $('span', undefined, localize('drawings.settingsTitle', "Title block and sheets")));
+		this.settingsDisposables.add(addDisposableListener(header, EventType.CLICK, () => {
+			// Folded in place: the button keeps the focus.
+			this.settingsOpen = !this.settingsOpen;
+			block.classList.toggle('closed', !this.settingsOpen);
+			header.setAttribute('aria-expanded', String(this.settingsOpen));
+			chevron.className = ThemeIcon.asClassName(this.settingsOpen ? Codicon.chevronDown : Codicon.chevronRight);
+			this._onDidChange.fire();
+		}));
+		const link = this.named(append(block, $<HTMLAnchorElement>('a.drawings-settings-link', { role: 'button', tabindex: '0' }, localize('drawings.editSettings', "Edit in Project Settings"))), 'settings-link');
+		const openSettings = () => void this.commandService.executeCommand(OPEN_SETTINGS_COMMAND);
+		this.settingsDisposables.add(addDisposableListener(link, EventType.CLICK, openSettings));
+		this.settingsDisposables.add(addDisposableListener(link, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				openSettings();
+			}
+		}));
+		const grid = append(block, $('dl.drawings-settings-grid'));
+		for (const { name, value } of drawingSettingsRows(this.settings, this.set?.register)) {
+			append(grid, $('dt', undefined, name));
+			const cell = append(grid, $('dd', undefined, value ?? localize('drawings.notSet', "not set")));
+			cell.classList.toggle('muted', value === undefined);
+		}
+		if (this.settings.conflicts.length) {
+			// One home for these is Project; until the drawings' own fields are cleared, say they differ.
+			append(block, $('.drawings-settings-note.stale', undefined, localize('drawings.conflicts', "{0} Clear the drawings' field in Project Settings > Drawings to use Project's.", this.settings.conflicts.join(' '))));
+		}
+		// The office drafting standard (Project Settings > Drawings > Office standard) as a file,
+		// to carry the office's layers, font and title block lines to its other projects.
+		const standardRow = append(block, $('.drawings-settings-note.drawings-standard-actions'));
+		for (const [name, label, run] of [
+			['standard-save', localize('drawings.saveStandard', "Save Office Standard..."), () => this.saveOfficeStandard()],
+			['standard-load', localize('drawings.loadStandard', "Load Office Standard..."), () => this.loadOfficeStandard()],
+		] as const) {
+			const button = this.named(append(standardRow, $<HTMLAnchorElement>('a.drawings-settings-link', { role: 'button', tabindex: '0' }, label)), name);
+			this.settingsDisposables.add(addDisposableListener(button, EventType.CLICK, () => void run()));
+			this.settingsDisposables.add(addDisposableListener(button, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					void run();
+				}
+			}));
+		}
+		if (!this.settings.present) {
+			append(block, $('.drawings-settings-note', undefined, localize('drawings.settingsDefaults', "The project settings have no drawing settings yet: the sheets use the project's name, number and engineer and these defaults.")));
+		}
+		restoreFocus();
+		this._onDidChange.fire();
+	}
+
+	/** The sheet list and the set's files. */
+	private renderSet(): void {
+		this.setDisposables.clear();
+		clearNode(this.setSlot);
+		this.allCheck = undefined;
+		this.sheetChecks.clear();
+		this.thumbImages.clear();
+		const set = this.set;
+		if (set?.sheets.length) {
+			this.renderSheets(set);
+		}
+		if (set) {
+			this.renderFooter(set);
+		}
+	}
+
+	private renderSheets(set: IDrawingSet): void {
+		const list = append(this.setSlot, $('ul.drawings-sheets', { 'aria-label': localize('drawings.sheetList', "Drawing sheets") }));
+		const all = this.allCheck = this.setDisposables.add(new Checkbox(localize('drawings.selectAll', "Select all sheets"), set.sheets.every(s => this.selection.has(s.number)), defaultCheckboxStyles));
+		const head = append(list, $('li.drawings-sheet.drawings-sheet-head'));
+		append(head, this.named(all.domNode, 'check:*'));
+		append(head, $('span.drawings-thumb-head'));
+		append(head, $('span.drawings-sheet-number', undefined, localize('drawings.number', "Sheet")));
+		append(head, $('span.drawings-sheet-title', undefined, localize('drawings.sheetTitle', "Title")));
+		append(head, $('span.drawings-sheet-size', undefined, localize('drawings.size', "Size")));
+		append(head, $('span.drawings-sheet-state', undefined, localize('drawings.state', "Status")));
+		append(head, $('span.exports-actions'));
+		this.setDisposables.add(all.onChange(() => {
+			const current = this.set;
+			this.selection = all.checked && current ? new Set(current.sheets.map(s => s.number)) : new Set();
+			this.updateSelection();
+		}));
+		for (const sheet of set.sheets) {
+			this.renderSheet(list, sheet, set);
+		}
+	}
+
+	private renderSheet(list: HTMLElement, sheet: IDrawingSheet, set: IDrawingSet): void {
+		const item = append(list, $('li.drawings-sheet'));
+		item.classList.toggle('stale', sheet.stale);
+		const check = this.setDisposables.add(new Checkbox(localize('drawings.selectSheet', "Select sheet {0}", sheet.number), this.selection.has(sheet.number), defaultCheckboxStyles));
+		this.sheetChecks.set(sheet.number, check);
+		append(item, this.named(check.domNode, `check:${sheet.number}`));
+		this.setDisposables.add(check.onChange(() => {
+			if (check.checked) {
+				this.selection.add(sheet.number);
+			} else {
+				this.selection.delete(sheet.number);
+			}
+			this.updateSelection();
+		}));
+		const preview = previewSheet(sheet, set, this.root);
+		const thumb = this.named(append(item, $<HTMLButtonElement>('button.drawings-thumb', { type: 'button', 'aria-label': localize('drawings.previewSheet', "Preview {0}", sheet.number) })), `thumb:${sheet.number}`);
+		if (preview) {
+			const image = append(thumb, $<HTMLImageElement>('img', { alt: '', draggable: 'false' }));
+			const id = preview.png.toString();
+			this.thumbImages.set(id, [...this.thumbImages.get(id) ?? [], image]);
+			void this.showThumbnail(preview.png);
+			this.setDisposables.add(addDisposableListener(thumb, EventType.CLICK, () => void this.openPreview(preview)));
+		} else {
+			thumb.disabled = true;
+			thumb.classList.add('missing');
+		}
+		append(item, $('span.drawings-sheet-number', undefined, sheet.number));
+		const title = append(item, $('span.drawings-sheet-title', undefined, sheet.title));
+		if (sheet.scale) {
+			append(title, $('span.drawings-sheet-scale', undefined, sheet.scale));
+		}
+		append(item, $('span.drawings-sheet-size', undefined, sheet.size ?? set.size ?? ''));
+		const state = append(item, $('span.drawings-sheet-state', undefined, sheet.stale ? localize('drawings.outOfDate', "Out of date — regenerate") : localize('drawings.current', "Current")));
+		const revision = sheetRevisionText(sheet, set.register?.pending);
+		if (revision) {
+			const line = append(state, $('span.drawings-sheet-revision', undefined, revision));
+			line.classList.toggle('revised', !!sheet.revised);
+		}
+		const actions = append(item, $('.exports-actions'));
+		if (preview) {
+			const button = this.setDisposables.add(this.frame.createIconButton(actions, Codicon.preview, localize('drawings.preview', "Preview"), () => void this.openPreview(preview)));
+			this.named(button.element, `preview:${sheet.number}`);
+		}
+		if (sheet.dxf) {
+			const dxf = sheet.dxf;
+			const label = CommandsRegistry.getCommand(CAD_OPEN_COMMAND) ? localize('drawings.openInLibreCad', "Open in LibreCAD") : localize('drawings.openInCadProgram', "Open in CAD Program");
+			const button = this.setDisposables.add(this.frame.createIconButton(actions, Codicon.linkExternal, label, () => void this.commandService.executeCommand(OPEN_DXF_IN_CAD_UI_COMMAND, dxf)));
+			this.named(button.element, `cad:${sheet.number}`);
+		}
+		const file = sheet.dxf ?? sheet.png;
+		if (file && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+			const button = this.setDisposables.add(this.frame.createIconButton(actions, Codicon.folderOpened, localize('drawings.reveal', "Reveal in File Explorer"), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, file)));
+			this.named(button.element, `reveal:${sheet.number}`);
+		}
+		this.setDisposables.add(addDisposableListener(item, EventType.DBLCLICK, e => {
+			if (preview && !(isHTMLElement(e.target) && e.target.closest('button, .monaco-custom-toggle'))) {
+				void this.openPreview(preview);
+			}
+		}));
+	}
+
+	private renderFooter(set: IDrawingSet): void {
+		const footer = append(this.setSlot, $('.drawings-footer'));
+		const links = append(footer, $('.drawings-files'));
+		const fileButton = (resource: URI | undefined, label: string, icon: ThemeIcon, name: string) => {
+			const button = this.setDisposables.add(new Button(links, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			this.named(button.element, name);
+			button.label = `$(${icon.id}) ${label}`;
+			button.enabled = !!resource;
+			if (resource) {
+				this.setDisposables.add(button.onDidClick(() => void this.openExternal(resource)));
+			}
+		};
+		fileButton(set.pdf, localize('drawings.openPdf', "Open PDF Set"), Codicon.filePdf, 'pdf');
+		fileButton(set.bbsCsv, localize('drawings.bbsCsv', "Bar Bending Schedule (CSV)"), Codicon.table, 'bbs');
+		if (set.congestionCsv) {
+			fileButton(set.congestionCsv, localize('drawings.congestionCsv', "Bar Congestion (CSV)"), Codicon.warning, 'congestion');
+		}
+		const folder = set.pdf ?? set.bbsCsv ?? set.sheets.find(s => s.dxf)?.dxf;
+		if (folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+			const button = this.setDisposables.add(this.frame.createIconButton(links, Codicon.folderOpened, localize('drawings.revealSet', "Reveal Drawings in File Explorer"), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, folder)));
+			this.named(button.element, 'reveal-set');
+		}
+		if (set.sheets.length) {
+			this.renderRevisions(footer, set);
+		}
+		if (set.problems.length || set.notes.length) {
+			const messages = append(footer, $('ul.drawings-messages'));
+			for (const problem of set.problems) {
+				const item = append(messages, $('li.error'));
+				append(item, $(ThemeIcon.asCSSSelector(Codicon.error)));
+				append(item, $('span', undefined, problem));
+			}
+			for (const note of set.notes) {
+				const item = append(messages, $('li'));
+				append(item, $(ThemeIcon.asCSSSelector(Codicon.info)));
+				append(item, $('span', undefined, note));
+			}
+		}
+	}
+
+	/**
+	 * Revisions and issue: Issue Drawings (the new or changed sheets get the next revision, a copy
+	 * goes to `Issued/`), the drawing register, the sheets as DWG and the last issue's folder.
+	 * The engineer's own additions to a sheet's DXF are kept when it is drawn again (the backend's).
+	 */
+	private renderRevisions(footer: HTMLElement, set: IDrawingSet): void {
+		const block = append(footer, $('.drawings-revisions'));
+		append(block, $('.drawings-revisions-summary', undefined, registerSummary(set.register)));
+		const row = append(block, $('.drawings-files'));
+		const issueAvailable = !!CommandsRegistry.getCommand(DRAWINGS_ISSUE_COMMAND);
+		const issue = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.named(issue.element, 'issue');
+		issue.label = `$(${Codicon.send.id}) ${localize('drawings.issue', "Issue Drawings...")}`;
+		issue.enabled = issueAvailable && !this.busy && !this.blocked;
+		issue.setTitle(localize('drawings.issueTitle', "Draw every sheet again and issue those new or changed since their last issue (the ticked ones only, when some are ticked) with the next revision."));
+		this.setDisposables.add(issue.onDidClick(() => void this.issue()));
+		const dwg = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.named(dwg.element, 'dwg');
+		dwg.label = `$(${Codicon.fileBinary.id}) ${localize('drawings.dwg', "Export DWG")}`;
+		dwg.enabled = !!CommandsRegistry.getCommand(DRAWINGS_DWG_COMMAND) && !this.busy;
+		dwg.setTitle(localize('drawings.dwgTitle', "Write the sheets (the ticked ones, when some are ticked) as DWG with LibreDWG, the setup's DWG component."));
+		this.setDisposables.add(dwg.onDidClick(() => void this.exportDwg()));
+		const register = set.register;
+		if (register?.pdf || register?.csv) {
+			const open = this.setDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			this.named(open.element, 'register');
+			open.label = `$(${Codicon.listOrdered.id}) ${localize('drawings.register', "Drawing Register")}`;
+			const target = register.pdf ?? register.csv!;
+			this.setDisposables.add(open.onDidClick(() => void this.openExternal(target)));
+		}
+		const last = register?.issues[register.issues.length - 1];
+		if (last?.folder && CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND)) {
+			const folder = last.folder;
+			const button = this.setDisposables.add(this.frame.createIconButton(row, Codicon.archive, localize('drawings.revealIssue', "Reveal Issue {0} in File Explorer", last.code), () => void this.commandService.executeCommand(REVEAL_IN_OS_COMMAND, folder)));
+			this.named(button.element, 'reveal-issue');
+		}
+	}
+
+	/** Asks for the issue's revision, purpose and options, then issues the set. */
+	async issue(): Promise<void> {
+		const root = this.root;
+		const set = this.set;
+		if (!root || !set || this.busy || this.blocked || !CommandsRegistry.getCommand(DRAWINGS_ISSUE_COMMAND)) {
+			return;
+		}
+		// Asked again now (R3: a revision just added in Project Settings is the one offered; the
+		// set listed before it was may be older), else the one listed.
+		const fresh = await Promise.resolve(this.commandService.executeCommand(DRAWINGS_LIST_COMMAND, { projectRoot: root.fsPath })).then(value => readDrawingSet(value, root), () => undefined);
+		const pending = fresh?.register?.pending ?? set.register?.pending ?? '0';
+		const code = await this.quickInputService.input({
+			title: localize('drawings.issueStep1of4', "Issue Drawings (1 of 4): revision"),
+			value: pending,
+			prompt: localize('drawings.issueCodePrompt', "The revision for the sheets new or changed since their last issue (0, A, P1, ...)."),
+			validateInput: async value => value.trim() ? undefined : localize('drawings.issueCodeEmpty', "Give the revision."),
+		});
+		if (code === undefined) {
+			return;
+		}
+		const purposes = issuePurposes().map((label): IQuickPickItem => ({ label }));
+		const purpose = await this.quickInputService.pick(purposes, {
+			title: localize('drawings.issueStep2of4', "Issue Drawings (2 of 4): purpose"),
+			placeHolder: localize('drawings.issuePurpose', "What the drawings are issued for"),
+		});
+		if (!purpose) {
+			return;
+		}
+		const question = issueProblemsQuestion(set, purpose.label);
+		if (question) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: question.message,
+				detail: question.detail,
+				primaryButton: localize({ key: 'drawings.issueAnyway', comment: ['&& denotes a mnemonic'] }, "&&Issue Anyway"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+		const description = await this.quickInputService.input({
+			title: localize('drawings.issueStep3of4', "Issue Drawings (3 of 4): description"),
+			value: '',
+			placeHolder: purpose.label,
+			prompt: localize('drawings.issueDescriptionPrompt2', "What changed, as the revision table of the title block shows it; empty: the description of revision {0} in Project Settings (Add Drawing Revision), else the purpose.", code.trim()),
+		});
+		if (description === undefined) {
+			return;
+		}
+		const options: (IQuickPickItem & { id: string })[] = [
+			{ id: 'dwg', label: localize('drawings.issueDwg', "Also write the issued sheets as DWG"), description: localize('drawings.issueDwgDescription', "needs the setup's DWG component (LibreDWG)") },
+			{ id: 'force', label: localize('drawings.issueForce', "Issue unchanged sheets too"), description: localize('drawings.issueForceDescription', "they take the new revision as well") },
+		];
+		const picked = await this.quickInputService.pick(options, {
+			canPickMany: true,
+			title: localize('drawings.issueStep4of4', "Issue Drawings (4 of 4): options (Enter to issue)"),
+		});
+		if (!picked) {
+			return;
+		}
+		const unsaved = await saveProjectEdits(this.workingCopyService, root);
+		if (unsaved.length) {
+			this.notificationService.warn(localize('drawings.unsaved', "Save your changes first: {0} could not be saved.", unsaved.map(u => u.fsPath).join(', ')));
+			return;
+		}
+		const sheets = selectedSheets(set, this.selection);
+		const args: IDrawingsIssueArgs = {
+			projectRoot: root.fsPath,
+			code: code.trim(),
+			description: description.trim(),
+			purpose: purpose.label,
+			...(sheets.length ? { sheets } : {}),
+			...(picked.some(p => p.id === 'force') ? { force: true } : {}),
+			...(picked.some(p => p.id === 'dwg') ? { dwg: true } : {}),
+		};
+		this.busy = true;
+		this.listScheduler.cancel();
+		this.frame.showProgress();
+		this.update(true);
+		try {
+			const result = await this.commandService.executeCommand(DRAWINGS_ISSUE_COMMAND, args);
+			if (root.toString() !== this.root?.toString()) {
+				return;
+			}
+			const issued = readDrawingSet(result, root);
+			for (const sheet of issued?.sheets ?? []) {
+				if (sheet.png) {
+					this.thumbnails.deleteAndDispose(sheet.png.toString());
+				}
+			}
+			if (issued?.sheets.length) {
+				this.setDrawings(issued);
+				this.selection.clear();
+				const raw = (result ?? {}) as { readonly issued?: { readonly code?: string; readonly sheets?: readonly unknown[]; readonly dwgProblems?: readonly string[] } };
+				const text = localize('drawings.issued', "Issued revision {0}: {1} sheet(s), copied into 11 Exports/Drawings/Issued.", raw.issued?.code ?? args.code, raw.issued?.sheets?.length ?? 0);
+				const dwgProblems = args.dwg ? raw.issued?.dwgProblems ?? [] : [];
+				if (dwgProblems.length) {
+					// "Also write DWG" could not: said with the issue, not as a success (OI-10).
+					this.notificationService.warn(`${text} ${localize('drawings.issuedNoDwg', "No DWG was written: {0}", dwgProblems.join(' '))}`);
+				} else {
+					this.notificationService.info(text);
+				}
+			} else {
+				this.notificationService.warn(localize('drawings.issueFailed', "The drawings were not issued: {0}", issued?.problems.join(' ') ?? ''));
+			}
+		} catch (error) {
+			this.notificationService.error(localize('drawings.issueError', "Issue Drawings failed: {0}", toErrorMessage(error)));
+		} finally {
+			this.busy = false;
+			this.frame.hideProgress();
+			if (root.toString() === this.root?.toString()) {
+				this.update(true);
+				void this.list();
+			}
+		}
+	}
+
+	/** Writes the sheets (the ticked ones, when some are) as DWG. */
+	private async exportDwg(): Promise<void> {
+		const root = this.root;
+		if (!root || this.busy || !CommandsRegistry.getCommand(DRAWINGS_DWG_COMMAND)) {
+			return;
+		}
+		const sheets = selectedSheets(this.set, this.selection);
+		try {
+			const answer = (await this.commandService.executeCommand(DRAWINGS_DWG_COMMAND, { projectRoot: root.fsPath, ...(sheets.length ? { sheets } : {}) }) ?? {}) as { readonly written?: readonly unknown[]; readonly problems?: readonly string[]; readonly folder?: string };
+			const written = answer.written?.length ?? 0;
+			const problems = answer.problems ?? [];
+			if (written) {
+				this.notificationService.info(localize('drawings.dwgWritten', "{0} sheet(s) written as DWG into 11 Exports/Drawings/DWG.{1}", written, problems.length ? ` ${problems.join(' ')}` : ''));
+			} else {
+				this.notificationService.warn(localize('drawings.dwgNone', "No DWG was written: {0}", problems.join(' ')));
+			}
+		} catch (error) {
+			this.notificationService.error(localize('drawings.dwgFailed', "Export DWG failed: {0}", toErrorMessage(error)));
+		} finally {
+			void this.list();
+		}
+	}
+
+	/** Shows a sheet's picture in its thumbnails on the page. */
+	private async showThumbnail(png: URI): Promise<void> {
+		const id = png.toString();
+		const url = await this.thumbnail(png, this.set?.generatedAt);
+		for (const image of this.thumbImages.get(id) ?? []) {
+			const thumb = image.parentElement;
+			if (url) {
+				image.src = url;
+				thumb?.classList.remove('missing');
+			} else {
+				image.removeAttribute('src');
+				thumb?.classList.add('missing');
+			}
+		}
+	}
+
+	/**
+	 * The thumbnail of a sheet's picture, read once per generation; read again when the picture
+	 * changes on disk or is drawn again (also when the backend gives no generation time).
+	 */
+	private async thumbnail(png: URI, generatedAt: number | undefined): Promise<string | undefined> {
+		const id = png.toString();
+		const key = `${id}@${generatedAt ?? ''}`;
+		const cached = this.thumbnails.get(id);
+		if (cached?.key === key) {
+			return cached.url;
+		}
+		try {
+			const content = await this.fileService.readFile(png);
+			const targetWindow = getWindow(this.element);
+			const url = targetWindow.URL.createObjectURL(new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
+			if (this.thumbnails.get(id)?.key === key) {
+				targetWindow.URL.revokeObjectURL(url);
+				return this.thumbnails.get(id)?.url;
+			}
+			const entry = toDisposable(() => targetWindow.URL.revokeObjectURL(url));
+			this.thumbnails.set(id, Object.assign(entry, { url, key, png }));
+			return url;
+		} catch {
+			return undefined;
+		}
+	}
+
+	// ───────────────────────────── actions ─────────────────────────────
+
+	/** Draws all sheets, or the selected ones, at the sheet size of the Project Settings (`drawings.sheetSize`). */
+	async generate(): Promise<void> {
+		const root = this.root;
+		if (!root || this.busy || !this.available || this.blocked) {
+			return;
+		}
+		const unsaved = await saveProjectEdits(this.workingCopyService, root);
+		if (unsaved.length) {
+			this.notificationService.warn(localize('drawings.unsaved', "Save your changes first: {0} could not be saved.", unsaved.map(u => u.fsPath).join(', ')));
+			return;
+		}
+		const sheets = selectedSheets(this.set, this.selection);
+		this.busy = true;
+		this.listScheduler.cancel();
+		this.frame.showProgress();
+		this.update();
+		try {
+			const result = await this.commandService.executeCommand(DRAWINGS_GENERATE_COMMAND, generateArgs(root.fsPath, { sheets, size: this.settings.sheetSize }));
+			if (root.toString() !== this.root?.toString()) {
+				return;
+			}
+			const generated = readDrawingSet(result, root);
+			// The pictures just drawn are read again, whatever time the backend gave.
+			for (const sheet of generated?.sheets ?? []) {
+				if (sheet.png) {
+					this.thumbnails.deleteAndDispose(sheet.png.toString());
+				}
+			}
+			if (generated?.sheets.length && sheets.length && this.set) {
+				// Some sheets drawn again: the others stay as they were.
+				const byNumber = new Map(generated.sheets.map(s => [s.number, s]));
+				const previous = this.set;
+				const merged = [...previous.sheets.map(s => byNumber.get(s.number) ?? s), ...generated.sheets.filter(s => !previous.sheets.some(o => o.number === s.number))];
+				this.setDrawings({ ...previous, ...generated, sheets: merged, stale: merged.some(s => s.stale) });
+			} else {
+				this.setDrawings(generated);
+			}
+			this.selection.clear();
+			if (generated?.problems.length) {
+				this.notificationService.warn(localize('drawings.problems', "The drawings were generated with problems: {0}", generated.problems.join(' ')));
+			}
+		} catch (error) {
+			this.notificationService.error(localize('drawings.failed', "Generate Drawings failed: {0}", toErrorMessage(error)));
+		} finally {
+			this.busy = false;
+			this.frame.hideProgress();
+			if (root.toString() === this.root?.toString()) {
+				this.update(true);
+				// The backend's own view of it (with the stamps), now that the files are written.
+				void this.list();
+			}
+		}
+	}
+
+	private async openPreview(sheet: IDrawingPreviewSheet): Promise<void> {
+		const existing = this.editorService.editors.find((e): e is DrawingPreviewInput => e instanceof DrawingPreviewInput && e.sheet.png.toString() === sheet.png.toString());
+		existing?.update(sheet);
+		await this.editorService.openEditor(existing ?? new DrawingPreviewInput(sheet), { pinned: true });
+	}
+
+	private async openExternal(resource: URI): Promise<void> {
+		try {
+			if (/\.csv$/i.test(resource.path)) {
+				// A schedule in the app (a PC without a spreadsheet program asked Windows to pick
+				// one and showed nothing: OI-9); Excel opens it from the editor's Reveal.
+				await this.editorService.openEditor({ resource, options: { pinned: true } });
+				return;
+			}
+			await this.openerService.open(resource, { openExternal: true });
+		} catch (error) {
+			this.notificationService.error(toErrorMessage(error));
+		}
+	}
+}

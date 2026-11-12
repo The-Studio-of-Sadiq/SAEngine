@@ -1,0 +1,4970 @@
+{
+  "$defs": {
+    "AltitudeFactor": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the altitude factor on the mapped basic wind velocity (UK NA to BS EN\n1991-1-4 Eq NA.2a type): vb,0 = vb,map × (1 + ``factor`` × A), A the site altitude [m].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factor": {
+          "description": "Per metre of altitude.",
+          "minimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "AltitudeFactor",
+      "type": "object"
+    },
+    "ArchRow": {
+      "additionalProperties": false,
+      "description": "A rise-to-span range of an arched roof: windward quarter Cp = a·r + b (and the alternate\ncoefficient that shall also be used, where given).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "elevated": {
+          "description": "Roof on an elevated structure (else from the ground).",
+          "title": "Elevated",
+          "type": "boolean"
+        },
+        "riseFrom": {
+          "minimum": 0,
+          "title": "Risefrom",
+          "type": "number"
+        },
+        "riseTo": {
+          "exclusiveMinimum": 0,
+          "title": "Riseto",
+          "type": "number"
+        },
+        "windward": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Windward",
+          "type": "array"
+        },
+        "alternate": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alternate"
+        }
+      },
+      "required": [
+        "elevated",
+        "riseFrom",
+        "riseTo",
+        "windward"
+      ],
+      "title": "ArchRow",
+      "type": "object"
+    },
+    "ArchedTable": {
+      "additionalProperties": false,
+      "description": "Arched roofs: windward quarter by r, centre half Cp = a·r + b, leeward quarter Cp.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ArchRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "centre": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Centre",
+          "type": "array"
+        },
+        "leeward": {
+          "title": "Leeward",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rows",
+        "centre",
+        "leeward"
+      ],
+      "title": "ArchedTable",
+      "type": "object"
+    },
+    "ChimneyRow": {
+      "additionalProperties": false,
+      "description": "Cf of a cross-section and surface by h/D; ``small``: rounded with D√qz up to the\nlimit.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "section": {
+          "enum": [
+            "square",
+            "squareDiagonal",
+            "polygonal",
+            "round"
+          ],
+          "title": "Section",
+          "type": "string"
+        },
+        "surface": {
+          "default": "all",
+          "enum": [
+            "all",
+            "moderatelySmooth",
+            "rough",
+            "veryRough"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "small": {
+          "default": false,
+          "title": "Small",
+          "type": "boolean"
+        },
+        "cf": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Cf",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "section",
+        "cf"
+      ],
+      "title": "ChimneyRow",
+      "type": "object"
+    },
+    "ChimneysTable": {
+      "additionalProperties": false,
+      "description": "Chimneys, tanks, rooftop equipment and similar structures, F = qz·G·Cf·Af (read by\n:mod:`saengine.fem.other_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverD": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Hoverd",
+          "type": "array"
+        },
+        "roundLimit": {
+          "description": "D√qz limit of round sections (D m, qz N/m²).",
+          "exclusiveMinimum": 0,
+          "title": "Roundlimit",
+          "type": "number"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ChimneyRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hOverD",
+        "roundLimit",
+        "rows"
+      ],
+      "title": "ChimneysTable",
+      "type": "object"
+    },
+    "CladdingArchedTable": {
+      "additionalProperties": false,
+      "description": "Arched roofs: at the perimeter, the roof figures with θ the springline slope; elsewhere\nthe MWFRS arched roof Cp times ``interiorFactor``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "interiorFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "interiorFactor"
+      ],
+      "title": "CladdingArchedTable",
+      "type": "object"
+    },
+    "CladdingCurve": {
+      "additionalProperties": false,
+      "description": "One external pressure coefficient (GCp) of components and cladding: ``gcp1`` at an\neffective wind area up to ``area1`` [m²], ``gcp2`` from ``area2``, linear in log A between.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "surface": {
+          "enum": [
+            "wall",
+            "roof"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "sign": {
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Sign",
+          "type": "string"
+        },
+        "area1": {
+          "exclusiveMinimum": 0,
+          "title": "Area1",
+          "type": "number"
+        },
+        "gcp1": {
+          "title": "Gcp1",
+          "type": "number"
+        },
+        "area2": {
+          "exclusiveMinimum": 0,
+          "title": "Area2",
+          "type": "number"
+        },
+        "gcp2": {
+          "title": "Gcp2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "surface",
+        "zone",
+        "sign",
+        "area1",
+        "gcp1",
+        "area2",
+        "gcp2"
+      ],
+      "title": "CladdingCurve",
+      "type": "object"
+    },
+    "CladdingDomeTable": {
+      "additionalProperties": false,
+      "description": "Domes on a circular base: (GCp) by the angle θ from the springline (0) to the top (90),\nwith q at the top of the dome; the figure's range of hD/D and f/D.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "negative": {
+          "description": "(GCp) suction over the whole dome.",
+          "exclusiveMaximum": 0,
+          "title": "Negative",
+          "type": "number"
+        },
+        "positive": {
+          "description": "(θ up to [°], positive GCp) bands.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Positive",
+          "type": "array"
+        },
+        "baseMax": {
+          "description": "hD/D up to this.",
+          "exclusiveMinimum": 0,
+          "title": "Basemax",
+          "type": "number"
+        },
+        "riseRange": {
+          "description": "f/D range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Riserange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "negative",
+        "positive",
+        "baseMax",
+        "riseRange"
+      ],
+      "title": "CladdingDomeTable",
+      "type": "object"
+    },
+    "CladdingPointCurve": {
+      "additionalProperties": false,
+      "description": "One external pressure coefficient (GCp) of components and cladding by effective wind area:\n(area [m²], GCp) points, linear in log A between them, the end values beyond the ends.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "sign": {
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Sign",
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zone",
+        "sign",
+        "points"
+      ],
+      "title": "CladdingPointCurve",
+      "type": "object"
+    },
+    "CladdingRoofTable": {
+      "additionalProperties": false,
+      "description": "The (GCp) of the roofs of one form over a range of roof angles θ (angleFrom < θ ≤\nangleTo) for low-rise buildings (read by :func:`saengine.fem.loads.cladding_pressures`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "forms": {
+          "description": "Roof forms this figure covers (gable, hip, monoslope, ...).",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Forms",
+          "type": "array"
+        },
+        "angleFrom": {
+          "description": "θ above this [°] ...",
+          "minimum": 0,
+          "title": "Anglefrom",
+          "type": "number"
+        },
+        "angleTo": {
+          "description": "... up to this [°].",
+          "exclusiveMinimum": 0,
+          "title": "Angleto",
+          "type": "number"
+        },
+        "roof": {
+          "description": "Roof zones; empty: the low-rise flat-roof curves.",
+          "items": {
+            "$ref": "#/$defs/CladdingPointCurve"
+          },
+          "title": "Roof",
+          "type": "array"
+        },
+        "overhang": {
+          "description": "Roof overhangs (top and bottom surfaces together).",
+          "items": {
+            "$ref": "#/$defs/CladdingPointCurve"
+          },
+          "title": "Overhang",
+          "type": "array"
+        },
+        "zoneLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "What each zone of this figure is (its plan).",
+          "title": "Zonelabels",
+          "type": "object"
+        },
+        "cornerAsEdge": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Form -> θ [°] up to which roof zone 3 is treated as zone 2 (hip roofs).",
+          "title": "Cornerasedge",
+          "type": "object"
+        },
+        "parapetCornerAsEdge": {
+          "default": false,
+          "description": "A parapet of at least the cladding table's parapetCorner turns zone 3 into zone 2 on this figure's roofs.",
+          "title": "Parapetcornerasedge",
+          "type": "boolean"
+        },
+        "envelopeForm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Also take the larger magnitude of this form's figure at the same angle (zone by its number), where the code's text points to both.",
+          "title": "Envelopeform"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "forms",
+        "angleFrom",
+        "angleTo"
+      ],
+      "title": "CladdingRoofTable",
+      "type": "object"
+    },
+    "CladdingSteppedRoof": {
+      "additionalProperties": false,
+      "description": "The lower level of a flat stepped roof: its zones at the roof-upper wall intersection\nrenamed (``zoneMap``), and the wall's positive (GCp) on a strip b = widthFactor·h1 ≤\nwidthMax wide; the figure's limits on h1 and the ratios.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zoneMap": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Zonemap",
+          "type": "object"
+        },
+        "widthFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Widthfactor",
+          "type": "number"
+        },
+        "widthMax": {
+          "description": "b at most this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Widthmax",
+          "type": "number"
+        },
+        "minUpperHeight": {
+          "description": "h1 at least this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Minupperheight",
+          "type": "number"
+        },
+        "heightRatio": {
+          "description": "hi/h range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Heightratio",
+          "type": "array"
+        },
+        "widthRatio": {
+          "description": "Wi/W range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Widthratio",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zoneMap",
+        "widthFactor",
+        "widthMax",
+        "minUpperHeight",
+        "heightRatio",
+        "widthRatio"
+      ],
+      "title": "CladdingSteppedRoof",
+      "type": "object"
+    },
+    "CladdingTable": {
+      "additionalProperties": false,
+      "description": "Components and cladding (the default pack's Part 6 Sec 2.4.11.5): the (GCp) curves of walls and\nflat roofs (θ ≤ 10°) of low-rise (h ≤ ``lowRiseHeight``) and taller buildings, the internal\npressure coefficients and the edge-zone width a.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "lowRiseHeight": {
+          "description": "h [m] up to which the low-rise curves hold.",
+          "exclusiveMinimum": 0,
+          "title": "Lowriseheight",
+          "type": "number"
+        },
+        "lowRise": {
+          "items": {
+            "$ref": "#/$defs/CladdingCurve"
+          },
+          "title": "Lowrise",
+          "type": "array"
+        },
+        "highRise": {
+          "items": {
+            "$ref": "#/$defs/CladdingCurve"
+          },
+          "title": "Highrise",
+          "type": "array"
+        },
+        "lowRiseWallFactor": {
+          "description": "Factor on the low-rise wall (GCp) for a roof θ ≤ 10°.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lowrisewallfactor",
+          "type": "number"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(GCpi) magnitude by enclosure; None: the wind table's internalPressure.",
+          "title": "Internal"
+        },
+        "edgeFraction": {
+          "description": "a ≤ edgeFraction · least plan dimension.",
+          "exclusiveMinimum": 0,
+          "title": "Edgefraction",
+          "type": "number"
+        },
+        "edgeHeightFraction": {
+          "description": "Low-rise: a ≤ this · h.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeheightfraction",
+          "type": "number"
+        },
+        "edgeMinFraction": {
+          "description": "a ≥ this · least plan dimension.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeminfraction",
+          "type": "number"
+        },
+        "edgeMin": {
+          "description": "a ≥ this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Edgemin",
+          "type": "number"
+        },
+        "parapetCorner": {
+          "description": "A parapet this high [m] or more turns roof zone 3 into zone 2.",
+          "exclusiveMinimum": 0,
+          "title": "Parapetcorner",
+          "type": "number"
+        },
+        "wallFactorMaxAngle": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "lowRiseWallFactor only for a roof θ up to this [°]; None: any.",
+          "title": "Wallfactormaxangle"
+        },
+        "roofs": {
+          "description": "Roof figures by form and angle; empty: flat roofs only.",
+          "items": {
+            "$ref": "#/$defs/CladdingRoofTable"
+          },
+          "title": "Roofs",
+          "type": "array"
+        },
+        "highRiseRoofsFrom": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "h above lowRiseHeight with a roof θ above this [°]: the low-rise roof figures with qh; None: the high-rise flat-roof curves at any θ.",
+          "title": "Highriseroofsfrom"
+        },
+        "parapetPositive": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "With a parapet (as parapetCorner): roof zone -> wall zone whose positive (GCp) the roof zone takes.",
+          "title": "Parapetpositive",
+          "type": "object"
+        },
+        "stepped": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingSteppedRoof"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "domes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingDomeTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arched": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CladdingArchedTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "lowRiseHeight",
+        "lowRise",
+        "highRise",
+        "lowRiseWallFactor",
+        "edgeFraction",
+        "edgeHeightFraction",
+        "edgeMinFraction",
+        "edgeMin",
+        "parapetCorner"
+      ],
+      "title": "CladdingTable",
+      "type": "object"
+    },
+    "CpHeightRow": {
+      "additionalProperties": false,
+      "description": "C7: the wall pressure coefficients of a building up to ``heightRatioMax`` = h / w (w the\nlesser plan dimension): windward ``windward``; leeward the first (l/w max, Cp) row with l/w\n(l the greater plan dimension) up to it, else the last.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "heightRatioMax": {
+          "exclusiveMinimum": 0,
+          "title": "Heightratiomax",
+          "type": "number"
+        },
+        "windward": {
+          "title": "Windward",
+          "type": "number"
+        },
+        "leeward": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Leeward",
+          "type": "array"
+        }
+      },
+      "required": [
+        "heightRatioMax",
+        "windward",
+        "leeward"
+      ],
+      "title": "CpHeightRow",
+      "type": "object"
+    },
+    "DetailedStructuralFactor": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: cscd of EN 1991-1-4 Annex B (method ``annexB``,\n:func:`saengine.fem.peak_velocity_pressure.detailed_structural_factor`): cscd = (1 + 2 kp\nIv(zs) √(B² + R²)) / (1 + ``peakFactor`` Iv(zs)), zs = ``heightShare`` h; L(zs) =\n``scaleLength`` (zs / ``scaleHeight``)^α, α = ``alphaBase`` + ``alphaLog`` ln z0; B² = 1 /\n(1 + ``backgroundFactor`` ((b + h) / L)^``backgroundExponent``); SL = a fL / (1 + b fL)^(5/3);\nR² = π² / (2 δ) SL Rh Rb with η = ``admittance`` fL h / L (and b); kp = √(2 ln νT) + 0.6 /\n√(2 ln νT) at least ``kpMin``, ν at least ``upcrossingMin`` [Hz], T = ``duration`` [s]; n1 =\n``frequencyCoefficient`` / h where the project gives none; δ the logarithmic decrement:\n``structuralDamping`` by structure kind (or 2π ξ of the project's damping ratio).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "annexB",
+          "default": "annexB",
+          "title": "Method",
+          "type": "string"
+        },
+        "heightShare": {
+          "exclusiveMinimum": 0,
+          "title": "Heightshare",
+          "type": "number"
+        },
+        "scaleLength": {
+          "exclusiveMinimum": 0,
+          "title": "Scalelength",
+          "type": "number"
+        },
+        "scaleHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Scaleheight",
+          "type": "number"
+        },
+        "alphaBase": {
+          "title": "Alphabase",
+          "type": "number"
+        },
+        "alphaLog": {
+          "title": "Alphalog",
+          "type": "number"
+        },
+        "backgroundFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Backgroundfactor",
+          "type": "number"
+        },
+        "backgroundExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Backgroundexponent",
+          "type": "number"
+        },
+        "spectrum": {
+          "description": "(a, b) of SL = a fL/(1 + b fL)^(5/3).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Spectrum",
+          "type": "array"
+        },
+        "admittance": {
+          "exclusiveMinimum": 0,
+          "title": "Admittance",
+          "type": "number"
+        },
+        "kpMin": {
+          "exclusiveMinimum": 0,
+          "title": "Kpmin",
+          "type": "number"
+        },
+        "upcrossingMin": {
+          "exclusiveMinimum": 0,
+          "title": "Upcrossingmin",
+          "type": "number"
+        },
+        "duration": {
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "frequencyCoefficient": {
+          "description": "n1 = c / h [Hz] (h in m).",
+          "exclusiveMinimum": 0,
+          "title": "Frequencycoefficient",
+          "type": "number"
+        },
+        "structuralDamping": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "δs by kind: concrete, steel.",
+          "title": "Structuraldamping",
+          "type": "object"
+        },
+        "peakFactor": {
+          "default": 7.0,
+          "description": "The 7 of 1 + 7 Iv(zs).",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "heightShare",
+        "scaleLength",
+        "scaleHeight",
+        "alphaBase",
+        "alphaLog",
+        "backgroundFactor",
+        "backgroundExponent",
+        "spectrum",
+        "admittance",
+        "kpMin",
+        "upcrossingMin",
+        "duration",
+        "frequencyCoefficient",
+        "structuralDamping"
+      ],
+      "title": "DetailedStructuralFactor",
+      "type": "object"
+    },
+    "DomeCurve": {
+      "additionalProperties": false,
+      "description": "Cp at one point of a dome (A windward springline, B top, C leeward springline) against\nf/D, for one hD/D.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hdOverD": {
+          "minimum": 0,
+          "title": "Hdoverd",
+          "type": "number"
+        },
+        "points": {
+          "description": "(f/D, Cp) points.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hdOverD",
+        "points"
+      ],
+      "title": "DomeCurve",
+      "type": "object"
+    },
+    "DomeTable": {
+      "additionalProperties": false,
+      "description": "Domed roofs on a circular base: Cp at A, B and C by f/D and hD/D, Case A interpolated\nalong arcs A-B-C, Case B constant A up to ``caseBAngle`` then to B and C.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minRise": {
+          "description": "Below this f/D, the planar roof table holds.",
+          "exclusiveMinimum": 0,
+          "title": "Minrise",
+          "type": "number"
+        },
+        "caseBAngle": {
+          "exclusiveMaximum": 90,
+          "exclusiveMinimum": 0,
+          "title": "Casebangle",
+          "type": "number"
+        },
+        "A": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "A",
+          "type": "array"
+        },
+        "B": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "B",
+          "type": "array"
+        },
+        "C": {
+          "items": {
+            "$ref": "#/$defs/DomeCurve"
+          },
+          "minItems": 1,
+          "title": "C",
+          "type": "array"
+        }
+      },
+      "required": [
+        "minRise",
+        "caseBAngle",
+        "A",
+        "B",
+        "C"
+      ],
+      "title": "DomeTable",
+      "type": "object"
+    },
+    "Exposure": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "alpha": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Alpha"
+        },
+        "zg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Gradient height [m].",
+          "title": "Zg"
+        },
+        "z0": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Roughness length z0 [m].",
+          "title": "Z0"
+        },
+        "c": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Turbulence intensity factor c.",
+          "title": "C"
+        },
+        "l": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Integral length scale ℓ [m].",
+          "title": "L"
+        },
+        "epsilonBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Integral length ε̄.",
+          "title": "Epsilonbar"
+        },
+        "alphaBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean-speed power ᾱ.",
+          "title": "Alphabar"
+        },
+        "bBar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mean-speed factor b̄.",
+          "title": "Bbar"
+        },
+        "zmin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "z_min of z̄ [m]; with peakVelocityPressure the least height zmin of the logarithmic profile.",
+          "title": "Zmin"
+        },
+        "kzFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Factor of Kz.",
+          "title": "Kzfactor"
+        },
+        "kzMinHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Kz below this [m].",
+          "title": "Kzminheight"
+        },
+        "gustByHeight": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(building height H [m], G) points, linear between, the end values outside; empty: the table's gust.",
+          "title": "Gustbyheight"
+        },
+        "pulsationZeta": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ζ at the height zg (wind.pulsation); empty: none.",
+          "title": "Pulsationzeta"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "Exposure",
+      "type": "object"
+    },
+    "FlexibleGustRow": {
+      "additionalProperties": false,
+      "description": "The gust-effect factor Gf of a flexible or dynamically sensitive building (the default pack's Part 6\nSec 2.4.8.2): read by :func:`saengine.fem.loads.flexible_gust_factor`.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "frequencyLimit": {
+          "description": "A building below n1 [Hz] is flexible.",
+          "exclusiveMinimum": 0,
+          "title": "Frequencylimit",
+          "type": "number"
+        },
+        "gQ": {
+          "description": "Peak factor of the background response gQ.",
+          "exclusiveMinimum": 0,
+          "title": "Gq",
+          "type": "number"
+        },
+        "gv": {
+          "description": "Peak factor of the wind response gv.",
+          "exclusiveMinimum": 0,
+          "title": "Gv",
+          "type": "number"
+        },
+        "heightFactor": {
+          "description": "z̄ = heightFactor · h.",
+          "exclusiveMinimum": 0,
+          "title": "Heightfactor",
+          "type": "number"
+        },
+        "lead": {
+          "description": "The factor before the fraction (0.925).",
+          "exclusiveMinimum": 0,
+          "title": "Lead",
+          "type": "number"
+        },
+        "damping": {
+          "description": "Damping ratio β of a concrete building.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Damping",
+          "type": "number"
+        },
+        "eccentricity": {
+          "anyOf": [
+            {
+              "const": "gustWeighted",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Torsional eccentricity of a flexible building: gustWeighted, e from eQ and eR weighted by the background and resonant responses (:func:`saengine.fem.loads.flexible_eccentricity`); None: the rigid e.",
+          "title": "Eccentricity"
+        }
+      },
+      "required": [
+        "frequencyLimit",
+        "gQ",
+        "gv",
+        "heightFactor",
+        "lead",
+        "damping"
+      ],
+      "title": "FlexibleGustRow",
+      "type": "object"
+    },
+    "GustFactorRules": {
+      "additionalProperties": false,
+      "description": "The gust factor method of tall or flexible buildings (:mod:`saengine.fem.gust_response`):\nG = 1 + r √(gv² Bs (1 + φ)² + Hs gR² S E / β), the along-wind force F = Cf Ae p̄ G with the\nhourly mean pressure p̄ = airFactor V̄², V̄ = Vb k1 k̄2 k3 k4.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "heightRatio": {
+          "description": "Applies when h / b exceeds this ...",
+          "exclusiveMinimum": 0,
+          "title": "Heightratio",
+          "type": "number"
+        },
+        "frequencyLimit": {
+          "description": "... or the first frequency is below [Hz].",
+          "exclusiveMinimum": 0,
+          "title": "Frequencylimit",
+          "type": "number"
+        },
+        "form": {
+          "default": "gustFactor",
+          "description": "gustFactor (G on the mean pressure) or dynamicResponse (Cdyn on the design pressure).",
+          "enum": [
+            "gustFactor",
+            "dynamicResponse"
+          ],
+          "title": "Form",
+          "type": "string"
+        },
+        "turbulencePoints": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Iz: terrain -> (height [m], turbulence intensity) points, linear between, constant outside (the dynamicResponse form).",
+          "title": "Turbulencepoints",
+          "type": "object"
+        },
+        "meanFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "k̄2: terrain -> (height [m], hourly mean speed factor) points.",
+          "title": "Meanfactors",
+          "type": "object"
+        },
+        "roughness": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "z0 [m] by terrain.",
+          "title": "Roughness",
+          "type": "object"
+        },
+        "turbulence": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a1, b1, a4, b4): I1 = a1 - b1 log10(z/z0,1), I4 = a4 - b4 log10(z/z0,4).",
+          "title": "Turbulence"
+        },
+        "terrainShares": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "I = I1 + share (I4 - I1) by terrain (0 for the first, 1 for the last).",
+          "title": "Terrainshares",
+          "type": "object"
+        },
+        "peakFactor": {
+          "description": "gv, the peak factor of the upwind velocity.",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        },
+        "scaleCoefficients": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Lh = coefficient (h / 10)^0.25 [m] by terrain.",
+          "title": "Scalecoefficients",
+          "type": "object"
+        },
+        "backgroundTerms": {
+          "description": "Bs = 1 / (1 + √(c1 (h - s)² + c2 bsh²) / Lh): (c1, c2).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Backgroundterms",
+          "type": "array"
+        },
+        "sizeTerms": {
+          "description": "S = 1 / ((1 + c1 f0 h / V̄h)(1 + c2 f0 b0h / V̄h)): (c1, c2).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Sizeterms",
+          "type": "array"
+        },
+        "spectrumTerms": {
+          "description": "E = π N / (1 + c1 N²)^c2: (c1, c2), N = f0 Lh / V̄h.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Spectrumterms",
+          "type": "array"
+        },
+        "duration": {
+          "description": "gR = √(2 ln(duration f0)) [s].",
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "damping": {
+          "description": "β, the default damping ratio.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Damping",
+          "type": "number"
+        },
+        "accelerationReturn": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The speed of the comfort check × this (empty: same).",
+          "title": "Accelerationreturn"
+        }
+      },
+      "required": [
+        "heightRatio",
+        "frequencyLimit",
+        "peakFactor",
+        "scaleCoefficients",
+        "backgroundTerms",
+        "sizeTerms",
+        "spectrumTerms",
+        "duration",
+        "damping"
+      ],
+      "title": "GustFactorRules",
+      "type": "object"
+    },
+    "HillShapeRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18b: k3 by the hill-shape multiplier of a hill, ridge or escarpment at the\nheight z of each level (the AS/NZS 1170.2 4.4.2 form, :func:`saengine.fem.\nwind_speed_factors.hill_shape_factor`), from the project's topography (H the feature's\nheight, Lu = the settings' half-height distance Lh, x the distance from the crest):\n\n- H / (2 Lu) below ``flatRatio``: k3 = 1;\n- up to ``steepRatio``: k3 = 1 + H / (divisor (z + L1)) (1 - |x| / L2);\n- from ``steepRatio``: k3 = 1 + ``steepSpeedUp`` (1 - |x| / L2) (the separation zone's\n  value, taken at every height: on the safe side);\n\nL1 = max(a Lu, b H) (``l1Shares``), L2 = ``upwindL2`` L1 upwind of the crest and for hills\nand ridges, ``escarpmentDownwindL2`` L1 downwind of an escarpment; k3 = 1 beyond L2.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "flatRatio": {
+          "description": "H/(2 Lu) below this: no speed-up.",
+          "exclusiveMinimum": 0,
+          "title": "Flatratio",
+          "type": "number"
+        },
+        "steepRatio": {
+          "description": "H/(2 Lu) from this: the steep form.",
+          "exclusiveMinimum": 0,
+          "title": "Steepratio",
+          "type": "number"
+        },
+        "divisor": {
+          "description": "k3 = 1 + H / (divisor (z + L1)) (1 - |x|/L2).",
+          "exclusiveMinimum": 0,
+          "title": "Divisor",
+          "type": "number"
+        },
+        "steepSpeedUp": {
+          "description": "k3 = 1 + this (1 - |x|/L2) when steep.",
+          "exclusiveMinimum": 0,
+          "title": "Steepspeedup",
+          "type": "number"
+        },
+        "l1Shares": {
+          "description": "L1 = max(a Lu, b H): (a, b).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "L1Shares",
+          "type": "array"
+        },
+        "upwindL2": {
+          "description": "L2 = this × L1 (upwind; hills and ridges).",
+          "exclusiveMinimum": 0,
+          "title": "Upwindl2",
+          "type": "number"
+        },
+        "escarpmentDownwindL2": {
+          "description": "L2 = this × L1 downwind of an escarpment.",
+          "exclusiveMinimum": 0,
+          "title": "Escarpmentdownwindl2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "flatRatio",
+        "steepRatio",
+        "divisor",
+        "steepSpeedUp",
+        "l1Shares",
+        "upwindL2",
+        "escarpmentDownwindL2"
+      ],
+      "title": "HillShapeRules",
+      "type": "object"
+    },
+    "InternalPressureTable": {
+      "additionalProperties": false,
+      "description": "Internal pressure coefficients (GCpi) by enclosure classification and the reduction\nfactor Ri of a partially enclosed building with one unpartitioned large volume:\nRi = reductionBase·(1 + 1/√(1 + Vi/(volumeFactor·Aog))) ≤ 1, Vi the internal volume [m³],\nAog the total area of openings in the envelope [m²]\n(read by :func:`saengine.fem.loads.internal_pressure_coefficient`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "coefficients": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "(GCpi) magnitude by enclosure.",
+          "title": "Coefficients",
+          "type": "object"
+        },
+        "reducedEnclosures": {
+          "description": "Enclosures whose (GCpi) Ri may reduce.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Reducedenclosures",
+          "type": "array"
+        },
+        "reductionBase": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Reductionbase",
+          "type": "number"
+        },
+        "volumeFactor": {
+          "description": "The constant before Aog in Ri [m].",
+          "exclusiveMinimum": 0,
+          "title": "Volumefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficients",
+        "volumeFactor"
+      ],
+      "title": "InternalPressureTable",
+      "type": "object"
+    },
+    "LatticeCfRow": {
+      "additionalProperties": false,
+      "description": "Force coefficient Cf of an open sign or lattice framework up to a solidity ratio ε: by\nmember shape, flat-sided or rounded (small and large D√qz).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "solidityMax": {
+          "description": "Row holds for ε below this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Soliditymax",
+          "type": "number"
+        },
+        "flat": {
+          "description": "Cf, flat-sided members.",
+          "exclusiveMinimum": 0,
+          "title": "Flat",
+          "type": "number"
+        },
+        "roundSmall": {
+          "description": "Cf, rounded members, D√qz up to the limit.",
+          "exclusiveMinimum": 0,
+          "title": "Roundsmall",
+          "type": "number"
+        },
+        "roundLarge": {
+          "description": "Cf, rounded members, D√qz above the limit.",
+          "exclusiveMinimum": 0,
+          "title": "Roundlarge",
+          "type": "number"
+        }
+      },
+      "required": [
+        "solidityMax",
+        "flat",
+        "roundSmall",
+        "roundLarge"
+      ],
+      "title": "LatticeCfRow",
+      "type": "object"
+    },
+    "LocalPressureZone": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: cpe,1 and cpe,10 of one zone of walls or flat roofs (EN 1991-1-4 Tables 7.1,\n7.2): ``ratio`` h/d of the wall row, or hp/h of the roof row (0: sharp eaves), linear between\nthe rows of a zone and sign; a zone may have a positive and a negative row.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "surface": {
+          "enum": [
+            "wall",
+            "roof"
+          ],
+          "title": "Surface",
+          "type": "string"
+        },
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "ratio": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "cpe10": {
+          "title": "Cpe10",
+          "type": "number"
+        },
+        "cpe1": {
+          "title": "Cpe1",
+          "type": "number"
+        }
+      },
+      "required": [
+        "surface",
+        "zone",
+        "label",
+        "cpe10",
+        "cpe1"
+      ],
+      "title": "LocalPressureZone",
+      "type": "object"
+    },
+    "LocalPressuresTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: local pressures of cladding and fixings (method ``areaDependent``,\n:mod:`saengine.fem.local_pressures`): cpe of a loaded area A by cpe,1 at A <= ``areaSmall``,\ncpe,10 at A >= ``areaLarge``, linear in log A between; w = qp(ze) (cpe - cpi), cpi the more\nonerous of ``internal``; e = min(b, ``edgeFactor`` h).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "areaDependent",
+          "default": "areaDependent",
+          "title": "Method",
+          "type": "string"
+        },
+        "areaSmall": {
+          "exclusiveMinimum": 0,
+          "title": "Areasmall",
+          "type": "number"
+        },
+        "areaLarge": {
+          "exclusiveMinimum": 0,
+          "title": "Arealarge",
+          "type": "number"
+        },
+        "edgeFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Edgefactor",
+          "type": "number"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/LocalPressureZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        },
+        "internal": {
+          "description": "(most positive, most negative) cpi.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Internal",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaSmall",
+        "areaLarge",
+        "edgeFactor",
+        "zones",
+        "internal"
+      ],
+      "title": "LocalPressuresTable",
+      "type": "object"
+    },
+    "LowRiseRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "description": "Roof angle θ [°].",
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "gcpf": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "(GCpf) by building surface (1-6, 1E-4E).",
+          "title": "Gcpf",
+          "type": "object"
+        }
+      },
+      "required": [
+        "angle",
+        "gcpf"
+      ],
+      "title": "LowRiseRow",
+      "type": "object"
+    },
+    "LowRiseTable": {
+      "additionalProperties": false,
+      "description": "Low-rise buildings: the combined (GCpf) by building surface and roof angle, the end\nzones 2a wide, the zone 2 extent, the torsional load cases' share.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxHeight": {
+          "description": "Low-rise: mean roof height h up to this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Maxheight",
+          "type": "number"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/LowRiseRow"
+          },
+          "minItems": 2,
+          "title": "Rows",
+          "type": "array"
+        },
+        "endZoneFactor": {
+          "description": "E zones extend endZoneFactor·a.",
+          "exclusiveMinimum": 0,
+          "title": "Endzonefactor",
+          "type": "number"
+        },
+        "zone2Fraction": {
+          "description": "Negative zone 2: up to this · L ...",
+          "exclusiveMinimum": 0,
+          "title": "Zone2Fraction",
+          "type": "number"
+        },
+        "zone2EaveFactor": {
+          "description": "... or this · he, the less.",
+          "exclusiveMinimum": 0,
+          "title": "Zone2Eavefactor",
+          "type": "number"
+        },
+        "torsionalShare": {
+          "description": "Zones 1T-4T: this · zones 1-4.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Torsionalshare",
+          "type": "number"
+        },
+        "exemptHeight": {
+          "description": "One storey up to this h: no torsional cases.",
+          "exclusiveMinimum": 0,
+          "title": "Exemptheight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxHeight",
+        "rows",
+        "endZoneFactor",
+        "zone2Fraction",
+        "zone2EaveFactor",
+        "torsionalShare",
+        "exemptHeight"
+      ],
+      "title": "LowRiseTable",
+      "type": "object"
+    },
+    "MinimumLateral": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: a least horizontal load at each level as a share of its characteristic\ndead weight (the Singapore NA's 1.5 % type): the wind storey force is at least ``share`` ×\nthe level's G.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Share",
+          "type": "number"
+        },
+        "clause": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clause"
+        }
+      },
+      "required": [
+        "share"
+      ],
+      "title": "MinimumLateral",
+      "type": "object"
+    },
+    "MwfrsTable": {
+      "additionalProperties": false,
+      "description": "External pressures of the main wind-force resisting system on walls and roofs of\nenclosed and partially enclosed buildings (read by :mod:`saengine.fem.loads` and\n:mod:`saengine.fem.open_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "sideWall": {
+          "description": "Side wall Cp.",
+          "title": "Sidewall",
+          "type": "number"
+        },
+        "overhang": {
+          "description": "Cp on the underside of a windward roof overhang.",
+          "title": "Overhang",
+          "type": "number"
+        },
+        "roof": {
+          "$ref": "#/$defs/RoofCpTable"
+        },
+        "domes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DomeTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arched": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArchedTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lowRise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LowRiseTable"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "sideWall",
+        "overhang",
+        "roof"
+      ],
+      "title": "MwfrsTable",
+      "type": "object"
+    },
+    "OpenBuildingsTable": {
+      "additionalProperties": false,
+      "description": "Open buildings with monoslope, pitched or troughed free roofs: p = qh·G·CN for the\nmain wind-force resisting system and the components and cladding (read by\n:mod:`saengine.fem.open_wind`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxAngle": {
+          "description": "Roof θ up to this [°].",
+          "exclusiveMinimum": 0,
+          "title": "Maxangle",
+          "type": "number"
+        },
+        "minAngle": {
+          "description": "Below this θ [°], every form takes the monoslope's first row.",
+          "minimum": 0,
+          "title": "Minangle",
+          "type": "number"
+        },
+        "hOverL": {
+          "description": "h/L range of the figures.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Hoverl",
+          "type": "array"
+        },
+        "mwfrs": {
+          "$ref": "#/$defs/OpenRoofMwfrs"
+        },
+        "cladding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenRoofCladding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "maxAngle",
+        "minAngle",
+        "hOverL",
+        "mwfrs"
+      ],
+      "title": "OpenBuildingsTable",
+      "type": "object"
+    },
+    "OpenRoofAlong": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofAlongZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        },
+        "flatMonoslopeAngle": {
+          "description": "A monoslope roof below this θ [°] takes these zones ...",
+          "exclusiveMinimum": 0,
+          "title": "Flatmonoslopeangle",
+          "type": "number"
+        },
+        "flatMonoslopeRatio": {
+          "description": "... for the wind normal to its slope too, with h/L in this range.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Flatmonosloperatio",
+          "type": "array"
+        }
+      },
+      "required": [
+        "zones",
+        "flatMonoslopeAngle",
+        "flatMonoslopeRatio"
+      ],
+      "title": "OpenRoofAlong",
+      "type": "object"
+    },
+    "OpenRoofAlongZone": {
+      "additionalProperties": false,
+      "description": "A zone of a free roof by its horizontal distance from the windward edge (multiples of\nh), wind parallel to the ridge: CN by load case, then by blockage.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ends this many h from the edge.",
+          "title": "Upto"
+        },
+        "cases": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "title": "Cases",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cases"
+      ],
+      "title": "OpenRoofAlongZone",
+      "type": "object"
+    },
+    "OpenRoofCladding": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "areaBands": {
+          "description": "Band upper limits as multiples of a² (the last band: above).",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Areabands",
+          "type": "array"
+        },
+        "ridgeEdgeFrom": {
+          "description": "θ [°] from which a pitched or troughed roof's ridge (valley) is an edge.",
+          "title": "Ridgeedgefrom",
+          "type": "number"
+        },
+        "zoneLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Zonelabels",
+          "type": "object"
+        },
+        "monoslope": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Monoslope",
+          "type": "array"
+        },
+        "pitched": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Pitched",
+          "type": "array"
+        },
+        "troughed": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofCladdingRow"
+          },
+          "minItems": 2,
+          "title": "Troughed",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaBands",
+        "ridgeEdgeFrom",
+        "monoslope",
+        "pitched",
+        "troughed"
+      ],
+      "title": "OpenRoofCladding",
+      "type": "object"
+    },
+    "OpenRoofCladdingRow": {
+      "additionalProperties": false,
+      "description": "CN of the components and cladding of a free roof at one angle: per blockage, per zone,\nthe (positive, negative) pair of each effective-area band.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "clear": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Clear",
+          "type": "object"
+        },
+        "obstructed": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Obstructed",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "angle",
+        "clear",
+        "obstructed"
+      ],
+      "title": "OpenRoofCladdingRow",
+      "type": "object"
+    },
+    "OpenRoofMwfrs": {
+      "additionalProperties": false,
+      "description": "Net pressure coefficients CN of the main wind-force resisting system of free roofs.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "monoslope": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Monoslope",
+          "type": "array"
+        },
+        "pitched": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Pitched",
+          "type": "array"
+        },
+        "troughed": {
+          "items": {
+            "$ref": "#/$defs/OpenRoofRow"
+          },
+          "minItems": 2,
+          "title": "Troughed",
+          "type": "array"
+        },
+        "along": {
+          "$ref": "#/$defs/OpenRoofAlong"
+        }
+      },
+      "required": [
+        "monoslope",
+        "pitched",
+        "troughed",
+        "along"
+      ],
+      "title": "OpenRoofMwfrs",
+      "type": "object"
+    },
+    "OpenRoofRow": {
+      "additionalProperties": false,
+      "description": "One roof angle and load case of an open building's free roof, wind normal to the ridge:\n(CNW, CNL) the net pressure coefficients of the windward and leeward halves, by blockage;\n``...Reverse`` for γ = 180° where the figure gives it (a monoslope roof: γ = 0° the wind\nblows from the high eave down the slope, 180° up it).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angle": {
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Angle",
+          "type": "number"
+        },
+        "case": {
+          "title": "Case",
+          "type": "string"
+        },
+        "clear": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Clear",
+          "type": "array"
+        },
+        "obstructed": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Obstructed",
+          "type": "array"
+        },
+        "clearReverse": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clearreverse"
+        },
+        "obstructedReverse": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Obstructedreverse"
+        }
+      },
+      "required": [
+        "angle",
+        "case",
+        "clear",
+        "obstructed"
+      ],
+      "title": "OpenRoofRow",
+      "type": "object"
+    },
+    "OpenStructuresTable": {
+      "additionalProperties": false,
+      "description": "Design wind loads on other structures, F = qz·G·Cf·Af (the default pack's Part 6 Sec 2.4, the\nprovisions of ASCE 7-05 Sec 6.5.15 and Figures 6-22, 6-23): open signs and lattice\nframeworks, and trussed towers.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "lattice": {
+          "items": {
+            "$ref": "#/$defs/LatticeCfRow"
+          },
+          "minItems": 1,
+          "title": "Lattice",
+          "type": "array"
+        },
+        "roundLimit": {
+          "description": "D√qz limit between the rounded-member columns (D in m, qz in N/m²).",
+          "exclusiveMinimum": 0,
+          "title": "Roundlimit",
+          "type": "number"
+        },
+        "squareTower": {
+          "$ref": "#/$defs/TowerCf"
+        },
+        "triangularTower": {
+          "$ref": "#/$defs/TowerCf"
+        },
+        "diagonalFactor": {
+          "description": "Square tower, wind on the diagonal: Cf × (1 + k·ε), at most the cap.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Diagonalfactor",
+          "type": "array"
+        },
+        "roundTower": {
+          "$ref": "#/$defs/TowerCf",
+          "description": "Factor on Cf of a tower of rounded members (a·ε² + b·ε + c), at most 1."
+        }
+      },
+      "required": [
+        "lattice",
+        "roundLimit",
+        "squareTower",
+        "triangularTower",
+        "diagonalFactor",
+        "roundTower"
+      ],
+      "title": "OpenStructuresTable",
+      "type": "object"
+    },
+    "OrographyRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the orography factor co(z) of EN 1991-1-4 Annex A.3 (method ``annexA3``,\n:func:`saengine.fem.peak_velocity_pressure.orography_factor`): Φ = H / Lu; co = 1 below\n``slopeMin``; co = 1 + ``slopeFactor`` s Φ up to ``slopeMax``; above it 1 + ``steepFactor`` s\nand Le = H / ``slopeMax``; s by the location factors' polynomials (upwind of the crest,\ndownwind of hills and ridges, downwind of cliffs and escarpments). SAEngine reads the\nproject's half-height distance Lh as Lu = ``lengthFromHalfHeight`` × Lh and Ld = Lu.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "annexA3",
+          "default": "annexA3",
+          "title": "Method",
+          "type": "string"
+        },
+        "slopeMin": {
+          "exclusiveMinimum": 0,
+          "title": "Slopemin",
+          "type": "number"
+        },
+        "slopeMax": {
+          "exclusiveMinimum": 0,
+          "title": "Slopemax",
+          "type": "number"
+        },
+        "slopeFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Slopefactor",
+          "type": "number"
+        },
+        "steepFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "lengthFromHalfHeight": {
+          "exclusiveMinimum": 0,
+          "title": "Lengthfromhalfheight",
+          "type": "number"
+        },
+        "upwindA": {
+          "description": "A(z/Le), polynomial coefficients, highest first.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Upwinda",
+          "type": "array"
+        },
+        "upwindB": {
+          "description": "B(z/Le), upwind: s = A e^(B X/Lu).",
+          "items": {
+            "type": "number"
+          },
+          "title": "Upwindb",
+          "type": "array"
+        },
+        "hillB": {
+          "description": "B(z/Le), downwind of hills and ridges.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Hillb",
+          "type": "array"
+        },
+        "cliffA": {
+          "description": "A(log z/Le), downwind of cliffs and escarpments.",
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffa",
+          "type": "array"
+        },
+        "cliffB": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffb",
+          "type": "array"
+        },
+        "cliffC": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cliffc",
+          "type": "array"
+        },
+        "upwindRange": {
+          "description": "X/Lu from, z/Le up to (upwind).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Upwindrange",
+          "type": "array"
+        },
+        "hillRange": {
+          "description": "X/Ld up to, z/Le up to (hills).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Hillrange",
+          "type": "array"
+        },
+        "cliffRange": {
+          "description": "X/Ld from, to; z/Le from, to (cliffs).",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Cliffrange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "slopeMin",
+        "slopeMax",
+        "slopeFactor",
+        "steepFactor",
+        "lengthFromHalfHeight",
+        "upwindA",
+        "upwindB",
+        "hillB",
+        "cliffA",
+        "cliffB",
+        "cliffC",
+        "upwindRange",
+        "hillRange",
+        "cliffRange"
+      ],
+      "title": "OrographyRule",
+      "type": "object"
+    },
+    "PeakVelocityPressureRule": {
+      "additionalProperties": false,
+      "description": "C4: the peak velocity pressure of EN 1991-1-4 Sec 4 (``wind.method``\n\"peakVelocityPressure\", :mod:`saengine.fem.peak_velocity_pressure`): vb = cdir·cseason·vb,0\n(the project's basic wind speed is vb,0); cr(z) = kr·ln(max(z, zmin)/z0) with kr =\n``krFactor``·(z0/``z0Reference``)^``krExponent``, up to ``zmax``; vm = cr·co·vb; Iv = kI /\n(co·ln(max(z, zmin)/z0)); qp = (1 + ``peakFactor``·Iv)·½·ρ·vm².",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "season": {
+          "default": 1.0,
+          "description": "cseason.",
+          "exclusiveMinimum": 0,
+          "title": "Season",
+          "type": "number"
+        },
+        "airDensity": {
+          "description": "ρ [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Airdensity",
+          "type": "number"
+        },
+        "krFactor": {
+          "description": "0.19 of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Krfactor",
+          "type": "number"
+        },
+        "krExponent": {
+          "description": "0.07 of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Krexponent",
+          "type": "number"
+        },
+        "z0Reference": {
+          "description": "z0,II [m] of kr.",
+          "exclusiveMinimum": 0,
+          "title": "Z0Reference",
+          "type": "number"
+        },
+        "zmax": {
+          "description": "zmax [m].",
+          "exclusiveMinimum": 0,
+          "title": "Zmax",
+          "type": "number"
+        },
+        "turbulence": {
+          "description": "Turbulence factor kI.",
+          "exclusiveMinimum": 0,
+          "title": "Turbulence",
+          "type": "number"
+        },
+        "peakFactor": {
+          "description": "7 of (1 + 7 Iv).",
+          "exclusiveMinimum": 0,
+          "title": "Peakfactor",
+          "type": "number"
+        },
+        "profiles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/VelocityPressureSegment"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "By terrain (exposure id): qp(z) = factor × qb × (z / zref)^exponent in the first segment with z <= zmax (qb = ½ ρ vb²); a terrain without one takes Eq 4.8.",
+          "title": "Profiles"
+        },
+        "simplified": {
+          "description": "Stepped qp by height for low buildings, by vb,0 and terrain (used with useSimplified).",
+          "items": {
+            "$ref": "#/$defs/SimplifiedPressureRow"
+          },
+          "title": "Simplified",
+          "type": "array"
+        },
+        "useSimplified": {
+          "default": false,
+          "description": "Take the simplified stepped pressures where a row fits the site and the building's height (a project override).",
+          "title": "Usesimplified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "airDensity",
+        "krFactor",
+        "krExponent",
+        "z0Reference",
+        "zmax",
+        "turbulence",
+        "peakFactor"
+      ],
+      "title": "PeakVelocityPressureRule",
+      "type": "object"
+    },
+    "ReturnCorner": {
+      "additionalProperties": false,
+      "description": "The factor on the first region's Cf (B/s ≥ ``fromAspect``) with a return corner, by\nLr/s.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "fromAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Fromaspect",
+          "type": "number"
+        },
+        "factors": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Factors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fromAspect",
+        "factors"
+      ],
+      "title": "ReturnCorner",
+      "type": "object"
+    },
+    "RiskCoefficientRow": {
+      "additionalProperties": false,
+      "description": "C7: a class of the risk coefficient k1 (design life): the occupancy categories whose\nwind importance is ``importance`` take k1 from the (basic wind speed [m/s], k1) points.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "importance": {
+          "description": "The occupancy categories' windImportance.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "k1": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "K1",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "importance",
+        "k1"
+      ],
+      "title": "RiskCoefficientRow",
+      "type": "object"
+    },
+    "RoofCpRow": {
+      "additionalProperties": false,
+      "description": "One h/L row of a roof pressure coefficient table: per tabulated angle, the first\n(suction) and second (pressure, where two are listed) Cp; None where none is printed (0.0 for\ninterpolation).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverL": {
+          "minimum": 0,
+          "title": "Hoverl",
+          "type": "number"
+        },
+        "first": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "First",
+          "type": "array"
+        },
+        "second": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Second"
+        }
+      },
+      "required": [
+        "hOverL",
+        "first"
+      ],
+      "title": "RoofCpRow",
+      "type": "object"
+    },
+    "RoofCpTable": {
+      "additionalProperties": false,
+      "description": "Roof pressure coefficients Cp of the main wind-force resisting system (all heights): the\nwindward and leeward slopes for wind normal to the ridge (θ ≥ ``flatAngle``) by θ and h/L,\nand the zones by distance from the windward edge for θ < ``flatAngle`` and wind parallel to\nthe ridge. Values between rows and angles are interpolated linearly between values of the\nsame column.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "angles": {
+          "description": "Windward slope angles θ [°].",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Angles",
+          "type": "array"
+        },
+        "windward": {
+          "items": {
+            "$ref": "#/$defs/RoofCpRow"
+          },
+          "minItems": 1,
+          "title": "Windward",
+          "type": "array"
+        },
+        "steepFrom": {
+          "description": "θ [°] from which Cp = steepFactor·θ.",
+          "title": "Steepfrom",
+          "type": "number"
+        },
+        "steepFactor": {
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "verticalFrom": {
+          "description": "θ [°] above which the slope takes verticalCp.",
+          "title": "Verticalfrom",
+          "type": "number"
+        },
+        "verticalCp": {
+          "title": "Verticalcp",
+          "type": "number"
+        },
+        "leewardAngles": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Leewardangles",
+          "type": "array"
+        },
+        "leeward": {
+          "items": {
+            "$ref": "#/$defs/RoofCpRow"
+          },
+          "minItems": 1,
+          "title": "Leeward",
+          "type": "array"
+        },
+        "flatAngle": {
+          "description": "θ [°] below which the roof is flat.",
+          "exclusiveMinimum": 0,
+          "title": "Flatangle",
+          "type": "number"
+        },
+        "parallel": {
+          "items": {
+            "$ref": "#/$defs/RoofParallelRow"
+          },
+          "minItems": 1,
+          "title": "Parallel",
+          "type": "array"
+        },
+        "reducible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The Cp value that may be reduced with its area.",
+          "title": "Reducible"
+        },
+        "areaReduction": {
+          "description": "(area [m²], factor) points of that reduction.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Areareduction",
+          "type": "array"
+        }
+      },
+      "required": [
+        "angles",
+        "windward",
+        "steepFrom",
+        "steepFactor",
+        "verticalFrom",
+        "verticalCp",
+        "leewardAngles",
+        "leeward",
+        "flatAngle",
+        "parallel"
+      ],
+      "title": "RoofCpTable",
+      "type": "object"
+    },
+    "RoofParallelRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "hOverL": {
+          "minimum": 0,
+          "title": "Hoverl",
+          "type": "number"
+        },
+        "zones": {
+          "items": {
+            "$ref": "#/$defs/RoofParallelZone"
+          },
+          "minItems": 1,
+          "title": "Zones",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hOverL",
+        "zones"
+      ],
+      "title": "RoofParallelRow",
+      "type": "object"
+    },
+    "RoofParallelZone": {
+      "additionalProperties": false,
+      "description": "A zone of the roof by its horizontal distance from the windward edge (in multiples of\nh): Cp values listed (one or two).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Zone ends this many h from the windward edge; None: the rest.",
+          "title": "Upto"
+        },
+        "cp": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Cp",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cp"
+      ],
+      "title": "RoofParallelZone",
+      "type": "object"
+    },
+    "RooftopTable": {
+      "additionalProperties": false,
+      "description": "The force on rooftop structures and equipment of a low building × ``factor`` for\nAf ≤ ``fullShare``·B·h, linear down to 1 at Af = ``noneShare``·B·h.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxHeight": {
+          "description": "Buildings with h up to this [m].",
+          "exclusiveMinimum": 0,
+          "title": "Maxheight",
+          "type": "number"
+        },
+        "factor": {
+          "minimum": 1,
+          "title": "Factor",
+          "type": "number"
+        },
+        "fullShare": {
+          "exclusiveMinimum": 0,
+          "title": "Fullshare",
+          "type": "number"
+        },
+        "noneShare": {
+          "exclusiveMinimum": 0,
+          "title": "Noneshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxHeight",
+        "factor",
+        "fullShare",
+        "noneShare"
+      ],
+      "title": "RooftopTable",
+      "type": "object"
+    },
+    "SimplifiedPressureRow": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: the simplified velocity pressure of a wind zone (by its ``vb0`` [m/s]) and\nterrain ``exposure``: (height up to [m], q [kN/m²]) steps, the whole building at the step of\nits height.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "vb0": {
+          "description": "vb,0 of the wind zone [m/s].",
+          "exclusiveMinimum": 0,
+          "title": "Vb0",
+          "type": "number"
+        },
+        "exposure": {
+          "title": "Exposure",
+          "type": "string"
+        },
+        "heights": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Heights",
+          "type": "array"
+        }
+      },
+      "required": [
+        "vb0",
+        "exposure",
+        "heights"
+      ],
+      "title": "SimplifiedPressureRow",
+      "type": "object"
+    },
+    "SlopeTopography": {
+      "additionalProperties": false,
+      "description": "k3 = 1 + C s of a site on a hill, ridge or escarpment (:func:`saengine.fem.\nwind_speed_factors.slope_factor`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "flatSlope": {
+          "description": "θ up to this [°]: k3 = 1.",
+          "exclusiveMinimum": 0,
+          "title": "Flatslope",
+          "type": "number"
+        },
+        "steepSlope": {
+          "description": "θ above this [°]: C = steepFactor.",
+          "exclusiveMinimum": 0,
+          "title": "Steepslope",
+          "type": "number"
+        },
+        "gentleFactor": {
+          "description": "C = this × Z / L between the slopes.",
+          "exclusiveMinimum": 0,
+          "title": "Gentlefactor",
+          "type": "number"
+        },
+        "steepFactor": {
+          "description": "C above steepSlope.",
+          "exclusiveMinimum": 0,
+          "title": "Steepfactor",
+          "type": "number"
+        },
+        "speedUp": {
+          "description": "s, the factor of the figures (a project sets it).",
+          "exclusiveMinimum": 0,
+          "title": "Speedup",
+          "type": "number"
+        },
+        "upwindLengthFactor": {
+          "default": 2.0,
+          "description": "L = this × the settings' Lh (half-height distance).",
+          "exclusiveMinimum": 0,
+          "title": "Upwindlengthfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "flatSlope",
+        "steepSlope",
+        "gentleFactor",
+        "steepFactor",
+        "speedUp"
+      ],
+      "title": "SlopeTopography",
+      "type": "object"
+    },
+    "SolidSignRegion": {
+      "additionalProperties": false,
+      "description": "A region of a long sign (case C) up to ``end``·s from the windward edge (None: the rest):\nCf by the aspect ratios of the table, None where the sign is not that long.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "cf": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Cf",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cf"
+      ],
+      "title": "SolidSignRegion",
+      "type": "object"
+    },
+    "SolidSignsCaseC": {
+      "additionalProperties": false,
+      "description": "Case C (B/s ≥ ``minAspect``): Cf of each region by B/s, × (``reductionConstant`` − s/h)\nabove s/h of ``reductionAbove``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "aspect": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Aspect",
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/SolidSignRegion"
+          },
+          "minItems": 1,
+          "title": "Regions",
+          "type": "array"
+        },
+        "minAspect": {
+          "exclusiveMinimum": 0,
+          "title": "Minaspect",
+          "type": "number"
+        },
+        "reductionAbove": {
+          "exclusiveMinimum": 0,
+          "title": "Reductionabove",
+          "type": "number"
+        },
+        "reductionConstant": {
+          "exclusiveMinimum": 0,
+          "title": "Reductionconstant",
+          "type": "number"
+        }
+      },
+      "required": [
+        "aspect",
+        "regions",
+        "minAspect",
+        "reductionAbove",
+        "reductionConstant"
+      ],
+      "title": "SolidSignsCaseC",
+      "type": "object"
+    },
+    "SolidSignsTable": {
+      "additionalProperties": false,
+      "description": "Solid freestanding walls and solid signs, F = qh·G·Cf·As (read by\n:mod:`saengine.fem.other_wind`): Cf of cases A and B by s/h (``clearance``) and B/s\n(``aspect``), case C by region.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "clearance": {
+          "description": "s/h of the rows.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Clearance",
+          "type": "array"
+        },
+        "aspect": {
+          "description": "B/s of the columns.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Aspect",
+          "type": "array"
+        },
+        "caseAB": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Caseab",
+          "type": "array"
+        },
+        "caseC": {
+          "$ref": "#/$defs/SolidSignsCaseC"
+        },
+        "returnCorner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReturnCorner"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "solidMin": {
+          "description": "A sign is solid from this ε up.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Solidmin",
+          "type": "number"
+        },
+        "openingExponent": {
+          "description": "Openings: Cf × (1 − (1 − ε)^this).",
+          "exclusiveMinimum": 0,
+          "title": "Openingexponent",
+          "type": "number"
+        },
+        "caseBOffset": {
+          "description": "Case B: F this × B toward the windward edge.",
+          "minimum": 0,
+          "title": "Caseboffset",
+          "type": "number"
+        },
+        "fullHeightLift": {
+          "description": "s/h = 1: F this × s above the centre.",
+          "minimum": 0,
+          "title": "Fullheightlift",
+          "type": "number"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "clearance",
+        "aspect",
+        "caseAB",
+        "caseC",
+        "solidMin",
+        "openingExponent",
+        "caseBOffset",
+        "fullHeightLift"
+      ],
+      "title": "SolidSignsTable",
+      "type": "object"
+    },
+    "SpeedFactors": {
+      "additionalProperties": false,
+      "description": "C7, ``method: speedFactors``: the design wind speed Vz = Vb·k1·k2·k3·k4 and the design\npressure pd = max(Kd·Ka·Kc, minimumShare)·airFactor·Vz² [N/m², V in m/s]; k3 is the table's\n``topographic``, Kd its ``directionality`` (:mod:`saengine.fem.wind_speed_factors`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "airFactor": {
+          "description": "pz = airFactor·Vz² [N/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Airfactor",
+          "type": "number"
+        },
+        "heightFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "k2: terrain (exposure) -> (height [m], k2) points, constant below the first and above the last.",
+          "title": "Heightfactors",
+          "type": "object"
+        },
+        "riskCoefficients": {
+          "items": {
+            "$ref": "#/$defs/RiskCoefficientRow"
+          },
+          "title": "Riskcoefficients",
+          "type": "array"
+        },
+        "importance": {
+          "default": 1.0,
+          "description": "k4 (cyclonic importance); a project overrides it.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "importanceRows": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "The code's k4 values, for the engineer's choice.",
+          "title": "Importancerows",
+          "type": "object"
+        },
+        "areaAveraging": {
+          "default": 1.0,
+          "description": "Ka of the main wind-force resisting system.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Areaaveraging",
+          "type": "number"
+        },
+        "areaAveragingRows": {
+          "description": "The code's (tributary area [m²], Ka) points.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Areaaveragingrows",
+          "type": "array"
+        },
+        "combination": {
+          "default": 1.0,
+          "description": "Kc.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Combination",
+          "type": "number"
+        },
+        "minimumShare": {
+          "default": 0.0,
+          "description": "Least Kd·Ka·Kc.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimumshare",
+          "type": "number"
+        },
+        "cyclonic": {
+          "default": false,
+          "description": "The site is in a cyclone-prone region: k4 by the occupancy's risk class (cyclonicImportance) and Kd = cyclonicDirectionality.",
+          "title": "Cyclonic",
+          "type": "boolean"
+        },
+        "cyclonicImportance": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "k4 by the id of the occupancy's riskCoefficients row ('other': the rest); at least ``importance``.",
+          "title": "Cyclonicimportance",
+          "type": "object"
+        },
+        "cyclonicDirectionality": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Kd in a cyclone-prone region (None: unchanged).",
+          "title": "Cyclonicdirectionality"
+        },
+        "topography": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SlopeTopography"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gustFactor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GustFactorRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hillShape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HillShapeRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "referencePressures": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "items": {
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "By terrain (exposure id): (height [m], reference design pressure [kN/m²]) points, linear between, constant outside. For such a terrain pz = q(z)·k1·k3·k4 (the factors then act on the pressure) and the basic wind speed is not used; its k2 is reported as √(q(z) / q(10 m)). Empty: pz = airFactor·Vz².",
+          "title": "Referencepressures"
+        }
+      },
+      "required": [
+        "airFactor",
+        "heightFactors"
+      ],
+      "title": "SpeedFactors",
+      "type": "object"
+    },
+    "StructuralFactorRule": {
+      "additionalProperties": false,
+      "description": "cscd of buildings: ``value`` where ``heightMax`` (h below it) or ``frameHeightMax`` and\n``depthRatioMax`` (frame buildings with walls, h below it and below that × the depth along\nthe wind) hold (EN 1991-1-4 6.2(1) a and c); else the detailed procedure, not covered: the\nvalue is used with a note.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "value": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "heightMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heightmax"
+        },
+        "frameHeightMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameheightmax"
+        },
+        "depthRatioMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depthratiomax"
+        },
+        "detailed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetailedStructuralFactor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 C5c: the detailed cscd outside the simplified cases; None: the value with a note."
+        }
+      },
+      "title": "StructuralFactorRule",
+      "type": "object"
+    },
+    "TopographyShape": {
+      "additionalProperties": false,
+      "description": "A topographic feature's speed-up parameters: K1/(H/Lh) by exposure, γ and μ.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "k1": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "K1 / (H/Lh) by exposure.",
+          "title": "K1",
+          "type": "object"
+        },
+        "gamma": {
+          "description": "Height attenuation factor γ.",
+          "exclusiveMinimum": 0,
+          "title": "Gamma",
+          "type": "number"
+        },
+        "muUpwind": {
+          "description": "Horizontal attenuation μ upwind of the crest.",
+          "exclusiveMinimum": 0,
+          "title": "Muupwind",
+          "type": "number"
+        },
+        "muDownwind": {
+          "description": "Horizontal attenuation μ downwind of it.",
+          "exclusiveMinimum": 0,
+          "title": "Mudownwind",
+          "type": "number"
+        }
+      },
+      "required": [
+        "k1",
+        "gamma",
+        "muUpwind",
+        "muDownwind"
+      ],
+      "title": "TopographyShape",
+      "type": "object"
+    },
+    "TopographyTable": {
+      "additionalProperties": false,
+      "description": "Wind speed-up over isolated hills, ridges and escarpments: Kzt = (1 + K1·K2·K3)² with\nK1 = (K1/(H/Lh))·H/Lh, K2 = 1 − |x|/(μ·Lh), K3 = e^(−γ·z/Lh) (read by\n:func:`saengine.fem.loads.topographic_factor`).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "shapes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TopographyShape"
+          },
+          "propertyNames": {
+            "enum": [
+              "ridge",
+              "escarpment",
+              "hill"
+            ]
+          },
+          "title": "Shapes",
+          "type": "object"
+        },
+        "minSlope": {
+          "description": "No speed-up below H/Lh of this.",
+          "exclusiveMinimum": 0,
+          "title": "Minslope",
+          "type": "number"
+        },
+        "maxSlope": {
+          "description": "Above it, H/Lh is taken as this for K1 and Lh as H/this for K2, K3.",
+          "exclusiveMinimum": 0,
+          "title": "Maxslope",
+          "type": "number"
+        },
+        "minHeight": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "No speed-up below a feature height H [m].",
+          "title": "Minheight",
+          "type": "object"
+        }
+      },
+      "required": [
+        "shapes",
+        "minSlope",
+        "maxSlope",
+        "minHeight"
+      ],
+      "title": "TopographyTable",
+      "type": "object"
+    },
+    "TowerCf": {
+      "additionalProperties": false,
+      "description": "Cf = a·ε² + b·ε + c of a trussed tower's face.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c"
+      ],
+      "title": "TowerCf",
+      "type": "object"
+    },
+    "VelocityPressureSegment": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C15: one height range of a qp(z) profile: qp = ``factor`` × qb × (z /\n``zref``)^``exponent`` up to ``zmax`` [m]; with ``absolute`` the factor is qp in kN/m²\n(times (z / zref)^exponent) instead of a multiple of qb.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "zmax": {
+          "description": "Upper end of the range [m].",
+          "exclusiveMinimum": 0,
+          "title": "Zmax",
+          "type": "number"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "exponent": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "zref": {
+          "default": 10.0,
+          "description": "[m]",
+          "exclusiveMinimum": 0,
+          "title": "Zref",
+          "type": "number"
+        },
+        "absolute": {
+          "default": false,
+          "title": "Absolute",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "zmax",
+        "factor"
+      ],
+      "title": "VelocityPressureSegment",
+      "type": "object"
+    },
+    "WallPressureRow": {
+      "additionalProperties": false,
+      "description": "External pressure coefficients of the walls by h/d (EN 1991-1-4 Table 7.1, zones D and\nE): ``ratio`` h/d, ``windward`` cpe,10 of D, ``leeward`` cpe,10 of E; linear between rows.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "ratio": {
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        },
+        "windward": {
+          "title": "Windward",
+          "type": "number"
+        },
+        "leeward": {
+          "title": "Leeward",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio",
+        "windward",
+        "leeward"
+      ],
+      "title": "WallPressureRow",
+      "type": "object"
+    },
+    "WindDesignCasesRow": {
+      "additionalProperties": false,
+      "description": "The design wind load cases of the main wind-force resisting system (the default pack's Part 6\nSec 2.4.11.3 and Figure 6.2.9): read by :func:`saengine.fem.loads.wind_design_cases`.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "partial": {
+          "description": "Case 2: share of the pressure with torsion.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Partial",
+          "type": "number"
+        },
+        "eccentricity": {
+          "description": "Case 2 and 4: e / B.",
+          "minimum": 0,
+          "title": "Eccentricity",
+          "type": "number"
+        },
+        "simultaneous": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Case 3: share of each direction; None: no Case 3.",
+          "title": "Simultaneous"
+        },
+        "simultaneousTorsional": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Case 4: share of each direction with both torsions; None: no Case 4.",
+          "title": "Simultaneoustorsional"
+        },
+        "exemptHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exception: one-storey height limit h [m]; None: no exemption.",
+          "title": "Exemptheight"
+        }
+      },
+      "required": [
+        "partial",
+        "eccentricity"
+      ],
+      "title": "WindDesignCasesRow",
+      "type": "object"
+    },
+    "WindPulsation": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 20.13330.2016 11.1.8-11.1.11 type): the mean pressure plus its\npulsation, G(z) = 1 + ζ(ze) ν in place of the table's gust: ζ of the exposure\n(``pulsationZeta``), ν the spatial correlation of the windward face by ρ = its width b and\nχ = the building height h (``rho``, ``chi``, ``values``: a row per ρ, bilinear between, the\nend values outside). The dynamic factor ξ of flexible buildings (f1 < flim) is not\napplied (ξ = 1).",
+      "properties": {
+        "rho": {
+          "description": "ρ [m] of the rows.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Rho",
+          "type": "array"
+        },
+        "chi": {
+          "description": "χ [m] of the columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Chi",
+          "type": "array"
+        },
+        "values": {
+          "description": "ν, a row per ρ, a value per χ.",
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rho",
+        "chi",
+        "values"
+      ],
+      "title": "WindPulsation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "default": "powerLaw",
+      "description": "C4: how the storey forces are made: powerLaw (qz = 0.000613·Kz·Kzt·Kd·V²·I with the exposures' α and zg, G, Cp) or peakVelocityPressure (EN 1991-1-4: qp(ze) from the terrain categories' z0 and zmin, cpe of walls by h/d, lack of correlation, cscd); C7: speedFactors (IS 875-3: pd from Vz = Vb·k1·k2·k3·k4, see ``speedFactors``).",
+      "enum": [
+        "powerLaw",
+        "peakVelocityPressure",
+        "speedFactors"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "speedFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpeedFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cpByHeight": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/CpHeightRow"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: wall Cp by h/w and l/w in place of cpWindward and cpLeeward; empty: those.",
+      "title": "Cpbyheight"
+    },
+    "defaultExposure": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the exposure (terrain) of a new project under this pack.",
+      "title": "Defaultexposure"
+    },
+    "peakVelocityPressure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PeakVelocityPressureRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "wallPressure": {
+      "description": "cpe of the walls by h/d (peakVelocityPressure).",
+      "items": {
+        "$ref": "#/$defs/WallPressureRow"
+      },
+      "title": "Wallpressure",
+      "type": "array"
+    },
+    "correlation": {
+      "description": "(h/d, factor) on the net wall force for the lack of correlation between windward and leeward; linear between, the end values outside.",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Correlation",
+      "type": "array"
+    },
+    "structuralFactor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuralFactorRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "internalPressureRange": {
+      "anyOf": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "(most positive, most negative) cpi where it cannot be worked out; reported.",
+      "title": "Internalpressurerange"
+    },
+    "exposures": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Exposure"
+      },
+      "title": "Exposures",
+      "type": "object"
+    },
+    "kzFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factor of the Kz power law.",
+      "title": "Kzfactor"
+    },
+    "kzMinHeight": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Kz below this height [m] is the one at it.",
+      "title": "Kzminheight"
+    },
+    "directionality": {
+      "description": "Kd for buildings.",
+      "title": "Directionality",
+      "type": "number"
+    },
+    "topographic": {
+      "description": "Kzt (flat terrain).",
+      "title": "Topographic",
+      "type": "number"
+    },
+    "gust": {
+      "description": "G of a rigid building.",
+      "title": "Gust",
+      "type": "number"
+    },
+    "cpWindward": {
+      "title": "Cpwindward",
+      "type": "number"
+    },
+    "cpLeeward": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Cpleeward",
+      "type": "array"
+    },
+    "designCases": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WindDesignCasesRow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factors of the design wind load cases 2-4 (torsional, simultaneous); None: Case 1 only."
+    },
+    "flexible": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FlexibleGustRow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Gf of flexible buildings; None: rigid G only."
+    },
+    "cladding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CladdingTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Components and cladding pressures; None: not computed."
+    },
+    "internalPressure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InternalPressureTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Internal pressure coefficients and Ri; None: cladding's."
+    },
+    "mwfrs": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MwfrsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Wall and roof pressures of the main wind-force resisting system; None: storey forces only and no wind on clad special structures."
+    },
+    "openBuildings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpenBuildingsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Net pressures on the free roofs of open buildings; None: an open clad structure takes force coefficients on its members instead."
+    },
+    "openStructures": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpenStructuresTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Force coefficients of open structures (lattice frameworks, trussed towers); None: special structures get no wind."
+    },
+    "topography": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TopographyTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Kzt of hills, ridges and escarpments; None: Kzt = topographic."
+    },
+    "solidSigns": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SolidSignsTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cf of solid freestanding walls and signs; None: not covered."
+    },
+    "chimneys": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChimneysTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cf of chimneys, tanks and rooftop equipment; None: not covered."
+    },
+    "rooftop": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RooftopTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Increase of the force on rooftop equipment; None: none."
+    },
+    "orography": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OrographyRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "co(z) of hills, ridges and escarpments; None: topographic."
+    },
+    "localPressures": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalPressuresTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Cladding pressures by cpe,1/cpe,10; None: the cladding table's."
+    },
+    "altitude": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AltitudeFactor"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Altitude factor on the mapped speed; None: none."
+    },
+    "minimumLateral": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MinimumLateral"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least storey force as a share of the dead weight; None: none."
+    },
+    "referenceHeight": {
+      "default": "level",
+      "description": "level: qz at each level's height; proportions: at ze by h and the windward width b (powerLaw).",
+      "enum": [
+        "level",
+        "proportions"
+      ],
+      "title": "Referenceheight",
+      "type": "string"
+    },
+    "pulsation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WindPulsation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "G(z) = 1 + ζ(ze) ν in place of gust (powerLaw, the exposures' pulsationZeta); empty: gust."
+    }
+  },
+  "required": [
+    "exposures",
+    "directionality",
+    "topographic",
+    "gust",
+    "cpWindward",
+    "cpLeeward"
+  ],
+  "title": "WindTable",
+  "type": "object",
+  "$id": "saengine.codePack.wind/1"
+}

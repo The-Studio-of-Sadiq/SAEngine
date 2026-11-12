@@ -1,0 +1,72 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "newzealand-nzs",
+  "name": "New Zealand Standards (NZS 1170.5, NZS 3101, NZS 3404)",
+  "edition": "AS/NZS 1170 + NZS 1170.5:2004 + NZS 3101:2006 A3 + NZS 3404",
+  "country": "NZ",
+  "units": "SI",
+  "version": "0.3.0",
+  "extends": "australia-as",
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "seismic",
+    "materials",
+    "factors",
+    "concrete",
+    "concreteMethods",
+    "steelLimitState",
+    "designClauses"
+  ],
+  "description": "The New Zealand Standards (alpha 9 track C18), a pack that extends the Australian pack where the joint standards are equal: AS/NZS 1170.0, 1170.1 and 1170.2:2021 (the combinations, imposed actions and wind, the New Zealand wind regions NZ1-NZ4 in the towns) and the steel members (NZS 3404 Part 1 has the member rules of AS 4100: φ 0.9, αc with αb, αm αs). Its own: NZS 1170.5:2004 earthquake actions (Z of the towns, site subsoil classes A-E with the spectral shape factor Ch(T), the near-fault factor N(T,D), the return period factor R, Sp and kμ from the structural ductility factor μ, Cd(T) = C(T) Sp/kμ with its least values, the equivalent static method with Ft = 0.08 V and the modal method, the 2.5 % drift limit) and NZS 3101:2006 A3 concrete (φ 0.85 for flexure with or without axial force, shear and torsion 0.75, the axial cap 0.85 φ N0, the stress block α1 and β1, vc = (0.07 + 10 ρw) √f'c, Ec = 4700 √f'c, the 500E bars HD10-HD40, the overstrength factor λo 1.25 of 500E in the capacity design the program makes for ductile members). Alpha 9 C18c: the ductile and limited ductile detailing of NZS 3101 Chapters 9, 10 and 15 (plastic hinge regions by the member depth and N*/(φ f'c Ag), the confinement by the axial load, joints by vjh <= min(0.2 f'c, 10 MPa) with the horizontal joint hoops), the Appendix D capacity design (overstrength λo/φ, the dynamic magnification ω on the strong column ratio, the columns' capacity shear), the ductile walls of 11.4 (the design shear by φo,w ωv, the confined ends), the diagonally reinforced coupling beams, the walls' least steel (11.3.11), NZS 3404 Section 12 member categories 1 and 3 (compact yielding members, the connections and columns for φoms Mp) and the connections of the Australian pack (NZS 3404 Chapter 9 has the AS 4100 rules). Not covered and taken from the parent packs (named so): punching, torsion and slender columns (the parent's methods of the same form), footings, masonry and timber. Every value names its clause; VERIFY.md lists them, with the uncertain ones.",
+  "sources": [
+    {"id": "NZS1170.5", "title": "NZS 1170.5 Structural design actions, Part 5: Earthquake actions - New Zealand", "edition": "2004 (Amendment 1)", "publisher": "Standards New Zealand"},
+    {"id": "ASNZS1170.0", "title": "AS/NZS 1170.0 Structural design actions, Part 0: General principles", "edition": "2002 (with amendments)", "publisher": "Standards Australia / Standards New Zealand"},
+    {"id": "ASNZS1170.2", "title": "AS/NZS 1170.2 Structural design actions, Part 2: Wind actions", "edition": "2021", "publisher": "Standards Australia / Standards New Zealand"},
+    {"id": "NZS3101", "title": "NZS 3101 Concrete structures standard, Part 1: The design of concrete structures", "edition": "2006 (Amendment 3)", "publisher": "Standards New Zealand"},
+    {"id": "NZS3404", "title": "NZS 3404 Steel structures standard, Part 1", "edition": "1997 (with amendments)", "publisher": "Standards New Zealand"}
+  ],
+  "clauses": {
+    "locations": ["NZS 1170.5:2004 Table 3.3; AS/NZS 1170.2:2021 Figure 3.1(B), Table 3.1(A)"],
+    "zoneCoefficients": ["NZS 1170.5:2004 Table 3.3 (Z of the towns in SAEngine's zone slots)"],
+    "occupancyCategories": ["AS/NZS 1170.0:2002 Table 3.3; NZS 1170.5:2004 Table 3.5"],
+    "areaLoads": ["AS/NZS 1170.1:2002 Table 3.1 (the Australian pack's)"],
+    "liveReduction": ["AS/NZS 1170.1:2002 3.4.2 (the Australian pack's)"],
+    "combinations": ["AS/NZS 1170.0:2002 4.2, 4.3 (the Australian pack's)"],
+    "wind": ["AS/NZS 1170.2:2021 (the Australian pack's)"],
+    "seismic": ["NZS 1170.5:2004 Sections 3-7"],
+    "materials": ["NZS 3101:2006 7.4.2.7, 10.3.4.2"],
+    "factors": ["NZS 3101:2006 2.3.2.2, 10.3.4.2"],
+    "concrete": ["NZS 3101:2006 5.2.3, 8.8.1, 9.3.9.3.4, 10.3.8.1, 11.3.11; AS/NZS 4671"],
+    "concreteMethods": ["NZS 3101:2006 9.4, 10.4, 11.4, 15.4, Appendix D"],
+    "steelLimitState": ["NZS 3404 Part 1 Sections 5-8 (the AS 4100 rules of the Australian pack), Section 12"],
+    "designClauses": ["NZS 3101:2006 2.4.2, 4, 7.6, 10.3.10, 12.7; NZS 1170.5 5.3.1.2"]
+  },
+  "basis": {
+    "general": "AS/NZS 1170.0, 1170.1, 1170.2:2021, NZS 1170.5:2004",
+    "concrete": "NZS 3101:2006 A3 (strength design with φ); the ductile and limited ductile detailing, Appendix D capacity design and the ductile walls (alpha 9 C18c)",
+    "steel": "NZS 3404 Part 1 (members and connections, the AS 4100 rules of the Australian pack; Section 12 member categories 1 and 3, alpha 9 C18c)",
+    "method": "Limit states design (ultimate and serviceability limit states)"
+  },
+  "tableCodes": {
+    "locations": "NZS 1170.5",
+    "zoneCoefficients": "NZS 1170.5",
+    "occupancyCategories": "AS/NZS 1170.0",
+    "areaLoads": "AS/NZS 1170.1",
+    "liveReduction": "AS/NZS 1170.1",
+    "combinations": "AS/NZS 1170.0",
+    "wind": "AS/NZS 1170.2",
+    "seismic": "NZS 1170.5",
+    "materials": "NZS 3101:2006",
+    "factors": "NZS 3101:2006",
+    "concrete": "NZS 3101:2006",
+    "concreteMethods": "NZS 3101:2006",
+    "steelLimitState": "NZS 3404",
+    "designClauses": "NZS 3101:2006",
+    "designClauses.check.accidentalTorsion": "NZS 1170.5"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

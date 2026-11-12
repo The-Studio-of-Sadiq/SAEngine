@@ -151,6 +151,27 @@ export default defineConfig(
 			]
 		},
 	},
+	// SAEngine-owned sources carry the SAEngine (AGPL-3.0) header instead of the Microsoft one.
+	{
+		files: [
+			'src/vs/workbench/contrib/saengine*/**/*.ts',
+			'src/vs/platform/saengine/**/*.ts',
+			'src/vs/workbench/services/saengine*/**/*.ts',
+			'build/saengine/**/*.ts',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) SAEngine contributors. All rights reserved.',
+					' *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		},
+	},
 	// Production filesystem operations must not block the event loop.
 	{
 		files: [
@@ -1682,6 +1703,7 @@ export default defineConfig(
 						'url',
 						'module',
 						'util',
+						'vscode-jsonrpc/node.js', // SAEngine Python backend connection
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
@@ -1956,6 +1978,8 @@ export default defineConfig(
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
+						'@saengine/fem-viewer', // type import, loaded at runtime by URL
+						'@saengine/cad-editor', // type import, loaded at runtime by URL
 						{
 							'when': 'hasBrowser',
 							'pattern': '@xterm/xterm'

@@ -1,0 +1,207 @@
+{
+  "$defs": {
+    "StairGeometryLimits": {
+      "additionalProperties": false,
+      "description": "Stair geometry rules: 2R + T, the (riser, tread) table, flight rise, headroom, riser\nvariation and the landing cap [mm].",
+      "properties": {
+        "twoRiserTread": {
+          "description": "(least, largest) 2R + T [mm].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Tworisertread",
+          "type": "array"
+        },
+        "riserTread": {
+          "description": "(riser, tread) combinations the code lists [mm].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Risertread",
+          "type": "array"
+        },
+        "riserTreadSkip": {
+          "description": "Rows of riserTread left out of the nearest-row search (misprints) [mm].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Risertreadskip",
+          "type": "array"
+        },
+        "flightRiseMax": {
+          "description": "Largest rise of a flight between landings [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Flightrisemax",
+          "type": "number"
+        },
+        "flightRiseMaxAssembly": {
+          "description": "... in assembly buildings [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Flightrisemaxassembly",
+          "type": "number"
+        },
+        "headroom": {
+          "description": "Clear headroom between flights [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Headroom",
+          "type": "number"
+        },
+        "headroomReduced": {
+          "description": "Reduced headroom for not more than three flights in a staircase [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Headroomreduced",
+          "type": "number"
+        },
+        "riserVariation": {
+          "description": "Largest variation between adjacent risers or treads [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Riservariation",
+          "type": "number"
+        },
+        "straightLandingCap": {
+          "description": "Width in the travel direction a landing of a straight run need not exceed [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Straightlandingcap",
+          "type": "number"
+        },
+        "widthResidential": {
+          "description": "Least stair width, residential [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Widthresidential",
+          "type": "number"
+        },
+        "widthEducational": {
+          "description": "... educational, up to the occupants [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Widtheducational",
+          "type": "number"
+        },
+        "widthEducationalLarge": {
+          "description": "... educational, more occupants [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Widtheducationallarge",
+          "type": "number"
+        },
+        "educationalOccupants": {
+          "description": "Occupants of the educational rows.",
+          "exclusiveMinimum": 0,
+          "title": "Educationaloccupants",
+          "type": "integer"
+        },
+        "widthHealthcare": {
+          "description": "... hospital patient areas [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Widthhealthcare",
+          "type": "number"
+        },
+        "widthHealthcareStaff": {
+          "description": "... hospital staff areas [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Widthhealthcarestaff",
+          "type": "number"
+        }
+      },
+      "required": [
+        "twoRiserTread",
+        "riserTread",
+        "flightRiseMax",
+        "flightRiseMaxAssembly",
+        "headroom",
+        "headroomReduced",
+        "riserVariation",
+        "straightLandingCap",
+        "widthResidential",
+        "widthEducational",
+        "widthEducationalLarge",
+        "educationalOccupants",
+        "widthHealthcare",
+        "widthHealthcareStaff"
+      ],
+      "title": "StairGeometryLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Code values of the member design that no other table holds: the cap of √f'c in shear\nand torsion, the design wall thickness factor of ERW hollow sections, and the stair\ngeometry rules. A pack without it does not cover the checks that read it.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "shearRootFcMax": {
+      "description": "Cap of √f'c in shear and torsion [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "Shearrootfcmax",
+      "type": "number"
+    },
+    "erwWallFactor": {
+      "description": "Design wall thickness of electric-resistance-welded HSS over the nominal.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Erwwallfactor",
+      "type": "number"
+    },
+    "stairs": {
+      "$ref": "#/$defs/StairGeometryLimits"
+    }
+  },
+  "required": [
+    "shearRootFcMax",
+    "erwWallFactor",
+    "stairs"
+  ],
+  "title": "DesignLimitsTable",
+  "type": "object",
+  "$id": "saengine.codePack.designLimits/1"
+}

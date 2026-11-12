@@ -1,7 +1,7 @@
 # Virtual environments
 .venv/
 venv/
-env/
+/env/
 
 # Pytest
 .pytest_cache/
@@ -16,3 +16,13 @@ htmlcov/
 
 # Copilot simulation cache databases are LFS-backed test data, not source files.
 /workbench/extensions/copilot/test/simulation/cache/
+
+# Python packaging
+*.egg-info/
+
+# Installer build output (scripts/build-installer.ps1)
+/VSCode-win32-x64/
+/dist/
+
+# Verification pack output when run without --out
+/python/verification/

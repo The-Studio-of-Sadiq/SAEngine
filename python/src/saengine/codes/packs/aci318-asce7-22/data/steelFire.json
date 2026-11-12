@@ -1,0 +1,113 @@
+{
+  "$schema": "../../../schemas/steelFire.schema.json",
+  "$sources": [
+    "AISC 360-22 Appendix 4 (structural design for fire conditions, simple methods of analysis)"
+  ],
+  "source": "AISC 360-22 Appendix 4.2.3 (Table A-4.2.1 retention factors), 4.2.4c (simple methods: compression Eq A-4-9); the heating by the lumped heat capacity in the standard fire (SAEngine practice, ASTM E119 taken as the ISO 834 curve), the critical temperature where ky = μ0; see VERIFY.md",
+  "retention": {
+    "method": "tabulated",
+    "points": [
+      [
+        20,
+        1.0,
+        1.0
+      ],
+      [
+        93,
+        1.0,
+        1.0
+      ],
+      [
+        204,
+        1.0,
+        0.9
+      ],
+      [
+        316,
+        1.0,
+        0.78
+      ],
+      [
+        399,
+        1.0,
+        0.7
+      ],
+      [
+        427,
+        0.94,
+        0.67
+      ],
+      [
+        538,
+        0.66,
+        0.49
+      ],
+      [
+        649,
+        0.35,
+        0.22
+      ],
+      [
+        760,
+        0.16,
+        0.11
+      ],
+      [
+        871,
+        0.07,
+        0.07
+      ],
+      [
+        982,
+        0.04,
+        0.05
+      ],
+      [
+        1093,
+        0.02,
+        0.02
+      ],
+      [
+        1204,
+        0.0,
+        0.0
+      ]
+    ]
+  },
+  "critical": {
+    "method": "inverseRetention"
+  },
+  "heating": {
+    "method": "lumpedCapacitance",
+    "curve": [
+      345.0,
+      8.0
+    ],
+    "convection": 25.0,
+    "emissivity": 0.7,
+    "fireEmissivity": 1.0,
+    "specificHeat": 600.0,
+    "density": 7850.0,
+    "shadow": false,
+    "shadowFactor": 1.0,
+    "step": 5.0
+  },
+  "protection": {
+    "thickness": 0.0,
+    "conductivity": 0.12,
+    "specificHeat": 1200.0,
+    "density": 300.0,
+    "encasement": "contour"
+  },
+  "loadRatio": 0.6,
+  "compression": "aisc",
+  "aiscBase": 0.42,
+  "gammaFire": 1.1111,
+  "clauses": {
+    "code": "Appendix 4",
+    "retention": "Appendix 4.2.3b, Table A-4.2.1",
+    "heating": "Appendix 4.2.2 (the lumped heat capacity: SAEngine practice)",
+    "critical": "Appendix 4.2.4c (the temperature where Fy(T) / Fy = μ0: SAEngine practice)",
+    "compression": "Appendix 4.2.4d(b), Eq A-4-9"
+  }
+}

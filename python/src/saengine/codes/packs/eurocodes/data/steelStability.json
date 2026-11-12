@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/steelStability.schema.json",
+  "$sources": [
+    "EN 1993-1-1:2005 5.2.1-5.2.2 (αcr, second-order analysis), 5.3.2 (global sway imperfection φ = φ0 αh αm, equivalent horizontal forces)"
+  ],
+  "notional": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "swayImperfection": {
+      "phi0": 0.005,
+      "heightFactor": 2.0,
+      "heightMin": 0.6667,
+      "heightMax": 1.0,
+      "everyCombination": true,
+      "clause": "EN 1993-1-1 5.3.2(3), Eq 5.5; 5.3.2(7) equivalent horizontal forces"
+    }
+  },
+  "sources": {
+    "method": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "required": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "secondOrderUnitK": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "firstOrderUnitK": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "unitK": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "pSmallDelta": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "notional": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "firstOrderNotional": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "gravityOnly": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "tau": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stiffness": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "amplifier": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "secondOrderNotional": "EN 1993-1-1 5.3.2(3): φ = φ0 αh αm, φ0 = 1/200, αh = 2/√h (2/3 <= αh <= 1), αm = √(0.5 (1 + 1/m)) (m taken as 1: SAEngine practice, the largest αm)"
+  },
+  "source": "EN 1993-1-1 5.2 and 5.3 (global analysis, imperfections) for the pack's steel method; the stability values below SAEngine practice (see VERIFY.md)",
+  "alpha": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "limits": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "directAnalysis": {
+    "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

@@ -863,6 +863,6 @@ export function isAccountsActionVisible(storageService: IStorageService): boolea
 	return storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 }
 
-function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {
+export function setAccountsActionVisible(storageService: IStorageService, visible: boolean) { // SAEngine: exported for developer mode
 	storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, visible, StorageScope.PROFILE, StorageTarget.USER);
 }

@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "Sri Lanka: no seismic design (zone 0)"
+  ],
+  "designCategories": {
+    "zoneColumns": {
+      "0": 0
+    }
+  },
+  "sources": {
+    "designCategories": "SAEngine practice: zone 0 (agR 0) takes the first category column (no seismic detailing required)"
+  }
+}

@@ -1,0 +1,5762 @@
+"""Design checks of the reinforced-concrete frame members and slabs of an analysed SAEngine
+model (slabs: see :mod:`saengine.design.slab`; they are reported with ``kind`` "slab" and
+their shell element ids as ``members``).
+
+For each beam and column of the building model with a reinforced rectangular (beams) or
+rectangular/circular (columns) object type, the section forces of the analysis are combined
+with the project settings' load combinations (as :mod:`saengine.fem.combinations` forms them:
+the model is linear, so a combination is the factored sum of its static cases) and checked
+against the section capacities of :mod:`saengine.design.rc`, enveloping all combinations and
+all stations of all analysis elements of the member (``B1``, ``B1#2``, ...).
+
+Member axes. The analysis places a profile's x-axis inertia (``ixx``, about its width) in the
+local Iy of a horizontal member and in Iz of a vertical one; a quarter turn swaps them. So the
+profile depth (``yDim``) lies along local z for a horizontal member (local z is up) and along
+local y for a vertical one, swapped by a quarter turn. The analysis follows OpenSees's section
+convention, tension positive: positive My stretches the +z fibres and positive Mz the -y
+fibres. For a beam whose depth lies along local z (every floor beam) positive My therefore
+puts the top bars in tension (hogging) and negative My the bottom bars (sagging).
+"""
+
+from __future__ import annotations
+
+import bisect
+import contextvars
+import copy
+import dataclasses
+import itertools
+import json
+import math
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from saengine.codes import context as code_context
+from saengine.design import (
+    allowable_stress,
+    column_shear,
+    compression_field_shear,
+    deep_beams,
+    design_strength,
+    live_reduction,
+    member_rank,
+    method_selection,
+    rc_detailing,
+    seismic_rules,
+    slab,
+    slab_systems,
+    span_depth_factors,
+    steel_design,
+    tabulated_shear,
+)
+from saengine.design import corbels as corbel_design
+from saengine.design import deflection as deflection_design
+from saengine.design import slender as slenderness_design
+from saengine.design import torsion as torsion_design
+from saengine.design.clauses import Own, clause, method_basis
+from saengine.design.rc import (
+    DesignError,
+    InteractionSurface,
+    RcSection,
+    flexure,
+    section_of,
+    shear,
+    surface_of,
+    with_joint_layers,
+)
+from saengine.design.steel import SteelDesignError
+from saengine.fem import irregularity
+from saengine.library.bim import (
+    AreaElement,
+    BeamElement,
+    BuildingModel,
+    ColumnElement,
+    MemberElement,
+    SlabElement,
+    WallElement,
+)
+from saengine.library.materials import Category, MaterialLibrary, default_of
+from saengine.library.objects import (
+    Beam,
+    Brace,
+    Column,
+    ObjectLibrary,
+    RectangleProfile,
+    Slab,
+    Wall,
+)
+from saengine.library.settings import (
+    LoadCombination,
+    ProjectSettings,
+    code_basis,
+    partition_case,
+)
+
+#: Said in the notes instead of designing footings: they are Part 9's (saengine.substructure).
+DESIGNED_IN_PART_9 = (
+    "Foundations are designed in 9 Substructure (09 Substructure/substructure.json). The column "
+    "bases are fixed supports of this analysis (no soil-structure interaction), and footings "
+    "drawn in the building model are not checked here."
+)
+
+METHOD = [
+    "Strength design to {code}{basis}.",
+    (
+        "Flexure and axial force by strain compatibility with the rectangular stress block "
+        "(concreteproperties); {phi}."
+    ),
+    (
+        "Beams: sagging (bottom bars) and hogging (top bars) moments about the strong axis, and "
+        "{beam_shear}. Weak-axis bending and axial force in beams are not checked; shear is "
+        "taken at every station, including the supports. The top of a beam is the face of its "
+        "depth axis that points up."
+    ),
+    (
+        "Beam torsion{c[torsion]}: neglected below the threshold φTth; above "
+        "it the section limit{p[torsionLimit]}, closed stirrups At/s with the shear's Av/s per "
+        "outer leg, the longitudinal steel Al on top of the flexural steel the simultaneous "
+        "moment needs, and the detailing{of[torsionDetailing]}. A beam whose end is free or "
+        "which carries a cantilever slab is designed for the full Tu (equilibrium torsion); a "
+        "beam framed at both ends for Tu reduced to at most φTcr (compatibility torsion"
+        "{cm[torsionCompatibility]}): the moments this releases are not redistributed to the "
+        "adjoining members by SAEngine."
+    ),
+    (
+        "Beam deflection{c[deflection]}: each span between its supports, from the "
+        "analysis's unfactored D + SD and L (Lr on the roof) deflections relative to the chord, "
+        "scaled by the analysis E I over Ec Ie ({lead[deflectionIe]}Ie at midspan, at the "
+        "support of a cantilever; the rectangle without the slab flange, on the safe side), "
+        "the long-term part λΔ = ξ/(1 + 50ρ') on D + SD and the sustained share of L; "
+        "{limits[deflectionLimits]}. With partitions not likely to be damaged a beam at least "
+        "as deep as {depth[deflectionDepth]} is not computed."
+    ),
+    (
+        "Columns: axial force with biaxial bending, the capacity read from the φ-factored "
+        "interaction surface at the demand's axial force in the direction of its moment vector; "
+        "{axial_cap}. Column shear from the analysis "
+        "along each profile axis, Vc with the simultaneous axial force{c[columnShear]}, "
+        "the tie spacing limits{of[columnTies]} (the capacity-design shear of "
+        "special and intermediate frames is checked with the seismic detailing)."
+    ),
+]
+
+
+def method_refs() -> dict[str, Any]:
+    """The clause fields of :data:`METHOD`'s templates, read from the pack in force: ``c`` the
+    clause after the name of its code (left out when inherited from the default pack:
+    :func:`saengine.design.clauses.adopted`), the others bare numbers only where the pack gives
+    them itself (never another code's number in this pack's text); with
+    :func:`strength_basis`'s fields of the first lines."""
+    return {
+        "c": Own("check", " ({})", named=True),
+        "p": Own("check", " ({})"),
+        "of": Own("check", " of {}"),
+        "cm": Own("check", ", {}"),
+        "lead": Own("check", "{}, "),
+        "limits": Own("check", "limits of {}", "the pack's limits"),
+        "depth": Own("check", "{} asks", "the pack's least depth"),
+        **strength_basis(),
+    }
+
+
+def strength_basis() -> dict[str, str]:
+    """The pack's fields of the strength design's first lines: ``basis`` the pack's
+    ``designClauses.methodBasis`` in brackets (the default pack: "ACI 318-19 clauses and
+    factors"); ``phi`` the flexural φ, by the pack's ``factors.phiTransition`` where it has one
+    (AS 3600 type kuo), one flat φ where the pack's are the same (:func:`flat_phi`, NZS 3101
+    type, with ``factors.phiClause``), else by the net tensile strain (ACI 318-19 Table
+    21.2.2); ``beam_shear`` the beams' shear, by the pack's compression field method where it
+    has one; ``axial_cap`` the columns' largest axial compression, the pack's
+    ``factors.axialCap`` (none: ACI 318-19 Table 22.4.2.1's 0.80 and 0.85)."""
+    basis = method_basis()
+    factors = code_context.pack_table("factors")
+    transition = getattr(factors, "phiTransition", None)
+    if transition is not None:
+        phi = (
+            f"φ = {transition.intercept:g} - {transition.slope:.4g} kuo within the compression "
+            "and tension φ, kuo = c/d0 of the extreme tension bar"
+            + (f" ({transition.clause})" if transition.clause else "")
+        )
+    elif flat_phi(factors.phi) is not None:
+        phi = (
+            f"φ = {flat_phi(factors.phi):g} for flexure with or without axial force, without a "
+            "transition by strain" + (f" ({factors.phiClause})" if factors.phiClause else "")
+        )
+    else:
+        phi = "φ from the net tensile strain of the extreme bar (ACI 21.2.2)"
+    beam_shear = (
+        compression_field_shear.method_line()
+        if compression_field_shear.rules() is not None
+        else "shear φ(Vc + Vs) with Vc = 0.17 λ √f'c b d when Av >= Av,min, else "
+        "0.66 λs λ ρw^(1/3) √f'c b d (ACI Table 22.5.5.1, λ = 1, ρw of the face with fewer "
+        "bars)"
+    )
+    cap = getattr(factors, "axialCap", None)
+    if cap is None:
+        axial_cap = "φPn,max = 0.80 φ P0 (tied) or 0.85 φ P0 (spiral)"
+    elif cap.tied == cap.spiral:
+        axial_cap = f"φPn,max = {cap.tied:.2f} φ P0 (tied and spiral)"
+    else:
+        axial_cap = f"φPn,max = {cap.tied:.2f} φ P0 (tied) or {cap.spiral:.2f} φ P0 (spiral)"
+    if cap is not None and cap.clause:
+        axial_cap = f"{axial_cap[:-1]}, {cap.clause})"
+    return {
+        "basis": f" ({basis})" if basis else "",
+        "phi": phi,
+        "beam_shear": beam_shear,
+        "axial_cap": axial_cap,
+    }
+
+
+def flat_phi(phi: Any) -> float | None:
+    """The pack's one φ of moment and axial force where its tension-controlled, tied and spiral
+    compression-controlled φ are the same (NZS 3101 type: no transition by strain); None where
+    they differ (the transition of ACI 318-19 Table 21.2.2 or the pack's ``phiTransition``)."""
+    if phi.tension == phi.compressionTied == phi.compressionSpiral:
+        return float(phi.tension)
+    return None
+
+
+#: The unfactored gravity cases the deflection checks use.
+SERVICE_CASES = ("D", "SD", "L", "Lr")
+#: The static lateral cases whose forces the allowable stress combinations take (T45).
+LATERAL_CASES = ("WX", "WY", "EX", "EY")
+#: The fluid and earth pressure cases the allowable stress combinations also take.
+OTHER_CASES = ("F", "H")
+#: The wind cases of the members' wind deflection limits (B9).
+WIND_CASES = ("WX", "WY")
+
+
+@dataclass
+class _Piece:
+    """One analysis element of a member, with its section forces per combination."""
+
+    name: str
+    id: int
+    length: float  # m
+    depth_along_z: bool
+    axes: np.ndarray  # rows: local x, y, z (global)
+    forces: list[np.ndarray]  # per combination: (stations, 6) N, Vy, Vz, T, My, Mz [N, N·m]
+    start: np.ndarray | None = None  # end coordinates [m]
+    end: np.ndarray | None = None
+    #: Per combination, the part of ``forces`` from its lateral load cases (wind, earthquake,
+    #: response spectrum: the sway moments Ms of slenderness) and from its sustained ones (D,
+    #: SD: βdns); None when not formed.
+    sway: list[np.ndarray] | None = None
+    sustained: list[np.ndarray] | None = None
+    #: Per combination, the part of ``forces`` from the floor live load cases (L, LP1, ...),
+    #: for the live load reduction (:mod:`saengine.design.live_reduction`); None when not formed.
+    live: list[np.ndarray] | None = None
+    #: Per combination, the part of ``forces`` from the roof live load case Lr, for the roof
+    #: live load reduction; None when not formed.
+    roof: list[np.ndarray] | None = None
+
+
+def design_report(out_dir: str | Path, project_path: str | Path) -> dict[str, Any]:
+    """The design checks of the model ``project_path`` (``08 FEM/model.osmodel``) under the
+    results in ``out_dir``, ready for JSON.
+
+    The project's object types, materials, settings and building model are read from the
+    SAEngine project the model belongs to (two folders up). Returns ``{"code", "method",
+    "combinations", "elements", "skipped", "summary", "notes"}``: per checked element ``{"id",
+    "kind", "type", "members", "checks", "utilisation", "ok"}`` with ``members`` the analysis
+    element ids and each check ``{"name", "demand", "capacity", "unit", "utilisation",
+    "combination", "ok", "note", "flag"}`` (forces in kN and kN·m, slabs per metre width in
+    kN·m/m and kN/m; ``flag`` checks are reported but do not make the element fail), per
+    skipped element ``{"id", "kind", "type", "reason"}``. Slabs (``kind`` "slab") list their
+    shell elements as ``members``; slabs neither reinforced nor analysed as shells are only
+    mentioned in the notes. Structural walls (``kind`` "wall", :mod:`saengine.design.
+    wall_design`: their piers, boundary elements and coupling beams, every shell as
+    ``members``) and stairs (``kind`` "staircase", :mod:`saengine.design.stairs`: designed by
+    hand methods, ``members`` empty) are elements too.
+    """
+    project_path = Path(project_path)
+    root = project_path.resolve().parent.parent
+
+    def read(relative: str) -> str:
+        path = root / relative
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as error:
+            raise ValueError(f"{relative} could not be read: {error}") from error
+
+    settings = ProjectSettings.model_validate_json(
+        read("02 Project Settings/project-settings.json")
+    )
+    materials = MaterialLibrary.model_validate_json(read("03 Materials/materials.json"))
+    objects = ObjectLibrary.model_validate_json(read("04 Objects/objects.json"))
+    building = BuildingModel.model_validate_json(read("06 BIM/bim.json"))
+    project = json.loads(project_path.read_text(encoding="utf-8"))
+    ensure_seismic_design(out_dir, project_path, settings)
+    return design(project, out_dir, building, objects, materials, settings)
+
+
+def ensure_seismic_design(
+    out_dir: str | Path, project_path: str | Path, settings: ProjectSettings
+) -> dict[str, Any] | None:
+    """Integrator glue: when the project designs for earthquake from the response spectrum
+    (``analysis.seismicDesign``, :func:`saengine.fem.seismic_design.design_uses_spectrum`) and
+    the run has response spectrum results, the modal-force run and its summary
+    (``<out_dir>/rs-design``) that :func:`design` reads; run here when missing or stale
+    (:func:`saengine.fem.seismic_design.seismic_design` keeps it while the model and the results
+    do not change), so every caller (the app, Run All, the report) designs with the scaled
+    response spectrum rather than silently with the static EX, EY. None otherwise, or when the
+    run fails (the design then uses the static cases, with a note)."""
+    from saengine.fem import seismic_design
+
+    if not seismic_design.design_uses_spectrum(settings):
+        return None
+    if not (Path(out_dir) / "manifest.json").is_file():
+        return None
+    from saengine.library.settings import read_soil_text, resolve_site_class
+
+    # The site class the analysis used (from the soil report when the settings say so).
+    settings, _ = resolve_site_class(
+        settings, read_soil_text(Path(project_path).resolve().parent.parent)
+    )
+    _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
+    try:
+        summary = seismic_design.seismic_design(out_dir, project_path, settings, run=True)
+    except (OSError, ValueError, KeyError) as error:
+        _SEISMIC_PROBLEMS[str(Path(out_dir))] = str(error)
+        return None
+    if not summary.get("available") and seismic_design.expected_axes(project_path):
+        # The model has response spectrum cases but their results are incomplete (the analysis
+        # is running, or was run without them): say why the design falls back to EX, EY.
+        _SEISMIC_PROBLEMS[str(Path(out_dir))] = "; ".join(summary.get("notes", []))
+    return summary
+
+
+#: Why the response spectrum design could not be run, by results folder (for the notes).
+_SEISMIC_PROBLEMS: dict[str, str] = {}
+
+_SHARED: contextvars.ContextVar[dict[Any, Any] | None] = contextvars.ContextVar(
+    "shared_demands", default=None
+)
+
+
+class _ArrayDict(dict):  # type: ignore[type-arg]
+    """A kept dict whose values are all read-only arrays or plain numbers and strings: copied
+    flat (:func:`_shared_copy`)."""
+
+
+class _ArrayList(list):  # type: ignore[type-arg]
+    """A kept list whose items are all read-only arrays: copied flat."""
+
+
+#: What a kept dict may hold and still be copied flat.
+_FLAT = frozenset({np.ndarray, str, int, float, bool, type(None)})
+
+
+def _shared_copy(value: Any) -> Any:
+    """A copy of the demands :func:`shared_demands` keeps: new containers and pieces, the
+    arrays shared and made read-only (the checks replace a combination's array, never write
+    into one; a write would raise rather than change the other call's forces). Containers of
+    arrays alone are marked when kept and copied flat when handed out (plain dict, list)."""
+    if isinstance(value, np.ndarray):
+        value.setflags(write=False)
+        return value
+    if isinstance(value, _ArrayDict):
+        return dict(value)
+    if isinstance(value, _ArrayList):
+        return list(value)
+    if isinstance(value, dict):
+        if value and all(type(v) in _FLAT for v in value.values()):
+            for v in value.values():
+                if type(v) is np.ndarray:
+                    v.setflags(write=False)
+            return _ArrayDict(value)
+        copied = {k: _shared_copy(v) for k, v in value.items()}
+        if copied and all(type(v) is np.ndarray for v in copied.values()):
+            return _ArrayDict(copied)
+        return copied
+    if isinstance(value, list):
+        if value and all(type(v) is np.ndarray for v in value):
+            # The common case (a piece's combinations): flagged in one pass, no recursion.
+            for v in value:
+                v.setflags(write=False)
+            return _ArrayList(value)
+        listed = [_shared_copy(v) for v in value]
+        if listed and all(type(v) is np.ndarray for v in listed):
+            return _ArrayList(listed)
+        return listed
+    if isinstance(value, tuple):
+        return tuple(_shared_copy(v) for v in value)
+    if isinstance(value, _Piece):
+        piece = copy.copy(value)
+        for f in dataclasses.fields(piece):
+            setattr(piece, f.name, _shared_copy(getattr(value, f.name)))
+        return piece
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return value
+    return copy.deepcopy(value)
+
+
+@contextmanager
+def shared_demands() -> Iterator[None]:
+    """Within it, :func:`design` calls on the same results folder and combinations work out the
+    combined forces once (they do not depend on the bars: the design checks with assumed bars and
+    the report without them, :mod:`saengine.pipeline.design_mode`). Only for calls between
+    which the model and the results do not change; nested, the outer one is used."""
+    if _SHARED.get() is not None:
+        yield
+        return
+    token = _SHARED.set({})
+    try:
+        yield
+    finally:
+        _SHARED.reset(token)
+
+
+@code_context.in_project_pack(path_params=("out_dir",))
+def design(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    building: BuildingModel,
+    objects: ObjectLibrary,
+    materials: MaterialLibrary,
+    settings: ProjectSettings,
+    soil_text: str | None = None,
+    collect: dict[str, Any] | None = None,
+    slenderness: slenderness_design.SlenderOptions | dict[str, Any] | None = None,
+    assumed: set[str] | None = None,
+) -> dict[str, Any]:
+    """:func:`design_report` with the project's parts already read. ``soil_text`` is no longer
+    used: the footings it gave the allowable bearing pressures of are designed in Part 9
+    (:func:`saengine.substructure.substructure_report`).
+
+    ``collect``: when given, filled with what the checks worked from, for the design mode
+    (:mod:`saengine.design.required`): ``"combinations"``, per wall pier under ``"walls"``
+    (:func:`saengine.design.wall_design.design_walls`), per staircase type under ``"stairs"``
+    (:func:`saengine.design.stairs.stair_report`), and per checked beam, column and
+    slab under ``"members"`` and ``"slabs"`` its section or slab context, its analysis pieces
+    with their combined forces, its materials and its checks; a column also its demand
+    ``"points"`` with the moments magnified for slenderness.
+
+    ``assumed``: with ``collect``, the object types ``objects`` gives assumed bars
+    (:func:`saengine.design.required.with_assumed_bars`). When they are all slab types,
+    ``collect["plain"]`` gets the report :func:`design_report` makes without those bars (the
+    slabs of those types skipped or noted as without reinforcement, everything else the same),
+    so the design mode designs the members once for both; it is left out otherwise (beams,
+    columns and walls without bars change the joints and the seismic detailing).
+
+    ``slenderness``: how column slenderness is designed for
+    (:class:`saengine.design.slender.SlenderOptions`, or the settings' dict of it); the
+    project settings' (:func:`saengine.design.slender.options_from_settings`) when None. The storeys' stability (sway or nonsway) is returned as
+    ``"stability"`` (:func:`saengine.design.slender.storey_rows`).
+
+    B21: the project's concrete aggregate (Construction > Concrete aggregate) is in force for
+    the run (:func:`saengine.design.rc_detailing.using_aggregate`: Ec, shrinkage steel, λ),
+    and the notes say which concrete materials have an E that does not follow it."""
+    with rc_detailing.using_aggregate(settings):
+        # The default E of each concrete follows the aggregate (brick: its own Ec); a typed
+        # E is kept and flagged when it does not fit the aggregate.
+        materials, extra_notes = rc_detailing.aggregate_moduli(materials)
+        result = _design_run(
+            project, out_dir, building, objects, materials, settings, collect, slenderness,
+            assumed,
+        )  # fmt: skip
+        extra_notes += rc_detailing.material_notes(materials)
+    for report in (result, (collect or {}).get("plain")):
+        if extra_notes and isinstance(report, dict) and isinstance(report.get("notes"), list):
+            report["notes"].extend(extra_notes)
+    return result
+
+
+def _design_run(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    building: BuildingModel,
+    objects: ObjectLibrary,
+    materials: MaterialLibrary,
+    settings: ProjectSettings,
+    collect: dict[str, Any] | None,
+    slenderness: slenderness_design.SlenderOptions | dict[str, Any] | None,
+    assumed: set[str] | None,
+) -> dict[str, Any]:
+    """The body of :func:`design`."""
+    from saengine.design import member_pool, seismic_detailing
+    from saengine.fem import second_order, seismic_design
+    from saengine.fem.combinations import set_flood_kind
+
+    # Alpha 10: the workers that check a large model's concrete beams and columns started now,
+    # while the forces are worked out (saengine.design.member_pool).
+    member_pool.warm(
+        sum(isinstance(e, (BeamElement, ColumnElement)) for e in building.elements)
+        + len(building.additions.members)
+    )
+    # B16: the flood zone's allowable stress combinations for the timber and masonry members.
+    set_flood_kind(settings)
+    # Integrator glue: which provisions of the default pack's BNBC Sec 8.3 apply (saengine.design.seismic_rules),
+    # with the site class the analysis used; the elements needing the Ω0 combinations get them.
+    root = Path(out_dir).resolve().parent.parent
+    try:
+        scope, resolved = seismic_detailing.scope_of(settings, materials, objects, building, root)
+    except (ValueError, KeyError, AttributeError) as error:
+        scope, resolved = None, settings
+        scope_problem = str(error)
+    omega_elements = set(scope["omega"]["elements"]) if scope else set()
+    # Integrator glue: the elements Sec 2.5.5.6.1 adds beyond seismic_rules' (girders carrying
+    # transfer beams, walls under them, transfer slabs; saengine.design.overstrength).
+    from saengine.design import overstrength
+
+    try:
+        omega_extra = overstrength.overstrength_scope(settings, building, objects, materials)
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        omega_extra = {"ids": [], "combinations": [], "notes": [], "added": []}
+        omega_extra["notes"].append(f"the Ω0 elements could not all be found: {error}")
+    if omega_extra["ids"] and scope is not None:
+        omega_elements |= set(omega_extra["ids"])
+        scope["omega"]["elements"] = sorted(omega_elements)
+        if not scope["omega"].get("combinations"):
+            scope["omega"]["combinations"] = omega_extra["combinations"]
+    # B35: the steel columns of a steel seismic system take the amplified seismic load for
+    # their axial strength (saengine.design.steel.seismic); their other checks leave it out.
+    steel_amplified = _steel_amplified_columns(resolved, building, objects, materials)
+    steel_amplified -= omega_elements
+    if steel_amplified and scope is not None:
+        omega_elements |= steel_amplified
+        scope["omega"]["elements"] = sorted(omega_elements)
+        if not scope["omega"].get("combinations"):
+            scope["omega"]["combinations"] = seismic_rules.omega_combinations(resolved)
+    omega_static = (
+        [
+            LoadCombination(**{k: v for k, v in c.items() if k != "clause"})
+            for c in scope["omega"]["combinations"]
+        ]
+        if scope and omega_elements
+        else []
+    )
+
+    extra: dict[str, Any] = {}
+    with_omega = (
+        settings.model_copy(update={"combinations": settings.combinations + omega_static})
+        if omega_static
+        else settings
+    )
+    # B12: the building's irregularities (saengine.fem.irregularity); the soft storeys' columns
+    # and beams take the pack's factor on E, their structural walls the wall factor, through
+    # combinations kept for those members only (as the Ω0 ones below).
+    irregular, soft, irregular_notes = _irregularities(
+        project, out_dir, building, objects, materials, resolved, settings
+    )
+    soft_static = [
+        LoadCombination(**c)
+        for factor, prefix, ids in _soft_parts(soft)
+        if ids
+        for c in irregularity.soft_storey_combinations(settings.combinations, factor, prefix)
+    ]
+    if soft_static:
+        with_omega = with_omega.model_copy(
+            update={"combinations": with_omega.combinations + soft_static}
+        )
+    # Alpha 9 C5c: the pack's δ on the elements' earthquake effects where the analysis has no
+    # accidental eccentricity (saengine.fem.torsional_effects), as the soft storeys' factors.
+    from saengine.fem import torsional_effects
+    from saengine.fem.combinations import model_cases as _present_cases
+
+    delta_groups = torsional_effects.delta_groups(building, _present_cases(project))
+    delta_static = [
+        LoadCombination(**c)
+        for g in delta_groups
+        for c in irregularity.soft_storey_combinations(
+            settings.combinations, g["factor"], g["prefix"]
+        )
+    ]
+    if delta_static:
+        with_omega = with_omega.model_copy(
+            update={"combinations": with_omega.combinations + delta_static}
+        )
+    # Integrator glue (0.0.45): the design wind load cases of the default pack's BNBC 2020 Part 6 Figure 6.2.9
+    # (Sec 2.4.11.3) and the live load arrangements of Sec 6.1.12.2, from the cases the model
+    # has (saengine.fem.combinations).
+    from saengine.fem.combinations import (
+        CANTILEVER_PREFIX,
+        alternate_combinations,
+        cantilever_uplift,
+        model_cases,
+        pattern_live_combinations,
+        wind_case_combinations,
+    )
+
+    present = model_cases(project)
+    formed = list(with_omega.combinations)
+    pre_notes: list[str] = []
+    # The code pack's alternates ("Lr or R": the rain case R where the model has it) and its
+    # net upward force on horizontal cantilevers in the Seismic Design Categories it names
+    # (applied to the beams with a free end only, below).
+    by_alternate = alternate_combinations(formed, present)
+    if by_alternate is not None and len(by_alternate) > len(formed):
+        pre_notes.append(
+            "roof live load: each combination with Lr is also checked with R in its place"
+        )
+        formed = by_alternate
+    from saengine.design.seismic_rules import seismic_design_category
+
+    try:
+        uplift = cantilever_uplift(seismic_design_category(resolved)[0])
+    except (ValueError, KeyError, AttributeError, TypeError):
+        uplift = None
+    cantilevers = _cantilever_beams(building, objects) if uplift is not None else set()
+    if uplift is not None and cantilevers:
+        formed.append(uplift)
+    by_wind = wind_case_combinations(formed, present)
+    if by_wind is not None and len(by_wind) > len(formed):
+        pre_notes.append(
+            "wind: each one-direction wind combination is checked for the design wind load "
+            f"cases of {clause('check', 'windCases')}: Case 1, "
+            + ("Case 2 (0.75 with the torsion e = ±0.15 B), " if {"WTX", "WTY"} <= present else "")
+            + "Case 3 (0.75 in both directions)"
+            + (", Case 4 (0.563 in both with both torsions)" if {"WTX", "WTY"} <= present else "")
+        )
+        formed = by_wind
+    by_pattern = pattern_live_combinations(formed, present)
+    if by_pattern is not None and len(by_pattern) > len(formed):
+        count = len([c for c in present if c.startswith("LP") and c[2:].isdigit()])
+        pre_notes.append(
+            f"live load arrangements: each gravity combination with live load is also checked "
+            f"with L on the {count} arrangements LP1-LP{count} ({clause('check', 'patternLive')})"
+        )
+        formed = by_pattern
+    # The moving crane load cases (saengine.fem.cranes), by the code pack's crane rule.
+    from saengine.fem.combinations import crane_combinations
+
+    by_crane = crane_combinations(formed, present)
+    if by_crane is not None and len(by_crane) > len(formed):
+        pre_notes.append(
+            f"cranes: {len(by_crane) - len(formed)} combinations add the moving crane load "
+            "cases (each position and trolley side) at the live load factor"
+        )
+        formed = by_crane
+    # Notional loads of the steel stability design (default pack BNBC 2020 Part 6 Sec 10.3.2.2), when the
+    # model has their cases (saengine.fem.notional_loads).
+    from saengine.fem.notional_loads import notional_combinations
+
+    stability_settings = getattr(settings, "analysis", None)
+    stability_method = getattr(stability_settings, "notionalLoads", "none")
+    # B17: the direct analysis method puts them in every combination, unless the engineer
+    # chose the gravity-only ones (which the steel checks then hold to the drift ratio limit).
+    every = stability_method == "firstOrder" or (
+        stability_method == "directAnalysis"
+        and getattr(stability_settings, "directAnalysisNotional", "allCombinations")
+        != "gravityOnly"
+    )
+    if stability_method == "secondOrder":  # alpha 9 C6: a pack's sway imperfection
+        from saengine.fem.notional_loads import every_combination
+
+        every = every or every_combination()
+    by_notional = notional_combinations(formed, present, every)
+    if by_notional is not None:
+        pre_notes.append(
+            "notional loads: each gravity-only combination is "
+            "also checked with its notional loads in +X, -X, +Y and -Y"
+            + (
+                "; every combination with a lateral load takes them in its direction"
+                if every
+                else ""
+            )
+        )
+        formed = by_notional
+    if len(formed) != len(with_omega.combinations) or by_notional is not None:
+        with_omega = with_omega.model_copy(update={"combinations": formed})
+    # The forces do not depend on the bars: design() calls within shared_demands() on the
+    # same results and combinations (the checks with and without assumed bars) work them
+    # out once.
+    share = _SHARED.get()
+    key = (
+        (
+            str(Path(out_dir).resolve()),
+            with_omega.model_dump_json(),
+            tuple(sorted(omega_elements)),
+            tuple(sorted(soft["frames"])),
+            tuple(sorted(soft["walls"])),
+        )
+        if share is not None
+        else None
+    )
+    if share is not None and key in share:
+        combinations, pieces, notes, shell_forces, extra, static, with_omega = _shared_copy(
+            share[key]
+        )
+    else:
+        static: dict[str, Any] = {}
+        if seismic_design.design_uses_spectrum(settings):
+
+            def static_demands(
+                project: dict[str, Any], out_dir: str | Path, settings: Any, inner: Any = None
+            ) -> Any:
+                found = _demands(project, out_dir, settings, inner)
+                static.update(
+                    names=list(found[0]),
+                    shells={i: list(rows) for i, rows in found[3].items()},
+                    inner=inner if inner is not None else {},
+                )
+                return found
+
+            summary = None
+            if omega_elements or soft_static or delta_static:
+                summary = seismic_design.load_summary(out_dir)
+                if summary and summary.get("combinations"):
+                    added = (
+                        seismic_rules.omega_rs_combinations(summary["combinations"], resolved)
+                        if omega_elements
+                        else []
+                    )
+                    # B12: the soft storey combinations from the response spectrum ones.
+                    for factor, prefix, ids in _soft_parts(soft):
+                        if ids:
+                            added += irregularity.soft_storey_rs_combinations(
+                                summary["combinations"], factor, prefix
+                            )
+                    # Alpha 9 C5c: δ unless the spectrum design has its accidental torsion.
+                    parts = (summary.get("run") or {}).get("parts") or {}
+                    if not any(str(p).startswith("A") for p in parts):
+                        for g in delta_groups:
+                            added += irregularity.soft_storey_rs_combinations(
+                                summary["combinations"], g["factor"], g["prefix"]
+                            )
+                    summary = {**summary, "combinations": summary["combinations"] + added}
+            combinations, pieces, notes, shell_forces = seismic_design.design_demands(
+                project, out_dir, with_omega, extra, summary=summary, base=static_demands
+            )
+            if "shellSway" not in extra and static:
+                extra["shellSway"] = _spectrum_shell_sway(static, combinations, shell_forces)
+            problem = _SEISMIC_PROBLEMS.pop(str(Path(out_dir)), None)
+            if problem:
+                notes.append(
+                    f"the response spectrum design could not be run: {problem}"
+                    if "static cases" in problem
+                    else f"the response spectrum design could not be run ({problem}): the "
+                    "earthquake combinations use the static cases EX, EY"
+                )
+        else:
+            # Integrator glue: with the eccentric static cases (analysis.accidentalEccentricity),
+            # each E combination is checked with the masses shifted both ways (default pack BNBC 2020 Part 6
+            # Sec 2.5.7.6.2): EX becomes EXP and EXN, EY becomes EYP and EYN.
+            from saengine.fem.combinations import eccentric_combinations, model_cases
+
+            expanded = eccentric_combinations(with_omega.combinations, model_cases(project))
+            if expanded is not None:
+                with_omega = with_omega.model_copy(update={"combinations": expanded})
+            combinations, pieces, notes, shell_forces = _demands(
+                project, out_dir, with_omega, extra
+            )
+            if expanded is not None:
+                notes.append(
+                    "accidental torsion: each earthquake combination is checked with the eccentric "
+                    "static cases EXP/EXN (EYP/EYN), the story masses shifted ±5 % across the force "
+                    f"({clause('check', 'accidentalTorsion')})"
+                )
+        if share is not None:
+            share[key] = _shared_copy(
+                (combinations, pieces, notes, shell_forces, extra, static, with_omega)
+            )
+    notes = pre_notes + notes
+    service = extra.get("service") or (static.get("inner") or {}).get("service") or {}
+    if scope is None:
+        notes.append(f"the seismic detailing scope could not be found: {scope_problem}")
+    omega_indices = [c for c, name in enumerate(combinations) if name.startswith("Ω0: ")]
+    if omega_indices:
+        # Integrator glue: the Ω0 combinations (Sec 2.5.5.6, 2.5.13.4) apply to the elements
+        # scope["omega"] names only; the others carry no force in them, so they never govern.
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            omega_indices,
+            keep=omega_elements,
+            keep_shells=_shells_of(project, omega_elements),
+        )
+        notes.append(
+            f"Ω0 combinations ({clause('check', 'omega')}) applied to "
+            + ", ".join(sorted(omega_elements))
+            + " only"
+        )
+        if omega_extra["ids"]:
+            notes.append(overstrength.em_factors(settings)["clause"])
+    notes += omega_extra["notes"]
+    # B12: the soft storey combinations act on the soft storeys' members only.
+    for factor, prefix, ids in _soft_parts(soft):
+        indices = [c for c, name in enumerate(combinations) if name.startswith(prefix)]
+        if not indices:
+            continue
+        walls = prefix == irregularity.wall_prefix(factor)
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            indices,
+            keep=set() if walls else set(ids),
+            keep_shells=_shells_of(project, set(ids)) if walls else set(),
+        )
+        notes.append(
+            f"{prefix.rstrip(': ')} ({soft['clause']}): applied to "
+            + ", ".join(sorted(ids))
+            + f" of the soft storey(s) {', '.join(soft['storeys'])} only"
+        )
+    notes += irregular_notes
+    # Alpha 9 C5c: the δ combinations act on their own elements only.
+    applied_delta = []
+    for g in delta_groups:
+        indices = [c for c, name in enumerate(combinations) if name.startswith(g["prefix"])]
+        if not indices:
+            continue
+        _drop_combinations(
+            pieces,
+            shell_forces,
+            indices,
+            keep=set(g["members"]),
+            keep_shells=_shells_of(project, set(g["walls"])),
+        )
+        applied_delta.append(g)
+    if applied_delta:
+        notes.append(torsional_effects.note(applied_delta))
+    uplift_indices = [
+        c for c, name in enumerate(combinations) if name.startswith(CANTILEVER_PREFIX)
+    ]
+    if uplift_indices:
+        # The upward force acts on the horizontal cantilevers only.
+        _drop_combinations(
+            pieces, shell_forces, uplift_indices, keep=cantilevers, keep_shells=set()
+        )
+        notes.append(
+            f"{combinations[uplift_indices[0]]} applied to the cantilever beams "
+            + ", ".join(sorted(cantilevers))
+            + f" ({code_context.pack_table('combinations').cantileverUplift.source})"
+        )
+    slender_options = (
+        slenderness_design.SlenderOptions.of(slenderness)
+        if slenderness is not None
+        else slenderness_design.options_from_settings(settings)
+    )
+    if slenderness is None:
+        # Integrator glue: the analysis model says whether it is second order (P-Delta from a
+        # preload, saengine.fem.second_order), whatever the settings say now: δs is applied
+        # to a first-order model and taken as 1 in a second-order one.
+        slender_options.second_order = "pDelta" if second_order.is_second_order(project) else "none"
+    if collect is not None:
+        collect["combinations"] = combinations
+        collect.setdefault("members", [])
+        collect.setdefault("slabs", [])
+    types = {o.id: o for o in objects.objects}
+    mats = {m.id: m for m in materials.materials}
+    # Integrator glue: the design overwrites (saengine.design.overwrites: k, unbraced lengths,
+    # framing; the member's over its object type's) for the column slenderness and steel.
+    from saengine.design import overwrites as design_overwrites
+
+    resolved_overwrites = design_overwrites.resolve_all(
+        [
+            (e.id, e, types.get(e.type))
+            for e in building.elements
+            if isinstance(e, (BeamElement, ColumnElement, MemberElement))
+        ]
+        + [(a.id, a, types.get(a.type)) for a in building.additions.members]
+    )
+    context = slenderness_design.SlenderContext(
+        project,
+        building,
+        types,
+        mats,
+        pieces,
+        combinations,
+        extra.get("lateralDisplacements", []),
+        slender_options,
+        {i: (forces, extra.get("shellSway", {}).get(i, [])) for i, forces in shell_forces.items()},
+        [bool(e) for e in extra.get("envelope", [])],
+        extra.get("storeyShear"),
+        resolved_overwrites,
+    )
+
+    exact = exact_rotation(project)
+    members: list[tuple[str, str, Any]] = []  # (id, object type id, element or addition)
+    for element in building.elements:
+        if isinstance(element, (BeamElement, ColumnElement, MemberElement)):
+            members.append((element.id, element.type, element))
+    for addition in building.additions.members:
+        members.append((addition.id, addition.type, addition))
+    # Integrator glue: the forces at the support faces (saengine.design.face_forces) from the
+    # analysis's face offsets and face forces (saengine.fem.end_zones, face-forces.json).
+    # Alpha 9 C20b (seismic_grades): the seismic grade's force factors and γRE on the
+    # earthquake combinations (the pack's seismic.gradeDesign; nothing without it), before
+    # every member check, so Design Reinforcement sizes from the same forces.
+    from saengine.design import seismic_grades
+
+    seismic_grades.set_context(settings, project)
+    notes += seismic_grades.apply(pieces, combinations, extra, members, types, mats)
+
+    face_data = _face_forces_file(out_dir)
+    face_offsets = (face_data or {}).get("faceOffsets")
+    static_factors = (
+        extra.get("factors") if not seismic_design.design_uses_spectrum(settings) else None
+    )
+    faced_any = False
+
+    checked: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    designed: list[seismic_detailing.Designed] = []
+    steel_seen = False
+    from saengine.design.steel import seismic as steel_seismic
+
+    steel_members: list[steel_seismic.SteelMember] = []  # B35
+    steel_stability = None
+    steel_asd: dict[str, Any] = {}  # alpha 9 C3: the run's ASD state (_steel_asd)
+    anchor_seismic = None
+    from saengine.design import timber as timber_design
+
+    timber_todo: list[tuple[str, Any, Any, list[_Piece], bool]] = []
+    b39_todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]] = {}  # B39
+    # T33: beams whose top bars pass their joints in the second layer, under the crossing
+    # beams' (saengine.design.rc_detailing.joint_top_layers): their hogging d is less.
+    top_drops = rc_detailing.building_top_drops(building, types, settings)
+    # The mirror at the bottom (owner decision 2026-11-11): the secondary direction's bottom
+    # bars pass a main bar diameter higher (joint_bottom_layers): their sagging d is less.
+    bottom_rises = rc_detailing.building_bottom_rises(building, types, settings)
+    second_layer: list[str] = []
+    raised: list[str] = []
+    live_scope = live_reduction.LiveScope.of(settings)
+    # Alpha 9 C5: a pack with partial-factor concrete methods adds its member rules
+    # (saengine.design.bar_rules) and, for DCM / DCH systems, the curvature-ductility detailing
+    # (saengine.design.curvature_ductility). Without them (the default pack) nothing changes.
+    from saengine.design import bar_rules
+    from saengine.rpc import jobs as rpc_jobs
+
+    member_rules = bar_rules.covered()
+    ductility = _ductility_class(settings) if member_rules else None
+    # Alpha 9 C5c: μφ of the critical regions for the confinement ωwd of columns and walls.
+    mu_phi = _mu_phi(settings, project, ductility)
+    # Alpha 9 C8: the tabulated codes' member rules (saengine.design.member_limits).
+    from saengine.design import member_limits
+
+    limit_rules = member_limits.covered()
+    # W4C-10 of usability walk 4: the beams that carry a floor slab on their top flange, its
+    # bracing for lateral-torsional buckling also when the slab is not analysed as shells.
+    under_slabs = slab_carried_beams(building, types)
+    # The concrete beams and columns (_rc_member), with the sections they keep per object type.
+    rc_run = _RcRun(
+        project, building, types, mats, pieces, members, combinations, service, settings,
+        live_scope, resolved_overwrites, context, exact, face_data, face_offsets,
+        static_factors, top_drops, member_rules, ductility, mu_phi, limit_rules,
+        bottom_rises,
+    )  # fmt: skip
+    beam_sections, dropped_sections = rc_run.beam_sections, rc_run.dropped_sections
+    column_sections = rc_run.column_sections
+    # Alpha 10: a large model's concrete members checked ahead in other processes, taken below
+    # in member order (saengine.design.member_pool; None: all here).
+    prepared = member_pool.prepare(
+        rc_run,
+        [
+            index
+            for index, (member_id, type_id, _) in enumerate(members)
+            if _rc_candidate(types.get(type_id), mats, pieces.get(member_id), combinations)
+        ],
+        code_context.project_root() or code_context.find_project_root(out_dir),
+    )
+
+    for index, (member_id, type_id, element) in enumerate(members):
+        # A cancelled request (Stop Waiting on Design Reinforcement) stops here.
+        rpc_jobs.check()
+        object_type = types.get(type_id)
+        kind = object_type.kind if object_type else getattr(element, "kind", "member")
+
+        def skip(
+            reason: str, member_id: str = member_id, kind: str = kind, type_id: str = type_id
+        ) -> None:
+            skipped.append({"id": member_id, "kind": kind, "type": type_id, "reason": reason})
+
+        own = pieces.get(member_id, [])
+        if object_type is None:
+            skip(f"unknown object type '{type_id}'")
+            continue
+        # Integrator glue: structural steel beams, columns and braces (default pack BNBC 2020 Part 6 Ch 10,
+        # saengine.design.steel_design), with their types' simple connections.
+        steel_material = mats.get(object_type.material)
+        # Alpha 9 L7: open-web steel joists and joist girders (saengine.design.steel_joists):
+        # trusses by the pack's steel checks, not the rolled beam's (and not in the design mode).
+        if (
+            isinstance(object_type, Beam)
+            and getattr(object_type, "joist", None) is not None
+            and steel_design.is_steel(steel_material)
+        ):
+            from saengine.design import steel_joists
+
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            try:
+                joist_entry = steel_joists.design_member(
+                    member_id, object_type, steel_material, own, combinations,
+                    _turned(element, exact),
+                )  # fmt: skip
+            except (steel_joists.JoistDesignError, SteelDesignError) as error:
+                skip(str(error))
+                continue
+            _steel_deflection(joist_entry, own, service, project, object_type)
+            checked.append(joist_entry)
+            steel_seen = True
+            continue
+        if isinstance(object_type, (Beam, Column, Brace)) and steel_design.is_steel(steel_material):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            if steel_stability is None:  # B17: the stability design method, once per run
+                from saengine.design.steel.stability import stability_for_run
+
+                steel_stability = stability_for_run(settings, project, out_dir, building)
+                notes.extend(steel_stability.notes)
+            if anchor_seismic is None:  # B26: the earthquake side of the anchors in concrete
+                anchor_seismic = _anchor_seismic(resolved, combinations, extra)
+            # B35: the amplified load only in the steel seismic axial check.
+            steel_pieces = _without(own, omega_indices) if member_id in steel_amplified else own
+            steel_combinations = combinations
+            steel_extra: dict[str, Any] = {"stability": steel_stability, "anchors": anchor_seismic}
+            # Alpha 9 C3: a pack (or project) that designs steel by ASD: the member under the
+            # allowable stress combinations, its strengths Rn / Ω (saengine.design.steel.basis).
+            asd = _steel_asd(object_type, settings, steel_stability, service, notes, steel_asd)
+            if asd is not None:
+                case_forces, asd_names, asd_factors = asd
+                steel_pieces = timber_design.asd_pieces(own, case_forces, asd_factors)
+                steel_combinations = asd_names
+                from saengine.design.steel import basis as steel_basis
+                from saengine.design.steel.stability import for_asd
+
+                steel_extra = {
+                    "stability": for_asd(steel_stability),
+                    "anchors": anchor_seismic,
+                    "basis": steel_basis.ASD,
+                }
+            # Alpha 9 C12: steel in fire by the pack's steelFire table (the members' ratings).
+            from saengine.design.steel import fire as steel_fire
+
+            steel_fire_ratings = steel_fire.ratings(settings)
+            if steel_fire_ratings:
+                steel_extra["fire"] = steel_fire_ratings
+            if member_id in under_slabs and object_type.kind == "beam":
+                from saengine.design.steel.lengths import LengthOptions
+
+                steel_extra["lengths"] = LengthOptions(slab_on_top=True)
+            try:
+                entry, steel_collected = steel_design.design_member(
+                    member_id,
+                    steel_design.KINDS[object_type.kind],
+                    object_type,
+                    steel_material,
+                    mats,
+                    steel_pieces,
+                    steel_combinations,
+                    _turned(element, exact),
+                    project,
+                    design_overwrites.steel_options(
+                        resolved_overwrites.get(member_id), steel_extra
+                    ),
+                )
+            except SteelDesignError as error:
+                skip(str(error))
+                continue
+            if object_type.kind == "beam":
+                _steel_deflection(entry, own, service, project, object_type)  # B9
+            if object_type.kind in ("beam", "column") and (
+                allowable_stress.table() is not None or member_rank.tables() is not None
+            ):
+                # Alpha 9 C19: the pack's allowable stresses of steel and the member's rank.
+                _steel_allowable(entry, object_type, steel_material, own, service, element, exact)
+            checked.append(entry)
+            steel_seen = True
+            if object_type.kind in ("beam", "column", "brace"):  # B35, B38 (braces)
+                steel_members.append(
+                    steel_seismic.SteelMember(
+                        member_id,
+                        object_type.kind,
+                        element,
+                        object_type,
+                        steel_material,
+                        own,
+                        _turned(element, exact),
+                        entry,
+                    )
+                )
+            # Alpha 9 L7: a beam with web openings keeps its section (the design mode's
+            # candidates are plain rolled beams).
+            if collect is not None and getattr(object_type, "webOpenings", None) is None:
+                collect.setdefault("steel", []).append(steel_collected)
+            continue
+        # Integrator glue (T45): timber beams, columns and braces (default pack BNBC 2020 Part 6 Ch 11,
+        # saengine.design.timber), under the allowable stress combinations after this loop.
+        if isinstance(object_type, (Beam, Column, Brace)) and timber_design.is_timber(
+            steel_material
+        ):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            timber_todo.append(
+                (member_id, object_type, steel_material, own, _turned(element, exact))
+            )
+            continue
+        # Alpha 9 C6: aluminium beams, columns and braces under the ultimate combinations, by
+        # the code pack's aluminium table (saengine.design.aluminium).
+        from saengine.design import aluminium as aluminium_design
+
+        if isinstance(object_type, (Beam, Column, Brace)) and aluminium_design.is_aluminium(
+            steel_material
+        ):
+            if not own:
+                skip("not in the analysis results")
+                continue
+            if not combinations:
+                skip("no load combination could be formed")
+                continue
+            try:
+                checked.append(
+                    aluminium_design.design_member(
+                        member_id,
+                        object_type.kind,
+                        object_type,
+                        steel_material,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        project,
+                    )
+                )
+            except aluminium_design.AluminiumDesignError as error:
+                skip(str(error))
+            continue
+        # B39: bamboo beams, columns and braces, ferrocement beams and columns (designed after
+        # this loop by saengine.design.bamboo / saengine.design.ferrocement).
+        b39_kind = _b39_kind(object_type, steel_material)
+        if b39_kind is not None:
+            if not own:
+                skip("not in the analysis results")
+                continue
+            b39_todo.setdefault(b39_kind, []).append(
+                (member_id, object_type, steel_material, own, _turned(element, exact))
+            )
+            continue
+        if not isinstance(object_type, (Beam, Column)):
+            skip(f"{object_type.kind} members are not designed here")
+            continue
+        if getattr(getattr(steel_material, "category", None), "value", None) == "glass":
+            # Alpha 9 L7: glass fins are designed per type (saengine.design.glass).
+            skip("glass members are designed per type (glass fins)")
+            continue
+        concrete = mats.get(object_type.material)
+        if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
+            skip("not a concrete member (structural steel is not designed here)")
+            continue
+        if object_type.reinforcement is None:
+            skip(NO_REINFORCEMENT)
+            continue
+        if not own:
+            skip("not in the analysis results")
+            continue
+        if not combinations:
+            skip("no load combination could be formed")
+            continue
+        bars = mats.get(object_type.reinforcement.material)
+        if bars is None or bars.steel is None:
+            skip(f"unknown reinforcement material '{object_type.reinforcement.material}'")
+            continue
+        # The checks of a concrete beam or column (_rc_member), run ahead in other processes
+        # for a large model (saengine.design.member_pool) or here, taken in member order.
+        done = prepared.take(index) if prepared is not None else None
+        if done is None:
+            done = _rc_member(rc_run, member_id, type_id, element, object_type, concrete, bars, own)
+        if done.base is not None:
+            if isinstance(object_type, Beam):
+                beam_sections.setdefault(type_id, done.base)
+                if done.dropped is not None:
+                    dropped_sections.setdefault((type_id, done.dropped[0]), done.dropped[1:])
+            else:
+                column_sections.setdefault(type_id, done.base)
+        if done.second_layer:
+            second_layer.append(member_id)
+        if done.raised:
+            raised.append(member_id)
+        faced_any = faced_any or done.faced
+        notes.extend(done.notes)
+        if done.skip is not None:
+            skip(done.skip)
+            continue
+        if not isinstance(object_type, Beam):
+            section, capacities = column_sections[type_id][0], None
+        elif done.dropped is not None:
+            section, capacities = dropped_sections[(type_id, done.dropped[0])]
+        else:
+            section, capacities = beam_sections[type_id]
+        own, checks, entry = done.own, done.checks, done.entry
+        if collect is not None:
+            collect["members"].append(
+                {
+                    "id": member_id,
+                    "kind": "beam" if isinstance(object_type, Beam) else "column",
+                    "type": type_id,
+                    "object": object_type,
+                    "section": section,
+                    "pieces": own,
+                    "turned": _turned(element, exact),
+                    "fc": concrete.concrete.fc,
+                    "fy": bars.steel.fy,
+                    "es": bars.mechanical.E or 200_000.0,
+                    "aggregate": concrete.concrete.maxAggregate,
+                    # T33: the top bars' drop to the second layer at the joints [mm].
+                    "topDrop": top_drops.get(element.id, 0.0)
+                    if isinstance(element, BeamElement)
+                    else 0.0,
+                    # The bottom bars' rise over the crossing beams' at the joints [mm].
+                    "bottomRise": bottom_rises.get(element.id, 0.0)
+                    if isinstance(element, BeamElement)
+                    else 0.0,
+                    "checks": checks,
+                    "points": done.points,
+                    # The torsion design at the governing station (saengine.design.torsion), for
+                    # the required steel and the proposal; None below the threshold.
+                    "torsion": done.torsion,
+                }
+            )
+        checked.append(entry)
+        designed.append(
+            seismic_detailing.Designed(
+                member_id,
+                entry["kind"],
+                element,
+                object_type,
+                section,
+                own,
+                _turned(element, exact),
+                entry,
+                capacities,
+            )
+        )
+    if prepared is not None:
+        prepared.close()
+
+    # B35: the steel seismic provisions (saengine.design.steel.seismic): member, joint and
+    # connection checks on the steel entries, the project's own checks with the seismic ones.
+    steel_seismic_found = None
+    from saengine.design.steel import limit_state as steel_limit_state
+    from saengine.design.steel import seismic_dissipative
+
+    if steel_members and seismic_dissipative.active():
+        # Alpha 9 C6: the pack's capacity design of dissipative steel frames (by Ω and γov,
+        # the limit state table's seismic method ``dissipativeZones``) in place of the steel
+        # seismic provisions and the braced frames of B35 / B38.
+        try:
+            found_dissipative = seismic_dissipative.apply(
+                project,
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            found_dissipative = None
+            notes.append(f"the steel capacity design could not be checked: {error}")
+        if found_dissipative is not None:
+            notes += found_dissipative["notes"]
+            if scope is not None:
+                scope["steelDissipative"] = found_dissipative
+                scope["checks"] = scope.get("checks", []) + found_dissipative["checks"]
+    elif steel_members and steel_limit_state.seismic_rules() is not None:
+        # Alpha 9 C9: the pack's steel seismic frame rules (IS 800 Section 12) in place of
+        # the steel seismic provisions and the braced frames of B35 / B38.
+        try:
+            ls_found = steel_limit_state.seismic_apply(
+                building,
+                types,
+                steel_members,
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            ls_found = None
+            notes.append(f"the steel seismic rules could not be checked: {error}")
+        if ls_found is not None:
+            notes += ls_found["notes"]
+            if scope is not None:
+                scope["steelLimitStateSeismic"] = ls_found
+                scope["checks"] = scope.get("checks", []) + ls_found["checks"]
+    elif steel_members:
+        try:
+            steel_seismic_found = steel_seismic.apply(
+                project,
+                building,
+                types,
+                mats,
+                [m for m in steel_members if m.kind != "brace"],
+                combinations,
+                seismic_detailing.earthquake_indices(extra, len(combinations)),
+                resolved,
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            notes.append(f"the steel seismic provisions could not be checked: {error}")
+        if steel_seismic_found is not None:
+            notes += steel_seismic_found["notes"]
+            if scope is not None:
+                scope["steelSeismic"] = steel_seismic_found
+                scope["checks"] = scope.get("checks", []) + steel_seismic_found["checks"]
+        # B38: braced frames (saengine.design.steel.seismic_braced) and the composite members
+        # of the steel seismic system (seismic_composite).
+        steel_braced_found = _steel_braced(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            extra,
+            resolved,
+            steel_seismic_found,
+            notes,
+            out_dir,
+        )
+        if steel_braced_found is not None and scope is not None:
+            scope["steelBraced"] = steel_braced_found
+            scope["checks"] = scope.get("checks", []) + steel_braced_found["checks"]
+    # R4AC-5: the hooked bars of the columns that end in the beams at their top, the check the
+    # drawings make (saengine.design.ductile_joints.column_top_anchorage), so the two agree.
+    from saengine.design import ductile_joints as top_joints
+
+    notes += top_joints.column_top_checks(designed, building, types)
+    # Integrator glue: the earthquake-resistant detailing of the default pack's BNBC Sec 8.3 (seismic_detailing).
+    joints: list[dict[str, Any]] = []
+    from saengine.design import ductile_detailing
+
+    args = (project, building, types, designed, combinations, extra, scope)
+    if scope is not None and method_selection.uses("seismic", "curvatureDuctility"):
+        # Alpha 9 C5b: the pack's capacity design by ductility class (DCM, DCH) takes the place
+        # of the parent pack's special-frame detailing (saengine.design.capacity_design).
+        from saengine.design import capacity_design
+
+        found = capacity_design.apply(*args, ductility, _profile_forces)
+        joints = found["joints"]
+        notes += found["notes"]
+    elif scope is not None and ductile_detailing.rules() is not None:
+        # Alpha 9 C8: the pack's ductile detailing (IS 13920) in place of Sec 8.3's rows.
+        found = ductile_detailing.apply(*args, settings, _profile_forces)
+        joints = found["joints"]
+        notes += found["notes"]
+    elif scope is not None:
+        found = seismic_detailing.apply(
+            project,
+            building,
+            types,
+            designed,
+            combinations,
+            extra,
+            scope,
+            settings,
+            _profile_forces,
+        )
+        joints = found["joints"]
+        notes += found["notes"]
+    if collect is not None:
+        collect["seismic"] = scope
+        collect["joints"] = joints
+        entries = {d.id: d for d in designed}
+        for m in collect["members"]:
+            d = entries.get(m["id"])
+            if d is not None:
+                m["checks"] = d.entry["checks"]
+                m["detailing"] = d.entry.get("detailing")
+                m["seismicContext"] = d.context
+                m["element"] = d.element
+
+    timber_seen = False
+    if timber_todo:
+        timber_seen = _design_timber(timber_todo, service, checked, skipped, notes, project)
+    if b39_todo:
+        _design_b39(b39_todo, combinations, service, checked, skipped, notes)
+    for type_id, (section, _) in {**beam_sections, **column_sections}.items():
+        notes += [f"{type_id}: {note}" for note in section.notes]
+    if second_layer:
+        notes.append(
+            f"T33: {len(second_layer)} beam(s) take their top bars in the second layer at their "
+            "joints, under the crossing beams' (hogging d less by those bars' diameter; "
+            f"e.g. {', '.join(second_layer[:3])}; Project Settings > Construction > Crossing "
+            "beam bars at joints, SAEngine practice)"
+        )
+    if raised:
+        notes.append(
+            f"{len(raised)} beam(s) take their bottom bars a main bar diameter higher at their "
+            "joints, over the crossing beams' (sagging d less by that diameter; "
+            f"e.g. {', '.join(raised[:3])}; Project Settings > Construction > Crossing beam bars "
+            "at joints, SAEngine practice)"
+        )
+    # The report without the assumed bars (see ``assumed``): the same up to the slabs.
+    default_rebar = _default_rebar_id(objects, materials)
+    plain = (
+        _Plain(assumed, list(checked), list(skipped), list(notes))
+        if collect is not None
+        and assumed
+        and all(isinstance(types.get(t), Slab) for t in assumed)
+        and default_rebar == _default_rebar_id(objects, materials, without=assumed)
+        else None
+    )
+    # Where the elements found after the slabs go: the report's lists, and the plain ones.
+    sinks = [(checked, skipped, notes)]
+    if plain is not None:
+        sinks.append((plain.checked, plain.skipped, plain.notes))
+    slabs_seen = _design_slabs(
+        project,
+        building,
+        types,
+        mats,
+        pieces,
+        shell_forces,
+        combinations,
+        checked,
+        skipped,
+        notes,
+        collect["slabs"] if collect is not None else None,
+        settings,
+        plain,
+    )
+    # Integrator glue: stairs (saengine.design.stairs: hand methods, not in the analysis model)
+    # and structural walls (saengine.design.wall_design: wall_forces' piers, walls' checks).
+    from saengine.design import stairs as stair_design
+    from saengine.design import wall_design
+
+    stairs_found = stair_design.stair_report(
+        building, types, mats, settings, collect, default_rebar=default_rebar
+    )
+    for into in sinks:
+        into[0].extend(stairs_found["elements"])
+        into[1].extend(stairs_found["skipped"])
+        into[2].extend(stairs_found["notes"])
+    walls_found = wall_design.design_walls(
+        project,
+        out_dir,
+        _with_mep_openings(building, root),
+        types,
+        mats,
+        settings,
+        with_omega,
+        resolved,
+        scope,
+        extra,
+        combinations,
+        collect,
+    )
+    for into in sinks:
+        into[0].extend(walls_found["elements"])
+        into[1].extend(walls_found["skipped"])
+        into[2].extend(walls_found["notes"])
+    # Alpha 9 L7: glass types and tensile membranes, designed per type from their own data
+    # (saengine.design.glass, saengine.design.membranes).
+    from saengine.design import glass as glass_design
+    from saengine.design import membranes as membrane_design
+
+    for found in (glass_design.design_types(types, mats), membrane_design.design_types(types)):
+        for into in sinks:
+            into[0].extend(found[0])
+            into[1].extend(found[1])
+            into[2].extend(found[2])
+    # Integrator glue: lintels over the openings of masonry and partition walls
+    # (saengine.design.lintels; hand design, not in the analysis model).
+    from saengine.design import lintels as lintel_design
+    from saengine.library.settings import derived
+
+    try:
+        wind = float(derived(settings).get("windSpeed") or 0.0)
+    except (ValueError, KeyError, AttributeError, TypeError):
+        wind = 0.0
+    lintels_found = lintel_design.lintels_of(
+        building,
+        types,
+        mats,
+        settings,
+        concrete=default_of(materials, Category.CONCRETE),
+        steel=default_of(materials, Category.REBAR),
+        high_wind=wind * 3.6 > 200.0,
+    )
+    for into in sinks:
+        into[0].extend(lintels_found["elements"])
+        into[1].extend(lintels_found["skipped"])
+        into[2].extend(lintels_found["notes"])
+    # Integrator glue (T3): the floors' chords and collectors (saengine.design.diaphragms,
+    # The default pack's BNBC 2020 Part 6 Sec 2.5.5.6), from the equivalent static storey forces.
+    from saengine.design import diaphragms as diaphragm_design
+
+    def floor_diaphragms(of_types: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return diaphragm_design.diaphragms_of(
+                project, building, of_types, mats, settings, irregular=irregular
+            )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            return {
+                "elements": [],
+                "skipped": [],
+                "notes": [f"diaphragm chords and collectors not designed: {error}"],
+            }
+
+    diaphragms_found = floor_diaphragms(types)
+    # The chords count the slabs' edge bars, so the plain report's take the assumed slab types
+    # without them.
+    plain_diaphragms = (
+        floor_diaphragms(
+            {
+                t: v.model_copy(update={"reinforcement": None}) if t in plain.assumed else v
+                for t, v in types.items()
+            }
+        )
+        if plain is not None
+        else diaphragms_found
+    )
+    for into, found in zip(sinks, (diaphragms_found, plain_diaphragms)):
+        into[0].extend(found["elements"])
+        into[1].extend(found["skipped"])
+        into[2].extend(found["notes"])
+    # FD-6 of walk 3: each element supporting a discontinuous column or wall says so, and that
+    # it took the Ω0 combinations (a transfer girder read as an ordinary beam otherwise).
+    supporting = {
+        e["id"]: e["reason"] for e in omega_extra.get("elements", []) if e["id"] in omega_elements
+    }
+    for into in sinks:
+        for element in into[0]:
+            reason = supporting.get(element.get("id"))
+            if reason is None:
+                continue
+            note = (
+                f"{reason} ({overstrength.CLAUSES['supporting']}): checked with the Ω0 "
+                "combinations too, whichever governs"
+            )
+            target = (
+                element.get("detailing") if isinstance(element.get("detailing"), dict) else None
+            )
+            holder = target if target is not None else element
+            holder.setdefault("notes", [])
+            if note not in holder["notes"]:
+                holder["notes"].insert(0, note)
+
+    def assemble(
+        checked: list[dict[str, Any]],
+        skipped: list[dict[str, Any]],
+        notes: list[str],
+        slabs_seen: set[str],
+    ) -> dict[str, Any]:
+        return _assemble(
+            settings,
+            checked,
+            skipped,
+            notes,
+            slabs_seen,
+            combinations,
+            scope,
+            joints,
+            bool(beam_sections or column_sections),
+            bool(column_sections),
+            faced_any,
+            steel_seen,
+            walls_found,
+            lintels_found,
+            stairs_found,
+            context,
+            slender_options,
+            timber_seen,
+            steel_stability,
+        )
+
+    # Integrator glue (T9): fire resistance by least sizes and covers
+    # (saengine.design.fire_resistance; the ratings of the default pack's BNBC 2020 Part 4).
+    from saengine.design.fire_resistance import CLAUSE as FIRE_CLAUSE
+    from saengine.design.fire_resistance import add_fire_checks
+
+    for into in sinks:
+        if add_fire_checks(into[0], types, settings):
+            into[2].append(
+                "fire resistance: the members' least sizes and covers checked for the ratings of "
+                f"Project Settings ({clause('check', 'fireRatings')}) by {FIRE_CLAUSE}"
+            )
+    # Integrator glue (T9): the columns' gravity load takedown (saengine.design.takedown).
+    from saengine.design.takedown import takedown
+
+    try:
+        column_takedown = takedown(building, pieces, service)
+    except (ValueError, KeyError, AttributeError, TypeError, IndexError) as error:
+        column_takedown = {"lines": [], "cases": [], "note": f"not formed: {error}"}
+    if plain is not None and collect is not None:
+        collect["plain"] = assemble(plain.checked, plain.skipped, plain.notes, plain.seen)
+        collect["plain"]["takedown"] = column_takedown
+    result = assemble(checked, skipped, notes, slabs_seen)
+    result["takedown"] = column_takedown
+    return result
+
+
+def _rc_candidate(
+    object_type: Any, mats: dict[str, Any], own: list[_Piece] | None, combinations: list[str]
+) -> bool:
+    """Whether :func:`_design_run`'s loop is to check the member with :func:`_rc_member`: a
+    concrete beam or column with bars, in the analysis results, with combinations. Only to check
+    members ahead in other processes (saengine.design.member_pool): the loop decides."""
+    from saengine.design import aluminium as aluminium_design
+    from saengine.design import timber as timber_design
+
+    if not isinstance(object_type, (Beam, Column)) or not own or not combinations:
+        return False
+    material = mats.get(object_type.material)
+    if (
+        material is None
+        or steel_design.is_steel(material)
+        or timber_design.is_timber(material)
+        or aluminium_design.is_aluminium(material)
+        or _b39_kind(object_type, material) is not None
+        or material.category != Category.CONCRETE
+        or not material.concrete
+        or object_type.reinforcement is None
+    ):
+        return False
+    bars = mats.get(object_type.reinforcement.material)
+    return bars is not None and bars.steel is not None
+
+
+@dataclass
+class _RcRun:
+    """What the checks of the concrete beams and columns of one design run work from
+    (:func:`_rc_member`), and what they keep from one member to the next (the sections per
+    object type, the beams' framing). Picklable: the members can be checked in other processes
+    (:mod:`saengine.design.member_pool`), each with its own copy."""
+
+    project: dict[str, Any]
+    building: BuildingModel
+    types: dict[str, Any]
+    mats: dict[str, Any]
+    pieces: dict[str, list[_Piece]]
+    #: (id, object type id, element or addition) of every member, in the run's order.
+    members: list[tuple[str, str, Any]]
+    combinations: list[str]
+    service: dict[str, Any]
+    settings: ProjectSettings
+    live_scope: Any
+    overwrites: dict[str, Any]
+    context: Any
+    exact: bool
+    face_data: dict[str, Any] | None
+    face_offsets: Any
+    static_factors: Any
+    top_drops: dict[str, float]
+    member_rules: Any
+    ductility: str | None
+    mu_phi: Any
+    limit_rules: Any
+    bottom_rises: dict[str, float]
+    beam_sections: dict[str, tuple[RcSection, dict[bool, Any]]] = field(default_factory=dict)
+    #: The beam sections with their bars at the joint levels, by (type, (drop, rise)).
+    dropped_sections: dict[tuple[str, tuple[float, float]], tuple[RcSection, dict[bool, Any]]] = (
+        field(default_factory=dict)
+    )
+    #: The column sections and their surfaces (None: a section kept without its surface).
+    column_sections: dict[str, tuple[RcSection, InteractionSurface | None]] = field(
+        default_factory=dict
+    )
+    framing: Any = None
+
+    def shipped(self) -> _RcRun:
+        """A copy for other processes: what it works from, without what it has kept."""
+        return dataclasses.replace(
+            self, beam_sections={}, dropped_sections={}, column_sections={}, framing=None
+        )
+
+    def pool_item(self, index: int) -> _RcDone:
+        """The checks of member ``index`` (:func:`_rc_member`), in a worker
+        (:mod:`saengine.design.member_pool`)."""
+        member_id, type_id, element = self.members[index]
+        object_type = self.types[type_id]
+        return _rc_member(
+            self,
+            member_id,
+            type_id,
+            element,
+            object_type,
+            self.mats[object_type.material],
+            self.mats[object_type.reinforcement.material],
+            self.pieces.get(member_id, []),
+        )
+
+
+@dataclass
+class _RcDone:
+    """What the checks of one concrete beam or column found (:func:`_rc_member`), for the run to
+    take in member order (:func:`_design_run`)."""
+
+    #: Why the member could not be checked (a DesignError), else None.
+    skip: str | None = None
+    #: The notes it adds to the report, in order.
+    notes: list[str] = field(default_factory=list)
+    #: It takes its top bars in the second layer at its joints (T33).
+    second_layer: bool = False
+    #: It takes its bottom bars a main bar diameter higher at its joints.
+    raised: bool = False
+    #: Its checks took the forces at the support faces.
+    faced: bool = False
+    #: (section, capacities) of its object type once worked out (capacities None: a column).
+    base: tuple[Any, Any] | None = None
+    #: ((drop, rise), section, capacities) with the top bars dropped to the second layer and
+    #: the bottom bars raised over the crossing beams' at the joints.
+    dropped: tuple[tuple[float, float], Any, Any] | None = None
+    section: Any = None
+    capacities: Any = None
+    own: list[_Piece] | None = None
+    checks: list[dict[str, Any]] | None = None
+    points: Any = None
+    torsion: Any = None
+    entry: dict[str, Any] | None = None
+
+
+def _rc_member(
+    run: _RcRun,
+    member_id: str,
+    type_id: str,
+    element: Any,
+    object_type: Any,
+    concrete: Any,
+    bars: Any,
+    own: list[_Piece],
+) -> _RcDone:
+    """The checks of the concrete beam or column ``member_id`` of the run (the part of
+    :func:`_design_run`'s loop past its concrete, bars and forces being found): the same in this
+    process or in another (:mod:`saengine.design.member_pool`)."""
+    from saengine.design import (
+        bar_rules,
+        curvature_ductility,
+        face_forces,
+        member_limits,
+        seismic_detailing,
+        seismic_grades,
+        strut_shear,
+    )
+    from saengine.design import overwrites as design_overwrites
+
+    project, building, types, settings = run.project, run.building, run.types, run.settings
+    service, live_scope, resolved_overwrites = run.service, run.live_scope, run.overwrites
+    context, combinations, exact = run.context, run.combinations, run.exact
+    face_data, face_offsets, static_factors = run.face_data, run.face_offsets, run.static_factors
+    top_drops, member_rules, ductility = run.top_drops, run.member_rules, run.ductility
+    mu_phi, limit_rules, bottom_rises = run.mu_phi, run.limit_rules, run.bottom_rises
+    beam_sections, dropped_sections = run.beam_sections, run.dropped_sections
+    column_sections = run.column_sections
+    framing = run.framing
+    out = _RcDone()
+    notes = out.notes
+    es = bars.mechanical.E or 200_000.0
+    # Integrator glue (T9): the floor live load reduced by the member's influence area
+    # (saengine.design.live_reduction, the code pack's liveReduction), or by its overwrite.
+    live_row = roof_row = None
+    live_factor = 1.0  # Alpha 9 C19: for the allowable stress combinations
+    given_factor = (resolved_overwrites.get(member_id) or design_overwrites.Resolved()).get(
+        "liveLoadReduction"
+    )
+    if given_factor is not None or settings.analysis.liveLoadReduction:
+        if given_factor is not None:
+            found_factor = (float(given_factor), f"given ({live_reduction.CLAUSE})")
+        else:
+            if isinstance(element, BeamElement):
+                framing = run.framing = run.framing or _BeamFraming(building, types)
+            found_factor = live_reduction.member_factor(
+                element,
+                "beam" if isinstance(object_type, Beam) else "column",
+                own,
+                service,
+                building,
+                live_scope,
+                framing if isinstance(element, BeamElement) else None,
+                float(getattr(object_type.profile, "xDim", 0.0) or 0.0),
+            )
+        if found_factor is not None:
+            own = live_reduction.reduced(own, found_factor[0])
+            live_factor = min(float(found_factor[0]), 1.0)
+            live_row = _check(
+                "Live load reduction L / L0",
+                found_factor[0],
+                1.0,
+                "",
+                None,
+                found_factor[1],
+                flag=True,
+            )
+        # The roof live load Lr by the pack's roof rule (tributary area and slope).
+        roof_factor = (
+            live_reduction.roof_member_factor(
+                "beam" if isinstance(object_type, Beam) else "column",
+                own,
+                service,
+                live_scope,
+                float(getattr(settings.analysis, "roofSlope", 0.0) or 0.0),
+            )
+            if given_factor is None
+            else None
+        )
+        if roof_factor is not None and roof_factor[0] < 1.0:
+            own = live_reduction.reduced(own, roof_factor[0], "roof")
+            roof_row = _check(
+                "Roof live load reduction Lr / L0",
+                roof_factor[0],
+                1.0,
+                "",
+                None,
+                roof_factor[1],
+                flag=True,
+            )
+    joints_own = own
+    torsion_found = None
+    try:
+        if isinstance(object_type, Beam):
+            if type_id not in beam_sections:
+                section = section_of(
+                    object_type.profile,
+                    object_type.reinforcement,
+                    concrete.concrete.fc,
+                    bars.steel.fy,
+                    es,
+                    concrete.concrete.maxAggregate,
+                )
+                if section.profile.shape != "rectangle":
+                    raise DesignError("beams are checked with rectangular profiles only")
+                beam_sections[type_id] = (
+                    section,
+                    {hog: flexure(section, hog) for hog in (False, True)},
+                )
+            section, capacities = beam_sections[type_id]
+            out.base = (section, capacities)
+            is_beam = isinstance(element, BeamElement)
+            drop = top_drops.get(element.id, 0.0) if is_beam else 0.0
+            rise = bottom_rises.get(element.id, 0.0) if is_beam else 0.0
+            if drop > 0 or rise > 0:
+                levels = (drop, rise)
+                if (type_id, levels) not in dropped_sections:
+                    lower = with_joint_layers(section, drop, rise)
+                    dropped_sections[(type_id, levels)] = (
+                        lower,
+                        {hog: flexure(lower, hog) for hog in (False, True)},
+                    )
+                section, capacities = dropped_sections[(type_id, levels)]
+                out.dropped = (levels, section, capacities)
+                out.second_layer = drop > 0
+                out.raised = rise > 0
+            faced = face_forces.at_faces(
+                own,
+                project,
+                shear_depth=face_forces.shear_depth(section),
+                # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
+                if static_factors
+                else None,
+                face_offsets=face_offsets,
+            )
+            own = faced.pieces
+            checks = _beam_checks(
+                section, capacities, object_type, own, combinations, _turned(element, exact)
+            )
+            if faced.at_faces:
+                face_forces.annotate(checks, faced)
+            out.faced = out.faced or faced.at_faces
+            if member_rules:  # Alpha 9 C5 (see above)
+                beam_transverse = getattr(object_type.reinforcement, "transverse", None)
+                checks += bar_rules.beam_rows(section, beam_transverse)
+                if ductility:
+                    checks += curvature_ductility.beam_rows(section, beam_transverse, ductility)
+            if limit_rules:  # Alpha 9 C8: the ratio limits, cover, grade and bond rows
+                reinforcement = object_type.reinforcement
+                checks += member_limits.beam_rows(
+                    section,
+                    getattr(reinforcement, "transverse", None),
+                    capacities,
+                    getattr(reinforcement, "cover", None),
+                )
+            # Alpha 9 C20b: the seismic grade's detailing (none without the pack's rule).
+            checks += seismic_grades.beam_rows(
+                section, getattr(object_type.reinforcement, "transverse", None), capacities
+            )
+            # Integrator glue (0.0.45): torsion (saengine.design.torsion) and deflection
+            # (saengine.design.deflection) of beams of the building model.
+            if isinstance(element, BeamElement):
+                framing = run.framing = run.framing or _BeamFraming(building, types)
+                if method_selection.uses("torsion", "thinWalledVariableStrut"):
+                    # Alpha 9 C5b: the pack's torsion method (limit_state_rows).
+                    torsion_rows, torsion_found = _pack_torsion(
+                        element,
+                        section,
+                        object_type.reinforcement.transverse,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                    )
+                else:
+                    torsion_rows, torsion_found = _beam_torsion_checks(
+                        element,
+                        object_type,
+                        section,
+                        own,
+                        combinations,
+                        _turned(element, exact),
+                        framing,
+                        bars.steel.fy,
+                        drop,
+                        rise,
+                    )
+                checks += torsion_rows
+                deflection_rows = _beam_deflection_checks(
+                    element,
+                    section,
+                    joints_own,
+                    _turned(element, exact),
+                    framing,
+                    project,
+                    service,
+                    settings,
+                    slenderness_design.concrete_modulus(concrete),
+                    bars.steel.fy,
+                    notes,
+                )
+                if method_selection.uses("deflection", "spanDepthK"):
+                    # Alpha 9 C5b: the pack's span/depth ratios (limit_state_rows).
+                    deflection_rows = _pack_deflection(
+                        element, section, framing, deflection_rows, settings
+                    )
+                checks += deflection_rows
+                # Integrator glue (T3): deep spans and transfer girders by the strut-and-tie
+                # model (saengine.design.deep_beams, the default pack's BNBC 2020 Part 6 Sec 6.4.6), and the corbels
+                # under the beam's ends (saengine.design.corbels, Sec 6.4.7).
+                deep_rows, deep_notes = deep_beams.member_checks(
+                    element,
+                    object_type,
+                    section,
+                    own,
+                    combinations,
+                    _turned(element, exact),
+                    framing,
+                )
+                checks += corbel_design.member_checks(
+                    element,
+                    own,
+                    combinations,
+                    _turned(element, exact),
+                    concrete.concrete.fc,
+                    bars.steel.fy,
+                )
+                # B21: crack control, skin steel, flange tension steel and structural
+                # integrity (saengine.design.rc_detailing); a beam with a slab on one side
+                # only is a perimeter beam.
+                hf, sides = framing.slab_beside(element, section.width)
+                detail_rows = []
+                if not limit_rules:  # C8: the pack's crack width and side face rows instead
+                    detail_rows = rc_detailing.beam_checks(
+                        section,
+                        checks,
+                        perimeter=sides == 1,
+                        span=_longest_span(element, framing),
+                        flange=(hf, sides),
+                    )
+                if method_selection.uses("cracking", "directWidth") or method_selection.uses(
+                    "serviceStress", "stressLimits"
+                ):
+                    # Alpha 9 C5b: crack widths and stresses by the pack's methods take the
+                    # place of the bar-spacing crack control.
+                    detail_rows = [
+                        r for r in detail_rows if not r["name"].startswith("Crack control")
+                    ]
+                    detail_rows += _pack_service_rows(
+                        section,
+                        joints_own,
+                        service,
+                        _turned(element, exact),
+                        float(object_type.reinforcement.cover or 0.0),
+                    )
+                checks += detail_rows
+                if deep_rows and deep_beams.lever_rules() is None:
+                    # The strut-and-tie model governs (the lever arm method of alpha 9 C9b
+                    # keeps the sectional shear as the shear check).
+                    for row in checks:
+                        if row["name"] == "Shear" or row["name"].startswith("Minimum stirrups"):
+                            row["flag"] = True
+                            row["note"] += f"; {deep_beams.REFERENCE_NOTE}"
+                if deep_rows:
+                    checks += deep_rows
+                notes.extend(deep_notes)
+        else:
+            cached = column_sections.get(type_id)
+            if cached is None or cached[1] is None:
+                # (A section kept without its surface: one whose checks ran in another process.)
+                section = (
+                    cached[0]
+                    if cached is not None
+                    else section_of(
+                        object_type.profile,
+                        object_type.reinforcement,
+                        concrete.concrete.fc,
+                        bars.steel.fy,
+                        es,
+                        concrete.concrete.maxAggregate,
+                    )
+                )
+                column_sections[type_id] = (section, surface_of(section))
+            section, surface = column_sections[type_id]
+            out.base = (section, None)
+            # Slenderness from the joint forces (M1, M2 at the joints, conservative); the
+            # strength checks at the beam soffit and the top of the slab.
+            slender = context.column(
+                member_id,
+                section,
+                joints_own,
+                _turned(element, exact),
+                slenderness_design.concrete_modulus(concrete),
+            )
+            faced = face_forces.at_faces(
+                own,
+                project,
+                # Alpha 9 C20b: with the seismic grade's factors (unchanged without them).
+                face_rows=seismic_grades.face_rows(face_data, static_factors, own, member_id)
+                if static_factors
+                else None,
+                face_offsets=face_offsets,
+            )
+            own = faced.pieces
+            checks = _column_checks(
+                section, surface, own, combinations, _turned(element, exact), slender
+            )
+            if faced.at_faces:
+                face_forces.annotate(checks, faced)
+            # Integrator glue (0.0.45): the shear of every column from the analysis forces
+            # with the axial force's effect on Vc (saengine.design.column_shear).
+            points = _shear_points(own, combinations, _turned(element, exact))
+            if member_rules and strut_shear.rules() is not None:
+                # Alpha 9 C5: the pack's shear method (variable strut inclination).
+                checks += strut_shear.column_rows(
+                    section, object_type.reinforcement.transverse, points
+                )
+            elif tabulated_shear.rules() is not None:
+                # Alpha 9 C9b: τc with the axial force's δ (IS 456 40.2.2 type).
+                checks += tabulated_shear.column_rows(
+                    section, object_type.reinforcement.transverse, points
+                )
+            else:
+                checks += column_shear.column_shear_checks(
+                    section, object_type.reinforcement.transverse, points
+                )
+            # B21: shear friction across the construction joint at the floor.
+            joint = rc_detailing.column_joint_check(section, points, bars.steel.fy)
+            if joint is not None:
+                checks.append(joint)
+            out.faced = out.faced or faced.at_faces
+            if member_rules:  # Alpha 9 C5 (see above)
+                column_transverse = object_type.reinforcement.transverse
+                ned_max = float(points.pu.max()) if len(points.pu) else 0.0
+                checks += bar_rules.column_rows(section, ned_max, column_transverse)
+                if ductility:
+                    checks += curvature_ductility.column_rows(
+                        section, column_transverse, ned_max, ductility
+                    )
+                    if mu_phi is not None:  # Alpha 9 C5c
+                        checks += curvature_ductility.confinement_rows(
+                            section, column_transverse, ned_max, ductility, mu_phi
+                        )
+            if limit_rules:  # Alpha 9 C8 (see the beams)
+                checks += member_limits.column_rows(
+                    section,
+                    object_type.reinforcement.transverse,
+                    object_type.reinforcement.cover,
+                )
+            # Alpha 9 C20b: the seismic grade's μN, hoops and least steel (none without
+            # the pack's rule).
+            checks += seismic_grades.column_rows(
+                member_id,
+                section,
+                object_type.reinforcement.transverse,
+                object_type.reinforcement.cover,
+                own,
+                combinations,
+                _turned(element, exact),
+            )
+        # Alpha 9 C19: the pack's allowable stress design (allowableStress) and the member's
+        # rank for Ds (horizontalCapacity.memberRanks), from the per-case forces.
+        if allowable_stress.table() is not None or member_rank.tables() is not None:
+            kind_name = "beam" if isinstance(object_type, Beam) else "column"
+            checks += allowable_stress.rc_rows(
+                section, object_type, joints_own, service, _turned(element, exact),
+                kind_name, live_factor,
+            )  # fmt: skip
+            rank_row = member_rank.rc_row(
+                section, object_type, joints_own, service, _turned(element, exact), kind_name
+            )
+            if rank_row is not None:
+                checks.append(rank_row)
+        if live_row is not None:
+            checks.append(live_row)
+        if roof_row is not None:
+            checks.append(roof_row)
+        given = resolved_overwrites.get(member_id)
+        if given:
+            notes.extend(f"{member_id}: {note}" for note in given.notes())
+    except DesignError as error:
+        out.skip = str(error)
+        return out
+    out.section = section
+    out.capacities = capacities if isinstance(object_type, Beam) else None
+    out.own = own
+    out.checks = checks
+    out.points = slender.points if isinstance(object_type, Column) else None
+    out.torsion = torsion_found
+    entry = {
+        "id": member_id,
+        "kind": "beam" if isinstance(object_type, Beam) else "column",
+        "type": type_id,
+        "members": [p.id for p in own],
+        "checks": checks,
+    }
+    seismic_detailing.rate(entry)
+    out.entry = entry
+    return out
+
+
+def _design_timber(
+    todo: list[tuple[str, Any, Any, list[_Piece], bool]],
+    service: dict[str, Any],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+    project: dict[str, Any] | None = None,
+) -> bool:
+    """T45 integrator glue: the timber members of ``todo`` (``(id, object type, material,
+    pieces, turned)``) under the code pack's allowable stress combinations, formed from the
+    analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``); their
+    entries go to ``checked``, the members that cannot be checked to ``skipped``. True when a
+    member was checked. Alpha 9 C6: a pack whose timber method is ``partialFactors`` designs
+    them under its strength combinations formed the same way (each one's factors give kmod)."""
+    from saengine.design import timber as timber_design
+    from saengine.design.timber import limit_state as timber_limit_state
+
+    def skip(member_id: str, object_type: Any, reason: str) -> None:
+        skipped.append(
+            {"id": member_id, "kind": object_type.kind, "type": object_type.id, "reason": reason}
+        )
+
+    # Alpha 9 C3b: a pack's timber method in the LRFD format takes the strength combinations;
+    # alpha 9 C6: so does the limit state method (partial factors, kmod by each combination).
+    by_limit_state = timber_limit_state.active()
+    case_forces, names, factors, reason = _allowable_forces(
+        service,
+        notes,
+        "timber",
+        "strength" if by_limit_state else timber_design.combination_set(),
+    )
+    if reason:
+        for member_id, object_type, *_ in todo:
+            skip(member_id, object_type, f"timber not checked: {reason}")
+        return False
+    seen = False
+    for member_id, object_type, material, own, turned in todo:
+        if by_limit_state:
+            try:
+                entry = timber_limit_state.design_member(
+                    member_id, object_type.kind, object_type, material,
+                    timber_design.asd_pieces(own, case_forces, factors), names, factors, turned,
+                )  # fmt: skip
+            except timber_design.TimberDesignError as error:
+                skip(member_id, object_type, str(error))
+                continue
+            checked.append(entry)
+            seen = True
+            continue
+        try:
+            entry = timber_design.design_timber_member(
+                member_id,
+                object_type.kind,
+                object_type,
+                material,
+                timber_design.asd_pieces(own, case_forces, factors),
+                names,
+                factors,
+                turned,
+                *_timber_profiles(own, service, project),
+            )
+        except timber_design.TimberDesignError as error:
+            skip(member_id, object_type, str(error))
+            continue
+        checked.append(entry)
+        seen = True
+    return seen
+
+
+def _steel_asd(
+    object_type: Any,
+    settings: Any,
+    stability: Any,
+    service: dict[str, Any],
+    notes: list[str],
+    state: dict[str, Any],
+) -> tuple[dict[str, Any], list[str], list[dict[str, float]]] | None:
+    """Alpha 9 C3: ``(case forces, names, factors)`` of the allowable stress combinations when a
+    steel member of ``object_type`` is checked by ASD (the pack's ``steel.designMethod``, see
+    :func:`saengine.design.steel.basis.member_basis`), None for LRFD. ``state`` keeps the
+    run's answers and notes (each said once)."""
+    from saengine.design.steel import basis as steel_basis
+
+    if "chosen" not in state:
+        state["chosen"] = steel_basis.chosen()
+        note = steel_basis.basis_note()
+        if note:
+            notes.append(note)
+    if state["chosen"] != steel_basis.ASD:
+        return None
+    if "seismic" not in state:
+        from saengine.design.steel import seismic as steel_seismic
+        from saengine.design.steel import seismic_braced
+
+        state["seismic"] = bool(
+            steel_seismic.provisions(settings).applies
+            or seismic_braced.braced_provisions(settings).applies
+        )
+    basis, why = steel_basis.member_basis(
+        object_type, state["seismic"], bool(getattr(stability, "direct", False))
+    )
+    if basis != steel_basis.ASD:
+        said = state.setdefault("said", set())
+        if why not in said:
+            said.add(why)
+            notes.append(f"steel members: {why}")
+        return None
+    if "forces" not in state:
+        case_forces, names, factors, reason = _allowable_forces(service, notes, "steel (ASD)")
+        state["forces"] = None if reason else (case_forces, names, factors)
+        if reason:
+            notes.append(f"steel members: checked by LRFD ({reason})")
+    return state["forces"]
+
+
+def _steel_allowable(
+    entry: dict[str, Any],
+    object_type: Any,
+    material: Any,
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    element: Any,
+    exact: bool,
+) -> None:
+    """Alpha 9 C19: a steel member's allowable stress rows (the pack's ``allowableStress``)
+    and its width-thickness rank row added to its entry, its utilisation and result again."""
+    fy = float(getattr(getattr(material, "steel", None), "fy", 0.0) or 0.0)
+    if fy <= 0:
+        return
+    rows = allowable_stress.steel_rows(object_type, fy, pieces, service, _turned(element, exact))
+    rank = member_rank.steel_row(object_type, fy, object_type.kind)
+    if rank is not None:
+        rows.append(rank)
+    if not rows:
+        return
+    entry["checks"] = [*entry["checks"], *rows]
+    strength = [c for c in entry["checks"] if not c["flag"]]
+    entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
+    entry["ok"] = all(c["ok"] for c in strength)
+
+
+def _allowable_forces(
+    service: dict[str, Any], notes: list[str], what: str, category: str = "allowable"
+) -> tuple[dict[str, Any], list[str], list[dict[str, float]], str]:
+    """The analysis's per-case forces in ``service`` (:func:`_demands`' ``extra["service"]``)
+    and the code pack's allowable stress combinations formed from them, ``(case forces, names,
+    factors, "")``; the combinations whose wind or earthquake cases have no results are left out
+    (a note for ``what`` says so). With no combinations or forces the reason is the last item.
+    Alpha 9 C3b: ``category`` "strength" forms the strength combinations instead."""
+    from saengine.fem.combinations import allowable_combinations, strength_combinations
+
+    case_forces = {**(service.get("forces") or {}), **(service.get("lateralForces") or {})}
+    form = strength_combinations if category == "strength" else allowable_combinations
+    formed = form(set(case_forces) | {"SD", "L", "Lr"})
+    if not formed or not case_forces:
+        reason = (
+            (
+                "the code pack has no strength combinations"
+                if category == "strength"
+                else "the code pack has no allowable stress combinations"
+            )
+            if not formed
+            else "the load cases' forces were not found"
+        )
+        return case_forces, [], [], reason
+    usable = [
+        (name, f)
+        for name, f in formed
+        if all(c in case_forces or c in ("SD", "Lr", "L") for c, v in f.items() if v)
+    ]
+    left_out = len(formed) - len(usable)
+    if left_out:
+        notes.append(
+            f"{what}: {left_out} {'strength' if category == 'strength' else 'allowable stress'} "
+            "combinations left out (their wind or earthquake cases have no results)"
+        )
+    return case_forces, [n for n, _ in usable], [f for _, f in usable], ""
+
+
+def _b39_kind(object_type: Any, material: Any) -> str | None:
+    """B39: "bamboo" or "ferrocement" for a member designed by that module, else None."""
+    from saengine.design import bamboo, ferrocement
+
+    if isinstance(object_type, (Beam, Column, Brace)) and bamboo.is_bamboo(material):
+        return "bamboo"
+    if isinstance(object_type, (Beam, Column)) and ferrocement.is_ferrocement(material):
+        return "ferrocement"
+    return None
+
+
+def _design_b39(
+    todo: dict[str, list[tuple[str, Any, Any, list[_Piece], bool]]],
+    combinations: list[str],
+    service: dict[str, Any],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+) -> None:
+    """B39 glue: bamboo members under the allowable stress combinations, ferrocement members
+    under the strength combinations (their service stresses under the allowable ones). A pack
+    that does not cover a material leaves its members skipped."""
+    from saengine.design import bamboo, ferrocement
+
+    modules = {"bamboo": bamboo, "ferrocement": ferrocement}
+    for kind, items in todo.items():
+        module = modules[kind]
+        case_forces, names, factors, reason = _allowable_forces(service, notes, kind)
+        if not module.covered():
+            reason = "not covered by this code pack"
+        elif kind == "ferrocement" and combinations:
+            if reason:
+                notes.append(f"ferrocement: service load stresses not checked ({reason})")
+            module.design_members(
+                items, combinations, case_forces, names, factors, checked, skipped
+            )
+            continue
+        elif kind == "ferrocement":
+            reason = "no load combination could be formed"
+        elif not reason:
+            module.design_members(items, case_forces, names, factors, checked, skipped)
+            continue
+        uncovered = not module.covered()
+        for member_id, object_type, *_ in items:
+            skipped.append(
+                {
+                    "id": member_id,
+                    "kind": object_type.kind,
+                    "type": object_type.id,
+                    "reason": f"{kind} members are not covered by this code pack"
+                    if uncovered
+                    else f"{kind} not checked: {reason}",
+                    **({"status": NOT_COVERED} if uncovered else {}),
+                }
+            )
+
+
+def _timber_profiles(
+    pieces: list[_Piece], service: dict[str, Any], project: dict[str, Any] | None
+) -> tuple[dict[str, list[tuple[float, float]]] | None, float | None]:
+    """B6 glue: a timber member's nodes' downward deflections per service case ({case: [(s
+    [m], deflection [mm])]}, from ``service["displacements"]``) and the analysis's E [MPa] of
+    its section; (None, None) when not found."""
+    moved = service.get("displacements") or {}
+    if not project or "D" not in moved or not pieces:
+        return None, None
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    order: list[int] = []
+    for piece in pieces:
+        for node in nodes_of.get(piece.id) or []:
+            if node not in order:
+                order.append(node)
+    if len(order) < 2 or any(n not in coords for n in order):
+        return None, None
+    start = coords[order[0]]
+    order.sort(key=lambda n: float(np.linalg.norm(coords[n] - start)))
+    s = [float(np.linalg.norm(coords[n] - start)) for n in order]
+    profiles: dict[str, list[tuple[float, float]]] = {}
+    for case in SERVICE_CASES:
+        if case in moved:
+            values = moved[case]
+            profiles[case] = [
+                (x, -float(values.get(n, np.zeros(6))[2]) * 1e3) for x, n in zip(s, order)
+            ]
+    section_of = {e["id"]: e.get("section_id") for e in project.get("elements", [])}
+    sections = {x["id"]: x for x in project.get("sections", [])}
+    e = sections.get(section_of.get(pieces[0].id), {}).get("E")
+    return profiles, (float(e) / 1e6 if e else None)
+
+
+def _steel_deflection(
+    entry: dict[str, Any],
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    project: dict[str, Any] | None,
+    object_type: Any,
+) -> None:
+    """B9 glue: the deflection rows of a steel beam (:func:`saengine.design.steel.members.
+    deflection_checks`, the code pack's member deflection limits) added to its ``entry``, from
+    its nodes' displacements per unfactored case in ``service``; nothing when they are not
+    found or the pack has no limits."""
+    from saengine.design.steel.members import deflection_checks
+
+    moved = {**(service.get("displacements") or {}), **(service.get("windDisplacements") or {})}
+    if not project or "D" not in moved or not pieces:
+        return
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    order: list[int] = []
+    for piece in pieces:
+        for node in nodes_of.get(piece.id) or []:
+            if node not in order:
+                order.append(node)
+    if len(order) < 2 or any(n not in coords for n in order):
+        return
+    start = coords[order[0]]
+    order.sort(key=lambda n: float(np.linalg.norm(coords[n] - start)))
+    s = np.array([float(np.linalg.norm(coords[n] - start)) for n in order])
+    if s[-1] <= 0:
+        return
+    axis = (coords[order[-1]] - coords[order[0]]) / s[-1]
+    profiles = {
+        case: np.array([np.asarray(values.get(n, np.zeros(6)), dtype=float)[:3] for n in order])
+        for case, values in moved.items()
+    }
+    options = getattr(object_type, "serviceability", None)
+    from saengine.design.steel import composite  # B32: a composite beam's stiffness
+
+    profiles = composite.scale_profiles(entry, profiles)
+    # Alpha 9 L7: a joist's truss stiffness, a beam's web openings.
+    from saengine.design import steel_joists
+    from saengine.design.steel import web_openings
+
+    profiles = web_openings.scale_profiles(entry, steel_joists.scale_profiles(entry, profiles))
+    rows = deflection_checks(
+        s,
+        axis,
+        profiles,
+        getattr(options, "use", None),
+        getattr(options, "freeEnd", "none") or "none",
+    )
+    rows = composite.adjust_deflection_rows(entry, rows)
+    if not rows:
+        return
+    entry["checks"] += rows
+    strength = [c for c in entry["checks"] if not c["flag"]]
+    entry["utilisation"] = max((c["utilisation"] for c in strength), default=0.0)
+    entry["ok"] = all(c["ok"] for c in strength)
+
+
+def _special_member_lines(checked: list[dict[str, Any]]) -> list[str]:
+    """Alpha 9 L7: the method lines of the special members the report has (joists, web
+    openings, glass, membranes, concrete-filled plate walls)."""
+    lines: list[str] = []
+    if any("joist" in e for e in checked):
+        from saengine.design import steel_joists
+
+        lines += steel_joists.method_lines()
+    if any((e.get("webOpenings") or {}).get("covered") for e in checked):
+        from saengine.design.steel import web_openings
+
+        lines += web_openings.method_lines()
+    if any(e.get("kind") in ("glassPanel", "glassFin") for e in checked):
+        from saengine.design import glass
+
+        lines += glass.method_lines()
+    if any(e.get("kind") == "membrane" for e in checked):
+        from saengine.design import membranes
+
+        lines += membranes.method_lines()
+    if any(e.get("wallType") == "filledPlate" for e in checked):
+        from saengine.design import composite_plate_walls
+
+        lines += composite_plate_walls.method_lines()
+    return lines
+
+
+def _assemble(
+    settings: ProjectSettings,
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+    slabs_seen: set[str],
+    combinations: list[str],
+    scope: dict[str, Any] | None,
+    joints: list[dict[str, Any]],
+    frames_seen: bool,
+    columns_seen: bool,
+    faced_any: bool,
+    steel_seen: bool,
+    walls_found: dict[str, Any],
+    lintels_found: dict[str, Any],
+    stairs_found: dict[str, Any],
+    context: slenderness_design.SlenderContext,
+    slender_options: slenderness_design.SlenderOptions,
+    timber_seen: bool = False,
+    steel_stability: Any = None,
+) -> dict[str, Any]:
+    """The report of :func:`design` from its elements, notes and what it designed."""
+    from saengine.design import face_forces, seismic_detailing, wall_design
+    from saengine.design import lintels as lintel_design
+    from saengine.design import stairs as stair_design
+
+    # Footings moved to Part 9 (saengine.substructure): this report designs the superstructure.
+    notes.append(DESIGNED_IN_PART_9)
+    uncovered = not_covered_items(checked, skipped)
+    if uncovered:
+        # W4C-6 of usability walk 4: said at once, not only in the report's member tables.
+        notes.insert(0, not_covered_note(uncovered))
+    framed = [e["id"] for e in checked if (e.get("joist") or {}).get("frameAction")]
+    if framed:
+        # W4C-25 of usability walk 4: a joist on a moment-frame line failed with no hint.
+        notes.insert(
+            0,
+            f"open-web joists with end moments (frame action): {', '.join(framed[:6])}"
+            + (f" and {len(framed) - 6} more" if len(framed) > 6 else "")
+            + ": a joist is a simply supported truss; give its type a simple connection "
+            "(pinned ends) in 04 Objects or use a rolled beam on the frame lines",
+        )
+    failed = [e for e in checked if not e["ok"]]
+    governing = max(checked, key=lambda e: e["utilisation"], default=None)
+    # The members' own counts leave the diaphragms out (B10-22 of usability walk 3: "640 of 630
+    # members", the chords counted as members); design_counts tallies them apart.
+    members_checked = [e for e in checked if e.get("kind") != DIAPHRAGM_KIND]
+    members_failed = [e for e in members_checked if not e["ok"]]
+    code = code_basis(settings).concrete
+    method = [line.format(code=code, **method_refs()) for line in METHOD]
+    from saengine.design import torsion_interaction
+
+    if torsion_interaction.rules() is not None and not design_strength.partial_factors():
+        # Alpha 9 C18b: the pack's torsion method (AS 3600 8.3 type) in place of the tube's line.
+        method[3] = f"Beam {torsion_interaction.method_line()}; the slab is not counted in Jt."
+    if design_strength.partial_factors():
+        # Alpha 9 C5: the pack's partial-factor method replaces the basis, flexure, beam and
+        # column lines; the torsion and deflection lines stay (the parent pack's methods).
+        lines = design_strength.method_lines(code)
+        if tabulated_shear.rules() is not None:
+            # C8: the tabulated methods' lines replace the basis to the columns (six lines).
+            method = lines + method[6:]
+        else:
+            # Alpha 9 C5b: the parent's torsion and deflection lines only where the pack has no
+            # method of its own (those are in limit_state_rows.method_lines, within ``lines``).
+            parent = [
+                line
+                for line, (area, own) in zip(
+                    method[3:5],
+                    (("torsion", "thinWalledVariableStrut"), ("deflection", "spanDepthK")),
+                    strict=True,
+                )
+                if not method_selection.uses(area, own)
+            ]
+            method = lines[:3] + parent + lines[3:]
+    if columns_seen and not method_selection.uses("slenderness", "nominalCurvature"):
+        method += slenderness_design.method(slender_options, context.model.lateral_cracked)
+    if faced_any:
+        method += face_forces.METHOD
+    elif frames_seen:
+        notes.append(face_forces.JOINT_NOTE)
+    if steel_seen:
+        from saengine.design.steel.stability import method_lines
+
+        method += steel_design.METHOD + method_lines(steel_stability)
+        if ((scope or {}).get("steelLimitStateSeismic") or {}).get("applies"):  # C9
+            from saengine.design.steel import limit_state as steel_limit_state
+
+            method += steel_limit_state.seismic_method_lines()
+        if ((scope or {}).get("steelSeismic") or {}).get("applies"):  # B35
+            from saengine.design.steel import seismic as steel_seismic
+
+            method += steel_seismic.method_lines()
+        braced_found = (scope or {}).get("steelBraced") or {}
+        from saengine.design.steel import seismic_braced, seismic_composite  # B38
+
+        if braced_found.get("applies"):
+            method += seismic_braced.method_lines(braced_found)
+        if braced_found.get("composite"):
+            method += seismic_composite.method_lines()
+        if ((scope or {}).get("steelDissipative") or {}).get("applies"):  # alpha 9 C6
+            from saengine.design.steel import seismic_dissipative
+
+            method += seismic_dissipative.method_lines()
+    if walls_found.get("plateWalls"):  # B38
+        from saengine.design.steel import seismic_walls
+
+        method += seismic_walls.method_lines()
+    if any("aluminium" in e for e in checked):  # alpha 9 C6: the entries carry the block
+        from saengine.design import aluminium as aluminium_design
+
+        method += aluminium_design.method_lines()
+    method += _special_member_lines(checked)  # alpha 9 L7
+    if timber_seen:
+        from saengine.design import timber as timber_design
+        from saengine.design.timber import limit_state as timber_limit_state
+
+        # Alpha 9 C6: the pack's limit state timber method names its own basis.
+        method += (
+            timber_limit_state.method_lines()
+            if timber_limit_state.active()
+            else timber_design.method()
+        )
+    for key in ("bamboo", "ferrocement"):  # B39: the entries carry their material's block
+        if any(key in e for e in checked):
+            from importlib import import_module
+
+            method += import_module(f"saengine.design.{key}").method()
+    if "shells" in slabs_seen:
+        method += slab.METHOD
+    if any("compositeSlab" in e for e in checked):  # alpha 9 P8: slabs on steel deck
+        from saengine.design import composite_slab
+
+        method += composite_slab.METHOD
+    if "coefficients" in slabs_seen:
+        method.append(slab.COEFFICIENT_METHOD)
+        # B33: slab systems designed by the pack's frame methods.
+        used = {e.get("method") for e in checked if e.get("kind") == "slab"}
+        if used & {"directDesign", "equivalentFrame"}:
+            from saengine.design import slab_frames
+
+            method += slab_frames.method_text(used)
+    if walls_found["designed"]:
+        method += wall_design.METHOD
+    if walls_found.get("masonry"):
+        from saengine.design import masonry as masonry_design
+
+        method += masonry_design.method_text(walls_found.get("masonryMethods"))
+    if lintels_found["elements"]:
+        method += lintel_design.METHOD
+    if slabs_seen and any(
+        c["name"].startswith("Punching at") and c.get("shearReinforcement")
+        for e in checked
+        for c in e.get("checks", [])
+    ):
+        from saengine.design.punching import PUNCHING_METHOD
+
+        method += PUNCHING_METHOD
+    if stairs_found["elements"] or stairs_found["skipped"]:
+        method += stair_design.METHOD
+    if scope is not None and scope.get("detailingLevel"):
+        from saengine.design import ductile_detailing
+
+        if method_selection.uses("seismic", "curvatureDuctility"):
+            pass  # Alpha 9 C5b: its lines are the pack's (design_strength.method_lines)
+        elif ductile_detailing.rules() is not None:  # C8: the pack's ductile detailing
+            method += ductile_detailing.method_lines()
+        else:
+            method += seismic_detailing.METHOD
+    failed_joints = [j for j in joints if not j["ok"]]
+    # The building's own seismic checks (the system permitted in the category, its height,
+    # the bar grades: seismic_rules), each one check of the totals.
+    seismic_checks = [c for c in (scope or {}).get("checks", []) if not c["flag"]]
+    failed_seismic = [c for c in seismic_checks if not c["ok"]]
+    not_permitted = [c for c in failed_seismic if c["name"].startswith("System permitted")]
+    if not_permitted:
+        # First in the notes: the design is not valid under a system the category forbids,
+        # whatever the members show (P1 of the usability walk).
+        notes.insert(
+            0,
+            f"{not_permitted[0]['note']}. Change the seismic system in 2 Project Settings "
+            "(a special moment frame in Category D): R, Ω0, Cd and the member detailing then "
+            "follow it.",
+        )
+    return {
+        "code": code,
+        "method": method,
+        "combinations": combinations,
+        "elements": checked,
+        "skipped": skipped,
+        "seismic": scope,
+        "joints": joints,
+        # The totals count the beam-column joints and the building's seismic checks too (X4 of
+        # the usability walk: "17 pass, 1 fail" while every joint failed); "elements" keeps the
+        # members' own counts.
+        "summary": {
+            "checked": len(checked) + len(joints) + len(seismic_checks),
+            "passed": len(checked)
+            - len(failed)
+            + len(joints)
+            - len(failed_joints)
+            + len(seismic_checks)
+            - len(failed_seismic),
+            "failed": len(failed) + len(failed_joints) + len(failed_seismic),
+            "elements": {
+                "checked": len(members_checked),
+                "passed": len(members_checked) - len(members_failed),
+                "failed": len(members_failed),
+            },
+            "skipped": len(skipped),
+            # The object types not checked for want of bars (an imported model's): Design
+            # Reinforcement proposes bars for them (X29 of the usability walk).
+            "noBars": sorted({s["type"] for s in skipped if s.get("reason") == NO_REINFORCEMENT}),
+            # W4C-6: what the code pack does not cover (members skipped, parts not checked).
+            "notCovered": not_covered_items(checked, skipped),
+            "maxUtilisation": governing["utilisation"] if governing else None,
+            "governing": governing["id"] if governing else None,
+            # The check that sets it: a strength check, unless a detailing check fails (rate).
+            "governingCheck": governing.get("governingCheck") if governing else None,
+            "joints": {"checked": len(joints), "failed": len(failed_joints)},
+            "seismicChecks": len(seismic_checks),
+            "seismicChecksFailed": len(failed_seismic),
+            "counts": design_counts(checked, skipped, joints, seismic_checks),
+        },
+        "notes": notes,
+        "stability": slenderness_design.storey_rows(
+            context.storeys, combinations, slender_options.sway_magnifier
+        ),
+    }
+
+
+def design_counts(
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    joints: list[dict[str, Any]],
+    building: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The one count of a design run every surface shows (N-X8 of usability walk 2: the
+    proposal, the FEM view, Run All and the report each counted differently). Members, joints
+    and the building's own checks are counted apart, never added together::
+
+        {"members": {"total", "checked", "passed", "failed", "notChecked",
+                     "byKind": {kind: {"total", "checked", "passed", "failed", "notChecked"}}},
+         "joints": {"checked", "passed", "failed"},
+         "diaphragms": {"checked", "passed", "failed"},
+         "building": {"checked", "passed", "failed"},
+         "notChecked": {"noBars", "other"}}
+
+    ``kind``: "beam", "column", "slab", "wall", "staircase", the steel kinds; a member is one
+    designed element (a beam or column member, a slab panel, a wall, a staircase), whatever its
+    analysis elements; ``notChecked`` the skipped ones (``noBars``: for want of bars, which
+    Design Reinforcement proposes; ``other``: any other reason, in the skipped list)."""
+
+    def tally(items: list[dict[str, Any]]) -> dict[str, int]:
+        failed = sum(1 for i in items if not i["ok"])
+        return {"checked": len(items), "passed": len(items) - failed, "failed": failed}
+
+    # The diaphragms (their chords and collectors) are counted apart from the members.
+    diaphragms = [e for e in checked if e.get("kind") == DIAPHRAGM_KIND]
+    checked = [e for e in checked if e.get("kind") != DIAPHRAGM_KIND]
+    by_kind: dict[str, dict[str, int]] = {}
+    for element in checked:
+        row = by_kind.setdefault(
+            element["kind"], {"total": 0, "checked": 0, "passed": 0, "failed": 0, "notChecked": 0}
+        )
+        row["total"] += 1
+        row["checked"] += 1
+        row["passed" if element["ok"] else "failed"] += 1
+    for element in skipped:
+        row = by_kind.setdefault(
+            element["kind"], {"total": 0, "checked": 0, "passed": 0, "failed": 0, "notChecked": 0}
+        )
+        row["total"] += 1
+        row["notChecked"] += 1
+    members = tally(checked)
+    no_bars = sum(1 for s in skipped if s.get("reason") == NO_REINFORCEMENT)
+    not_covered = sum(1 for s in skipped if is_not_covered(s))
+    return {
+        "members": {
+            "total": len(checked) + len(skipped),
+            **members,
+            "notChecked": len(skipped),
+            "byKind": by_kind,
+        },
+        "joints": tally(joints),
+        "diaphragms": tally(diaphragms),
+        "building": tally(building),
+        "notChecked": {
+            "noBars": no_bars,
+            "notCovered": not_covered,
+            "other": len(skipped) - no_bars - not_covered,
+        },
+    }
+
+
+def _face_forces_file(out_dir: str | Path) -> dict[str, Any] | None:
+    """The results' face forces (``face-forces.json``, :mod:`saengine.fem.end_zones`), written
+    from the model's ``faces.json`` and the results when missing or older than the results;
+    None when the model has no support face offsets."""
+    from saengine.design.face_forces import read_face_forces
+    from saengine.fem import end_zones
+
+    out = Path(out_dir)
+    model_path = out.with_suffix(".osmodel")
+    faces = model_path.parent / end_zones.FACES_FILE
+    manifest = out / "manifest.json"
+    if not faces.is_file() or not manifest.is_file():
+        return None
+    target = out / end_zones.FACE_FORCES_FILE
+    # The temperature case's fixed-end forces (beside the model) are part of the face forces.
+    from saengine.fem.thermal import SIDE_FILE
+
+    thermal = model_path.with_name(SIDE_FILE)
+    try:
+        sources = [manifest, faces, *([thermal] if thermal.is_file() else [])]
+        fresh = target.is_file() and target.stat().st_mtime >= max(
+            p.stat().st_mtime for p in sources
+        )
+        if not fresh:
+            end_zones.write_face_forces(model_path, out)
+    except (OSError, ValueError, KeyError) as error:
+        _SEISMIC_PROBLEMS.setdefault(f"faces:{out}", str(error))
+        return None
+    return read_face_forces(out)
+
+
+def _with_mep_openings(building: BuildingModel, root: Path) -> BuildingModel:
+    """The building with the openings 07 MEP cut into the analysis model (as
+    :func:`saengine.fem.derive.derive_fem` derived it), for the walls' piers."""
+    path = root / "07 MEP" / "mep.json"
+    if not path.is_file():
+        return building
+    try:
+        from saengine.library.mep import MepModel
+        from saengine.mep.loads import with_mep_openings
+
+        mep = MepModel.model_validate_json(path.read_text(encoding="utf-8"))
+        return with_mep_openings(building, mep)[0]
+    except (OSError, ValueError):
+        return building
+
+
+def _default_rebar_id(
+    objects: ObjectLibrary, materials: MaterialLibrary, without: set[str] | None = None
+) -> str | None:
+    """The reinforcement material the object types use most (for stairs without bars), the
+    types ``without`` left out; else the project's (``MaterialLibrary.default_rebar``)."""
+    counts: dict[str, int] = {}
+    for o in objects.objects:
+        if without and o.id in without:
+            continue
+        reinforcement = getattr(o, "reinforcement", None)
+        if reinforcement is not None:
+            counts[reinforcement.material] = counts.get(reinforcement.material, 0) + 1
+    if counts:
+        return max(counts, key=lambda m: counts[m])
+    return default_of(materials, Category.REBAR)
+
+
+# ─────────────────────────────────────── slabs ───────────────────────────────────────
+
+#: Why a slab of a type without bars is not checked (also the members': ``summary.noBars``).
+NO_REINFORCEMENT = "no reinforcement"
+#: The status of a member (or a part of one, e.g. a beam's web openings) the code pack in force
+#: does not cover (W4C-6 of usability walk 4): not a failure, not "no reinforcement"; a skipped
+#: entry carries it as ``"status"``, a checked one lists the parts under ``"notCovered"``.
+NOT_COVERED = "notCovered"
+
+
+def slab_carried_beams(building: Any, types: dict[str, Any]) -> set[str]:
+    """The ids of the beams of the building model a floor slab rests on (W4C-10 of usability
+    walk 4): a slab (or a slab-type area) whose top is at the beam's top and whose outline the
+    beam runs along or under. The slab, attached to the top flange, braces it continuously
+    (:attr:`saengine.design.steel.lengths.LengthOptions.slab_on_top`)."""
+    from shapely.geometry import LineString, Polygon
+
+    if building is None:
+        return set()
+    slabs: dict[float, list[Any]] = {}
+    for e in getattr(building, "elements", []):
+        try:
+            if isinstance(e, SlabElement):
+                outline = [(float(x), float(y)) for x, y in e.boundary]
+                level = float(e.elevation)
+            elif isinstance(e, AreaElement) and isinstance(types.get(e.type), Slab):
+                outline = [(float(p[0]), float(p[1])) for p in e.outline]
+                level = sum(float(p[2]) for p in e.outline) / len(e.outline)
+            else:
+                continue
+            polygon = Polygon(outline)
+        except (TypeError, ValueError, ZeroDivisionError):
+            continue
+        if polygon.is_valid and polygon.area > 0:
+            slabs.setdefault(round(level), []).append(polygon.buffer(50.0))
+    found: set[str] = set()
+    if not slabs:
+        return found
+    for e in getattr(building, "elements", []):
+        if not isinstance(e, BeamElement):
+            continue
+        try:
+            line = LineString([tuple(map(float, e.start[:2])), tuple(map(float, e.end[:2]))])
+            level = round(float(e.elevation))
+        except (TypeError, ValueError):
+            continue
+        if line.length <= 0:
+            continue
+        for polygon in slabs.get(level, []):
+            if polygon.intersection(line).length >= 0.9 * line.length:
+                found.add(e.id)
+                break
+    return found
+
+
+def is_not_covered(item: dict[str, Any]) -> bool:
+    """Whether a skipped entry was left out because the code pack does not cover it."""
+    return item.get("status") == NOT_COVERED or "not covered by" in str(item.get("reason", ""))
+
+
+def not_covered_items(
+    checked: list[dict[str, Any]], skipped: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """What the code pack does not cover, one item per member: ``{"id", "kind", "type",
+    "what"}`` (``what`` the reason, or the parts of a checked member not checked)."""
+    found = [
+        {"id": s.get("id"), "kind": s.get("kind"), "type": s.get("type"), "what": s.get("reason")}
+        for s in skipped
+        if is_not_covered(s)
+    ]
+    found += [
+        {"id": e.get("id"), "kind": e.get("kind"), "type": e.get("type"), "what": what}
+        for e in checked
+        for what in e.get(NOT_COVERED) or []
+    ]
+    return found
+
+
+def not_covered_text(items: list[dict[str, Any]], limit: int = 4) -> str:
+    """ "web openings (B1, B2), structural glass (GW1)": what is not covered and where."""
+    by_what: dict[str, list[str]] = {}
+    for item in items:
+        what = str(item.get("what") or "").split(":")[0]
+        for cut in (" are not covered", " is not covered", " not covered"):
+            what = what.split(cut)[0]
+        by_what.setdefault(what.strip() or "members", []).append(str(item.get("id")))
+    parts = []
+    for what, ids in by_what.items():
+        shown = ", ".join(ids[:limit]) + (
+            f" and {len(ids) - limit} more" if len(ids) > limit else ""
+        )
+        parts.append(f"{what} ({shown})")
+    return "; ".join(parts)
+
+
+def not_covered_note(items: list[dict[str, Any]]) -> str:
+    """The design report's note on what the code pack in force does not cover."""
+    from saengine.codes import context as code_context
+
+    try:
+        name = code_context.code_name()
+    except Exception:  # noqa: BLE001 - no pack machinery
+        name = "in force"
+    return (
+        f"Not covered by the code pack {name}, so not checked (neither passed nor failed): "
+        f"{not_covered_text(items)}. Choose a code pack that covers them in 02 Project "
+        "Settings, or check them by hand."
+    )
+
+
+#: The kind of a floor diaphragm's entry (its chords and collectors): checked, not a member.
+DIAPHRAGM_KIND = "diaphragm"
+#: The note of a slab without bars that is not analysed as shells.
+SLAB_NOT_DESIGNED = "{}: slab not designed (no reinforcement, not analysed as shells)"
+
+
+@dataclass
+class _Plain:
+    """The elements and notes of :func:`design`'s report without the assumed bars of the slab
+    types ``assumed``, kept beside the design's own (:func:`_design_slabs`)."""
+
+    assumed: set[str]
+    checked: list[dict[str, Any]]
+    skipped: list[dict[str, Any]]
+    notes: list[str]
+    #: :func:`_design_slabs`' answer for these slabs.
+    seen: set[str] = field(default_factory=set)
+
+    def take(
+        self, start: tuple[int, int, int], checked: list[Any], skipped: list[Any], notes: list[Any]
+    ) -> None:
+        """What the design added since ``start`` (its lengths), the same here."""
+        self.checked += checked[start[0] :]
+        self.skipped += skipped[start[1] :]
+        self.notes += notes[start[2] :]
+
+    def without_bars(self, slab_id: str, type_id: str, analysed: bool, concrete: Any) -> None:
+        """What :func:`_design_slabs` adds for a slab of an assumed type without its bars."""
+        if not analysed:
+            self.notes.append(SLAB_NOT_DESIGNED.format(slab_id))
+            return
+        reason = (
+            "not a concrete slab"
+            if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete
+            else NO_REINFORCEMENT
+        )
+        self.skipped.append({"id": slab_id, "kind": "slab", "type": type_id, "reason": reason})
+
+
+def _design_slabs(
+    project: dict[str, Any],
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    pieces: dict[str, list[_Piece]],
+    shell_forces: dict[int, list[np.ndarray]],
+    combinations: list[str],
+    checked: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    notes: list[str],
+    collect: list[dict[str, Any]] | None = None,
+    settings: ProjectSettings | None = None,
+    plain: _Plain | None = None,
+) -> set[str]:
+    """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
+    ``checked`` or ``skipped`` (and what they were checked from to ``collect``, see
+    :func:`design`). True when the building has slabs. Slabs not analysed as shells (slabs as
+    loads to beams) are designed by the default pack's (BNBC) coefficient methods from their own loads (with
+    ``settings``: its area loads and combinations; :func:`saengine.design.slab.
+    coefficient_design`). ``plain``: given, filled the same, the slabs of its assumed types
+    as without their bars."""
+    from saengine.library.sections import section_properties
+
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    shells_of: dict[str, list[dict[str, Any]]] = {}
+    for e in project.get("elements", []):
+        if e.get("type") == "Shell":
+            shells_of.setdefault((e.get("name") or str(e["id"])).split("#")[0], []).append(e)
+
+    # (id, type id, plan outline mm, slab axes or None, level mm)
+    candidates: list[tuple[str, str, list[tuple[float, float]], Any, float]] = []
+    for element in building.elements:
+        if isinstance(element, SlabElement):
+            outline = [(float(x), float(y)) for x, y in element.boundary]
+            candidates.append(
+                (element.id, element.type, outline, slab.plan_axes(), element.elevation)
+            )
+        elif isinstance(element, AreaElement) and isinstance(types.get(element.type), Slab):
+            outline = [(float(p[0]), float(p[1])) for p in element.outline]
+            level = sum(float(p[2]) for p in element.outline) / len(element.outline)
+            candidates.append(
+                (element.id, element.type, outline, slab.outline_axes(element.outline), level)
+            )
+    if not candidates:
+        return set()
+
+    beams_at: dict[float, list[slab.EdgeBeam]] = {}
+    for element in building.elements:
+        if not isinstance(element, BeamElement):
+            continue
+        beam_type = types.get(element.type)
+        material = mats.get(beam_type.material) if beam_type else None
+        profile = getattr(beam_type, "profile", None)
+        if profile is None or material is None or not material.mechanical.E:
+            continue
+        try:
+            ixx = section_properties(profile).ixx
+        except (ValueError, TypeError, AttributeError, ArithmeticError):
+            continue
+        beams_at.setdefault(round(element.elevation), []).append(
+            slab.EdgeBeam(
+                tuple(element.start),
+                tuple(element.end),
+                material.mechanical.E * ixx,
+                float(getattr(profile, "xDim", 0.0) or 0.0),
+                float(getattr(profile, "yDim", 0.0) or 0.0),
+            )
+        )
+
+    supports_at = _line_supports(building, types, [c[4] for c in candidates])
+    elements_by_id = {e.id: e for e in building.elements}
+    stories = [float(s.elevation) for s in building.stories]
+    top_level = max(stories) if stories else math.inf
+    coefficient_seen = shells_seen = False
+    # Where the slab before began adding to the lists, for ``plain``.
+    start: tuple[int, int, int] | None = None
+
+    for slab_id, type_id, outline, axes, level in candidates:
+        object_type = types.get(type_id)
+
+        def skip(reason: str, slab_id: str = slab_id, type_id: str = type_id) -> None:
+            skipped.append({"id": slab_id, "kind": "slab", "type": type_id, "reason": reason})
+
+        own = shells_of.get(slab_id, [])
+        if plain is not None:
+            if start is not None:
+                plain.take(start, checked, skipped, notes)
+            start = None
+            if type_id in plain.assumed:
+                plain.without_bars(slab_id, type_id, bool(own), mats.get(object_type.material))
+            else:
+                start = (len(checked), len(skipped), len(notes))
+        if not isinstance(object_type, Slab):
+            skip(f"unknown slab type '{type_id}'")
+            continue
+        if not own and object_type.reinforcement is None:
+            notes.append(SLAB_NOT_DESIGNED.format(slab_id))
+            continue
+        if not own and settings is None:
+            skip("not analysed as shells: set the analysis's slabs to shells to design it")
+            continue
+        concrete = mats.get(object_type.material)
+        if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
+            skip("not a concrete slab")
+            continue
+        reinforcement = object_type.reinforcement
+        if reinforcement is None:
+            skip(NO_REINFORCEMENT)
+            continue
+        if axes is None:
+            skip("not a horizontal slab (inclined areas are not designed yet)")
+            continue
+        if not combinations:
+            skip("no load combination could be formed")
+            continue
+        bars = mats.get(reinforcement.material)
+        if bars is None or bars.steel is None:
+            skip(f"unknown reinforcement material '{reinforcement.material}'")
+            continue
+        fc, fy = concrete.concrete.fc, bars.steel.fy
+        es = bars.mechanical.E or 200_000.0
+
+        if not own and any(t.host == slab_id for t in building.additions.slabTendons):
+            notes.append(
+                f"{slab_id}: its tendons are designed with the slabs analysed as shells (set "
+                "the analysis's slabs to shells)"
+            )
+        if not own and settings is not None:
+            # Integrator glue (0.0.45): a slab on beams (not in the analysis model) designed by
+            # the coefficient methods from its own loads (saengine.design.slab).
+            found = _coefficient_slab(
+                slab_id,
+                type_id,
+                object_type,
+                elements_by_id.get(slab_id),
+                outline,
+                axes,
+                level,
+                top_level,
+                concrete,
+                fc,
+                fy,
+                es,
+                settings,
+                supports_at.get(round(level), []),
+                [
+                    other
+                    for other_id, _, other, _, other_level in candidates
+                    if other_id != slab_id and abs(other_level - level) <= 1
+                ],
+                beams_at.get(round(level), []),
+                notes,
+                lambda s=slab_id, o=outline, lv=level: _frame_inputs(
+                    building, types, mats, s, o, lv
+                ),
+            )
+            if isinstance(found, str):
+                skip(found)
+                continue
+            entry, collected = found
+            # Alpha 9 P8: a composite slab on steel deck (saengine.design.composite_slab).
+            _composite_deck(
+                entry, object_type, elements_by_id.get(slab_id), outline, axes, level,
+                top_level, concrete, settings, notes,
+            )  # fmt: skip
+            checked.append(entry)
+            if collect is not None:
+                collect.append(collected)
+            coefficient_seen = True
+            if plain is not None and type_id not in plain.assumed:
+                plain.seen.add("coefficients")
+            continue
+
+        shells_seen = True
+        if plain is not None and type_id not in plain.assumed:
+            plain.seen.add("shells")
+        shells: list[slab.ShellPoint] = []
+        for e in own:
+            points = [coords[n] for n in e["nodes"]]
+            rows = shell_forces.get(e["id"])
+            if not rows:
+                continue
+            shell_axes = slab.shell_axes(points)
+            shells.append(
+                slab.ShellPoint(
+                    id=e["id"],
+                    name=e.get("name") or str(e["id"]),
+                    points=slab.integration_points(points, len(rows[0])),
+                    forces=[slab.slab_forces(r, shell_axes, axes) for r in rows],
+                    areas=slab.integration_areas(points, len(rows[0])),
+                )
+            )
+
+        context = slab.SlabContext(
+            boundary=outline, axes=axes, supports=supports_at.get(round(level), [])
+        )
+        # Integrator glue: the type's punching studs or stirrups (saengine.design.punching).
+        context.punching = getattr(object_type, "punchingReinforcement", None)
+        flat = object_type.system == "flat"
+        context.columns = _slab_columns(
+            building, types, pieces, outline, level, notes if flat else []
+        )
+        # Ribs, drop panels and capitals (saengine.design.slab_systems); drop panels and
+        # capitals only round the columns of a flat slab.
+        ribs = getattr(object_type, "ribs", None)
+        context.ribs = slab_systems.rib_section(object_type.thickness, ribs) if ribs else None
+        context.drop = getattr(object_type, "dropPanel", None) if flat else None
+        context.capital = getattr(object_type, "capital", None) if flat else None
+        drop_counts = False
+        if context.drop is not None and context.columns:
+            frame = slab.PlanFrame(axes)
+            plan = [frame.local(c.centre) for c in context.columns]
+            spans = (slab._grid_span(plan, 0), slab._grid_span(plan, 1))
+            drop_counts, problems = slab_systems.drop_qualifies(
+                object_type.thickness, context.drop, spans
+            )
+            if problems:
+                notes.append(
+                    f"{slab_id}: the drop panel does not count as one for the minimum "
+                    f"thickness (ACI 318-19 8.2.4): {'; '.join(problems)}"
+                )
+        neighbours = [
+            other
+            for other_id, _, other, _, other_level in candidates
+            if other_id != slab_id and abs(other_level - level) <= 1
+        ]
+        try:
+            context.thickness = slab.minimum_thickness(
+                outline,
+                axes,
+                object_type.system,
+                slab_systems.design_depth(object_type),
+                fy,
+                slenderness_design.concrete_modulus(concrete),
+                neighbours,
+                beams_at.get(round(level), []),
+                column_size=(
+                    sum(
+                        max(slab_systems.support_size(c.c1, c.c2, context.capital))
+                        for c in context.columns
+                    )
+                    / len(context.columns)
+                    if context.columns
+                    else 0.0
+                ),
+                columns=[c.centre for c in context.columns] if flat else (),
+                drop=drop_counts,
+                ribbed=context.ribs is not None and object_type.system == "oneWay",
+            )
+        except (ValueError, ZeroDivisionError) as error:
+            notes.append(f"{slab_id}: minimum thickness not checked: {error}")
+        # Post-tensioning tendons in the slab (saengine.design.prestress).
+        tendons = [t for t in building.additions.slabTendons if t.host == slab_id]
+        designs: list[tuple[Any, str, Any]] = []
+        integrity: list[dict[str, Any]] = []
+        if tendons:
+            designs = _tendon_designs(
+                slab_id,
+                tendons,
+                elements_by_id.get(slab_id),
+                object_type,
+                concrete,
+                fc,
+                fy,
+                settings,
+                outline,
+                axes,
+                level >= top_level - 1.0,
+                notes,
+            )
+            context.precompression = _precompression(designs, object_type.thickness, outline, axes)
+            # B30: structural integrity tendons at the columns (saengine.design.prestress).
+            from saengine.design import prestress
+
+            integrity, integrity_notes = prestress.integrity_checks(
+                [(t, direction) for t, direction, _ in designs],
+                context.columns,
+                axes.x,
+                fc,
+                fy,
+                slab.layers_of(object_type.reinforcement, float(object_type.thickness)),
+                object_type.system != "oneWay",
+            )
+            notes += [f"{slab_id}: {note}" for note in integrity_notes]
+        try:
+            checks = slab.slab_checks(
+                object_type.system,
+                object_type.thickness,
+                reinforcement,
+                fc,
+                fy,
+                es,
+                shells,
+                combinations,
+                context,
+            )
+        except ValueError as error:
+            skip(str(error))
+            continue
+        if designs:
+            stressed = {direction for _, direction, _ in designs}
+            for check in checks:
+                # The analysis has no prestress: along the tendons the PT checks design the
+                # flexure, the slab's own (reinforced) checks are reported only.
+                name = check["name"]
+                if name.startswith("Flexure") and name.split("(")[0].split()[2] in stressed:
+                    check["flag"] = True
+                    check["note"] += "; along the tendons: designed by the PT checks"
+            for tendon, _, design in designs:
+                checks += design.checks
+                notes += [f"{slab_id}: {note}" for note in design.notes]
+            checks += integrity
+        strength = [c for c in checks if not c["flag"]]
+        if collect is not None:
+            collect.append(
+                {
+                    "id": slab_id,
+                    "type": type_id,
+                    "object": object_type,
+                    "context": context,
+                    "fc": fc,
+                    "fy": fy,
+                    "es": es,
+                    "checks": checks,
+                }
+            )
+        slab_entry = {
+            "id": slab_id,
+            "kind": "slab",
+            "type": type_id,
+            "members": [e["id"] for e in own],
+            "checks": checks,
+            "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+            "ok": all(c["ok"] for c in strength),
+            "strips": [_strip_outline(strip, axes) for strip in context.strips],
+            # The rebar contours: per analysis shell id, the steel [mm²/m] each layer
+            # needs (bottomX, bottomY, topX, topY), strength only.
+            "rebar": {str(k): v for k, v in context.contours.items()},
+        }
+        # Alpha 9 P8: a composite slab on steel deck (saengine.design.composite_slab).
+        _composite_deck(
+            slab_entry, object_type, elements_by_id.get(slab_id), outline, axes, level,
+            top_level, concrete, settings, notes,
+        )  # fmt: skip
+        checked.append(slab_entry)
+        notes += [f"{slab_id}: {note}" for note in context.notes]
+    if plain is not None and start is not None:
+        plain.take(start, checked, skipped, notes)
+    return ({"shells"} if shells_seen else set()) | (
+        {"coefficients"} if coefficient_seen else set()
+    )
+
+
+def _coefficient_slab(
+    slab_id: str,
+    type_id: str,
+    object_type: Slab,
+    element: Any,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    level: float,
+    top_level: float,
+    concrete: Any,
+    fc: float,
+    fy: float,
+    es: float,
+    settings: ProjectSettings,
+    supports: list[slab.LineSupport],
+    neighbours: list[list[tuple[float, float]]],
+    beams: list[slab.EdgeBeam],
+    notes: list[str],
+    frame_inputs: Any = None,
+) -> tuple[dict[str, Any], dict[str, Any]] | str:
+    """A slab on beams by the coefficient methods (:func:`saengine.design.slab.
+    coefficient_design`): (its checked entry, what it was checked from) or the reason it is
+    not designed. Its loads as the analysis model's (saengine.fem.derive): self-weight (times
+    the weight modifier), finishes of its area load, its live load (the roof's live load on the
+    top level), the partition allowance in the dead or live load as the code pack says."""
+    from saengine.library.modifiers import resolve_modifiers
+
+    if axes is None:
+        return "not a horizontal slab (inclined areas are not designed yet)"
+    if getattr(object_type, "ribs", None) is not None:
+        return (
+            "ribbed and waffle slabs are designed from the shells: set the analysis's slabs "
+            "to shells (the coefficient methods are for solid slabs)"
+        )
+    roof = level >= top_level - 1.0
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    density = concrete.mechanical.density or 0.0
+    weight = resolve_modifiers(element, object_type).get("weight", (1.0, ""))[0]
+    self_weight = density * 9.80665 * object_type.thickness * 1e-3 / 1e3 * weight  # kN/m²
+    case = partition_case(settings)
+    dead = self_weight + (area_load.superimposed(case) if area_load else 0.0)
+    live = area_load.floor_live(case) if area_load else 0.0
+    context = slab.SlabContext(boundary=outline, axes=axes, supports=supports)
+    ec = slenderness_design.concrete_modulus(concrete)
+    try:
+        context.thickness = slab.minimum_thickness(
+            outline, axes, object_type.system, object_type.thickness, fy, ec, neighbours, beams
+        )
+    except (ValueError, ZeroDivisionError) as error:
+        notes.append(f"{slab_id}: minimum thickness not checked: {error}")
+    try:
+        design = slab.coefficient_design(
+            object_type.system,
+            object_type.thickness,
+            object_type.reinforcement,
+            fc,
+            fy,
+            es,
+            dead,
+            live,
+            slab.gravity_combinations(settings.combinations, roof),
+            context,
+            neighbours,
+            beams,
+            ec=ec,
+        )
+    except ValueError as error:
+        # B33: two-way slab systems on columns (or flexible beams) by the code pack's frame
+        # methods (direct design, equivalent frame: saengine.design.slab_frames).
+        if object_type.system == "oneWay" or frame_inputs is None:
+            return str(error)
+        from saengine.design import slab_frames
+
+        columns, frame_beams, openings = frame_inputs()
+        try:
+            design = slab_frames.design_slab(
+                object_type.system, object_type.thickness, object_type.reinforcement, fc, fy,
+                es, dead, live, slab.gravity_combinations(settings.combinations, roof), context,
+                columns, frame_beams, ec, neighbours, openings,
+            )  # fmt: skip
+        except ValueError as frame_error:
+            return f"{error}; {frame_error}"
+    strength = [c for c in design.checks if not c["flag"]]
+    notes.extend(f"{slab_id}: {note}" for note in context.notes)
+    entry = {
+        "id": slab_id,
+        "kind": "slab",
+        "type": type_id,
+        "members": [],
+        "checks": design.checks,
+        "utilisation": max((c["utilisation"] for c in strength), default=0.0),
+        "ok": all(c["ok"] for c in strength),
+        "strips": [],
+        "method": design.method,
+    }
+    collected = {
+        "id": slab_id,
+        "type": type_id,
+        "object": object_type,
+        "context": context,
+        "fc": fc,
+        "fy": fy,
+        "es": es,
+        "checks": design.checks,
+        "coefficients": design,
+    }
+    return entry, collected
+
+
+def _composite_deck(
+    entry: dict[str, Any],
+    object_type: Slab,
+    element: Any,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    level: float,
+    top_level: float,
+    concrete: Any,
+    settings: ProjectSettings | None,
+    notes: list[str],
+) -> None:
+    """Alpha 9 P8: the composite slab's checks of a slab type with a ``compositeDeck`` added to
+    its ``entry`` (:func:`saengine.design.composite_slab.apply`), from its own loads as
+    :func:`_coefficient_slab` takes them (the area load's finishes and live load, the gravity
+    strength combinations); nothing for a concrete slab."""
+    deck = getattr(object_type, "compositeDeck", None)
+    if deck is None:
+        return
+    from saengine.design import composite_slab
+
+    slab_id = entry["id"]
+    if settings is None:
+        notes.append(f"{slab_id}: composite deck not checked: no project settings")
+        return
+    roof = level >= top_level - 1.0
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    case = partition_case(settings)
+    superimposed = area_load.superimposed(case) if area_load else 0.0
+    live = area_load.floor_live(case) if area_load else 0.0
+    span = deck.span
+    if span is None:
+        frame = slab.PlanFrame(axes)
+        along = 0 if deck.direction == "x" else 1
+        values = [frame.local(p)[along] for p in outline]
+        span = max(values) - min(values)
+    density = concrete.mechanical.density
+    extra: list[str] = []
+    if not density:
+        density = 2400.0
+        extra.append("the concrete gives no density: 2400 kg/m³ taken")
+    reinforcement = object_type.reinforcement
+
+    def per_metre(mesh: Any) -> float | None:
+        if mesh is None:
+            return None
+        return math.pi * mesh.dia**2 / 4 * 1000.0 / mesh.spacing
+
+    top = (
+        (per_metre(reinforcement.topX), per_metre(reinforcement.topY))
+        if reinforcement is not None
+        else (None, None)
+    )
+    inputs = composite_slab.SlabInputs(
+        h=float(object_type.thickness),
+        fck=float(concrete.concrete.fc),
+        ecm=float(slenderness_design.concrete_modulus(concrete)),
+        density=float(density) * 9.80665 / 1e3,
+        span=float(span),
+        superimposed=float(superimposed),
+        live=float(live),
+        combinations=[
+            (c.name, c.dead, c.live) for c in slab.gravity_combinations(settings.combinations, roof)
+        ],
+        top=top,
+        notes=extra,
+    )
+    composite_slab.apply(entry, deck, inputs, notes)
+
+
+def _line_supports(
+    building: BuildingModel, types: dict[str, Any], slab_levels: list[float]
+) -> dict[float, list[slab.LineSupport]]:
+    """The beams and structural walls supporting the slabs at each of ``slab_levels`` [mm]
+    (keyed by the rounded level): the support lines of the slabs' design strips. A beam
+    supports the slabs at its level; a wall those at its top and those it runs through, not a
+    slab it stands on (its bottom at the slab's level, e.g. on a transfer slab)."""
+    supports_at: dict[float, list[slab.LineSupport]] = {}
+    for element in building.elements:
+        support_type = types.get(element.type)
+        if isinstance(element, BeamElement):
+            levels = [element.elevation]
+            width = float(getattr(getattr(support_type, "profile", None), "xDim", 0.0) or 0.0)
+            kind = "beam"
+        elif isinstance(element, WallElement) and isinstance(support_type, Wall):
+            if not support_type.structural:
+                continue
+            levels = [at for at in slab_levels if element.bottom + 1 < at < element.top + 1]
+            width = float(support_type.thickness)
+            kind = "wall"
+        else:
+            continue
+        for at in dict.fromkeys(round(level) for level in levels):
+            supports_at.setdefault(at, []).append(
+                slab.LineSupport(
+                    element.id,
+                    (float(element.start[0]), float(element.start[1])),
+                    (float(element.end[0]), float(element.end[1])),
+                    width,
+                    kind,
+                )
+            )
+    return supports_at
+
+
+def _tendon_designs(
+    slab_id: str,
+    tendons: list[Any],
+    element: Any,
+    object_type: Any,
+    concrete: Any,
+    fc: float,
+    fy: float,
+    settings: ProjectSettings | None,
+    outline: list[tuple[float, float]],
+    axes: Any,
+    roof: bool,
+    notes: list[str],
+) -> list[tuple[Any, str, Any]]:
+    """The designs of a slab's tendon groups (saengine.design.prestress): (tendon, the slab
+    direction "X" or "Y" it runs along, its design). The strip's loads are the slab's own
+    (self-weight, the finishes and partitions and the live load of its area load)."""
+    from saengine.design import prestress
+
+    if settings is None:
+        notes.append(f"{slab_id}: tendons not designed (no project settings)")
+        return []
+    if getattr(object_type, "ribs", None) is not None:
+        notes.append(f"{slab_id}: tendons are designed in solid slabs only; not checked")
+        return []
+    area_loads = {a.id: a for a in settings.areaLoads}
+    load_id = getattr(element, "areaLoad", None) or (
+        settings.roofLoad if roof else settings.floorLoad
+    )
+    area_load = area_loads.get(load_id) if load_id else None
+    case = partition_case(settings)
+    h = float(object_type.thickness)
+    density = concrete.mechanical.density or 0.0
+    loads = prestress.StripLoads(
+        density * 9.80665 * slab_systems.weight_thickness(object_type) * 1e-9,
+        (area_load.superimposed(case) * 1e-3) if area_load else 0.0,
+        (area_load.floor_live(case) * 1e-3) if area_load else 0.0,
+    )
+    layers = slab.layers_of(object_type.reinforcement, h)
+    ux = np.asarray(axes.x[:2], dtype=float)
+    ux = ux / (np.linalg.norm(ux) or 1.0)
+    designs = []
+    for tendon in tendons:
+        run = np.array([tendon.x2 - tendon.x1, tendon.y2 - tendon.y1], dtype=float)
+        direction = "X" if abs(run @ ux) >= np.linalg.norm(run) * math.sqrt(0.5) else "Y"
+        bottom, top = layers[f"bottom{direction}"], layers[f"top{direction}"]
+        try:
+            design = prestress.tendon_design(
+                tendon,
+                h,
+                fc,
+                fy,
+                loads,
+                bottom.area if bottom else 0.0,
+                top.area if top else 0.0,
+                bottom.d if bottom else h - 40.0,
+                top.d if top else h - 40.0,
+                object_type.system != "oneWay",
+                spacing_bottom=bottom.spacing if bottom else None,
+                spacing_top=top.spacing if top else None,
+                cover=float(object_type.reinforcement.cover),
+                deflection=getattr(settings.analysis, "deflection", "sensitive") or "sensitive",
+                roof=roof,
+            )
+        except (ValueError, ArithmeticError, np.linalg.LinAlgError) as error:
+            notes.append(f"{slab_id}: tendon {tendon.id} not designed: {error}")
+            continue
+        designs.append((tendon, direction, design))
+    return designs
+
+
+def _precompression(
+    designs: list[tuple[Any, str, Any]], h: float, outline: list[tuple[float, float]], axes: Any
+) -> tuple[float, float] | None:
+    """The slab's effective precompression [MPa] along x and along y: the tendons' effective
+    forces each way over the slab's section across them (h times its extent)."""
+    if not designs:
+        return None
+    frame = slab.PlanFrame(axes)
+    local = [frame.local(p) for p in outline]
+    extent = {
+        "X": max(q[1] for q in local) - min(q[1] for q in local),
+        "Y": max(q[0] for q in local) - min(q[0] for q in local),
+    }
+    totals = {"X": 0.0, "Y": 0.0}
+    for _, direction, design in designs:
+        totals[direction] += float(np.mean(design.forces.effective))
+    return tuple(totals[k] / (h * extent[k]) if extent[k] > 0 else 0.0 for k in ("X", "Y"))  # type: ignore[return-value]
+
+
+def _slab_columns(
+    building: BuildingModel,
+    types: dict[str, Any],
+    pieces: dict[str, list[_Piece]],
+    outline: list[tuple[float, float]],
+    level: float,
+    notes: list[str],
+) -> list[Any]:
+    """The columns meeting a slab at ``level`` (mm) inside its ``outline``, with the force and
+    moment the slab puts on each per combination (from the column ends above and below)."""
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    z = level * 1e-3
+    joints = []
+    for element in building.elements:
+        if not isinstance(element, ColumnElement):
+            continue
+        if not (element.bottom < level + 1 and element.top > level - 1):
+            continue
+        if not slab._inside(np.asarray(element.position, dtype=float), outline):
+            continue
+        profile = getattr(types.get(element.type), "profile", None)
+        if isinstance(profile, RectangleProfile):
+            c1, c2 = profile.xDim, profile.yDim
+        elif isinstance(profile, CircleProfile):
+            c1 = c2 = math.sqrt(math.pi) * profile.radius  # the square of the same area
+        else:
+            notes.append(f"{element.id}: punching not checked (rectangular or circular only)")
+            continue
+        own = pieces.get(element.id, [])
+        below = [p for p in own if p.end is not None and abs(p.end[2] - z) < 2e-3]
+        above = [p for p in own if p.start is not None and abs(p.start[2] - z) < 2e-3]
+        if not below and not above:
+            notes.append(f"{element.id}: punching not checked (no column end at the slab)")
+            continue
+        joint = slab.ColumnJoint(
+            element.id,
+            (float(element.position[0]), float(element.position[1])),
+            c1,
+            c2,
+            float(element.rotation or 0.0),
+        )
+        count = len((below or above)[0].forces)
+        for c in range(count):
+            force, moment = np.zeros(3), np.zeros(3)
+            # The joint's equilibrium: the slab's action on it is the force of the column below
+            # on its top end less the force the column above puts on its bottom end.
+            for p in below:
+                force += p.forces[c][-1, :3] @ p.axes
+                moment += p.forces[c][-1, 3:] @ p.axes
+            for p in above:
+                force -= p.forces[c][0, :3] @ p.axes
+                moment -= p.forces[c][0, 3:] @ p.axes
+            joint.forces.append(force)
+            joint.moments.append(moment * 1e3)  # N·mm
+        joints.append(joint)
+    return joints
+
+
+def _frame_inputs(
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    slab_id: str,
+    outline: list[tuple[float, float]],
+    level: float,
+) -> tuple[list[Any], list[Any], list[Any]]:
+    """B33: what the frame methods of a slab need (saengine.design.slab_frames): the columns
+    meeting it (inside its outline or on it) with the columns' heights and E above and below,
+    the beams at its level and its openings."""
+    from shapely.geometry import Point, Polygon
+
+    from saengine.design import slab_frames
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    area = Polygon(outline).buffer(slab_frames.ON_LINE)
+    found: dict[tuple[float, float], dict[str, Any]] = {}
+    for element in building.elements:
+        if not isinstance(element, ColumnElement):
+            continue
+        if not (element.bottom < level + 1 and element.top > level - 1):
+            continue
+        x, y = float(element.position[0]), float(element.position[1])
+        if not area.covers(Point(x, y)):
+            continue
+        column_type = types.get(element.type)
+        profile = getattr(column_type, "profile", None)
+        if isinstance(profile, RectangleProfile):
+            c1, c2 = float(profile.xDim), float(profile.yDim)
+        elif isinstance(profile, CircleProfile):
+            c1 = c2 = math.sqrt(math.pi) * float(profile.radius)
+        else:
+            continue
+        material = mats.get(getattr(column_type, "material", None))
+        e = float(getattr(getattr(material, "mechanical", None), "E", 0.0) or 0.0)
+        entry = found.setdefault(
+            (round(x), round(y)),
+            {"id": element.id, "c": (c1, c2), "angle": float(element.rotation or 0.0)},
+        )
+        if element.top > level + 1 and element.bottom > level - 1:
+            entry["above"] = slab_frames.ColumnStiffness(element.top - element.bottom, e)
+        elif element.top < level + 1 and element.bottom < level - 1:
+            entry["below"] = slab_frames.ColumnStiffness(element.top - element.bottom, e)
+        else:  # through the slab
+            entry["above"] = slab_frames.ColumnStiffness(element.top - level, e)
+            entry["below"] = slab_frames.ColumnStiffness(level - element.bottom, e)
+    columns = [
+        slab_frames.FrameColumn(
+            v["id"],
+            (float(x), float(y)),
+            v["c"][0],
+            v["c"][1],
+            v["angle"],
+            v.get("below"),
+            v.get("above"),
+        )
+        for (x, y), v in found.items()
+    ]
+    beams = []
+    for element in building.elements:
+        if not isinstance(element, BeamElement) or abs(element.elevation - level) > 1:
+            continue
+        beam_type = types.get(element.type)
+        profile = getattr(beam_type, "profile", None)
+        if not isinstance(profile, RectangleProfile):
+            continue
+        material = mats.get(getattr(beam_type, "material", None))
+        e = float(getattr(getattr(material, "mechanical", None), "E", 0.0) or 0.0)
+        beams.append(
+            slab_frames.FrameBeam(
+                element.id,
+                (float(element.start[0]), float(element.start[1])),
+                (float(element.end[0]), float(element.end[1])),
+                float(profile.xDim),
+                float(profile.yDim),
+                e,
+            )
+        )
+    openings = []
+    for opening in building.additions.slabOpenings:
+        if opening.host != slab_id:
+            continue
+        t = math.radians(opening.rotation or 0.0)
+        u, v = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
+        corners = tuple(
+            (
+                opening.x + a * opening.xDim / 2 * u[0] + b * opening.yDim / 2 * v[0],
+                opening.y + a * opening.xDim / 2 * u[1] + b * opening.yDim / 2 * v[1],
+            )
+            for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+        )
+        openings.append(slab_frames.Opening(opening.id, corners))
+    return columns, beams, openings
+
+
+def _strip_outline(strip: Any, axes: Any) -> dict[str, Any]:
+    """A design strip's bay for the report: ``{"name", "direction", "kind", "outline"}`` with
+    the plan corners of the bay in metres (global X, Y)."""
+    frame = slab.PlanFrame(axes)
+    along = strip.direction == "X"
+    corners = []
+    for a, b in (
+        (strip.start, strip.lo),
+        (strip.end, strip.lo),
+        (strip.end, strip.hi),
+        (strip.start, strip.hi),
+    ):
+        point = frame.plan(a, b) if along else frame.plan(b, a)
+        corners.append([round(float(point[0]) / 1e3, 4), round(float(point[1]) / 1e3, 4)])
+    return {
+        "name": strip.name,
+        "direction": strip.direction,
+        "kind": strip.kind,
+        "outline": corners,
+    }
+
+
+# ─────────────────────────────────────── demands ───────────────────────────────────────
+
+
+def _demands(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    settings: ProjectSettings,
+    extra: dict[str, Any] | None = None,
+) -> tuple[list[str], dict[str, list[_Piece]], list[str], dict[int, list[np.ndarray]]]:
+    """The combinations formed, each member's pieces with their section forces per combination,
+    notes on what could not be formed, and each shell's forces per combination (one row of
+    N11 N22 N12 M11 M22 M12 Q13 Q23 per integration point, shell axes, N/m and N·m/m).
+
+    ``extra``: when given, filled with ``"factors"`` (each formed combination's ``{case:
+    factor}``), ``"lateralDisplacements"`` (per combination the node displacements of its
+    lateral cases, ``{node: (Ux .. Rz)}`` in m, rad) and ``"shellSway"`` (per shell id and
+    combination the forces of its lateral cases, rows as the shells')."""
+    from opensees_studio.services.result_store import load_manifest, load_results
+    from opensees_studio.services.results import StaticResults
+
+    from saengine.design.live_reduction import is_live_case, is_roof_case
+    from saengine.fem import tension_only
+    from saengine.fem.combinations import combination_factors
+    from saengine.fem.display import (
+        _case_loads,
+        _code,
+        _elements,
+        _last,
+        element_section_forces,
+        element_section_forces_many,
+    )
+    from saengine.fem.thermal import (
+        end_force_corrections,
+        load_corrections,
+        shell_force_corrections,
+    )
+
+    try:
+        manifest = load_manifest(out_dir)
+    except (OSError, ValueError) as error:
+        raise ValueError("there are no results; run the analysis first") from error
+    elements = [e for e in _elements(project) if not e.name.split("#")[0].endswith("/embed")]
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+
+    # Section forces of each static case (linear in the end forces and the loads).
+    shell_ids = [e["id"] for e in project.get("elements", []) if e.get("type") == "Shell"]
+    by_case: dict[str, dict[int, np.ndarray]] = {}
+    shell_case: dict[str, dict[int, np.ndarray]] = {}
+    # The temperature case's fixed-end forces, added back to its members (saengine.fem.thermal).
+    thermal = load_corrections(Path(out_dir).with_suffix(".osmodel"))
+    displacements: dict[str, dict[int, np.ndarray]] = {}
+    # Tension-only members: the release cases and each case's axial forces in them.
+    releases = tension_only.release_cases(project)
+    released_names = set(releases.values())
+    axial_by_case: dict[str, dict[str, float]] = {}
+    for entry in manifest["cases"]:
+        results = load_results(entry, out_dir)
+        if not isinstance(results, StaticResults):
+            continue
+        code = _code(entry["case_name"])
+        if extra is not None and (slenderness_design.is_lateral(code) or code in SERVICE_CASES):
+            displacements[code] = {
+                int(n): np.asarray(rows[-1], dtype=float)[:6]
+                for n, rows in results.node_disp.items()
+                if rows is not None and len(rows)
+            }
+        reached = float(results.load_factors[-1]) if len(results.load_factors) else 1.0
+        loads = _case_loads(project, int(entry["case_id"]))
+        frame_add = end_force_corrections(thermal, code)
+        shell_add = shell_force_corrections(thermal, code)
+        shell_case[code] = {
+            i: _shell_rows(results.shell_forces.get(i)) + reached * shell_add.get(i, 0.0)
+            for i in shell_ids
+        }
+        ends = [
+            _last(results.element_forces, e.id, 12) + reached * frame_add.get(e.id, 0.0)
+            for e in elements
+        ]
+        spans = [reached * loads.get(e.id, np.zeros(3)) for e in elements]
+        if releases:
+            axial_by_case[code] = {
+                e.name: tension_only.axial_force(end)
+                for e, end in zip(elements, ends, strict=True)
+                if e.name in released_names
+            }
+        if elements and all(e.length > 0 for e in elements):
+            # All the elements at once (element_section_forces, the same arithmetic).
+            many = element_section_forces_many(
+                np.array([e.length for e in elements], dtype=float),
+                np.array(ends, dtype=float).reshape(len(elements), 12),
+                np.array(spans, dtype=float).reshape(len(elements), 3),
+            )
+            by_case[code] = {e.id: many[k] for k, e in enumerate(elements)}
+        else:
+            by_case[code] = {
+                e.id: element_section_forces(e, end, span)
+                for e, end, span in zip(elements, ends, spans, strict=True)
+            }
+
+    names: list[str] = []
+    factors_of: list[dict[str, float]] = []
+    slack_of: list[set[str]] = []
+    notes: list[str] = []
+    for combination in settings.combinations:
+        factors = combination_factors(combination, set(by_case))
+        missing = [case for case in factors if case not in by_case]
+        if missing:
+            notes.append(
+                f"{combination.name}: not checked, case {', '.join(missing)} has no results"
+            )
+            continue
+        names.append(combination.name)
+        # Tension-only members compressed by the combination are released (saengine.fem.
+        # tension_only): extra factors on the release cases, and the released ones carry nothing.
+        release = (
+            tension_only.release_factors(factors, axial_by_case, releases)
+            if releases
+            else tension_only.Release()
+        )
+        factors = {**factors, **release.factors}
+        notes += [f"{combination.name}: {w}" for w in release.warnings]
+        slack_of.append(release.slack)
+        factors_of.append(factors)
+    lateral = [
+        {c: f for c, f in factors.items() if slenderness_design.is_lateral(c)}
+        for factors in factors_of
+    ]
+    sustained = [
+        {c: f for c, f in factors.items() if c in slenderness_design.SUSTAINED_CASES}
+        for factors in factors_of
+    ]
+    live = [{c: f for c, f in factors.items() if is_live_case(c)} for factors in factors_of]
+    roof = [{c: f for c, f in factors.items() if is_roof_case(c)} for factors in factors_of]
+    if extra is not None:
+        extra["factors"] = factors_of
+        stacks = _displacement_stacks(displacements)
+        extra["lateralDisplacements"] = [
+            _combined_displacements(displacements, part, stacks) for part in lateral
+        ]
+        # The unfactored gravity cases, for the deflection checks (saengine.design.deflection).
+        extra["service"] = {
+            "forces": {c: by_case[c] for c in SERVICE_CASES if c in by_case},
+            "displacements": {c: displacements[c] for c in SERVICE_CASES if c in displacements},
+            # T45: the wind and earthquake cases' forces, for the allowable stress
+            # combinations of timber (saengine.design.timber).
+            "lateralForces": {
+                c: by_case[c] for c in (*LATERAL_CASES, *OTHER_CASES) if c in by_case
+            },
+            # B9: the wind cases' displacements, for the members' wind deflection limits.
+            "windDisplacements": {c: displacements[c] for c in WIND_CASES if c in displacements},
+        }
+
+    # Each combination of all the elements of one shape at once: the same sums element by
+    # element, in the same order (sum over the factors), on stacked arrays.
+    forces_of = _combined_stacks(by_case, [e.id for e in elements], factors_of)
+    for k, slack in enumerate(slack_of):
+        for e in elements:
+            if e.name in slack:
+                forces_of[e.id][k] = np.zeros_like(np.asarray(forces_of[e.id][k]))
+    sway_of = _combined_stacks(by_case, [e.id for e in elements], lateral, parts=True)
+    sustained_of = _combined_stacks(by_case, [e.id for e in elements], sustained, parts=True)
+    live_of = _combined_stacks(by_case, [e.id for e in elements], live, parts=True)
+    roof_of = _combined_stacks(by_case, [e.id for e in elements], roof, parts=True)
+    pieces: dict[str, list[_Piece]] = {}
+    for e in elements:
+        a, b = coords[e.i], coords[e.j]
+        axis = b - a
+        vertical = abs(axis[2]) > abs(axis[0])
+        pieces.setdefault(e.name.split("#")[0], []).append(
+            _Piece(
+                name=e.name,
+                id=e.id,
+                length=e.length,
+                depth_along_z=not vertical,  # quarter turns are applied by the caller
+                axes=e.axes,
+                forces=forces_of[e.id],
+                start=a,
+                end=b,
+                sway=sway_of[e.id],
+                sustained=sustained_of[e.id],
+                live=live_of[e.id],
+                roof=roof_of[e.id],
+            )
+        )
+
+    # Shells: N11 ... Q23 at each integration point of the last step, per combination.
+    shells: dict[int, list[np.ndarray]] = _combined_stacks(shell_case, shell_ids, factors_of)
+    if extra is not None:
+        # The shells' lateral parts, for the walls' share of the storey shear (slenderness).
+        extra["shellSway"] = {
+            i: [
+                sum(
+                    (f * shell_case[case][i] for case, f in part.items() if case in shell_case),
+                    np.zeros_like(shells[i][c]) if c < len(shells[i]) else np.zeros((1, 8)),
+                )
+                for c, part in enumerate(lateral)
+            ]
+            for i in shell_ids
+        }
+    return names, pieces, notes, shells
+
+
+def _combined_stacks(
+    by_case: dict[str, dict[int, np.ndarray]],
+    ids: list[int],
+    factors_of: list[dict[str, float]],
+    parts: bool = False,
+) -> dict[int, list[Any]]:
+    """Per id its forces under each combination's ``factors``: ``sum(f * by_case[case][id])``
+    over them, or with ``parts`` :func:`_part`'s sum (the first term to start, zeros for
+    none). The ids whose arrays agree in shape and type in every case are stacked and worked
+    out together, element by element the same operations in the same order; the rest one by
+    one."""
+    out: dict[int, list[Any]] = {}
+    groups: dict[tuple[Any, ...], list[int]] = {}
+    cases = list(by_case.values())
+    for i in ids:
+        first = cases[0].get(i) if cases else None
+        key = (first.shape, first.dtype) if isinstance(first, np.ndarray) else None
+        if key is not None and all(
+            isinstance(c.get(i), np.ndarray) and (c[i].shape, c[i].dtype) == key for c in cases
+        ):
+            groups.setdefault(key, []).append(i)
+        else:
+            out[i] = [
+                _part(by_case, i, factors)
+                if parts
+                else sum(f * by_case[case][i] for case, f in factors.items())
+                for factors in factors_of
+            ]
+    for (shape, dtype), members in groups.items():
+        stacked: dict[str, np.ndarray] = {}
+
+        def stack(
+            case: str, members: list[int] = members, stacked: dict[str, np.ndarray] = stacked
+        ) -> np.ndarray:
+            if case not in stacked:
+                stacked[case] = np.stack([by_case[case][i] for i in members])
+            return stacked[case]
+
+        rows: list[list[Any]] = [[] for _ in members]
+        for factors in factors_of:
+            if parts:
+                found = [f * stack(case) for case, f in factors.items() if case in by_case]
+                total: Any = sum(found[1:], found[0]) if found else np.zeros((len(members), *shape))
+            else:
+                total = sum(f * stack(case) for case, f in factors.items())
+            for k, row in enumerate(rows):
+                row.append(total[k] if isinstance(total, np.ndarray) else total)
+        out.update(zip(members, rows, strict=True))
+    return out
+
+
+def _irregularities(
+    project: dict[str, Any],
+    out_dir: str | Path,
+    building: Any,
+    objects: Any,
+    materials: Any,
+    resolved: Any,
+    settings: Any,
+) -> tuple[dict[str, Any] | None, dict[str, Any], list[str]]:
+    """B12: (the irregularity assessment, the soft storey members of
+    :func:`saengine.fem.irregularity.soft_storey_members`, notes) of the design; the response
+    spectrum design's torsion rows when the design uses it."""
+    from saengine.fem import seismic_design
+
+    none: dict[str, Any] = {"frames": set(), "walls": set(), "storeys": []}
+    if irregularity.table() is None:
+        return None, none, []
+    try:
+        torsion_rows = None
+        if seismic_design.design_uses_spectrum(settings):
+            summary = seismic_design.load_summary(out_dir) or {}
+            if summary.get("available"):
+                torsion_rows = summary.get("torsionalIrregularity")
+        found = irregularity.assess_cached(
+            project, out_dir, building, objects, materials, resolved, torsion_rows
+        )
+        soft = irregularity.soft_storey_members(found, building, objects)
+    except (ValueError, KeyError, AttributeError, TypeError, OSError) as error:
+        return None, none, [f"the building irregularities could not be checked: {error}"]
+    notes = []
+    if found["findings"]:
+        notes.append(
+            "building irregularities: "
+            + ", ".join(irregularity.label(t) for t in found["types"])
+            + f" ({found['clauses']['plan']}; {found['clauses']['vertical']})"
+        )
+    dynamic = found.get("dynamic") or {}
+    if dynamic.get("required") and not dynamic.get("used"):
+        notes.append(
+            "dynamic analysis is required ("
+            + "; ".join(dynamic["reasons"])
+            + "): the design uses the static cases"
+        )
+    return found, soft, notes
+
+
+def _soft_parts(soft: dict[str, Any]) -> list[tuple[float, str, set[str]]]:
+    """(factor, combination name prefix, member or wall ids) of the soft storey frames and
+    walls."""
+    out = []
+    if soft.get("frames"):
+        factor = soft["frameFactor"]
+        out.append((factor, irregularity.frame_prefix(factor), soft["frames"]))
+    if soft.get("walls"):
+        factor = soft["wallFactor"]
+        out.append((factor, irregularity.wall_prefix(factor), soft["walls"]))
+    return out
+
+
+def _shells_of(project: dict[str, Any], ids: set[str]) -> set[int]:
+    """The analysis shells of the building elements ``ids`` (named ``<id>`` or ``<id>#n``)."""
+    return {
+        int(e["id"])
+        for e in project.get("elements", [])
+        if e.get("type") == "Shell" and (e.get("name") or "").split("#")[0] in ids
+    }
+
+
+def _cantilever_beams(building: BuildingModel, objects: Any) -> set[str]:
+    """The ids of the beams with a free end: an end past the last support that is neither held
+    by another beam nor continued by one (horizontal cantilevers)."""
+    types = {o.id: o for o in objects.objects}
+    framing = _BeamFraming(building, types)
+    out: set[str] = set()
+    for element in building.elements:
+        if not isinstance(element, BeamElement):
+            continue
+        try:
+            supports = framing.support_stations(element)
+        except (ValueError, KeyError, AttributeError, TypeError):
+            continue
+        if not supports:
+            continue
+        for end in (0, 1):
+            edge = supports[0] if end == 0 else supports[-1]
+            if (
+                abs(edge - end) > 1e-3
+                and not framing.end_held(element, end)
+                and not framing.continues(element, end)
+            ):
+                out.add(element.id)
+    return out
+
+
+def _anchor_seismic(settings: Any, combinations: list[str], extra: dict[str, Any]) -> Any:
+    """B26: the Seismic Design Category and the earthquake combinations, for the seismic rules
+    of anchors in concrete (:class:`saengine.design.anchors.SeismicContext`)."""
+    from saengine.design.anchors import SeismicContext
+    from saengine.design.seismic_detailing import earthquake_indices
+    from saengine.design.seismic_rules import seismic_design_category
+
+    try:
+        category = seismic_design_category(settings)[0]
+    except Exception:  # noqa: BLE001 - no zone: no category, no seismic anchor rules
+        category = None
+    names = frozenset(combinations[i] for i in earthquake_indices(extra, len(combinations)))
+    return SeismicContext(category, names)
+
+
+def _steel_amplified_columns(
+    settings: Any, building: Any, objects: Any, materials: Any
+) -> set[str]:
+    """B35: the steel column elements of a steel seismic system (not marked gravity) when the
+    steel seismic provisions apply (:func:`saengine.design.steel.seismic.provisions`)."""
+    from saengine.design.steel import limit_state as steel_limit_state  # C9
+    from saengine.design.steel import seismic as steel_seismic
+    from saengine.design.steel import seismic_braced  # B38: braced frames' columns too
+
+    try:
+        ls_rules = steel_limit_state.seismic_rules()
+        if ls_rules is not None:
+            applies = bool(ls_rules.columnAmplified and steel_limit_state.seismic_frames(settings))
+        else:
+            applies = (
+                steel_seismic.provisions(settings).applies
+                or seismic_braced.braced_provisions(settings).applies
+            )
+        if building is None or not applies:
+            return set()
+    except (ValueError, KeyError, AttributeError, TypeError):
+        return set()
+    types = {o.id: o for o in getattr(objects, "objects", [])}
+    mats = {m.id: m for m in getattr(materials, "materials", [])}
+    found: set[str] = set()
+    elements = list(getattr(building, "elements", []))
+    elements += list(getattr(getattr(building, "additions", None), "members", []) or [])
+    for e in elements:
+        t = types.get(getattr(e, "type", None))
+        if t is None or getattr(t, "kind", None) != "column":
+            continue
+        if not steel_design.is_steel(mats.get(t.material)):
+            continue
+        role = getattr(e, "seismicRole", None)
+        if role in (None, "auto"):
+            role = getattr(t, "seismicRole", None)
+        if role != "gravity":
+            found.add(e.id)
+    return found
+
+
+def _steel_braced(
+    project: dict[str, Any],
+    building: Any,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    steel_members: list[Any],
+    combinations: list[str],
+    extra: dict[str, Any],
+    settings: Any,
+    moment_found: dict[str, Any] | None,
+    notes: list[str],
+    out_dir: Any = None,
+) -> dict[str, Any] | None:
+    """B38: the braced frame checks (saengine.design.steel.seismic_braced) and the composite
+    seismic checks (seismic_composite) on the steel members' entries; the braced summary with
+    ``"composite"`` True when composite members were checked."""
+    from saengine.design import seismic_detailing
+    from saengine.design.steel import seismic_braced, seismic_composite
+    from saengine.fem import seismic_design
+
+    drifts = None
+    if out_dir is not None:
+        drifts = (seismic_design.load_summary(out_dir) or {}).get("drift")
+    found = None
+    try:
+        found = seismic_braced.apply(
+            project,
+            building,
+            types,
+            mats,
+            steel_members,
+            combinations,
+            seismic_detailing.earthquake_indices(extra, len(combinations)),
+            settings,
+            drifts,
+        )
+        notes += found["notes"]
+    except (ValueError, KeyError, AttributeError, TypeError) as error:
+        notes.append(f"the steel braced frame provisions could not be checked: {error}")
+    kinds = list((found or {}).get("kinds") or []) if (found or {}).get("applies") else []
+    if moment_found and moment_found.get("applies") and moment_found.get("frame"):
+        kinds.append(moment_found["frame"])
+    members_found = (moment_found or {}).get("members") or {}
+    roles = {k: v.get("role", "lateral") for k, v in members_found.items()}
+    if kinds:
+        try:
+            notes += seismic_composite.apply(steel_members, mats, combinations, kinds, roles)
+            if found is not None:
+                found["composite"] = any(
+                    getattr(m.object, "composite", None) is not None for m in steel_members
+                )
+        except (ValueError, KeyError, AttributeError, TypeError) as error:
+            notes.append(f"the composite seismic provisions could not be checked: {error}")
+    return found
+
+
+def _without(pieces: list[_Piece], indices: list[int]) -> list[_Piece]:
+    """Copies of ``pieces`` with the forces of the combinations ``indices`` zeroed."""
+    from dataclasses import replace
+
+    out = []
+    for piece in pieces:
+        changes: dict[str, Any] = {}
+        for name in ("forces", "sway", "sustained", "live", "roof"):
+            parts = getattr(piece, name)
+            if parts is None:
+                continue
+            parts = list(parts)
+            for c in indices:
+                if c < len(parts) and parts[c] is not None:
+                    parts[c] = np.zeros_like(parts[c])
+            changes[name] = parts
+        out.append(replace(piece, **changes))
+    return out
+
+
+def _drop_combinations(
+    pieces: dict[str, list[_Piece]],
+    shells: dict[int, list[np.ndarray]],
+    indices: list[int],
+    keep: set[str],
+    keep_shells: set[int] | None = None,
+) -> None:
+    """Zeroes the forces of the combinations ``indices`` in every member not in ``keep`` and in
+    every shell not in ``keep_shells``, in place (the combination lists stay aligned with the
+    names)."""
+    for member_id, own in pieces.items():
+        if member_id in keep:
+            continue
+        for piece in own:
+            for parts in (piece.forces, piece.sway, piece.sustained, piece.live):
+                if parts is None:
+                    continue
+                for c in indices:
+                    if c < len(parts) and parts[c] is not None:
+                        parts[c] = np.zeros_like(parts[c])
+    for shell, rows in shells.items():
+        if keep_shells and shell in keep_shells:
+            continue
+        for c in indices:
+            if c < len(rows):
+                rows[c] = np.zeros_like(rows[c])
+
+
+def _spectrum_shell_sway(
+    static: dict[str, Any], names: list[str], shells: dict[int, list[np.ndarray]]
+) -> dict[int, list[np.ndarray]]:
+    """The shells' lateral parts (``extra["shellSway"]`` of :func:`_demands`) for the
+    combinations of :func:`saengine.fem.seismic_design.design_demands`: ``static`` holds what
+    its static run gave (``names``, ``shells`` per combination, ``inner`` with its
+    ``shellSway``). A combination kept as it was keeps its lateral part; a response spectrum
+    pattern ``"<name> [<label>]"`` adds to its static lateral part the ± E it added to the
+    forces (its rows less the static combination's rows), as the frames' sway is."""
+    index = {name: i for i, name in enumerate(static["names"])}
+    before = static["shells"]
+    sway_before = static["inner"].get("shellSway", {})
+    out: dict[int, list[np.ndarray]] = {}
+    for shell_id, rows in shells.items():
+        old = before.get(shell_id, [])
+        old_sway = sway_before.get(shell_id, [])
+        found = []
+        for c, name in enumerate(names):
+            i = index.get(name)
+            if i is None and name.endswith("]") and " [" in name:
+                i = index.get(name.rsplit(" [", 1)[0])
+            if i is None or i >= len(old):
+                found.append(np.zeros_like(rows[c]))
+                continue
+            lateral = old_sway[i] if i < len(old_sway) else np.zeros_like(rows[c])
+            found.append(lateral + (rows[c] - old[i]))
+        out[shell_id] = found
+    return out
+
+
+def _part(by_case: dict[str, dict[int, np.ndarray]], element: int, factors: dict) -> np.ndarray:
+    """The section forces of an element under some cases of a combination (zeros if none)."""
+    found = [f * by_case[case][element] for case, f in factors.items() if case in by_case]
+    if found:
+        return sum(found[1:], found[0])
+    any_case = next(iter(by_case.values()), {})
+    shape = any_case[element].shape if element in any_case else (0, 6)
+    return np.zeros(shape)
+
+
+def _displacement_stacks(
+    displacements: dict[str, dict[int, np.ndarray]],
+) -> dict[str, tuple[tuple[int, ...], np.ndarray]]:
+    """Per case its nodes and their displacements stacked (n, 6), for
+    :func:`_combined_displacements`; cases with other than six values per node left out."""
+    out: dict[str, tuple[tuple[int, ...], np.ndarray]] = {}
+    for case, values in displacements.items():
+        rows = list(values.values())
+        if rows and all(np.shape(v) == (6,) for v in rows):
+            out[case] = (tuple(values), np.array(rows, dtype=float))
+    return out
+
+
+def _combined_displacements(
+    displacements: dict[str, dict[int, np.ndarray]],
+    factors: dict[str, float],
+    stacks: dict[str, tuple[tuple[int, ...], np.ndarray]] | None = None,
+) -> dict[int, np.ndarray]:
+    """The node displacements of a combination's cases ``factors``. ``stacks``:
+    :func:`_displacement_stacks` of ``displacements``; where the cases share their nodes they
+    are added up on it, node by node the same sums in the same order."""
+    present = [case for case in factors if case in displacements]
+    if stacks and present and all(case in stacks for case in present):
+        nodes = stacks[present[0]][0]
+        if all(stacks[case][0] == nodes for case in present):
+            total = np.zeros((len(nodes), 6))
+            for case in present:
+                total = total + factors[case] * stacks[case][1]
+            return dict(zip(nodes, total, strict=True))
+    result: dict[int, np.ndarray] = {}
+    for case, f in factors.items():
+        for node, value in displacements.get(case, {}).items():
+            result[node] = result.get(node, np.zeros(6)) + f * value
+    return result
+
+
+def _shell_rows(rows: Any) -> np.ndarray:
+    """A shell's forces at the last step, one row of 8 per integration point."""
+    if rows is None or not len(rows):
+        return np.zeros((1, 8))
+    return np.asarray(rows[-1], dtype=float).reshape(-1, 8)
+
+
+def _profile_forces(piece: _Piece, turned: bool, forces: np.ndarray) -> dict[str, np.ndarray]:
+    """Section forces in the profile's axes at each station [N, N·mm]: ``P`` (compression
+    positive), ``Mx`` and ``Vy`` (bending about the width axis, shear along the depth; positive
+    ``Mx`` stretches the top fibres), ``My`` (bending about the depth axis).
+
+    The profile's "top" is the end of its depth axis that points up: local +z of a horizontal
+    member (always up), and for a member the analysis treats as vertical (a column, or a sloped
+    member steeper than it runs along X, e.g. a rafter along Y) local +y or -y, whichever points
+    up; that depends on the direction the member was drawn in. A depth axis lying flat (a
+    column, a beam turned on its side) keeps local + as "top".
+    """
+    along_z = piece.depth_along_z != turned
+    n, vy, vz, my, mz = (forces[..., i] for i in (0, 1, 2, 4, 5))
+    rise = float(piece.axes[2 if along_z else 1][2])
+    up = -1.0 if rise < -1e-9 else 1.0
+    if along_z:
+        return {"P": -n, "Mx": up * my * 1e3, "Vy": vz, "My": mz * 1e3, "Vx": vy}
+    return {"P": -n, "Mx": -up * mz * 1e3, "Vy": vy, "My": my * 1e3, "Vx": vz}
+
+
+def _profile_blocks(
+    piece: _Piece, turned: bool
+) -> list[tuple[int, np.ndarray, dict[str, np.ndarray]]]:
+    """:func:`_profile_forces` of the piece's combinations in blocks: ``(first combination,
+    forces, values)`` with a leading combination axis, all of them in one block when their
+    stations agree (one call rather than one per combination), else one block each. Blocks
+    without stations are left out."""
+    parts = piece.forces
+    if not parts:
+        return []
+    shape = np.shape(parts[0])
+    if len(shape) == 2 and shape[0] and all(np.shape(f) == shape for f in parts):
+        stacked = np.stack([np.asarray(f, dtype=float) for f in parts])
+        return [(0, stacked, _profile_forces(piece, turned, stacked))]
+    blocks = []
+    for c, forces in enumerate(parts):
+        if len(forces):
+            one = np.asarray(forces, dtype=float)[None]
+            blocks.append((c, one, _profile_forces(piece, turned, one)))
+    return blocks
+
+
+def _turned(element: Any, exact: bool = False) -> bool:
+    """Whether the analysis swapped a column's section axes (the rule of
+    :func:`saengine.fem.derive.analysed_turns`): ``exact`` when the model analyses columns at
+    their own angle (its elements carry ``vecxz``, :func:`exact_rotation`)."""
+    from saengine.fem.derive import analysed_turns
+
+    rotation = getattr(element, "rotation", 0.0) or 0.0
+    return analysed_turns(rotation, exact) % 2 == 1
+
+
+def exact_rotation(project: dict[str, Any]) -> bool:
+    """Whether the analysis model turns columns by their exact angle (``analysis.
+    exactColumnRotation``): read from the model (an element with its own ``vecxz``), so the
+    design follows the model that was analysed."""
+    return any(e.get("vecxz") for e in project.get("elements", []))
+
+
+# ─────────────────────────────────────── checks ───────────────────────────────────────
+
+
+def _check(
+    name: str,
+    demand: float,
+    capacity: float,
+    unit: str,
+    combination: str | None,
+    note: str = "",
+    flag: bool = False,
+    utilisation: float | None = None,
+) -> dict[str, Any]:
+    if utilisation is None:
+        utilisation = demand / capacity if capacity > 0 else (0.0 if demand <= 0 else math.inf)
+    # Pass/fail from the value reported, so the counts and the viewer's colour bands agree.
+    utilisation = round(float(utilisation), 3) if math.isfinite(utilisation) else 99.0
+    return {
+        "name": name,
+        "demand": round(float(demand), 2),
+        "capacity": round(float(capacity), 2),
+        "unit": unit,
+        "utilisation": utilisation,
+        "combination": combination,
+        "ok": bool(utilisation <= 1.0),
+        "note": note,
+        "flag": flag,
+    }
+
+
+# ───────────── Alpha 9 C5b: beams by the pack's partial-factor methods (glue) ─────────────
+
+
+def _pack_torsion(
+    element: BeamElement,
+    section: RcSection,
+    transverse: Any,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    framing: _BeamFraming,
+    limit: int = 40,
+) -> tuple[list[dict[str, Any]], Any]:
+    """The torsion rows of a beam by the pack's method
+    (:func:`saengine.design.limit_state_rows.beam_torsion`) at the stations of the largest
+    torques and shears of every combination, and what it needs for Design Reinforcement."""
+    from saengine.design import limit_state_rows
+
+    held = framing.end_held(element, 0) and framing.end_held(element, 1)
+    kind, _parent_why = torsion_design.torsion_kind(
+        held, framing.carries_cantilever(element, section.width)
+    )
+    why = (
+        "framed at both ends: compatibility torsion"
+        if kind == "compatibility"
+        else "an end free or a cantilever carried: equilibrium torsion"
+    )
+    found: list[tuple[float, float, float, str, str]] = []
+    for piece in pieces:
+        for first, forces, values in _profile_blocks(piece, turned):
+            tu = np.abs(forces[..., 3]) * 1e3  # N·m -> N·mm
+            vu = np.abs(values["Vy"])
+            mu = values["Mx"]
+            count = forces.shape[1]
+            flat_t, flat_v = tu.ravel(), vu.ravel()
+            picks = set(np.argsort(-flat_t, kind="stable")[:limit].tolist())
+            picks |= set(np.argsort(-flat_v, kind="stable")[: limit // 4].tolist())
+            for i in sorted(picks):
+                c, k = divmod(int(i), count)
+                found.append(
+                    (
+                        float(flat_t[i]),
+                        float(flat_v[i]),
+                        float(mu.ravel()[i]),
+                        combinations[first + c],
+                        _where(piece, k, count),
+                    )
+                )
+    found.sort(key=lambda p: -p[0])
+    return limit_state_rows.beam_torsion(
+        section, transverse, found[: 2 * limit], kind == "compatibility", why
+    )
+
+
+def _pack_deflection(
+    element: BeamElement,
+    section: RcSection,
+    framing: _BeamFraming,
+    calculated: list[dict[str, Any]],
+    settings: ProjectSettings,
+) -> list[dict[str, Any]]:
+    """The span/depth row of each span of a beam (the spans of :func:`_beam_deflection_checks`);
+    where a span exceeds its limit, the calculated rows of that span follow it and decide (the
+    span/depth row is then reported only)."""
+    from saengine.design import limit_state_rows
+
+    mode = getattr(settings.analysis, "deflection", "sensitive") or "sensitive"
+    if mode == "off":
+        return calculated
+    a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+    length = float(np.linalg.norm(c - a))
+    if length <= 0:
+        return calculated
+    supports = framing.support_stations(element)
+    spans: list[tuple[float, float, str]] = []
+    if len(supports) >= 2:
+        spans += [(t0, t1, "span") for t0, t1 in itertools.pairwise(supports)]
+    for end in (0, 1):
+        edge = (supports[0] if end == 0 else supports[-1]) if supports else None
+        if (
+            edge is not None
+            and abs(edge - end) > 1e-3
+            and not framing.end_held(element, end)
+            and not framing.continues(element, end)
+        ):
+            spans.append((0.0, edge, "start") if end == 0 else (edge, 1.0, "end"))
+    if not spans and framing.end_held(element, 0) and framing.end_held(element, 1):
+        spans = [(0.0, 1.0, "span")]
+    _hf, sides = framing.slab_beside(element, section.width)
+    rows: list[dict[str, Any]] = []
+    for number, (t0, t1, kind) in enumerate(spans, start=1):
+        span_mm = (t1 - t0) * length
+        if span_mm <= 0:
+            continue
+        cantilever = kind != "span"
+        where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
+        ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+            t1 < 1 - 1e-3 or framing.continues(element, 1)
+        )
+        # beff of a T or L beam with the flange at 0.2 l0 a side, l0 = 0.85 l (EN 1992-1-1
+        # 5.3.2.1 with a wide slab; SAEngine practice for the flange ratio only).
+        beff = section.width + sides * 0.2 * 0.85 * span_mm
+        try:
+            row = limit_state_rows.span_depth_row(
+                section, span_mm, ends, cantilever, beff / section.width, where
+            )
+        except DesignError:
+            continue
+        mine = [
+            r
+            for r in calculated
+            if r["note"].endswith(where) or r["note"].endswith(where + " (cantilever)")
+        ]
+        if not row["ok"] and mine:
+            row["flag"] = True
+            row["note"] += (
+                "; exceeded: the calculated deflection that follows decides (the parent pack's "
+                "method)"
+            )
+            rows += [row, *mine]
+        else:
+            rows.append(row)
+    return rows
+
+
+def _pack_service_rows(
+    section: RcSection,
+    pieces: list[_Piece],
+    service: dict[str, Any],
+    turned: bool,
+    cover: float,
+) -> list[dict[str, Any]]:
+    """Crack width and stress rows of a beam (:func:`saengine.design.limit_state_rows.
+    beam_service_rows`) under the pack's quasi-permanent and characteristic combinations of
+    the unfactored analysis cases."""
+    from saengine.design import limit_state_rows
+
+    forces = service.get("forces") or {}
+    moments: dict[str, dict[bool, tuple[float, str]]] = {}
+    for kind in ("quasiPermanent", "characteristic"):
+        factors = limit_state_rows.service_factors(kind)
+        if not factors:
+            continue
+        best: dict[bool, tuple[float, str]] = {True: (0.0, ""), False: (0.0, "")}
+        for piece in pieces:
+            total = None
+            for case, factor in factors.items():
+                rows = forces.get(case, {}).get(piece.id)
+                if rows is None or not factor:
+                    continue
+                values = _profile_forces(piece, turned, np.asarray(rows, dtype=float))["Mx"]
+                part = factor * np.asarray(values, dtype=float)
+                total = part if total is None or total.shape != part.shape else total + part
+            if total is None:
+                continue
+            for k, value in enumerate(total.tolist()):
+                top = value > 0  # + hogging: the top bars in tension
+                if abs(value) > best[top][0]:
+                    best[top] = (abs(value), _where(piece, k, len(total)))
+        moments[kind] = best
+    if not moments:
+        return []
+    return limit_state_rows.beam_service_rows(section, moments, cover)
+
+
+def _mu_phi(settings: Any, project: dict[str, Any], ductility: str | None) -> tuple | None:
+    """Alpha 9 C5c: (μφ, how) of the project's DCM/DCH critical regions
+    (:func:`saengine.design.curvature_ductility.mu_phi_of`); None without a ductility class."""
+    from saengine.design import curvature_ductility
+
+    if not ductility:
+        return None
+    try:
+        return curvature_ductility.mu_phi_of(settings, project, ductility)
+    except (KeyError, AttributeError, TypeError, ValueError):
+        return None
+
+
+def _ductility_class(settings: Any) -> str | None:
+    """Alpha 9 C5: the ductility class (DCM, DCH) of the project's seismic system by the pack's
+    ``concreteMethods.seismic.frameClasses`` (None: no curvature-ductility detailing)."""
+    from saengine.design import curvature_ductility
+
+    try:
+        system = code_context.table("seismic").systems[settings.seismic.system]
+    except (KeyError, AttributeError):
+        return None
+    return curvature_ductility.ductility_class(getattr(system, "frame", None))
+
+
+def _longest_span(element: BeamElement, framing: _BeamFraming) -> float:
+    """The longest span [mm] of a beam between the supports along it (its length without)."""
+    a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+    length = float(np.linalg.norm(c - a))
+    stations = sorted({0.0, 1.0, *framing.support_stations(element)})
+    return max((t1 - t0) * length for t0, t1 in itertools.pairwise(stations))
+
+
+def _where(piece: _Piece, station: int, stations: int) -> str:
+    return f"{piece.name} at {station / (stations - 1):.2f} L"
+
+
+def _beam_checks(
+    section: RcSection,
+    capacities: dict[bool, Any],
+    beam: Beam,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool = False,
+) -> list[dict[str, Any]]:
+    peaks = {"sag": (0.0, None, ""), "hog": (0.0, None, ""), "shear": (0.0, None, "")}
+    for piece in pieces:
+        for first, _, values in _profile_blocks(piece, turned):
+            count = values["Mx"].shape[1]
+            # The first station of each peak (combination by combination, station by
+            # station), as a scan finds it.
+            for peak, rows in (
+                ("sag", -values["Mx"]),
+                ("hog", values["Mx"]),
+                ("shear", np.abs(values["Vy"])),
+            ):
+                c, k = divmod(int(np.argmax(rows)), count)
+                value = float(rows[c, k])
+                if value > peaks[peak][0]:
+                    peaks[peak] = (value, combinations[first + c], _where(piece, k, count))
+    sag, hog, shear_demand = peaks["sag"], peaks["hog"], peaks["shear"]
+    checks = []
+    for label, hogging, demand in (
+        ("Flexure, sagging (bottom bars)", False, sag),
+        ("Flexure, hogging (top bars)", True, hog),
+    ):
+        capacity = capacities[hogging]
+        note = demand[2]
+        if capacity.mn <= 0:
+            note = "no bars on the tension face" + (f"; {note}" if note else "")
+        else:
+            note = f"φ = {capacity.phi:.2f}, εt = {capacity.eps_t:.4f}" + (
+                f"; {note}" if note else ""
+            )
+            if design_strength.partial_factors():
+                # Alpha 9 C5: design strengths, no φ (saengine.design.design_strength).
+                note = design_strength.basis_note(section.fc, section.fy) + (
+                    f"; {demand[2]}" if demand[2] else ""
+                )
+            elif capacity.eps_t < 0.004:
+                note += "; εt below 0.004 (ACI 9.3.3.1)"
+        checks.append(
+            _check(label, demand[0] / 1e6, capacity.phi_mn / 1e6, "kN·m", demand[1], note)
+        )
+    transverse = beam.reinforcement.transverse if beam.reinforcement else None
+    resistance = shear(
+        section,
+        transverse.dia if transverse else None,
+        transverse.legs if transverse else 0,
+        transverse.spacing if transverse else None,
+    )
+    parts = [f"Vc = {resistance.vc / 1e3:.1f} kN, Vs = {resistance.vs / 1e3:.1f} kN"]
+    if resistance.notes is not None:
+        # Alpha 9 C5: the pack's shear method's notes (saengine.design.strut_shear).
+        parts = list(resistance.notes)
+    elif transverse is None:
+        parts.append("no stirrups")
+    elif not resistance.with_min_stirrups:
+        parts.append(
+            f"Av = {resistance.av:.0f} mm² below Av,min = {resistance.av_min:.0f} mm² (ACI 9.6.3.4)"
+        )
+    if not resistance.with_min_stirrups and resistance.notes is None:
+        parts.append(
+            f"Vc = 0.66 λs ρw^(1/3) √f'c b d, λs = {resistance.lambda_s:.2f}, "
+            f"ρw = {resistance.rho_w:.4f}"
+        )
+    if resistance.vs_limited and resistance.notes is None:
+        parts.append("Vs limited to 0.66 √f'c b d")
+    if shear_demand[2]:
+        parts.append(shear_demand[2])
+    checks.append(
+        _check(
+            "Shear",
+            shear_demand[0] / 1e3,
+            resistance.phi_vn / 1e3,
+            "kN",
+            shear_demand[1],
+            "; ".join(parts),
+        )
+    )
+    topping = getattr(beam, "compositeTopping", None)
+    if topping is not None:
+        # B33: composite concrete flexural members (saengine.design.composite_concrete).
+        from saengine.design import composite_concrete
+
+        try:
+            d_bottom = section.effective_depth(top=False)
+        except DesignError:
+            d_bottom = section.depth
+        checks += composite_concrete.beam_checks(
+            shear_demand[0], shear_demand[1], topping, section.width, d_bottom, section.fc,
+            section.fy, transverse.dia if transverse else None,
+            transverse.legs if transverse else 0, transverse.spacing if transverse else None,
+            float(code_context.table("factors").phi["shear"]),
+        )  # fmt: skip
+    if not resistance.with_min_stirrups and resistance.notes is not None:
+        # Alpha 9 C5: the pack's shear method asks every beam for the least links.
+        clause = code_context.cite("concreteMethods", "shearMinimum")
+        checks.append(
+            _check(
+                "Minimum stirrups" + (f" ({clause})" if clause else ""),
+                shear_demand[0] / 1e3,
+                resistance.av_min_threshold / 1e3,
+                "kN",
+                shear_demand[1],
+                (
+                    # Alpha 9 C25: the inclined section (SP 63 type) where Q > Qb,min.
+                    "links below the least qsw: Q must not exceed Qb,min (the least Qb)"
+                    if tabulated_shear.rules() is not None
+                    and getattr(tabulated_shear.rules(), "inclinedSection", None) is not None
+                    # C8: the tabulated method asks for them where τv > τc / 2.
+                    else "stirrups below the least Asv: Vu must not exceed Vc / 2 (τc / 2)"
+                    if tabulated_shear.rules() is not None
+                    # Alpha 9 C17: the compression field method where Vf > Vc.
+                    else "stirrups below Av,min: Vf must not exceed Vc"
+                    if compression_field_shear.rules() is not None
+                    else "links below ρw,min: beams need at least the least links whatever the shear"
+                )
+                + (f"; {shear_demand[2]}" if shear_demand[2] else ""),
+            )
+        )
+    elif not resistance.with_min_stirrups:
+        # ACI 9.6.3.1: beams need at least Av,min where Vu > 0.083 φ λ √f'c bw d.
+        checks.append(
+            _check(
+                "Minimum stirrups (ACI 9.6.3.1)",
+                shear_demand[0] / 1e3,
+                resistance.av_min_threshold / 1e3,
+                "kN",
+                shear_demand[1],
+                "Av below Av,min: Vu must not exceed 0.083 φ √f'c b d"
+                + (f"; {shear_demand[2]}" if shear_demand[2] else ""),
+            )
+        )
+    return checks
+
+
+def _column_checks(
+    section: RcSection,
+    surface: InteractionSurface,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool = False,
+    slender: slenderness_design.ColumnSlenderness | None = None,
+) -> list[dict[str, Any]]:
+    """Axial compression, axial force with biaxial bending and, with ``slender`` (the column's
+    slenderness, :meth:`saengine.design.slender.SlenderContext.column`), its slenderness
+    checks: the strength check then takes the demand points with the magnified moments."""
+    axial = (-math.inf, None, "")
+    governing: tuple[float, Any, str | None, str, float] | None = None
+    from saengine.design import additional_moment
+
+    # Alpha 9 C8: the pack's additional moment method in place of the moment magnification.
+    column_rules = additional_moment.rules()
+    slender_rows: list[dict[str, Any]] | None = None
+    lengths = {"x": 0.0, "y": 0.0}
+    if slender is not None and column_rules is not None:
+        for axis_result in slender.axes:
+            info = (axis_result.check or {}).get("slenderness") or {}
+            lengths[info.get("axis") or axis_result.axis] = float(info.get("lu") or 0.0)
+    if slender is not None and column_rules is None:
+        points = slender.points
+    else:
+        points = []
+        for piece in pieces:
+            for c, forces in enumerate(piece.forces):
+                values = _profile_forces(piece, turned, forces)
+                count = len(forces)
+                for k in range(count):
+                    points.append(
+                        (
+                            float(values["P"][k]),
+                            abs(float(values["Mx"][k])),
+                            abs(float(values["My"][k])),
+                            combinations[c],
+                            _where(piece, k, count),
+                        )
+                    )
+        if slender is not None and column_rules is not None:
+            from saengine.design import end_moment_magnifier
+
+            if end_moment_magnifier.rules() is not None:
+                # Alpha 9 C20b: M = Cm ηns M2 from the end moments (GB 50010 6.2.4 type).
+                points, slender_rows = end_moment_magnifier.magnified_points(
+                    section, slender, pieces, combinations, turned, points
+                )
+            else:
+                points, slender_rows = additional_moment.slender_points(section, slender, points)
+    if design_strength.partial_factors():
+        # Alpha 9 C5: the moments at least NEd e0 about each axis (minimum eccentricity,
+        # saengine.design.design_strength.minimum_moment); Mx bends over the profile's depth.
+        # C8: e0 with the unsupported length where the pack gives its divisor (IS 456 25.4).
+        points = [
+            (
+                pu,
+                max(mux, design_strength.minimum_moment(pu, section.depth, lengths["x"])),
+                max(muy, design_strength.minimum_moment(pu, section.width, lengths["y"])),
+                *rest,
+            )
+            for pu, mux, muy, *rest in points
+        ]
+    for pu, _mux, _muy, combination, where in points:
+        if pu > axial[0]:
+            axial = (pu, combination, where)
+    if points:
+        # All the points' utilisations at once, then the governing one (the first of equals)
+        # checked for its details.
+        utilisations = surface.utilisations([p[:3] for p in points])
+        g = int(np.argmax(utilisations))
+        pu, mux, muy, combination, where = points[g]
+        result = surface.check(pu, mux, muy)
+        governing = (result.utilisation, result, combination, where, pu)
+    checks = [
+        _check(
+            "Axial compression",
+            max(axial[0], 0.0) / 1e3,
+            section.phi_pn_max / 1e3,
+            "kN",
+            axial[1],
+            axial[2],
+        )
+    ]
+    contour = additional_moment.load_contour(section, surface, points) if points else None
+    if contour is not None and governing is not None:
+        # Alpha 9 C8: biaxial bending by the load contour (IS 456 39.6) in place of the
+        # surface's own utilisation; the surface gives Mux1, Muy1 at Pu.
+        util, (pu, mux, muy, combination, where), how = contour
+        result = dataclasses.replace(surface.check(pu, mux, muy), note=how)
+        governing = (util, result, combination, where, pu)
+    if governing is not None:
+        utilisation, result, combination, where, pu = governing
+        note = f"Pu = {pu / 1e3:.1f} kN; {where}" + (f"; {result.note}" if result.note else "")
+        checks.append(
+            _check(
+                "Axial force and biaxial bending",
+                result.mu / 1e6 if math.isfinite(result.mu) else 0.0,
+                result.phi_mn / 1e6,
+                "kN·m",
+                combination,
+                note,
+                utilisation=utilisation,
+            )
+        )
+    if slender_rows is not None:
+        checks += slender_rows  # C8: in place of the moment magnification's rows
+    elif slender is not None:
+        checks += slender.checks
+    return checks
+
+
+# ───────────────────── integrator glue (0.0.45): column shear, beam torsion, deflection ─────────────────────
+
+
+def _shear_points(
+    pieces: list[_Piece], combinations: list[str], turned: bool
+) -> column_shear.ShearPoints:
+    """Every station's (Pu [N, compression positive], Vx, Vy [N, along the profile's x and y],
+    combination, where) of a column, for :func:`saengine.design.column_shear.
+    column_shear_checks`, on arrays (the labels made for the points reported)."""
+    pu, vx, vy, blocks = [], [], [], []
+    start = 0
+    for piece in pieces:
+        for c, forces in enumerate(piece.forces):
+            values = _profile_forces(piece, turned, forces)
+            count = len(forces)
+            pu.append(np.asarray(values["P"], dtype=float).reshape(-1)[:count])
+            vx.append(np.asarray(values["Vx"], dtype=float).reshape(-1)[:count])
+            vy.append(np.asarray(values["Vy"], dtype=float).reshape(-1)[:count])
+            blocks.append((start, piece, c, count))
+            start += count
+    starts = [b[0] for b in blocks]
+
+    def label(i: int) -> tuple[str | None, str]:
+        first, piece, c, count = blocks[bisect.bisect_right(starts, i) - 1]
+        return combinations[c], _where(piece, i - first, count)
+
+    def joined(parts: list[np.ndarray]) -> np.ndarray:
+        return np.concatenate(parts) if parts else np.zeros(0)
+
+    return column_shear.ShearPoints(joined(pu), joined(vx), joined(vy), label)
+
+
+#: Plan tolerance [mm] of the framing found from the building model (a point on a line).
+_ON_LINE = 1.0
+
+
+class _BeamFraming:
+    """How the beams of a building model are held, from the model itself [mm]: the columns
+    and structural walls along a beam (its supports), the beams its ends meet, the slabs beside
+    it. For the torsion kind and the deflection spans of :func:`design`."""
+
+    def __init__(self, building: BuildingModel, types: dict[str, Any]) -> None:
+        self.columns: list[tuple[np.ndarray, float, float, float]] = []
+        self.walls: list[tuple[np.ndarray, np.ndarray, float, float, float]] = []
+        self.beams: list[tuple[str, np.ndarray, np.ndarray, float]] = []
+        self.slabs: list[tuple[Any, float, float]] = []
+        self.supports: list[tuple[np.ndarray, np.ndarray, float, float]] = []
+        stories = [float(s.elevation) for s in building.stories]
+        self.top = max(stories) if stories else math.inf
+        for e in building.elements:
+            object_type = types.get(e.type)
+            profile = getattr(object_type, "profile", None)
+            if isinstance(e, ColumnElement):
+                if isinstance(profile, RectangleProfile):
+                    reach = max(profile.xDim, profile.yDim) / 2
+                elif profile is not None and getattr(profile, "radius", None):
+                    reach = float(profile.radius)
+                else:
+                    reach = 0.0
+                self.columns.append(
+                    (np.array(e.position, dtype=float), float(e.bottom), float(e.top), reach)
+                )
+            elif isinstance(e, WallElement) and getattr(object_type, "structural", False):
+                self.walls.append(
+                    (
+                        np.array(e.start, dtype=float),
+                        np.array(e.end, dtype=float),
+                        float(e.bottom),
+                        float(e.top),
+                        float(getattr(object_type, "thickness", 0.0) or 0.0) / 2,
+                    )
+                )
+            elif isinstance(e, BeamElement):
+                self.beams.append(
+                    (
+                        e.id,
+                        np.array(e.start, dtype=float),
+                        np.array(e.end, dtype=float),
+                        float(e.elevation),
+                    )
+                )
+        from shapely.geometry import Polygon
+
+        for e in building.elements:
+            object_type = types.get(e.type)
+            if isinstance(e, SlabElement) and isinstance(object_type, Slab):
+                polygon = Polygon([(float(x), float(y)) for x, y in e.boundary])
+                if polygon.is_valid and polygon.area > 0:
+                    self.slabs.append((polygon, float(object_type.thickness), float(e.elevation)))
+        # Lines that hold a slab's edge: beams, structural walls.
+        for _, a, c, z in self.beams:
+            self.supports.append((a, c, z, z))
+        for a, c, bottom, top, _ in self.walls:
+            self.supports.append((a, c, bottom, top))
+
+    @staticmethod
+    def _station(point: np.ndarray, a: np.ndarray, c: np.ndarray) -> tuple[float, float]:
+        """(t along a-c from a [0, 1], distance from the line [mm])."""
+        axis = c - a
+        length = float(np.linalg.norm(axis))
+        t = float((point - a) @ axis) / length**2
+        foot = a + t * axis
+        return t, float(np.linalg.norm(point - foot))
+
+    def support_stations(self, element: BeamElement) -> list[float]:
+        """The stations t [0, 1] along a beam where a column or a structural wall holds it (a
+        column within its half-size of the line, at the beam's level; one within its half-size
+        of an end holds that end). Supports closer than their half-sizes are one."""
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        length = float(np.linalg.norm(c - a))
+        z = float(element.elevation)
+        found: list[tuple[float, float]] = []  # (t, half-size [mm])
+        # A column or wall that starts at the beam's level stands on it (a transfer beam's
+        # landing column): a load, not a support (FD of walk 3: the 12 m transfer beam's
+        # deflection was checked over the 6 m halves either side of its landing column).
+        bottoms = [b for _, b, _, _ in self.columns] + [b for _, _, b, _, _ in self.walls]
+        base = min(bottoms, default=0.0)
+
+        def holds(bottom: float, top: float) -> bool:
+            if not bottom - 1.0 <= z <= top + 1.0:
+                return False
+            # At the base (a tie beam) the column standing there is on its footing: a support.
+            return not (abs(bottom - z) <= 1.0 and z > base + 1.0)
+
+        for position, bottom, top, reach in self.columns:
+            if not holds(bottom, top):
+                continue
+            t, off = self._station(position, a, c)
+            margin = (reach + _ON_LINE) / length
+            if off <= reach + _ON_LINE and -margin <= t <= 1 + margin:
+                if t <= margin:
+                    t = 0.0
+                elif t >= 1 - margin:
+                    t = 1.0
+                found.append((t, reach))
+        for w0, w1, bottom, top, half in self.walls:
+            if not holds(bottom, top):
+                continue
+            for end in (a, c):
+                t_wall, off = self._station(end, w0, w1)
+                if off <= half + _ON_LINE and -1e-6 <= t_wall <= 1 + 1e-6:
+                    found.append((0.0 if end is a else 1.0, half))
+            # A wall crossing the beam.
+            hit = _segment_cross(a, c, w0, w1)
+            if hit is not None:
+                found.append((hit, half))
+        merged: list[tuple[float, float]] = []
+        for t, reach in sorted(found):
+            if merged and (t - merged[-1][0]) * length <= merged[-1][1] + reach + _ON_LINE:
+                # One support: keep an end station where there is one.
+                if t in (0.0, 1.0):
+                    merged[-1] = (t, max(reach, merged[-1][1]))
+                continue
+            merged.append((t, reach))
+        return [t for t, _ in merged]
+
+    def end_held(self, element: BeamElement, end: int) -> bool:
+        """Whether a beam's end (0: start, 1: end) is held: a column or wall there, or another
+        beam it frames into (the end on that beam's line, not a collinear continuation)."""
+        stations = self.support_stations(element)
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        length = float(np.linalg.norm(c - a))
+        if any(abs(t - end) * length <= 1.0 + _ON_LINE for t in stations):
+            return True
+        point = c if end else a
+        direction = (c - a) / length
+        for other_id, b0, b1, z in self.beams:
+            if other_id == element.id or abs(z - float(element.elevation)) > 1.0:
+                continue
+            t, off = self._station(point, b0, b1)
+            if off > _ON_LINE or not -1e-6 <= t <= 1 + 1e-6:
+                continue
+            other = (b1 - b0) / float(np.linalg.norm(b1 - b0))
+            if abs(float(direction @ other)) < 0.999:
+                return True
+        return False
+
+    def continues(self, element: BeamElement, end: int) -> bool:
+        """Whether a collinear beam continues beyond a beam's end (a continuous end)."""
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        point = c if end else a
+        direction = (c - a) / float(np.linalg.norm(c - a)) * (1 if end else -1)
+        for other_id, b0, b1, z in self.beams:
+            if other_id == element.id or abs(z - float(element.elevation)) > 1.0:
+                continue
+            for near, far in ((b0, b1), (b1, b0)):
+                if float(np.linalg.norm(near - point)) <= _ON_LINE:
+                    away = (far - near) / float(np.linalg.norm(far - near))
+                    if float(direction @ away) > 0.999:
+                        return True
+        return False
+
+    def slab_beside(self, element: BeamElement, width: float) -> tuple[float, int]:
+        """(thickness [mm], sides 0-2) of the slabs cast with a beam: those at its level beside
+        its middle."""
+        from shapely.geometry import Point
+
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        axis = (c - a) / float(np.linalg.norm(c - a))
+        normal = np.array([-axis[1], axis[0]])
+        middle = (a + c) / 2
+        thickness, sides = 0.0, 0
+        for sign in (1, -1):
+            probe = Point(*(middle + sign * normal * (width / 2 + 50.0)))
+            beside = [
+                t
+                for polygon, t, z in self.slabs
+                if abs(z - float(element.elevation)) <= 1.0 and polygon.covers(probe)
+            ]
+            if beside:
+                sides += 1
+                thickness = max(thickness, *beside)
+        return thickness, sides
+
+    def carries_cantilever(self, element: BeamElement, width: float) -> bool:
+        """Whether a slab beside a beam is a cantilever from it: an edge of it parallel to the
+        beam has no beam or wall under it (less than 95 % held) and neither has any edge across
+        the beam (held on an edge across, the slab spans to that support instead)."""
+        from shapely.geometry import LineString, Point
+
+        a, c = np.array(element.start, dtype=float), np.array(element.end, dtype=float)
+        axis = (c - a) / float(np.linalg.norm(c - a))
+        normal = np.array([-axis[1], axis[0]])
+        middle = (a + c) / 2
+        z0 = float(element.elevation)
+        line = LineString([tuple(a), tuple(c)])
+
+        def held(edge: Any) -> bool:
+            covered = 0.0
+            for s0, s1, bottom, top in self.supports:
+                if not bottom - 1.0 <= z0 <= top + 1.0:
+                    continue
+                support = LineString([tuple(s0), tuple(s1)]).buffer(width / 2 + 50.0)
+                covered += edge.intersection(support).length
+            return covered >= 0.95 * edge.length
+
+        for polygon, _, z in self.slabs:
+            if abs(z - z0) > 1.0:
+                continue
+            if not any(
+                polygon.covers(Point(*(middle + sign * normal * (width / 2 + 50.0))))
+                for sign in (1, -1)
+            ):
+                continue
+            free_parallel, held_across = False, False
+            for p, q in itertools.pairwise(list(polygon.exterior.coords)):
+                edge = LineString([p, q])
+                if edge.length <= 1.0 or edge.hausdorff_distance(line) <= width / 2 + _ON_LINE:
+                    continue  # this beam's own edge
+                along = np.array(q, dtype=float) - np.array(p, dtype=float)
+                parallel = abs(float(along @ axis)) >= 0.985 * float(np.linalg.norm(along))
+                if parallel and not held(edge):
+                    free_parallel = True
+                elif not parallel and held(edge):
+                    held_across = True
+            if free_parallel and not held_across:
+                return True
+        return False
+
+
+def _segment_cross(a: np.ndarray, c: np.ndarray, p: np.ndarray, q: np.ndarray) -> float | None:
+    """The station t (0, 1) along a-c where segment p-q crosses it, or None."""
+    r, s = c - a, q - p
+    denominator = float(r[0] * s[1] - r[1] * s[0])
+    if abs(denominator) < 1e-9:
+        return None
+    t = float((p - a)[0] * s[1] - (p - a)[1] * s[0]) / denominator
+    u = float((p - a)[0] * r[1] - (p - a)[1] * r[0]) / denominator
+    if 0 < t < 1 and -1e-9 <= u <= 1 + 1e-9:
+        return t
+    return None
+
+
+#: The torsion design is tried at this many stations of highest Tu (above half the threshold).
+_TORSION_CANDIDATES = 24
+
+
+def torsion_stations(
+    points: list[tuple[float, float, float, float, str, str]],
+    ts: Any,
+    fc: float,
+    kind: str,
+    threshold: float,
+    limit: int = _TORSION_CANDIDATES,
+) -> list[tuple[float, float, float, float, str, str]]:
+    """The stations (Tu, Vu, Mu, Nu, combination, where) worth designing for torsion: those
+    of highest Tu, and those of highest combined stress of Eq. 6.6.59 with Tu as designed. A
+    compatibility torsion is capped at φTcr, so at the stations above the cap Vu decides, and
+    with many combinations (the response spectrum's sign patterns) the highest Tu alone can
+    leave out the governing station. Stations below half the threshold are left out; with none
+    above it, the one of highest Tu."""
+    by_tu = sorted(points, key=lambda p: -p[0])
+    bw_d = ts.b * ts.d
+    torsion_share = ts.ph / (1.7 * ts.aoh**2)
+
+    def screen(point: tuple[float, float, float, float, str, str]) -> float:
+        tu = point[0]
+        if kind == "compatibility":
+            tu = min(tu, torsion_design.cracking_torsion(ts, fc, point[3]))
+        return math.hypot(point[1] / bw_d, tu * torsion_share)
+
+    above = [p for p in by_tu if p[0] > 0.5 * threshold]
+    by_stress = sorted(above, key=lambda p: -screen(p))[:limit]
+    return list(dict.fromkeys([*above[:limit], *by_stress])) or by_tu[:1]
+
+
+def _torsion_candidates(
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    ts: Any,
+    fc: float,
+    kind: str,
+    threshold: float,
+    limit: int = _TORSION_CANDIDATES,
+) -> list[tuple[float, float, float, float, str, str]]:
+    """:func:`torsion_stations` of every station of ``pieces`` in every combination, the same
+    stations in the same order, worked out on arrays: only the candidates become points."""
+    columns: list[list[np.ndarray]] = [[], [], [], []]
+    # Per block of combinations: piece, first combination, station count, first point.
+    blocks: list[tuple[int, int, int, int]] = []
+    size = 0
+    for index, piece in enumerate(pieces):
+        for first, forces, values in _profile_blocks(piece, turned):
+            columns[0].append((np.abs(forces[..., 3]) * 1e3).ravel())  # N·m -> N·mm
+            columns[1].append(np.abs(values["Vy"]).ravel())
+            columns[2].append(values["Mx"].ravel())
+            columns[3].append(values["P"].ravel())
+            blocks.append((index, first, forces.shape[1], size))
+            size += forces.shape[0] * forces.shape[1]
+    if not size:
+        return []
+    tu, vu, mu, nu = (np.concatenate(column).astype(float) for column in columns)
+    block_starts = np.array([start for *_, start in blocks])
+
+    def point(i: int) -> tuple[float, float, float, float, str, str]:
+        index, first, count, start = blocks[int(np.searchsorted(block_starts, i, "right")) - 1]
+        c, k = divmod(i - start, count)
+        where = _where(pieces[index], k, count)
+        return (
+            float(tu[i]),
+            float(vu[i]),
+            float(mu[i]),
+            float(nu[i]),
+            combinations[first + c],
+            where,
+        )
+
+    by_tu = np.argsort(-tu, kind="stable")
+    above = by_tu[tu[by_tu] > 0.5 * threshold]
+    if not len(above):
+        return [point(int(by_tu[0]))]
+    bw_d = ts.b * ts.d
+    torsion_share = ts.ph / (1.7 * ts.aoh**2)
+    capped = tu[above]
+    if kind == "compatibility":
+        acp, pcp, _ = ts.outline()
+        phi = torsion_design._phi_shear()
+        root = torsion_design._root(fc)
+        ratio = 1 + nu[above] / (0.33 * ts.gross_area * 1.0 * root)
+        factor = np.where(nu[above] == 0, 1.0, np.sqrt(np.maximum(0.0, ratio)))
+        capped = np.minimum(capped, 0.33 * phi * 1.0 * root * acp**2 / pcp * factor)
+    # The stress screen of torsion_stations; np.hypot may differ from math.hypot in the last
+    # bit, so the stations near the cut are ordered with math.hypot, as torsion_stations does.
+    rough = np.hypot(vu[above] / bw_d, capped * torsion_share)
+    if len(above) > limit:
+        cut = np.partition(rough, len(rough) - limit)[len(rough) - limit]
+        near = np.nonzero(rough >= cut * (1 - 1e-9))[0]
+    else:
+        near = np.arange(len(above))
+    exact = [math.hypot(float(vu[above[j]]) / bw_d, float(capped[j]) * torsion_share) for j in near]
+    by_stress = [int(above[near[j]]) for j in np.argsort(-np.array(exact), kind="stable")][:limit]
+    chosen = [point(int(i)) for i in above[:limit]] + [point(i) for i in by_stress]
+    return list(dict.fromkeys(chosen))
+
+
+def _beam_torsion_checks(
+    element: BeamElement,
+    beam: Beam,
+    section: RcSection,
+    pieces: list[_Piece],
+    combinations: list[str],
+    turned: bool,
+    framing: _BeamFraming,
+    fy: float,
+    top_drop: float = 0.0,
+    bottom_rise: float = 0.0,
+) -> tuple[list[dict[str, Any]], Any]:
+    """The torsion rows of a beam (default pack BNBC 2020 Part 6 Sec 6.4.4, :mod:`saengine.design.torsion`)
+    at its governing station (below the threshold one reported-only row), and the torsion
+    design there (:class:`saengine.design.torsion.TorsionDesign`; None when not required)."""
+    from saengine.design.bars import singly_area
+
+    try:
+        rules = torsion_design.TorsionRules.from_pack()
+    except (AttributeError, KeyError, TypeError):
+        return [], None  # the code pack has no torsion group
+    reinforcement = beam.reinforcement
+    if reinforcement is None:
+        return [], None
+    from saengine.design import plastic_torsion, torsion_interaction
+
+    interaction = torsion_interaction.rules() is not None  # Alpha 9 C18b (AS 3600 8.3 type)
+    plastic = plastic_torsion.rules() is not None  # Alpha 9 C20b (GB 50010 6.4 type)
+    if tabulated_shear.torsion_rules() is not None or interaction or plastic:
+        # Alpha 9 C8: torsion by the equivalent shear and moment (IS 456 41) in place of the
+        # thin-walled tube; every station's (Tu, Vu, Mu).
+        points: list[tuple[float, float, float, str, str]] = []
+        for piece in pieces:
+            for first, stacked, values in _profile_blocks(piece, turned):
+                torque = np.abs(stacked[..., 3]) * 1e3  # N·m -> N·mm, as the moments
+                count = values["Mx"].shape[1]
+                for c in range(values["Mx"].shape[0]):
+                    k = int(np.argmax(torque[c]))
+                    if torque[c, k] > 0:
+                        points.append(
+                            (
+                                float(torque[c, k]),
+                                float(values["Vy"][c, k]),
+                                float(values["Mx"][c, k]),
+                                combinations[first + c],
+                                _where(piece, k, count),
+                            )
+                        )
+        transverse = reinforcement.transverse
+        stirrups = (
+            (transverse.dia, transverse.legs, transverse.spacing)
+            if transverse is not None and transverse.spacing
+            else None
+        )
+        if plastic:  # Alpha 9 C20b: Wt, βt, the closed links and Astl
+            try:
+                found = plastic_torsion.torsion_rows(section, reinforcement.cover, stirrups, points)
+            except DesignError as error:
+                found = [
+                    _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
+                ]
+            return found, None
+        if interaction:  # Alpha 9 C18b: Tuc, the interaction with shear and the links
+            try:
+                found = torsion_interaction.torsion_rows(
+                    section, reinforcement.cover, stirrups, points
+                )
+            except DesignError as error:
+                found = [
+                    _check("Torsion", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True)
+                ]
+            # Alpha 9 C18c: the closed links and ΔAl Design Reinforcement sizes from.
+            try:
+                need = torsion_interaction.torsion_need(
+                    section, reinforcement.cover, stirrups, points
+                )
+            except DesignError:
+                need = None
+            return found, need
+        capacities = {hog: flexure(section, hog) for hog in (False, True)}
+        return (
+            tabulated_shear.torsion_rows(
+                section, reinforcement.cover, stirrups, points, capacities
+            ),
+            tabulated_shear.torsion_need(section, reinforcement.cover, stirrups, points),
+        )
+    width = section.width
+    thickness, sides = framing.slab_beside(element, width)
+    try:
+        ts = torsion_design.TorsionSection.of(
+            section, reinforcement.cover, thickness, sides, top_drop, bottom_rise
+        )
+        ts.core  # noqa: B018 - raises when the cover leaves no room
+    except (DesignError, ValueError) as error:
+        return [
+            _check(
+                "Torsion (Sec 6.4.4)", 0.0, 0.0, "kN·m", None, f"not checked: {error}", flag=True
+            )
+        ], None
+    held = framing.end_held(element, 0) and framing.end_held(element, 1)
+    kind, why = torsion_design.torsion_kind(held, framing.carries_cantilever(element, width))
+    transverse = reinforcement.transverse
+    stirrups = (
+        (transverse.dia, transverse.legs, transverse.spacing)
+        if transverse is not None and transverse.spacing
+        else None
+    )
+    resistance = shear(
+        section,
+        transverse.dia if transverse else None,
+        transverse.legs if transverse else 0,
+        transverse.spacing if transverse else None,
+    )
+    fc = section.fc
+    threshold = torsion_design.threshold_torsion(ts, fc)
+    candidates = _torsion_candidates(pieces, combinations, turned, ts, fc, kind, threshold)
+    if not candidates:
+        return [], None
+    best: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
+    # The station of the highest stress of Eq. 6.6.59: the section size is checked there (the
+    # governing station, of the stirrups, can be another one).
+    sized: tuple[float, Any, tuple[float, float, float, float, str, str]] | None = None
+    for point in candidates:
+        tu, vu, mu, nu, _, _ = point
+        design = torsion_design.design_torsion(
+            ts,
+            tu,
+            vu,
+            fc,
+            fy,
+            fy,
+            kind,
+            nu=nu,
+            vc=resistance.vc,
+            rules=rules,
+            spacing=stirrups[2] if stirrups else None,
+        )
+        if not design.required:
+            ratio = design.tu_design / design.phi_tth if design.phi_tth else 0.0
+        else:
+            ratio = 1.0 + design.stress / design.stress_limit
+            if stirrups is not None:
+                dia, legs, spacing = stirrups
+                av_s = torsion_design.shear_av_s(
+                    vu, design.vc, ts.d, design.fyt, design.phi, rules.fy_max
+                )
+                ratio = max(
+                    ratio, 1.0 + (design.at_s + av_s / legs) * spacing / (dia**2 * math.pi / 4)
+                )
+        if best is None or ratio > best[0]:
+            best = (ratio, design, point)
+        if design.required and (sized is None or design.stress > sized[0]):
+            sized = (design.stress, design, point)
+    assert best is not None
+    _, design, (tu, vu, mu, _, combination, where) = best
+    # The shear's Av/s at the governing station, for Required steel's per-leg At/s + Av/(n s).
+    design = dataclasses.replace(
+        design,
+        av_s=torsion_design.shear_av_s(vu, design.vc, ts.d, design.fyt, design.phi, rules.fy_max),
+    )
+    hogging = mu > 0
+    try:
+        d = section.effective_depth(top=hogging)
+    except DesignError:
+        d = ts.d
+    as_flexure = singly_area(abs(mu), width, d, fc, fy)
+    if as_flexure is None:
+        as_flexure = section.steel_area  # the concrete cannot carry the moment: no room for Al
+    rows = torsion_design.torsion_checks(
+        design,
+        ts,
+        vu,
+        stirrups,
+        section.steel_area,
+        as_flexure,
+        combination,
+        where,
+        bars=section.bars,
+        rules=rules,
+    )
+    if design.required and sized is not None and sized[0] > design.stress:
+        _, other, (_, other_vu, _, _, other_combination, other_where) = sized
+        rows[0] = torsion_design.torsion_checks(
+            other,
+            ts,
+            other_vu,
+            stirrups,
+            section.steel_area,
+            as_flexure,
+            other_combination,
+            other_where,
+            bars=section.bars,
+            rules=rules,
+        )[0]
+    if rows:
+        rows[0]["note"] = f"{why}; " + rows[0]["note"]
+    return rows, (design if design.required else None)
+
+
+def _beam_deflection_checks(
+    element: BeamElement,
+    section: RcSection,
+    pieces: list[_Piece],
+    turned: bool,
+    framing: _BeamFraming,
+    project: dict[str, Any],
+    service: dict[str, Any],
+    settings: ProjectSettings,
+    ec: float,
+    fy: float,
+    notes: list[str],
+) -> list[dict[str, Any]]:
+    """The deflection rows of a beam (default pack BNBC 2020 Part 6 Sec 6.2.5, Table 6.6.2,
+    :mod:`saengine.design.deflection`): each span between the columns and walls holding it,
+    and a free end as a cantilever."""
+    mode = getattr(settings.analysis, "deflection", "sensitive") or "sensitive"
+    if mode == "off" or not pieces:
+        return []
+    try:
+        limits = deflection_design.DeflectionLimits.from_pack()
+    except (AttributeError, KeyError, TypeError):
+        return []  # the code pack has no deflection group
+    forces = service.get("forces") or {}
+    moved = service.get("displacements") or {}
+    if "D" not in forces or "D" not in moved:
+        return []
+    roof = float(element.elevation) >= framing.top - 1.0
+    live_cases = [c for c in ("L", "Lr") if c in forces and c in moved]
+    sensitive = mode == "sensitive"
+    sustained = float(getattr(settings.analysis, "sustainedLive", 0.25))
+    a = np.array([*element.start, element.elevation], dtype=float) / 1e3
+    c = np.array([*element.end, element.elevation], dtype=float) / 1e3
+    axis = c - a
+    length = float(np.linalg.norm(axis))
+    nodes_of = {e["id"]: e.get("nodes", []) for e in project.get("elements", [])}
+    sections = {s["id"]: s for s in project.get("sections", [])}
+    section_of_element = {e["id"]: e.get("section_id") for e in project.get("elements", [])}
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+
+    # (t along the beam, node) and per piece its stations between its nodes.
+    stations: list[tuple[float, int, _Piece, int]] = []
+    for piece in pieces:
+        ids = nodes_of.get(piece.id) or []
+        if len(ids) < 2:
+            continue
+        count = len(forces["D"].get(piece.id, ())) or 2
+        for node, k in ((ids[0], 0), (ids[-1], count - 1)):
+            t = float((coords[node] - a) @ axis) / length**2
+            stations.append((t, node, piece, k))
+    if not stations:
+        return []
+    stations.sort(key=lambda s: s[0])
+
+    def uz(case: str, node: int) -> float:
+        return float(moved.get(case, {}).get(node, np.zeros(6))[2]) * 1e3  # m -> mm
+
+    def moment(case: str, piece: _Piece, k: int) -> float:
+        rows = forces.get(case, {}).get(piece.id)
+        if rows is None:
+            return 0.0
+        values = _profile_forces(piece, turned, np.asarray(rows, dtype=float))
+        return float(values["Mx"][min(k, len(values["Mx"]) - 1)])  # N·mm, + hogging
+
+    supports = framing.support_stations(element)
+    spans: list[tuple[float, float, str]] = []  # (t0, t1, "span" | "start" | "end")
+    if len(supports) >= 2:
+        spans += [(t0, t1, "span") for t0, t1 in itertools.pairwise(supports)]
+    for end in (0, 1):
+        edge = (supports[0] if end == 0 else supports[-1]) if supports else None
+        if (
+            edge is not None
+            and abs(edge - end) > 1e-3
+            and not framing.end_held(element, end)
+            and not framing.continues(element, end)
+        ):
+            spans.append((0.0, edge, "start") if end == 0 else (edge, 1.0, "end"))
+    if not spans:
+        # Held by beams only (a secondary beam): the span between its ends.
+        if framing.end_held(element, 0) and framing.end_held(element, 1):
+            spans = [(0.0, 1.0, "span")]
+        else:
+            return []
+    rows: list[dict[str, Any]] = []
+    h = section.depth
+    for number, (t0, t1, kind) in enumerate(spans, start=1):
+        span_mm = (t1 - t0) * length * 1e3
+        if span_mm <= 0:
+            continue
+        cantilever = kind != "span"
+        inside = [s for s in stations if t0 - 1e-6 <= s[0] <= t1 + 1e-6]
+        if len(inside) < 2:
+            continue
+        where = f"{element.id}" + (f" span {number}" if len(spans) > 1 else "")
+        from saengine.design import tension_stiffening
+
+        # Alpha 9 C20b: the long-term stiffness method checks every span (GB 50010 7.2 type).
+        long_term = tension_stiffening.deflection_rules() is not None
+        if not sensitive and span_depth_factors.rules() is None and not long_term:
+            ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+                t1 < 1 - 1e-3 or framing.continues(element, 1)
+            )
+            least = deflection_design.beam_minimum_depth(span_mm, ends, fy, cantilever, limits)
+            if h >= least:
+                rows.append(
+                    _check(
+                        "Deflection: depth exempts the calculation (Table 6.6.1)",
+                        least,
+                        h,
+                        "mm",
+                        "service",
+                        f"h = {h:.0f} mm >= {least:.0f} mm for l = {span_mm:.0f} mm "
+                        f"(partitions not likely to be damaged); {where}",
+                        flag=True,
+                    )
+                )
+                continue
+        # Deflection of each node relative to the chord (a cantilever: the tip below the
+        # support), D + SD and the live cases.
+        dead_cases = [c for c in ("D", "SD") if c in moved]
+
+        def relative(
+            cases: list[str],
+            t: float,
+            node: int,
+            inside: list[tuple[float, int, _Piece, int]] = inside,
+            cantilever: bool = cantilever,
+            kind: str = kind,
+        ) -> float:
+            first, last = inside[0], inside[-1]
+            if cantilever:
+                support = first if kind == "end" else last
+                return sum(uz(cs, support[1]) - uz(cs, node) for cs in cases)
+            share = (t - first[0]) / (last[0] - first[0]) if last[0] > first[0] else 0.0
+            chord = sum((1 - share) * uz(cs, first[1]) + share * uz(cs, last[1]) for cs in cases)
+            return chord - sum(uz(cs, node) for cs in cases)
+
+        if cantilever:
+            tip = inside[-1] if kind == "end" else inside[0]
+            at = inside[0] if kind == "end" else inside[-1]  # the support: Ie there
+            governing = tip
+            m_station = at
+        else:
+            governing = max(inside, key=lambda s: relative(dead_cases + live_cases, s[0], s[1]))
+            m_station = governing
+        d_dead = relative(dead_cases, governing[0], governing[1])
+        d_live = relative(live_cases, governing[0], governing[1]) if live_cases else 0.0
+        _, _, piece, k = m_station
+        m_dead = sum(moment(cs, piece, k) for cs in dead_cases)
+        m_live = sum(moment(cs, piece, k) for cs in live_cases)
+        if not cantilever:  # sagging at midspan
+            m_dead, m_live = -m_dead, -m_live
+        section_id = section_of_element.get(piece.id)
+        props = sections.get(section_id, {})
+        along_z = piece.depth_along_z != turned
+        inertia = float(props.get("Iy" if along_z else "Iz", 0.0) or 0.0)
+        ei = float(props.get("E", 0.0) or 0.0) * inertia * 1e6  # N·m² -> N·mm²
+        if long_term:
+            # Alpha 9 C20b: B = Bs/θ under Mq and the crack width with ψ (GB 50010 7.1, 7.2
+            # type, saengine.design.tension_stiffening) in place of Ie and Table 6.6.2.
+            rows += tension_stiffening.span_rows(
+                section,
+                ec,
+                span_mm,
+                cantilever,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                ei,
+                where + (" (cantilever)" if cantilever else ""),
+            )
+            continue
+        if span_depth_factors.rules() is not None:
+            # Alpha 9 C8: span / depth with modification factors, the Annex C calculation and
+            # the crack width (saengine.design.span_depth_factors) in place of Ie and Table 6.6.2.
+            ends = int(t0 > 1e-3 or framing.continues(element, 0)) + int(
+                t1 < 1 - 1e-3 or framing.continues(element, 1)
+            )
+            try:
+                stiffness = deflection_design.section_stiffness(section, ec, hogging=cantilever)
+            except (DesignError, ValueError) as error:
+                notes.append(f"{where}: deflection not checked: {error}")
+                continue
+            rows += span_depth_factors.span_rows(
+                section,
+                stiffness,
+                ec,
+                span_mm,
+                ends,
+                cantilever,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                ei,
+                sustained,
+                where + (" (cantilever)" if cantilever else ""),
+                framing.slab_beside(element, section.width),
+            )
+            continue
+        if ei <= 0 or d_dead + d_live <= 0:
+            continue
+        try:
+            stiffness = deflection_design.section_stiffness(section, ec, hogging=cantilever)
+            result = deflection_design.span_deflection(
+                span_mm,
+                stiffness,
+                section.fc,
+                ec,
+                ei,
+                (max(m_dead, 0.0), d_dead),
+                (max(m_live, 0.0), d_live),
+                sustained,
+                roof=roof,
+                sensitive=sensitive,
+                limits=limits,
+            )
+        except (DesignError, ValueError) as error:
+            notes.append(f"{where}: deflection not checked: {error}")
+            continue
+        rows += deflection_design.deflection_checks(
+            result,
+            roof=roof,
+            sensitive=sensitive,
+            where=where + (" (cantilever)" if cantilever else ""),
+            limits=limits,
+        )
+    return rows

@@ -1,0 +1,234 @@
+{
+	"schema": "saengine.objects/1",
+	"objects": [
+		{
+			"id": "C400x600",
+			"name": "Column 400x600",
+			"kind": "column",
+			"material": "C24.1",
+			"profile": {
+				"shape": "rectangle",
+				"xDim": 400,
+				"yDim": 600
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "perimeter",
+						"count": 10,
+						"dia": 20
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "C500R",
+			"name": "Round column 500",
+			"kind": "column",
+			"material": "C24.1",
+			"profile": {
+				"shape": "circle",
+				"radius": 250
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "perimeter",
+						"count": 8,
+						"dia": 20
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "B300x500",
+			"name": "Beam 300x500",
+			"kind": "beam",
+			"material": "C24.1",
+			"profile": {
+				"shape": "rectangle",
+				"xDim": 300,
+				"yDim": 500
+			},
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 40,
+				"longitudinal": [
+					{
+						"position": "top",
+						"count": 3,
+						"dia": 16
+					},
+					{
+						"position": "bottom",
+						"count": 4,
+						"dia": 16
+					}
+				],
+				"transverse": {
+					"type": "tie",
+					"dia": 10,
+					"spacing": 150,
+					"legs": 2
+				}
+			}
+		},
+		{
+			"id": "S150",
+			"name": "Slab 150",
+			"kind": "slab",
+			"material": "C24.1",
+			"thickness": 150,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 20,
+				"bottomX": {
+					"dia": 10,
+					"spacing": 150
+				},
+				"bottomY": {
+					"dia": 10,
+					"spacing": 150
+				},
+				"topX": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"topY": {
+					"dia": 10,
+					"spacing": 200
+				}
+			}
+		},
+		{
+			"id": "W250",
+			"name": "Wall 250",
+			"kind": "wall",
+			"material": "C24.1",
+			"thickness": 250,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 25,
+				"vertical": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"horizontal": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"layers": 2,
+				"diagonal": {
+					"count": 4,
+					"dia": 16,
+					"hoop": {
+						"dia": 10,
+						"spacing": 75,
+						"legsAcross": 7,
+						"legsAlong": 2
+					},
+					"longitudinal": {
+						"dia": 10,
+						"spacing": 150
+					}
+				},
+				"pierHoop": {
+					"dia": 10,
+					"spacing": 150,
+					"legsAcross": 2,
+					"legsAlong": 2
+				}
+			}
+		},
+		{
+			"id": "F2015",
+			"name": "Footing 2000x1500",
+			"kind": "footing",
+			"material": "C24.1",
+			"length": 2000,
+			"width": 1500,
+			"thickness": 500,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 75,
+				"bottomX": {
+					"dia": 12,
+					"spacing": 150
+				},
+				"bottomY": {
+					"dia": 12,
+					"spacing": 150
+				}
+			}
+		},
+		{
+			"id": "ST1200",
+			"name": "Dog-legged stair 1200 wide",
+			"kind": "staircase",
+			"material": "C24.1",
+			"waistThickness": 150,
+			"riser": 160,
+			"tread": 327,
+			"flightWidth": 1200,
+			"reinforcement": {
+				"material": "B420DWR",
+				"cover": 20,
+				"main": {
+					"dia": 12,
+					"spacing": 125
+				},
+				"distribution": {
+					"dia": 10,
+					"spacing": 200
+				},
+				"top": {
+					"dia": 12,
+					"spacing": 150
+				},
+				"landing": {
+					"dia": 12,
+					"spacing": 150
+				}
+			},
+			"arrangement": "dogLegged",
+			"spanning": "landingEdges",
+			"landingLength": 1200,
+			"landingThickness": 150,
+			"wellWidth": 100,
+			"bottomEnd": "continuous",
+			"topEnd": "continuous"
+		},
+		{
+			"id": "BR-SHS",
+			"name": "Brace SHS 150",
+			"kind": "brace",
+			"material": "A572-50",
+			"profile": {
+				"shape": "rectangleHollow",
+				"xDim": 150,
+				"yDim": 150,
+				"wallThickness": 8
+			},
+			"connection": {
+				"type": "gusset",
+				"tabThickness": 10
+			}
+		}
+	]
+}

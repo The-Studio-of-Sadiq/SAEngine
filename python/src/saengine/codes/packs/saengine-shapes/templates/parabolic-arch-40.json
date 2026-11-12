@@ -1,0 +1,12 @@
+{
+  "name": "Parabolic arch 40 m",
+  "description": "Parabolic arch, rise 10 m, 16 straight members.",
+  "shape": {
+    "kind": "arch",
+    "span": 40000.0,
+    "rise": 10000.0,
+    "segments": 16,
+    "form": "parabolic",
+    "memberType": "MEMBER"
+  }
+}

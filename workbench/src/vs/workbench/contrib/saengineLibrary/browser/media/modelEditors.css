@@ -1,0 +1,238 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The model editors in the shared editor frame (editorFrame.css): 6 BIM (buildingEditor.ts) and
+ * the structural model form (structureEditor.ts). Sizes and colours come from the shared tokens. */
+
+/* ── 6 BIM ─────────────────────────────────────────────────────────────────────────────────── */
+
+.saengine-building-editor .library-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-building-editor .library-body.hidden {
+	display: none;
+}
+
+.saengine-building-editor .building-editor.building-3d {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+.saengine-building-editor .building-3d .building-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border-top: none;
+}
+
+.saengine-building-editor .building-3d .building-summary-view,
+.saengine-building-editor .building-3d .building-additions-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-5, 24px) var(--sa-space-6, 32px);
+}
+
+.saengine-building-editor .building-3d .hidden {
+	display: none;
+}
+
+.saengine-building-editor .building-summary-view h3 {
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-2, 8px);
+	font-size: var(--sa-font-m, 13px);
+	font-weight: 600;
+}
+
+.saengine-building-editor .building-summary-view h3:first-child {
+	margin-top: 0;
+}
+
+.saengine-building-editor .building-table {
+	display: grid;
+	grid-template-columns: repeat(4, auto);
+	justify-content: start;
+	gap: var(--sa-space-1, 4px) var(--sa-space-5, 24px);
+	margin: 0 0 var(--sa-space-4, 16px);
+}
+
+.saengine-building-editor .building-table .header {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-building-editor .building-table .number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-building-editor .building-note {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+/* the one help line above the additions form (the old paragraph header) */
+.saengine-building-editor .building-help {
+	display: flex;
+	gap: var(--sa-space-2, 8px);
+	max-width: 720px;
+	margin: 0 0 var(--sa-space-3, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	line-height: 1.5;
+}
+
+.saengine-building-editor .building-help .codicon {
+	flex: none;
+	margin-top: 2px;
+	font-size: 14px;
+}
+
+.saengine-building-editor .building-table.two {
+	grid-template-columns: repeat(2, auto);
+}
+
+.saengine-building-editor .building-problems-link,
+.saengine-building-editor .sa-props-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-building-editor .building-problems-heading:focus {
+	outline: none;
+}
+
+/* over the 3D view: presets and story filter (top left), legend (bottom left), notes (centre) */
+.saengine-building-editor .building-3d-tools {
+	position: absolute;
+	top: var(--sa-space-2, 8px);
+	left: var(--sa-space-2, 8px);
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+/* the reinforcement toggle: one segment standing alone */
+.saengine-building-editor .building-rebar-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 28px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-building-editor .building-story-filter {
+	height: 28px;
+	padding: 0 var(--sa-space-1, 4px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-building-editor .building-legend {
+	position: absolute;
+	left: var(--sa-space-2, 8px);
+	bottom: var(--sa-space-2, 8px);
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px);
+	max-width: calc(100% - 2 * var(--sa-space-2, 8px));
+}
+
+.saengine-building-editor .building-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	height: 24px;
+	padding: 0 var(--sa-space-2, 8px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 12px;
+	background: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+}
+
+.saengine-building-editor .building-legend-item .swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+}
+
+.saengine-building-editor .building-legend-item .count {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-building-editor .building-legend-item.off {
+	opacity: 0.55;
+}
+
+.saengine-building-editor .building-legend-item.off .label {
+	text-decoration: line-through;
+}
+
+.saengine-building-editor .building-legend-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-building-editor .building-3d-note {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 2;
+	transform: translate(-50%, -50%);
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	max-width: min(460px, 80%);
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	line-height: 1.5;
+	text-align: center;
+}
+
+.saengine-building-editor .building-3d .building-viewport .hidden {
+	display: none;
+}
+
+/* ── the structural model form (structureEditor.ts) ───────────────────────────────────────── */
+
+.saengine-structure-form .library-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.saengine-structure-form .library-body.hidden {
+	display: none;
+}
+
+.saengine-structure-form .structure-editor {
+	flex: 1;
+	min-width: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-5, 24px) var(--sa-space-6, 32px);
+}
+
+.saengine-building-editor .sa-frame-icon-button.hidden {
+	display: none;
+}

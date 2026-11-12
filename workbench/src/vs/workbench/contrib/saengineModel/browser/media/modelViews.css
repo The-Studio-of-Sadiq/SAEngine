@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* model explorer */
+
+.saengine-model-explorer .model-node {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.saengine-model-explorer .model-node-icon {
+	flex: none;
+}
+
+.saengine-model-explorer .model-node-label {
+	flex: none;
+}
+
+.saengine-model-explorer .model-node-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.75;
+	font-size: 0.9em;
+}
+
+.saengine-model-explorer .model-node-problem {
+	flex: none;
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/* the Properties panel (propertiesView.ts): the active editor's properties, docked from its
+ * frame (editorFrame.css styles them through the frame's classes), or the selection and the
+ * project */
+
+.saengine-properties-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-properties-view .sa-properties-dock,
+.saengine-properties-view .sa-properties-fallback {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.saengine-properties-view .sa-properties-dock.hidden,
+.saengine-properties-view .sa-properties-fallback.hidden {
+	display: none;
+}
+
+/* The editor frame's classes come along for its styles; not its layout or canvas colour. */
+.monaco-workbench .saengine-properties-view .sa-docked-frame,
+.monaco-workbench .saengine-properties-view .sa-properties-fallback.saengine-editor-frame {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	width: auto;
+	height: auto;
+	overflow: hidden;
+	background: transparent;
+}
+
+.saengine-properties-view .sa-frame-panel-content {
+	padding-top: var(--sa-space-1, 4px);
+}

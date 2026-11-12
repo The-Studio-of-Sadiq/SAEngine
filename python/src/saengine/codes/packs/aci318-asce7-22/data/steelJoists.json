@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/steelJoists.schema.json",
+  "$sources": [
+    "SJI 100-2020 Standard Specification for K-Series, LH-Series and DLH-Series Open Web Steel Joists; SJI 200-2015 Standard Specification for Joist Girders (Steel Joist Institute)"
+  ],
+  "source": "SJI 100-2020 / SJI 200-2015 (LRFD): member slenderness, top chord panel moments, the least web shear, bridging; the chords and webs by AISC 360-22 through the pack's steel table; see VERIFY.md",
+  "method": "specification",
+  "slenderness": {
+    "topChordInterior": 90,
+    "topChordEnd": 120,
+    "compressionWeb": 200,
+    "tension": 240
+  },
+  "panelMoment": {
+    "endPanel": 8,
+    "interiorPanel": 10
+  },
+  "leastWebShare": 0.25,
+  "webK": 1.0,
+  "interaction": "bilinear",
+  "bridging": {
+    "topChord": 170,
+    "bottomChord": 240
+  },
+  "loadFormat": "lrfd",
+  "loadTables": [],
+  "clauses": {
+    "code": "SJI 100-2020",
+    "chords": "SJI 100-2020 4.4 (chords), AISC 360-22 D, E",
+    "webs": "SJI 100-2020 4.4 (web), AISC 360-22 D, E",
+    "slenderness": "SJI 100-2020 4.3 (slenderness ratios)",
+    "panelMoment": "SJI 100-2020 4.4 (top chord, combined axial and bending)",
+    "leastWebShare": "SJI 100-2020 4.4 (web: vertical shear at least 25 % of the end reaction)",
+    "bridging": "SJI 100-2020 5.5 (bridging)",
+    "loadTable": "SJI standard load tables (the catalogue rows of the project)",
+    "deflection": "IBC 2021 Table 1604.3 (the pack's serviceability table)"
+  }
+}

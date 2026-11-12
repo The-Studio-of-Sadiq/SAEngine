@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>fem-viewer dev</title>
+	<style>html, body, #viewport { margin: 0; height: 100%; } #status { position: fixed; top: 8px; left: 8px; color: #ccc; font: 12px sans-serif; }</style>
+</head>
+<body>
+	<div id="viewport"></div>
+	<div id="status">nothing selected</div>
+	<script type="module">
+		import { createFemViewer } from '../dist/fem-viewer.js';
+		const status = document.getElementById('status');
+		const viewer = createFemViewer(document.getElementById('viewport'), {
+			onSelectionChanged: s => status.textContent = s ? `${s.kind} ${s.id}` : 'nothing selected',
+		});
+		viewer.setModel(await (await fetch('./sample.osmodel')).json());
+		window.viewer = viewer;
+	</script>
+</body>
+</html>

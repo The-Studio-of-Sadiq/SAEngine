@@ -1,0 +1,1873 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The MEP editor (mepEditor.ts) in the shared editor frame (editorFrame.css). Sizes and colours
+ * come from the shared tokens (saengineTokens.css) and the theme. The structure is drawn quietly
+ * (concrete as the canvas tinted with the foreground), the services in the chart colours:
+ * equipment blue, shafts purple, sleeves and openings orange; clashes in the fail tier. */
+
+.saengine-mep-editor {
+	--mep-concrete: color-mix(in srgb, var(--vscode-foreground) 6%, var(--sa-surface));
+	--mep-concrete-edge: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	--mep-beam: color-mix(in srgb, var(--vscode-foreground) 22%, var(--sa-surface));
+	--mep-wall: color-mix(in srgb, var(--vscode-foreground) 45%, var(--sa-surface));
+	--mep-column: color-mix(in srgb, var(--vscode-foreground) 72%, var(--sa-surface));
+	--mep-grid: color-mix(in srgb, var(--sa-muted) 55%, transparent);
+	--mep-equipment: var(--vscode-charts-blue, #2c6fbe);
+	--mep-shaft: var(--vscode-charts-purple, #7c4dbd);
+	--mep-sleeve: var(--vscode-charts-orange, #c2620e);
+	--mep-select: var(--sa-accent);
+}
+
+.saengine-mep-editor .mep-story {
+	display: flex;
+	align-items: center;
+	margin-left: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-story-select {
+	width: 170px;
+}
+
+.saengine-mep-editor .sa-frame-toolbar .monaco-select-box {
+	height: 24px;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--sa-radius, 4px);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-mep-editor .mep-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-3) var(--sa-space-4) var(--sa-space-6);
+	box-sizing: border-box;
+	outline: none;
+}
+
+.saengine-mep-editor .mep-view.plan {
+	overflow: hidden;
+}
+
+.saengine-mep-editor .mep-view-header {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-view-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-view-subtitle,
+.saengine-mep-editor .mep-muted,
+.saengine-mep-editor .mep-muted-cell,
+.saengine-mep-editor .mep-muted-inline {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-partial {
+	display: block;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+/* ── legend ──────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	margin-bottom: var(--sa-space-2);
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-mep-editor .mep-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 10px;
+	box-sizing: border-box;
+}
+
+.saengine-mep-editor .mep-swatch.equipment { border: 1px solid var(--mep-equipment); background: color-mix(in srgb, var(--mep-equipment) 16%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.shaft { border: 1px solid var(--mep-shaft); background: repeating-linear-gradient(45deg, var(--mep-shaft) 0 1px, transparent 1px 4px); }
+.saengine-mep-editor .mep-swatch.sleeve { width: 10px; border: 1.5px solid var(--mep-sleeve); border-radius: 50%; }
+.saengine-mep-editor .mep-swatch.beam { height: 5px; background: var(--mep-beam); }
+.saengine-mep-editor .mep-swatch.slab { border: 1px solid var(--mep-concrete-edge); background: var(--mep-concrete); }
+.saengine-mep-editor .mep-swatch.clash { width: 10px; border: 1.5px solid var(--sa-fail); border-radius: 50%; }
+
+/* ── plan (mepPlan.ts) ───────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-canvas {
+	touch-action: none;
+}
+
+.saengine-mep-editor .mep-canvas svg {
+	display: block;
+	user-select: none;
+}
+
+.saengine-mep-editor .mep-grid-line {
+	stroke: var(--mep-grid);
+	stroke-width: 1;
+	stroke-dasharray: 12 3 2 3;
+}
+
+.saengine-mep-editor .mep-grid-bubble {
+	fill: var(--sa-surface);
+	stroke: var(--mep-grid);
+}
+
+.saengine-mep-editor .mep-grid-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-slab,
+.saengine-mep-editor .mep-beam,
+.saengine-mep-editor .mep-wall,
+.saengine-mep-editor .mep-column {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-slab-shape {
+	fill: var(--mep-concrete);
+	stroke: var(--mep-concrete-edge);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .mep-slab:hover .mep-slab-shape {
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-slab.selected .mep-slab-shape {
+	fill: color-mix(in srgb, var(--mep-select) 8%, var(--sa-surface));
+	stroke: var(--mep-select);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-element-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-element-label.slab {
+	font-size: 11px;
+	fill: color-mix(in srgb, var(--sa-muted) 70%, transparent);
+}
+
+.saengine-mep-editor .mep-bim-opening {
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-bim-opening-shape {
+	fill: var(--sa-surface);
+	stroke: var(--mep-concrete-edge);
+}
+
+.saengine-mep-editor .mep-bim-opening-cross {
+	stroke: var(--mep-concrete-edge);
+	stroke-width: 0.75;
+}
+
+.saengine-mep-editor .mep-hit {
+	stroke: transparent;
+	stroke-width: 14;
+}
+
+.saengine-mep-editor .mep-beam-line {
+	stroke: var(--mep-beam);
+	stroke-linecap: butt;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-wall-line {
+	stroke: var(--mep-wall);
+	stroke-linecap: butt;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-beam:hover .mep-beam-line,
+.saengine-mep-editor .mep-wall:hover .mep-wall-line {
+	stroke: color-mix(in srgb, var(--mep-select) 60%, var(--mep-beam));
+}
+
+.saengine-mep-editor .mep-beam.selected .mep-beam-line,
+.saengine-mep-editor .mep-wall.selected .mep-wall-line {
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-beam.selected .mep-element-label {
+	fill: var(--mep-select);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-column-shape {
+	fill: var(--mep-column);
+	stroke: var(--mep-column);
+}
+
+.saengine-mep-editor .mep-column.selected .mep-column-shape {
+	fill: var(--mep-select);
+	stroke: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-shaft {
+	cursor: move;
+}
+
+.saengine-mep-editor .mep-hatch-line {
+	stroke: color-mix(in srgb, var(--mep-shaft) 55%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .mep-shaft-fill {
+	stroke: none;
+}
+
+.saengine-mep-editor .mep-shaft-shape {
+	fill: none;
+	stroke: var(--mep-shaft);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-shaft.selected .mep-shaft-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .mep-shaft-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--mep-shaft);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment {
+	cursor: move;
+}
+
+.saengine-mep-editor .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 14%, var(--sa-surface));
+	stroke: var(--mep-equipment);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-equipment.vibrating .mep-equipment-shape {
+	stroke-dasharray: 6 2;
+}
+
+.saengine-mep-editor .mep-equipment:hover .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 22%, var(--sa-surface));
+}
+
+.saengine-mep-editor .mep-equipment.selected .mep-equipment-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+	stroke-dasharray: none;
+}
+
+/* The services' equipment on the coordination plan: read-only, edited in its own discipline. */
+.saengine-mep-editor .mep-service-equipment .mep-equipment-shape {
+	fill: color-mix(in srgb, var(--mep-equipment) 8%, transparent);
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .mep-service-equipment.not-applied .mep-equipment-shape {
+	stroke: var(--sa-danger, var(--vscode-errorForeground));
+}
+
+.saengine-mep-editor .mep-equipment-foot {
+	fill: var(--mep-equipment);
+}
+
+.saengine-mep-editor .mep-equipment-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment-weight {
+	font-size: 10px;
+	fill: var(--mep-equipment);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-equipment-name {
+	font-size: 10px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-opening {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-opening-shape {
+	fill: var(--sa-surface);
+	stroke: var(--mep-sleeve);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-opening.kind-opening .mep-opening-shape {
+	fill: color-mix(in srgb, var(--mep-sleeve) 18%, var(--sa-surface));
+}
+
+.saengine-mep-editor .mep-opening.band-ok .mep-opening-shape { stroke: var(--sa-ok); }
+.saengine-mep-editor .mep-opening.band-warn .mep-opening-shape { stroke: var(--sa-warn); }
+.saengine-mep-editor .mep-opening.band-fail .mep-opening-shape { stroke: var(--sa-fail); fill: color-mix(in srgb, var(--sa-fail) 18%, var(--sa-surface)); }
+
+.saengine-mep-editor .mep-opening.selected .mep-opening-shape {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .mep-opening-label {
+	font-size: 10px;
+	font-weight: 600;
+	fill: var(--mep-sleeve);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-opening.selected .mep-opening-label {
+	fill: var(--mep-select);
+}
+
+.saengine-mep-editor .mep-clash {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-clash-mark {
+	stroke: var(--sa-fail);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .mep-clash-ring {
+	fill: transparent;
+	stroke: var(--sa-fail);
+	stroke-width: 1.25;
+}
+
+.saengine-mep-editor .mep-clash.coordinated .mep-clash-mark,
+.saengine-mep-editor .mep-clash.coordinated .mep-clash-ring {
+	stroke: var(--sa-ok);
+}
+
+.saengine-mep-editor .mep-clash.selected .mep-clash-ring {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .mep-scale {
+	fill: none;
+	stroke: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-scale-label {
+	font-size: 10px;
+	fill: var(--sa-muted);
+}
+
+/* ── tables ──────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-section {
+	margin-top: var(--sa-space-4);
+}
+
+.saengine-mep-editor .mep-section.result {
+	margin-top: var(--sa-space-6);
+}
+
+.saengine-mep-editor .mep-section-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-section-title {
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-section-detail {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-section-count {
+	min-width: 16px;
+	padding: 0 5px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	text-align: center;
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+}
+
+.saengine-mep-editor .mep-subheading {
+	margin: var(--sa-space-4) 0 var(--sa-space-2);
+	font-weight: 600;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-add {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	padding: 2px var(--sa-space-2);
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-section-heading .mep-add {
+	margin-left: auto;
+}
+
+.saengine-mep-editor .mep-add:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Coordination: clash tests, issues, BCF and IDS (coordinationView.ts) */
+.saengine-mep-editor .coord-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2);
+	margin: var(--sa-space-1) 0 var(--sa-space-2);
+}
+
+.saengine-mep-editor .coord-actions .mep-add:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.saengine-mep-editor .coord-sets {
+	white-space: normal;
+}
+
+.saengine-mep-editor .coord-set {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	margin-right: var(--sa-space-2);
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .coord-author {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-left: auto;
+}
+
+.saengine-mep-editor .mep-table-scroll {
+	overflow-x: auto;
+}
+
+.saengine-mep-editor .mep-table {
+	border-collapse: collapse;
+	table-layout: fixed;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-result-table {
+	table-layout: auto;
+	min-width: 360px;
+}
+
+.saengine-mep-editor .mep-table th {
+	padding: 4px 6px;
+	text-align: left;
+	font-weight: 600;
+	color: var(--sa-muted);
+	border-bottom: 1px solid var(--sa-border);
+	white-space: nowrap;
+	vertical-align: bottom;
+}
+
+.saengine-mep-editor .mep-table th.number,
+.saengine-mep-editor .mep-table td.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-unit {
+	display: block;
+	font-weight: 400;
+	font-size: 11px;
+}
+
+.saengine-mep-editor .mep-table td {
+	padding: 2px 6px;
+	border-bottom: 1px solid color-mix(in srgb, var(--sa-border) 50%, transparent);
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .mep-result-table td {
+	padding: 4px 6px;
+}
+
+.saengine-mep-editor .mep-table td:has(> .mep-input),
+.saengine-mep-editor .mep-table td:has(> .mep-select) {
+	padding: 1px 2px;
+}
+
+.saengine-mep-editor .mep-table td.mep-wrap {
+	white-space: normal;
+	min-width: 200px;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-table td.mep-pre {
+	white-space: pre-line;
+}
+
+.saengine-mep-editor .mep-table td.mep-muted {
+	padding: var(--sa-space-2) 6px;
+	white-space: normal;
+}
+
+.saengine-mep-editor .mep-table td.mep-check-cell {
+	text-align: center;
+}
+
+.saengine-mep-editor tr.mep-row {
+	cursor: pointer;
+}
+
+.saengine-mep-editor tr.mep-row:hover,
+.saengine-mep-editor tr.mep-clash-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-mep-editor tr.mep-row.selected,
+.saengine-mep-editor tr.mep-clash-row.selected {
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-mep-editor .mep-input,
+.saengine-mep-editor .mep-select {
+	width: 100%;
+	height: 24px;
+	box-sizing: border-box;
+	padding: 0 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: var(--sa-font-s);
+	outline: none;
+}
+
+.saengine-mep-editor .mep-input.number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-input:hover,
+.saengine-mep-editor .mep-select:hover {
+	border-color: var(--vscode-input-border, var(--sa-border));
+}
+
+.saengine-mep-editor .mep-input:focus,
+.saengine-mep-editor .mep-select:focus {
+	border-color: var(--sa-accent);
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .mep-select {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.saengine-mep-editor .mep-checkbox {
+	margin: 0;
+	accent-color: var(--sa-accent);
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-input.warning,
+.saengine-mep-editor .mep-select.warning {
+	border-color: var(--sa-warn);
+}
+
+.saengine-mep-editor .mep-input.invalid {
+	border-color: var(--sa-fail);
+	background: color-mix(in srgb, var(--sa-fail) 8%, transparent);
+}
+
+.saengine-mep-editor .mep-row-actions {
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-remove {
+	display: inline-flex;
+	padding: 3px;
+	border: none;
+	border-radius: var(--sa-radius);
+	background: transparent;
+	color: var(--sa-muted);
+	cursor: pointer;
+	visibility: hidden;
+}
+
+.saengine-mep-editor tr:hover .mep-remove,
+.saengine-mep-editor .mep-remove:focus-visible {
+	visibility: visible;
+}
+
+.saengine-mep-editor .mep-remove:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* utilisation: a short bar and the value, in the shared bands */
+.saengine-mep-editor .mep-util-cell {
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .mep-util-cell.band-fail {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-util-bar {
+	display: inline-block;
+	width: 48px;
+	height: 6px;
+	margin-right: var(--sa-space-2);
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--sa-muted) 18%, transparent);
+	vertical-align: middle;
+	overflow: hidden;
+}
+
+.saengine-mep-editor .mep-util-fill {
+	display: block;
+	height: 100%;
+	background: var(--sa-ok);
+}
+
+.saengine-mep-editor .mep-util-fill.band-warn { background: var(--sa-warn); }
+.saengine-mep-editor .mep-util-fill.band-fail { background: var(--sa-fail); }
+
+.saengine-mep-editor .mep-util-value {
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .band-warn.mep-util-value,
+.saengine-mep-editor .mep-tile-value.band-warn { color: var(--sa-warn); }
+
+.saengine-mep-editor .band-fail.mep-util-value,
+.saengine-mep-editor .mep-tile-value.band-fail {
+	color: var(--sa-fail);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-tile-value.band-ok { color: var(--sa-ok); }
+
+.saengine-mep-editor tr.failed td:first-child {
+	box-shadow: inset 2px 0 0 var(--sa-fail);
+}
+
+.saengine-mep-editor .mep-status-pill {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	border: 1px solid currentColor;
+}
+
+.saengine-mep-editor .mep-status-pill.clash { color: var(--sa-fail); }
+.saengine-mep-editor .mep-status-pill.coordinated { color: var(--sa-ok); }
+
+.saengine-mep-editor .mep-clash-actions {
+	display: flex;
+	gap: var(--sa-space-1);
+}
+
+/* ── results ─────────────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-results-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sa-space-2);
+	max-width: 460px;
+	margin: 12vh auto 0;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-results-state-icon {
+	font-size: 24px;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .mep-results-state-title {
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .mep-results-state-text {
+	color: var(--sa-muted);
+	line-height: 1.5;
+}
+
+.saengine-mep-editor .mep-results-state ~ .mep-section {
+	max-width: 640px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.saengine-mep-editor .mep-tiles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3);
+	margin-top: var(--sa-space-3);
+}
+
+.saengine-mep-editor .mep-tile {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 120px;
+	padding: var(--sa-space-2) var(--sa-space-3);
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+	background: var(--sa-surface-alt);
+}
+
+.saengine-mep-editor .mep-tile-value {
+	font-size: var(--sa-font-xl);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-tile-label {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .mep-note {
+	margin: var(--sa-space-2) 0 0;
+	max-width: 720px;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.5;
+}
+
+/* ── properties panel ────────────────────────────────────────────────────── */
+
+.saengine-mep-editor .mep-prop-row {
+	align-items: center;
+}
+
+.saengine-mep-editor .mep-prop-row > .value {
+	flex: 0 0 56%;
+}
+
+.saengine-mep-editor .mep-prop-control {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.saengine-mep-editor .mep-prop-control .mep-input,
+.saengine-mep-editor .mep-prop-control .mep-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .mep-prop-unit {
+	flex: none;
+	max-width: 40%;
+	color: var(--sa-muted);
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-mep-editor .sa-props-note.error {
+	color: var(--sa-fail);
+}
+
+.saengine-mep-editor .sa-props-note.warning {
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-track,
+.saengine-mep-editor ::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.saengine-mep-editor ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* ── plumbing (plumbingPlan.ts, plumbingResults.ts) ─────────────────────── */
+
+/* Each system has its colour and its letters (CW, HW, S, W, SW, V, RW, PM): the letters carry the
+ * identity, the colour helps. Text stays in the text tokens. */
+.saengine-mep-editor {
+	--plb-coldWater: var(--vscode-charts-blue, #2c6fbe);
+	--plb-hotWater: var(--vscode-charts-red, #c4314b);
+	--plb-soil: var(--vscode-charts-orange, #c2620e);
+	--plb-waste: var(--vscode-charts-yellow, #b58900);
+	--plb-soilWaste: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 65%, var(--vscode-foreground));
+	--plb-vent: var(--vscode-charts-green, #388a34);
+	--plb-rainwater: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 50%, var(--vscode-charts-green, #388a34));
+	--plb-pumpMain: var(--vscode-charts-purple, #7c4dbd);
+	--plb-tank: var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-mep-editor .mep-discipline {
+	margin-left: var(--sa-space-3);
+}
+
+/* the coordination items drawn quietly under the plumbing */
+.saengine-mep-editor .mep-plan.plumbing .mep-equipment {
+	opacity: 0.35;
+}
+
+.saengine-mep-editor .plb-riser,
+.saengine-mep-editor .plb-tank,
+.saengine-mep-editor .plb-drain {
+	cursor: move;
+}
+
+.saengine-mep-editor .sys-coldWater { --plb-c: var(--plb-coldWater); }
+.saengine-mep-editor .sys-hotWater { --plb-c: var(--plb-hotWater); }
+.saengine-mep-editor .sys-soil { --plb-c: var(--plb-soil); }
+.saengine-mep-editor .sys-waste { --plb-c: var(--plb-waste); }
+.saengine-mep-editor .sys-soilWaste { --plb-c: var(--plb-soilWaste); }
+.saengine-mep-editor .sys-vent { --plb-c: var(--plb-vent); }
+.saengine-mep-editor .sys-rainwater { --plb-c: var(--plb-rainwater); }
+.saengine-mep-editor .sys-pumpMain { --plb-c: var(--plb-pumpMain); }
+
+.saengine-mep-editor .plb-riser-shape {
+	fill: color-mix(in srgb, var(--plb-c, var(--sa-muted)) 18%, var(--sa-surface));
+	stroke: var(--plb-c, var(--sa-muted));
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .plb-riser.failed .plb-riser-shape {
+	stroke-dasharray: 3 2;
+}
+
+.saengine-mep-editor .plb-riser.selected .plb-riser-shape,
+.saengine-mep-editor .plb-drain.selected .plb-drain-shape {
+	stroke: var(--mep-select);
+	stroke-width: 3;
+}
+
+.saengine-mep-editor .plb-riser-letters {
+	font-size: 9.5px;
+	font-weight: 700;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-tank-shape {
+	fill: color-mix(in srgb, var(--plb-tank) 10%, var(--sa-surface));
+	stroke: var(--plb-tank);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .plb-tank.ground .plb-tank-shape {
+	stroke-dasharray: 6 3;
+}
+
+.saengine-mep-editor .plb-tank.kind-septic { --plb-tank: var(--plb-soil); }
+.saengine-mep-editor .plb-tank.kind-soakWell { --plb-tank: var(--plb-waste); }
+.saengine-mep-editor .plb-tank.kind-rainwater { --plb-tank: var(--plb-rainwater); }
+
+.saengine-mep-editor .plb-tank-inside {
+	fill: color-mix(in srgb, var(--plb-tank) 18%, var(--sa-surface));
+	stroke: color-mix(in srgb, var(--plb-tank) 60%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-tank-baffle {
+	stroke: color-mix(in srgb, var(--plb-tank) 60%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .plb-tank.selected .plb-tank-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .plb-tank-label {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-tank-capacity,
+.saengine-mep-editor .plb-tank-name {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .plb-drain-shape {
+	fill: var(--sa-surface);
+	stroke: var(--plb-rainwater);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .plb-drain-cross {
+	stroke: var(--plb-rainwater);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .plb-catchment-shape {
+	fill: color-mix(in srgb, var(--plb-rainwater) 7%, transparent);
+	stroke: color-mix(in srgb, var(--plb-rainwater) 55%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 5 4;
+}
+
+/* the architecture's wet rooms and the branch runs to them */
+.saengine-mep-editor .plb-wet-room-shape {
+	fill: color-mix(in srgb, var(--plb-coldWater) 6%, transparent);
+	stroke: color-mix(in srgb, var(--plb-coldWater) 45%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-branch-line {
+	fill: none;
+	stroke-width: 1.5;
+	stroke-dasharray: 6 3;
+	stroke-linejoin: round;
+}
+
+.saengine-mep-editor .plb-branch.supply .plb-branch-line { stroke: var(--plb-coldWater); }
+.saengine-mep-editor .plb-branch.drainage .plb-branch-line { stroke: var(--plb-soil); }
+
+/* legend swatches of the plumbing */
+.saengine-mep-editor .mep-swatch.plb-sys {
+	width: auto;
+	min-width: 18px;
+	height: 14px;
+	padding: 0 3px;
+	border: 1.5px solid var(--plb-c);
+	border-radius: 7px;
+	background: color-mix(in srgb, var(--plb-c) 18%, var(--sa-surface));
+	color: var(--vscode-foreground);
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 11px;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-swatch.plb-tank { border: 1px solid var(--plb-tank); background: color-mix(in srgb, var(--plb-tank) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.plb-drain { width: 10px; border: 1.5px solid var(--plb-rainwater); }
+
+/* data view */
+.saengine-mep-editor .plb-settings {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: var(--sa-space-2) var(--sa-space-4);
+	max-width: 1100px;
+}
+
+.saengine-mep-editor .plb-setting {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sa-space-2);
+}
+
+.saengine-mep-editor .plb-setting-label {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-setting-control {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	width: 140px;
+}
+
+.saengine-mep-editor .plb-setting-control .mep-input,
+.saengine-mep-editor .plb-setting-control .mep-select {
+	border-color: var(--vscode-input-border, var(--sa-border));
+	background: var(--vscode-input-background);
+}
+
+.saengine-mep-editor .plb-static-note {
+	margin: 0 0 var(--sa-space-2);
+}
+
+.saengine-mep-editor tr.plb-empty-row td:first-child {
+	color: var(--sa-muted);
+}
+
+/* the fixtures' source: a select and what the backend used */
+.saengine-mep-editor td.plb-from {
+	white-space: nowrap;
+}
+
+.saengine-mep-editor td.plb-from .mep-select {
+	width: 72px;
+}
+
+.saengine-mep-editor .plb-source {
+	margin-left: var(--sa-space-1);
+	padding: 0 4px;
+	border-radius: 3px;
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+	border: 1px solid var(--sa-border);
+}
+
+.saengine-mep-editor .plb-source-rooms {
+	color: var(--vscode-foreground);
+	border-color: color-mix(in srgb, var(--plb-coldWater) 60%, transparent);
+	background: color-mix(in srgb, var(--plb-coldWater) 12%, transparent);
+}
+
+.saengine-mep-editor .plb-source-note {
+	margin: var(--sa-space-1) 0 0;
+}
+
+.saengine-mep-editor tr.plb-total td {
+	border-top: 1px solid var(--sa-border);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor td.plb-sized {
+	font-style: italic;
+}
+
+/* results */
+.saengine-mep-editor .plb-pill {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	line-height: 16px;
+	border: 1px solid currentColor;
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .plb-pill.band-ok { color: var(--sa-ok); }
+.saengine-mep-editor .plb-pill.band-warn { color: var(--sa-warn); }
+.saengine-mep-editor .plb-pill.band-fail { color: var(--sa-fail); font-weight: 600; }
+
+.saengine-mep-editor .plb-summary {
+	margin: var(--sa-space-2) 0 0;
+	padding-left: var(--sa-space-4);
+	max-width: 760px;
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .plb-problem {
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor .plb-more {
+	margin-top: var(--sa-space-1);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-more > summary {
+	cursor: pointer;
+	color: var(--sa-muted);
+	width: max-content;
+}
+
+.saengine-mep-editor .plb-more > summary:hover {
+	color: var(--vscode-foreground);
+}
+
+.saengine-mep-editor .plb-tank-card {
+	margin-top: var(--sa-space-3);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	max-width: 760px;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+}
+
+.saengine-mep-editor .plb-tank-card.failed {
+	box-shadow: inset 2px 0 0 var(--sa-fail);
+}
+
+.saengine-mep-editor .plb-tank-card-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-1);
+}
+
+.saengine-mep-editor .plb-tank-card-id {
+	font-weight: 600;
+}
+
+.saengine-mep-editor .plb-bars {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 2px var(--sa-space-3);
+	margin: var(--sa-space-1) 0 0;
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .plb-bars dt { color: var(--sa-muted); }
+.saengine-mep-editor .plb-bars dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.saengine-mep-editor .plb-head-chart {
+	margin-top: var(--sa-space-2);
+}
+
+.saengine-mep-editor .plb-chart-grid {
+	stroke: color-mix(in srgb, var(--sa-muted) 22%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-chart-base {
+	stroke: color-mix(in srgb, var(--sa-muted) 60%, transparent);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .plb-chart-tick {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-chart-value {
+	font-size: 10.5px;
+	fill: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-chart-hit {
+	fill: transparent;
+}
+
+.saengine-mep-editor .plb-chart-bar:hover .plb-chart-hit {
+	fill: color-mix(in srgb, var(--sa-muted) 10%, transparent);
+}
+
+.saengine-mep-editor .plb-chart-fill { fill: var(--plb-coldWater); }
+.saengine-mep-editor .plb-chart-bar.band-fail .plb-chart-fill { fill: var(--sa-fail); }
+.saengine-mep-editor .plb-chart-bar.band-warn .plb-chart-fill { fill: var(--sa-warn); }
+
+.saengine-mep-editor .plb-chart-required {
+	stroke: var(--vscode-foreground);
+	stroke-width: 1.5;
+	stroke-dasharray: 4 3;
+}
+
+.saengine-mep-editor .plb-chart-legend {
+	margin-top: var(--sa-space-1);
+}
+
+.saengine-mep-editor .plb-swatch-required {
+	display: inline-block;
+	width: 16px;
+	border-top: 1.5px dashed var(--vscode-foreground);
+}
+
+.saengine-mep-editor .mep-swatch.plb-swatch-fail { background: var(--sa-fail); }
+
+.saengine-mep-editor .plb-pump {
+	display: flex;
+	gap: var(--sa-space-3);
+	margin: var(--sa-space-2) 0 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .plb-pump-label {
+	color: var(--sa-muted);
+}
+
+/* ── HVAC and electrical (hvacPlan.ts, electricalPlan.ts, their Results) ─── */
+
+/* Each duct system has its colour and its letters (SA, RA, EA, FA, KE, SE); the letters carry the
+ * identity. The plant is drawn in the equipment's blue family, the electrical in its own. */
+.saengine-mep-editor {
+	--hvac-supply: var(--vscode-charts-blue, #2c6fbe);
+	--hvac-return: var(--vscode-charts-purple, #7c4dbd);
+	--hvac-exhaust: var(--vscode-charts-orange, #c2620e);
+	--hvac-freshAir: var(--vscode-charts-green, #388a34);
+	--hvac-kitchenExhaust: var(--vscode-charts-yellow, #b58900);
+	--hvac-smoke: var(--vscode-charts-red, #c4314b);
+	--hvac-plant: var(--vscode-charts-blue, #2c6fbe);
+	--elec-equipment: var(--vscode-charts-yellow, #b58900);
+	--elec-riser: var(--vscode-charts-orange, #c2620e);
+	--elec-tray: color-mix(in srgb, var(--vscode-charts-yellow, #b58900) 70%, var(--vscode-foreground));
+	--elec-lps: var(--vscode-charts-red, #c4314b);
+}
+
+.saengine-mep-editor .mep-plan.quiet .mep-equipment {
+	opacity: 0.35;
+}
+
+.saengine-mep-editor .hvac-duct polyline,
+.saengine-mep-editor .elec-tray polyline,
+.saengine-mep-editor .mep-draft polyline {
+	fill: none;
+}
+
+/* the beams of the floor above, dashed: what the ducts and trays pass */
+.saengine-mep-editor .mep-beam-ceiling-edge {
+	stroke: color-mix(in srgb, var(--vscode-foreground) 45%, transparent);
+	stroke-width: 1;
+	stroke-dasharray: 6 4;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-beam.ceiling:hover .mep-beam-ceiling-edge {
+	stroke: color-mix(in srgb, var(--mep-select) 70%, transparent);
+}
+
+.saengine-mep-editor .mep-beam.ceiling.selected .mep-beam-ceiling-edge {
+	stroke: var(--mep-select);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .mep-element-label.ceiling {
+	font-style: italic;
+}
+
+.saengine-mep-editor .sys-supply { --hvac-c: var(--hvac-supply); }
+.saengine-mep-editor .sys-return { --hvac-c: var(--hvac-return); }
+.saengine-mep-editor .sys-exhaust { --hvac-c: var(--hvac-exhaust); }
+.saengine-mep-editor .sys-freshAir { --hvac-c: var(--hvac-freshAir); }
+.saengine-mep-editor .sys-kitchenExhaust { --hvac-c: var(--hvac-kitchenExhaust); }
+.saengine-mep-editor .sys-smoke { --hvac-c: var(--hvac-smoke); }
+
+.saengine-mep-editor .hvac-plant,
+.saengine-mep-editor .hvac-duct,
+.saengine-mep-editor .hvac-riser-duct,
+.saengine-mep-editor .elec-equipment,
+.saengine-mep-editor .elec-riser,
+.saengine-mep-editor .elec-tray {
+	cursor: move;
+}
+
+.saengine-mep-editor .hvac-duct-body {
+	stroke: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 28%, var(--sa-surface));
+	stroke-linejoin: round;
+	opacity: 0.9;
+}
+
+.saengine-mep-editor .hvac-duct-axis {
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1.25;
+	stroke-dasharray: 8 3 2 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-duct:hover .hvac-duct-body {
+	stroke: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 40%, var(--sa-surface));
+}
+
+.saengine-mep-editor .hvac-duct.selected .hvac-duct-axis {
+	stroke: var(--mep-select);
+	stroke-width: 2;
+	stroke-dasharray: none;
+}
+
+.saengine-mep-editor .hvac-duct-label,
+.saengine-mep-editor .hvac-label,
+.saengine-mep-editor .elec-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-duct.selected .hvac-duct-label {
+	fill: var(--mep-select);
+	font-weight: 600;
+}
+
+.saengine-mep-editor .hvac-riser-shape {
+	fill: color-mix(in srgb, var(--hvac-c, var(--sa-muted)) 22%, var(--sa-surface));
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-riser-diagonal {
+	stroke: var(--hvac-c, var(--sa-muted));
+	stroke-width: 1;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-riser-duct.unshafted .hvac-riser-shape {
+	stroke-dasharray: 4 2;
+}
+
+.saengine-mep-editor .hvac-riser-duct.selected .hvac-riser-shape,
+.saengine-mep-editor .elec-riser.selected .elec-riser-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+/* where a run crosses a beam of the ceiling: a ring through an opening, the opening it needs dashed */
+.saengine-mep-editor .hvac-crossing-shape {
+	fill: color-mix(in srgb, var(--sa-fail) 12%, transparent);
+	stroke: var(--sa-fail);
+	stroke-width: 1.5;
+	stroke-dasharray: 3 2;
+}
+
+.saengine-mep-editor .hvac-crossing-mark {
+	fill: none;
+	stroke: var(--sa-ok);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment-shape {
+	fill: color-mix(in srgb, var(--c) 14%, var(--sa-surface));
+	stroke: var(--c);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .hvac-plant { --c: var(--hvac-plant); }
+.saengine-mep-editor .elec-equipment { --c: var(--elec-equipment); }
+
+.saengine-mep-editor .hvac-plant.sized .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.sized .elec-equipment-shape {
+	stroke-dasharray: 5 2;
+}
+
+.saengine-mep-editor .elec-equipment.vibrating .elec-equipment-shape {
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .hvac-plant.failed .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.failed .elec-equipment-shape {
+	stroke: var(--sa-fail);
+}
+
+.saengine-mep-editor .hvac-plant:hover .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment:hover .elec-equipment-shape {
+	fill: color-mix(in srgb, var(--c) 22%, var(--sa-surface));
+}
+
+.saengine-mep-editor .hvac-plant.selected .hvac-plant-shape,
+.saengine-mep-editor .elec-equipment.selected .elec-equipment-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .hvac-plant-letters,
+.saengine-mep-editor .elec-equipment-letters {
+	font-size: 11px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .hvac-plant-weight,
+.saengine-mep-editor .hvac-plant-name,
+.saengine-mep-editor .elec-equipment-weight,
+.saengine-mep-editor .elec-equipment-name {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-riser-shape {
+	fill: color-mix(in srgb, var(--elec-riser) 25%, var(--sa-surface));
+	stroke: var(--elec-riser);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .elec-tray-body {
+	stroke: color-mix(in srgb, var(--elec-tray) 22%, var(--sa-surface));
+	stroke-linejoin: round;
+}
+
+.saengine-mep-editor .elec-tray-rungs {
+	stroke: var(--elec-tray);
+	stroke-dasharray: 1 7;
+	opacity: 0.55;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-tray.selected .elec-tray-rungs {
+	stroke: var(--mep-select);
+	opacity: 0.9;
+}
+
+/* lightning protection */
+.saengine-mep-editor .elec-lps-edge {
+	fill: none;
+	stroke: var(--elec-lps);
+	stroke-width: 2;
+	stroke-dasharray: 10 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-lps-mesh {
+	stroke: var(--elec-lps);
+	stroke-width: 1;
+	stroke-dasharray: 6 4;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-air-terminal-shape {
+	fill: var(--elec-lps);
+	stroke: var(--sa-surface);
+	stroke-width: 1;
+}
+
+.saengine-mep-editor .elec-air-terminal.proposed .elec-air-terminal-shape {
+	fill: var(--sa-surface);
+	stroke: var(--elec-lps);
+	stroke-dasharray: 2 1.5;
+}
+
+.saengine-mep-editor .elec-down-conductor-ring {
+	fill: none;
+	stroke: var(--elec-lps);
+	stroke-width: 2;
+}
+
+.saengine-mep-editor .elec-down-conductor-label {
+	font-size: 10px;
+	font-weight: 600;
+	fill: var(--elec-lps);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .elec-earth-symbol {
+	stroke: var(--elec-lps);
+	stroke-width: 1.5;
+	fill: none;
+}
+
+.saengine-mep-editor .elec-earth-ring-shape {
+	fill: none;
+	stroke: var(--sa-ok);
+	stroke-width: 1.5;
+	stroke-dasharray: 12 4 2 4;
+}
+
+/* the path being drawn */
+.saengine-mep-editor .mep-canvas.drawing,
+.saengine-mep-editor .mep-canvas.drawing .mep-plan * {
+	cursor: crosshair;
+}
+
+.saengine-mep-editor .mep-draft {
+	--draft-c: var(--hvac-c, var(--elec-tray));
+}
+
+.saengine-mep-editor .mep-draft-body {
+	stroke: color-mix(in srgb, var(--draft-c) 25%, transparent);
+	stroke-linejoin: round;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draft-point {
+	fill: var(--sa-surface);
+	stroke: var(--draft-c);
+	stroke-width: 1.5;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draft-rubber {
+	stroke: var(--draft-c);
+	stroke-width: 1.25;
+	stroke-dasharray: 4 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-draw-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	padding: 1px var(--sa-space-2);
+	border-radius: var(--sa-radius);
+	background: color-mix(in srgb, var(--sa-accent) 12%, transparent);
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-s);
+}
+
+/* legend swatches */
+.saengine-mep-editor .mep-swatch.hvac-sys {
+	width: auto;
+	min-width: 18px;
+	height: 12px;
+	padding: 0 3px;
+	border: 1.5px solid var(--hvac-c);
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--hvac-c) 22%, var(--sa-surface));
+	color: var(--vscode-foreground);
+	font-size: 9px;
+	font-weight: 700;
+	line-height: 11px;
+	text-align: center;
+}
+
+.saengine-mep-editor .mep-swatch.hvac-plant { border: 1px solid var(--hvac-plant); background: color-mix(in srgb, var(--hvac-plant) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-equipment { border: 1px solid var(--elec-equipment); background: color-mix(in srgb, var(--elec-equipment) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-riser { width: 10px; border: 1.5px solid var(--elec-riser); background: color-mix(in srgb, var(--elec-riser) 25%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.elec-tray { height: 6px; background: repeating-linear-gradient(90deg, var(--elec-tray) 0 1px, color-mix(in srgb, var(--elec-tray) 22%, var(--sa-surface)) 1px 6px); }
+.saengine-mep-editor .mep-swatch.elec-down { width: 10px; border: 2px solid var(--elec-lps); border-radius: 50%; }
+.saengine-mep-editor .mep-swatch.elec-lps { height: 0; border-top: 2px dashed var(--elec-lps); }
+.saengine-mep-editor .mep-swatch.beam-above { height: 5px; border-top: 1px dashed var(--mep-concrete-edge); border-bottom: 1px dashed var(--mep-concrete-edge); }
+.saengine-mep-editor .mep-swatch.opening-needed { width: 12px; border: 1.5px dashed var(--sa-fail); background: color-mix(in srgb, var(--sa-fail) 12%, transparent); }
+
+/* data view */
+.saengine-mep-editor tr.plb-sized-row td:first-child .mep-input {
+	font-style: italic;
+}
+
+.saengine-mep-editor td.band-warn {
+	color: var(--sa-warn);
+}
+
+/* results */
+.saengine-mep-editor .hvac-engine {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	margin-top: var(--sa-space-1);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .hvac-engine-label {
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .hvac-engine-value {
+	padding: 0 6px;
+	border: 1px solid var(--sa-ok);
+	border-radius: 999px;
+	color: var(--sa-ok);
+}
+
+.saengine-mep-editor .hvac-engine.estimate .hvac-engine-value {
+	border-color: var(--sa-warn);
+	color: var(--sa-warn);
+}
+
+.saengine-mep-editor .mep-bar-chart {
+	display: block;
+	margin-top: var(--sa-space-2);
+}
+
+.saengine-mep-editor .mep-bar-label,
+.saengine-mep-editor .mep-bar-value {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-mep-editor .mep-bar-value {
+	fill: var(--vscode-foreground);
+}
+
+.saengine-mep-editor .mep-bar.hvac-bar-sensible { fill: var(--hvac-supply); }
+.saengine-mep-editor .mep-bar.hvac-bar-latent { fill: color-mix(in srgb, var(--hvac-supply) 45%, var(--sa-surface)); }
+.saengine-mep-editor .mep-bar.elec-bar-demand { fill: var(--elec-equipment); }
+.saengine-mep-editor .mep-bar-row.band-fail .mep-bar { fill: var(--sa-fail); }
+.saengine-mep-editor .mep-swatch.mep-bar-swatch.hvac-bar-sensible { background: var(--hvac-supply); }
+.saengine-mep-editor .mep-swatch.mep-bar-swatch.hvac-bar-latent { background: color-mix(in srgb, var(--hvac-supply) 45%, var(--sa-surface)); }
+
+.saengine-mep-editor .mep-bar-legend {
+	margin-top: var(--sa-space-1);
+}
+
+.saengine-mep-editor .elec-dc-list {
+	margin: 0 0 var(--sa-space-2);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* fire protection (firePlan.ts): risers as rings, pump sets and tanks as footprints, mains as pipes */
+.saengine-mep-editor {
+	--fire-c: var(--vscode-charts-red, #c4314b);
+	--fire-pump: color-mix(in srgb, var(--vscode-charts-red, #c4314b) 75%, var(--vscode-foreground));
+	--fire-tank: var(--vscode-charts-blue, #2c6fbe);
+}
+
+.saengine-mep-editor .fire-riser,
+.saengine-mep-editor .fire-pump,
+.saengine-mep-editor .fire-tank {
+	cursor: move;
+}
+
+.saengine-mep-editor .fire-riser-ring {
+	fill: color-mix(in srgb, var(--fire-c) 18%, var(--sa-surface));
+	stroke: var(--fire-c);
+	stroke-width: 1.75;
+}
+
+.saengine-mep-editor .fire-riser.sys-sprinkler .fire-riser-ring {
+	stroke-dasharray: 4 2;
+}
+
+.saengine-mep-editor .fire-riser-letters,
+.saengine-mep-editor .fire-pump-letters {
+	font-size: 8.5px;
+	font-weight: 700;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-riser.selected .fire-riser-ring,
+.saengine-mep-editor .fire-pump.selected .fire-pump-shape,
+.saengine-mep-editor .fire-tank.selected .fire-tank-shape {
+	stroke: var(--mep-select);
+	stroke-width: 2.5;
+}
+
+.saengine-mep-editor .fire-pump-shape {
+	fill: color-mix(in srgb, var(--fire-pump) 14%, var(--sa-surface));
+	stroke: var(--fire-pump);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .fire-pump.sized .fire-pump-shape,
+.saengine-mep-editor .fire-tank.sized .fire-tank-shape {
+	stroke-dasharray: 5 2;
+}
+
+.saengine-mep-editor .fire-tank-shape {
+	fill: color-mix(in srgb, var(--fire-tank) 12%, var(--sa-surface));
+	stroke: var(--fire-tank);
+	stroke-width: 1.5;
+}
+
+.saengine-mep-editor .fire-tank.ground .fire-tank-shape {
+	fill: color-mix(in srgb, var(--fire-tank) 6%, transparent);
+}
+
+.saengine-mep-editor .fire-tank.failed .fire-tank-shape {
+	stroke: var(--sa-fail);
+}
+
+.saengine-mep-editor .fire-tank-label {
+	font-size: 10.5px;
+	font-weight: 600;
+	fill: var(--vscode-foreground);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-main-line {
+	fill: none;
+	stroke: color-mix(in srgb, var(--fire-c) 70%, var(--sa-surface));
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.saengine-mep-editor .fire-pump-room-shape {
+	fill: none;
+	stroke: var(--fire-pump);
+	stroke-width: 1.25;
+	stroke-dasharray: 6 3;
+	pointer-events: none;
+}
+
+.saengine-mep-editor .fire-label {
+	font-size: 10.5px;
+	fill: var(--sa-muted);
+	pointer-events: none;
+}
+
+.saengine-mep-editor .mep-swatch.fire-riser { width: 10px; border: 1.75px solid var(--fire-c); border-radius: 50%; background: color-mix(in srgb, var(--fire-c) 18%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-pump { border: 1px solid var(--fire-pump); background: color-mix(in srgb, var(--fire-pump) 14%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-tank { border: 1px solid var(--fire-tank); background: color-mix(in srgb, var(--fire-tank) 12%, var(--sa-surface)); }
+.saengine-mep-editor .mep-swatch.fire-main { height: 0; border-top: 3px solid color-mix(in srgb, var(--fire-c) 70%, var(--sa-surface)); }
+
+/* fire results: the systems Part 4 requires */
+.saengine-mep-editor .fire-status {
+	display: inline-block;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.saengine-mep-editor .fire-status.required { background: color-mix(in srgb, var(--fire-c) 18%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.performance { background: color-mix(in srgb, var(--vscode-charts-orange, #c2620e) 18%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.recommended { background: color-mix(in srgb, var(--vscode-charts-blue, #2c6fbe) 14%, transparent); color: var(--vscode-foreground); }
+.saengine-mep-editor .fire-status.notRequired { color: var(--sa-muted); }
+
+/* A link to where an item is edited (another discipline's tab). */
+.saengine-mep-editor button.mep-link {
+	border: none;
+	background: none;
+	padding: 0;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font: inherit;
+	text-align: start;
+}
+
+.saengine-mep-editor button.mep-link:hover {
+	text-decoration: underline;
+}
+
+/* A tile that leads to its failures. */
+.saengine-mep-editor .mep-tile.mep-tile-link {
+	cursor: pointer;
+}
+
+.saengine-mep-editor .mep-tile.mep-tile-link:hover,
+.saengine-mep-editor .mep-tile.mep-tile-link:focus-visible {
+	border-color: var(--sa-accent);
+}
+
+/* The discipline's main actions, labelled, beside the icon toolbar. */
+.mep-text-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: nowrap;
+}
+
+.mep-text-actions .mep-text-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-button-secondaryBackground, transparent);
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.mep-text-actions .mep-text-action:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mep-text-actions .mep-text-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.mep-text-actions .mep-text-action .mep-text-action-short {
+	display: none;
+}
+
+/* Narrow windows: one word beside the icon, the full name in the tooltip. */
+@media (max-width: 1700px) {
+	.mep-text-actions .mep-text-action .mep-text-action-label {
+		display: none;
+	}
+
+	.mep-text-actions .mep-text-action .mep-text-action-short {
+		display: inline;
+	}
+
+	.mep-text-actions .mep-text-action {
+		padding: 0 3px;
+		gap: 2px;
+	}
+
+	.mep-text-actions {
+		gap: 2px;
+	}
+
+	/* The submenu still opens on click; its chevron takes room the narrow toolbar lacks. */
+	.mep-text-actions .mep-text-action .codicon-chevron-down {
+		display: none;
+	}
+}
+
+/* The labelled actions keep their width; the view switch beside them gives way first. */
+.saengine-mep-editor .sa-frame-end:has(.mep-text-actions) {
+	flex-shrink: 0;
+}
+
+/* 1366 px (N-E10): the storey picker keeps room for its arrow and the view switch for its
+   labels; at narrow widths the view switch drops its icons, not its words. */
+.saengine-mep-editor .mep-story,
+.saengine-mep-editor .sa-frame-controls .sa-segmented {
+	flex-shrink: 0;
+}
+
+.saengine-mep-editor .mep-story-select {
+	min-width: 140px;
+}
+
+@media (max-width: 1500px) {
+	.saengine-mep-editor .mep-story-select {
+		width: 140px;
+	}
+
+	.saengine-mep-editor .sa-frame-controls .sa-segment .codicon {
+		display: none;
+	}
+
+	.saengine-mep-editor .mep-discipline .sa-segment {
+		padding-left: 6px;
+		padding-right: 6px;
+	}
+}
+
+/* The totals in read-only inputs, aligned with the inputs above (N-E11). */
+.saengine-mep-editor tr.plb-total .plb-total-value {
+	border-color: transparent;
+	background: transparent;
+	font-weight: 600;
+	pointer-events: none;
+}

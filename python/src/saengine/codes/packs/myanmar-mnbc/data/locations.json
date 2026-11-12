@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "MNBC 2020 Part 3 (structural design): the seismic zone map of Myanmar with the mapped spectral accelerations SS and S1 of the towns, and the basic wind speed by region (VERIFY.md N1-N3)"
+  ],
+  "source": "MNBC 2020: zone = the MNBC seismic zone (1 to 5, for information); ss, s1 [g]: the mapped MCE spectral accelerations at 0.2 s and 1 s on site class B, from which the design spectrum is made with the site coefficients Fa and Fv (seismic.designSpectrum.siteCoefficients); windSpeed: the basic wind speed V [m/s], 3-second gust at 10 m in exposure C, 50-year (with the 1.6W combinations). The SS and S1 here are SAEngine estimates from the zone (VERIFY.md N2) and the speeds SAEngine readings by region (N3): replace them with the values of the MNBC tables for the town before design. A project's own SS and S1 (Site > Mapped spectral values) take precedence. Elsewhere a custom location (enter SS, S1 and V).",
+  "default": "yangon",
+  "locations": {
+    "yangon": {"name": "Yangon", "zone": 3, "ss": 0.75, "s1": 0.3, "windSpeed": 45.0},
+    "mandalay": {"name": "Mandalay", "zone": 5, "ss": 1.25, "s1": 0.5, "windSpeed": 40.0},
+    "naypyitaw": {"name": "Nay Pyi Taw", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 40.0},
+    "sagaing": {"name": "Sagaing", "zone": 5, "ss": 1.25, "s1": 0.5, "windSpeed": 40.0},
+    "bago": {"name": "Bago", "zone": 5, "ss": 1.25, "s1": 0.5, "windSpeed": 45.0},
+    "taungoo": {"name": "Taungoo", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 40.0},
+    "myitkyina": {"name": "Myitkyina", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 38.0},
+    "monywa": {"name": "Monywa", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 40.0},
+    "nyaungU": {"name": "Nyaung-U (Bagan)", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 40.0},
+    "magway": {"name": "Magway", "zone": 3, "ss": 0.75, "s1": 0.3, "windSpeed": 40.0},
+    "taunggyi": {"name": "Taunggyi", "zone": 3, "ss": 0.75, "s1": 0.3, "windSpeed": 38.0},
+    "lashio": {"name": "Lashio", "zone": 3, "ss": 0.75, "s1": 0.3, "windSpeed": 38.0},
+    "sittwe": {"name": "Sittwe", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 55.0},
+    "kyaukphyu": {"name": "Kyaukphyu", "zone": 4, "ss": 1.0, "s1": 0.4, "windSpeed": 55.0},
+    "pathein": {"name": "Pathein", "zone": 2, "ss": 0.4, "s1": 0.15, "windSpeed": 50.0},
+    "mawlamyine": {"name": "Mawlamyine", "zone": 2, "ss": 0.4, "s1": 0.15, "windSpeed": 45.0},
+    "hpaAn": {"name": "Hpa-An", "zone": 2, "ss": 0.4, "s1": 0.15, "windSpeed": 40.0},
+    "dawei": {"name": "Dawei", "zone": 2, "ss": 0.4, "s1": 0.15, "windSpeed": 45.0},
+    "myeik": {"name": "Myeik", "zone": 1, "ss": 0.25, "s1": 0.1, "windSpeed": 45.0}
+  }
+}

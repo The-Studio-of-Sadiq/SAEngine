@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+	<title>SAEngine</title>
+	<g transform="translate(-3.05 -15.06) scale(0.06)">
+		<defs>
+			<mask id="sa-cut" maskUnits="userSpaceOnUse" x="290" y="315" width="185" height="305">
+				<rect x="290" y="315" width="185" height="305" fill="#FFFFFF"/>
+				<path d="M358,359.09 L358,596.36" fill="none" stroke="#000000" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M416,457 L416,605.26" fill="none" stroke="#000000" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M358,425 L416,457 L462,482.38" fill="none" stroke="#000000" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,462.07 L358,492 L416,523 L462,547.59" fill="none" stroke="#000000" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,530.07 L358,560" fill="none" stroke="#000000" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+				<path d="M302,385 L358,413 L358,437 L302,451 Z" fill="#000000"/>
+			</mask>
+			<linearGradient id="sa-facade" gradientUnits="userSpaceOnUse" x1="459" y1="334" x2="318" y2="612">
+				<stop offset="0" stop-color="#4C94E8"/>
+				<stop offset="1" stop-color="#1F5FBF"/>
+			</linearGradient>
+		</defs>
+		<path d="M144,404 L296,323 L296,591 L284,591 L284,510 L241,520 L241,593.9 L229,593.9 L229,523 L189,531.5 L189,601.3 L176,601.3 L176,535 L155,538 L155,608.2 L144,608.2 L144,517 L183,507.6 L183,446 L144,454 Z M195,420 L284,376 L284,459 Z M194,463 L253,490 L194,505 Z" fill-rule="evenodd" fill="#FFFFFF"/>
+		<path d="M63,642 Q297,553 530,644 Q297,577 63,642 Z" fill="#FFFFFF"/>
+		<g mask="url(#sa-cut)">
+			<path d="M305,334 L459,415.62 L459,612.46 Q382.05,591.47 305,590.09 Z" fill="url(#sa-facade)"/>
+		</g>
+	</g>
+</svg>

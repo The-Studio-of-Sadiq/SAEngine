@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/designLimits.schema.json",
+  "$sources": [
+    "ACI 318-19 Sec 22.5.3.1 (sqrt f'c in shear) and AISC 360-22 Sec B4.2 (ERW wall thickness); the stair geometry rules are the extended pack's until the IBC 2021 Sec 1011 rules are in the pack (see VERIFY.md)"
+  ],
+  "source": "ACI 318-19 and AISC 360-22: the cap of sqrt f'c in shear and torsion and the ERW design wall thickness factor (the same values as the extended pack); the stair geometry rules are inherited.",
+  "shearRootFcMax": 8.3,
+  "erwWallFactor": 0.93,
+  "sources": {
+    "shearRootFcMax": "ACI 318-19 Sec 22.5.3.1: sqrt f'c used to calculate Vc at most 100 psi (8.3 MPa), unless the minimum shear reinforcement is provided",
+    "erwWallFactor": "AISC 360-22 Sec B4.2: design wall thickness 0.93 times the nominal wall thickness of electric-resistance-welded (ERW) HSS"
+  }
+}

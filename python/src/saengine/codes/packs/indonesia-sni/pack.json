@@ -1,0 +1,85 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "indonesia-sni",
+  "name": "Indonesian Standards (SNI 1726, SNI 1727, SNI 2847, SNI 1729)",
+  "edition": "SNI 1726:2019",
+  "country": "ID",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "seismic",
+    "wind",
+    "concrete",
+    "barSchedule",
+    "citations"
+  ],
+  "description": "The Indonesian standards (alpha 9 track C16), a pack that extends the US pack aci318-asce7-22: SNI 1726:2019 seismic design in the ASCE 7-16 form (the cities' mapped SS, S1 and TL with the site coefficients Fa and Fv of Tabel 6 and 7, the site classes SA-SF of Tabel 5), SNI 1727:2020 loads (ASCE 7-16: the base pack's combinations and live loads, the ASCE 7-16 velocity pressure constants; no national wind map: the wind speed is a placeholder to replace), SNI 2847:2019 concrete (ACI 318-14 in the same numbering; the base pack's ACI 318-19 rules, bars D10-D36 by SNI 2052) and SNI 1729:2020 steel (AISC 360-16; the base pack's AISC 360-22). Every value is listed in VERIFY.md; the city values are uncertain and must be checked against the national maps before design.",
+  "sources": [
+    {
+      "id": "SNI1726",
+      "title": "Tata cara perencanaan ketahanan gempa untuk struktur bangunan gedung dan nongedung (SNI 1726:2019)",
+      "edition": "2019",
+      "publisher": "Badan Standardisasi Nasional"
+    },
+    {
+      "id": "SNI1727",
+      "title": "Beban desain minimum dan kriteria terkait untuk bangunan gedung dan struktur lain (SNI 1727:2020)",
+      "edition": "2020",
+      "publisher": "Badan Standardisasi Nasional"
+    },
+    {
+      "id": "SNI2847",
+      "title": "Persyaratan beton struktural untuk bangunan gedung (SNI 2847:2019)",
+      "edition": "2019",
+      "publisher": "Badan Standardisasi Nasional"
+    },
+    {
+      "id": "SNI1729",
+      "title": "Spesifikasi untuk bangunan gedung baja struktural (SNI 1729:2020)",
+      "edition": "2020",
+      "publisher": "Badan Standardisasi Nasional"
+    },
+    {
+      "id": "SNI2052",
+      "title": "Baja tulangan beton (SNI 2052:2017)",
+      "edition": "2017",
+      "publisher": "Badan Standardisasi Nasional"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "SNI 1726:2019 Pasal 6.1-6.2 and the national SS, S1, TL maps"
+    ],
+    "seismic": [
+      "SNI 1726:2019 Pasal 5-7 (ASCE 7-16 form)"
+    ],
+    "wind": [
+      "SNI 1727:2020 Pasal 26 (Tabel 26.10-1, 26.11-1)"
+    ],
+    "concrete": [
+      "SNI 2052:2017 (bar names)"
+    ],
+    "barSchedule": [
+      "ACI 315 bar types with metric lengths (SAEngine practice)"
+    ],
+    "citations": [
+      "SNI 2847:2019 (the ACI 318-14 numbering)"
+    ]
+  },
+  "basis": {
+    "general": "SNI 1726:2019, SNI 1727:2020 (with ASCE 7-22 where it gives the same rule)",
+    "concrete": "SNI 2847:2019 (ACI 318-19 rules of the base pack)",
+    "steel": "SNI 1729:2020 (AISC 360-22 rules of the base pack)"
+  },
+  "tableCodes": {
+    "seismic": "SNI 1726:2019",
+    "locations": "SNI 1726:2019",
+    "wind": "SNI 1727:2020",
+    "concrete": "SNI 2847:2019",
+    "citations": "SNI 2847:2019"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

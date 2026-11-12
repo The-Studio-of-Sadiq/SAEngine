@@ -1,0 +1,105 @@
+{
+  "_comment": "Upstream source archives of the copyleft components shipped as binaries (GPL, LGPL, MPL). scripts/installer/fetch-sources.ps1 downloads them, checks the SHA-256 and copies them to dist/ next to the setup, to be published from the same place as the setup (GPL-2.0 section 3, GPL-3.0/LGPL-3.0 section 6(d), MPL-2.0 section 3.2(a)). Keep 'version' equal to what ships: constraints.txt for Python packages, packages/fem-viewer/package.json for web-ifc, resources/librecad/SAENGINE-BUNDLE.json (librecad_bundle.py) for entries with 'component': 'librecad' (LibreCAD itself and the Qt modules whose DLLs it ships, 'qt_module'); those are collected only when the build bundles LibreCAD; resources/libredwg/SAENGINE-BUNDLE.json (libredwg_bundle.py) for 'component': 'libredwg', collected only when the build bundles LibreDWG. Bump url, file and sha256 together. A null sha256 is not pinned yet: fetch-sources.ps1 refuses it unless run with -AllowUnpinned, then prints the hash to pin here.",
+  "sources": [
+    {
+      "name": "gmsh",
+      "version": "4.15.2",
+      "license": "GPL-2.0-or-later",
+      "ships": "resources/python/Lib/site-packages (gmsh.dll, gmsh.py)",
+      "file": "gmsh-4.15.2-source.tgz",
+      "url": "https://gmsh.info/src/gmsh-4.15.2-source.tgz",
+      "sha256": "be3f66f225d27ba9fa014f07e83169285da8a051b0e8ab7103d88066b39bdd3e"
+    },
+    {
+      "name": "ifcopenshell",
+      "version": "0.9.0",
+      "license": "LGPL-3.0-or-later",
+      "ships": "resources/python/Lib/site-packages/ifcopenshell",
+      "file": "IfcOpenShell-ifcopenshell-python-0.9.0.tar.gz",
+      "url": "https://github.com/IfcOpenShell/IfcOpenShell/archive/refs/tags/ifcopenshell-python-0.9.0.tar.gz",
+      "sha256": "0909b0f1fd8f13168bacb47a316afe0caaf360fc67191b6cd87cb2da1bc803bc"
+    },
+    {
+      "name": "cytriangle",
+      "version": "3.0.2",
+      "license": "LGPL-3.0 (wraps Triangle by J. R. Shewchuk, which has its own licence)",
+      "ships": "resources/python/Lib/site-packages/cytriangle",
+      "file": "cytriangle-3.0.2.tar.gz",
+      "url": "https://github.com/m-clare/cytriangle/archive/refs/tags/v3.0.2.tar.gz",
+      "sha256": "d16a3e535ad066fe52eec204b3a784a827451109a2cb06ea5577c260694c76e8"
+    },
+    {
+      "name": "web-ifc",
+      "version": "0.0.77",
+      "license": "MPL-2.0",
+      "ships": "resources/app/node_modules.asar: @saengine/fem-viewer/dist (web-ifc.wasm and the bundled web-ifc-api)",
+      "file": "engine_web-ifc-0.77.tar.gz",
+      "url": "https://github.com/ThatOpen/engine_web-ifc/archive/refs/tags/0.77.tar.gz",
+      "sha256": "740d3a9ebd83f80f29912e3c70d17e33f0b09ea3be234cc50742e313891245a4"
+    },
+    {
+      "name": "librecad",
+      "component": "librecad",
+      "version": "2.2.1.6",
+      "license": "GPL-2.0-only",
+      "ships": "resources/librecad (LibreCAD.exe and its plug-ins, a separate program)",
+      "file": "LibreCAD-v2.2.1.6.tar.gz",
+      "url": "https://github.com/LibreCAD/LibreCAD/releases/download/v2.2.1.6/LibreCAD-v2.2.1.6.tar.gz",
+      "sha256": "645e26b5ce81f862760edd63c76ca31c3ce9485302146465d373c976d661f768"
+    },
+    {
+      "name": "qt-qtbase",
+      "component": "librecad",
+      "qt_module": "qtbase",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtbase that LibreCAD links dynamically)",
+      "file": "qtbase-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtbase-everywhere-src-5.15.2.tar.xz",
+      "sha256": "909fad2591ee367993a75d7e2ea50ad4db332f05e1c38dd7a5a274e156a4e0f8"
+    },
+    {
+      "name": "qt-qtsvg",
+      "component": "librecad",
+      "qt_module": "qtsvg",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtsvg that LibreCAD links dynamically)",
+      "file": "qtsvg-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtsvg-everywhere-src-5.15.2.tar.xz",
+      "sha256": "8bc3c2c1bc2671e9c67d4205589a8309b57903721ad14c60ea21a5d06acb585e"
+    },
+    {
+      "name": "qt-qtimageformats",
+      "component": "librecad",
+      "qt_module": "qtimageformats",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qtimageformats that LibreCAD links dynamically)",
+      "file": "qtimageformats-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtimageformats-everywhere-src-5.15.2.tar.xz",
+      "sha256": "bf8285c7ce04284527ab823ddc7cf48a1bb79131db3a7127342167f4814253d7"
+    },
+    {
+      "name": "qt-qttools",
+      "component": "librecad",
+      "qt_module": "qttools",
+      "version": "5.15.2",
+      "license": "LGPL-3.0-only (Qt open-source licence; GPL-3.0 text alongside)",
+      "ships": "resources/librecad (the Qt 5 DLLs and plug-ins of qttools that LibreCAD links dynamically)",
+      "file": "qttools-everywhere-src-5.15.2.tar.xz",
+      "url": "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qttools-everywhere-src-5.15.2.tar.xz",
+      "sha256": "c189d0ce1ff7c739db9a3ace52ac3e24cb8fd6dbf234e49f075249b38f43c1cc"
+    },
+    {
+      "name": "libredwg",
+      "component": "libredwg",
+      "version": "0.14",
+      "license": "GPL-3.0-or-later",
+      "ships": "resources/libredwg (dwg2dxf.exe and libredwg-0.dll, a separate program)",
+      "file": "libredwg-0.14.tar.xz",
+      "url": "https://ftp.gnu.org/gnu/libredwg/libredwg-0.14.tar.xz",
+      "sha256": "62ebb73b984f865960f20ed26619ea5f8789d5e3fd088fa40a2598384da81275"
+    }
+  ]
+}

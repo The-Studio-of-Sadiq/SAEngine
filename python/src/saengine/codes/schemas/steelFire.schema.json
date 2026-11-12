@@ -1,0 +1,401 @@
+{
+  "$defs": {
+    "SteelFireCritical": {
+      "additionalProperties": false,
+      "description": "The critical (limiting) temperature at the load ratio μ0.\n\n``eurocode``: θcr = a ln(1 / (b μ0^c) - 1) + d (``factors`` [a, b, c, d]);\n``linear``: θl = a - b μ0 (``factors`` [a, b]);\n``inverseRetention``: the temperature at which ky,θ = μ0.",
+      "properties": {
+        "method": {
+          "enum": [
+            "eurocode",
+            "linear",
+            "inverseRetention"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "array"
+        },
+        "floor": {
+          "default": 20.0,
+          "description": "Lowest critical temperature reported [°C].",
+          "title": "Floor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SteelFireCritical",
+      "type": "object"
+    },
+    "SteelFireHeating": {
+      "additionalProperties": false,
+      "description": "Steel temperature in the standard fire by the lumped heat capacity of the section:\nunprotected Δθ = ksh (Am/V) hnet Δt / (ca ρa), protected by the insulation's λp, cp, ρp,\ndp; the gas by θg = 20 + a log10(b t + 1) (t in minutes, ``curve`` [a, b]).",
+      "properties": {
+        "method": {
+          "const": "lumpedCapacitance",
+          "default": "lumpedCapacitance",
+          "title": "Method",
+          "type": "string"
+        },
+        "curve": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Curve",
+          "type": "array"
+        },
+        "convection": {
+          "description": "αc [W/m²K].",
+          "exclusiveMinimum": 0,
+          "title": "Convection",
+          "type": "number"
+        },
+        "emissivity": {
+          "description": "εm of the steel surface (× εf of the fire).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Emissivity",
+          "type": "number"
+        },
+        "fireEmissivity": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Fireemissivity",
+          "type": "number"
+        },
+        "specificHeat": {
+          "description": "ca [J/kgK] (constant).",
+          "exclusiveMinimum": 0,
+          "title": "Specificheat",
+          "type": "number"
+        },
+        "density": {
+          "description": "ρa [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Density",
+          "type": "number"
+        },
+        "shadow": {
+          "description": "I-sections: the shadow effect ksh = shadowFactor [Am/V]b / [Am/V] (else 1).",
+          "title": "Shadow",
+          "type": "boolean"
+        },
+        "shadowFactor": {
+          "default": 1.0,
+          "description": "ksh = this [Am/V]b / [Am/V].",
+          "exclusiveMinimum": 0,
+          "title": "Shadowfactor",
+          "type": "number"
+        },
+        "step": {
+          "default": 5.0,
+          "description": "Δt [s].",
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        }
+      },
+      "required": [
+        "curve",
+        "convection",
+        "emissivity",
+        "specificHeat",
+        "density",
+        "shadow"
+      ],
+      "title": "SteelFireHeating",
+      "type": "object"
+    },
+    "SteelFireProtection": {
+      "additionalProperties": false,
+      "description": "The fire protection of the steel members (a project value; thickness 0: unprotected).",
+      "properties": {
+        "thickness": {
+          "default": 0.0,
+          "description": "dp [mm].",
+          "minimum": 0,
+          "title": "Thickness",
+          "type": "number"
+        },
+        "conductivity": {
+          "default": 0.12,
+          "description": "λp [W/mK].",
+          "exclusiveMinimum": 0,
+          "title": "Conductivity",
+          "type": "number"
+        },
+        "specificHeat": {
+          "default": 1200.0,
+          "description": "cp [J/kgK].",
+          "exclusiveMinimum": 0,
+          "title": "Specificheat",
+          "type": "number"
+        },
+        "density": {
+          "default": 300.0,
+          "description": "ρp [kg/m³].",
+          "exclusiveMinimum": 0,
+          "title": "Density",
+          "type": "number"
+        },
+        "encasement": {
+          "default": "contour",
+          "enum": [
+            "contour",
+            "box"
+          ],
+          "title": "Encasement",
+          "type": "string"
+        }
+      },
+      "title": "SteelFireProtection",
+      "type": "object"
+    },
+    "SteelFireRetention": {
+      "additionalProperties": false,
+      "description": "Strength and stiffness of steel at temperature θ [°C].\n\n``tabulated``: ky,θ and kE,θ at the temperatures ``points`` (linear between).\n``formula``: ky = 1 to ``yieldFlat`` °C, then (``yieldZero`` - θ) / ``yieldSpan``; kE = 1 +\nθ / (``modulusA`` ln(θ / ``modulusB``)) to ``modulusSplit`` °C, then ``modulusC`` (1 - θ /\n1000) / (θ - ``modulusD``).",
+      "properties": {
+        "method": {
+          "enum": [
+            "tabulated",
+            "formula"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "points": {
+          "description": "tabulated: [θ °C, ky, kE] rows, rising θ.",
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        },
+        "yieldFlat": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Yieldflat"
+        },
+        "yieldZero": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Yieldzero"
+        },
+        "yieldSpan": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Yieldspan"
+        },
+        "modulusA": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modulusa"
+        },
+        "modulusB": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modulusb"
+        },
+        "modulusSplit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modulussplit"
+        },
+        "modulusC": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modulusc"
+        },
+        "modulusD": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modulusd"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SteelFireRetention",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Steel members in the standard fire by the simple method (module :mod:`saengine.design.\nsteel.fire`): the steel temperature at the member's fire rating, the critical temperature\nat its load ratio μ0 = ``loadRatio`` × the ambient utilisation, and compression members by\ntheir buckling resistance at temperature.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "retention": {
+      "$ref": "#/$defs/SteelFireRetention"
+    },
+    "critical": {
+      "$ref": "#/$defs/SteelFireCritical"
+    },
+    "heating": {
+      "$ref": "#/$defs/SteelFireHeating"
+    },
+    "protection": {
+      "$ref": "#/$defs/SteelFireProtection"
+    },
+    "loadRatio": {
+      "description": "ηfi: the fire design forces over the ambient ones.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Loadratio",
+      "type": "number"
+    },
+    "compression": {
+      "description": "Compression members: χfi with α = a √(235/fy) (eurocode), 0.42^√(Fy(T)/Fe(T)) (aisc) or the critical temperature (critical).",
+      "enum": [
+        "eurocode",
+        "aisc",
+        "critical"
+      ],
+      "title": "Compression",
+      "type": "string"
+    },
+    "alphaFactor": {
+      "default": 0.65,
+      "description": "eurocode: α = this √(235 / fy).",
+      "exclusiveMinimum": 0,
+      "title": "Alphafactor",
+      "type": "number"
+    },
+    "aiscBase": {
+      "default": 0.42,
+      "description": "aisc: Fn = this^√(Fy(T)/Fe(T)) Fy(T).",
+      "exclusiveMinimum": 0,
+      "title": "Aiscbase",
+      "type": "number"
+    },
+    "gammaFire": {
+      "default": 1.0,
+      "description": "γM,fi (or 1/φ in fire).",
+      "exclusiveMinimum": 0,
+      "title": "Gammafire",
+      "type": "number"
+    }
+  },
+  "required": [
+    "retention",
+    "critical",
+    "heating",
+    "loadRatio",
+    "compression"
+  ],
+  "title": "SteelFireTable",
+  "type": "object",
+  "$id": "saengine.codePack.steelFire/1"
+}

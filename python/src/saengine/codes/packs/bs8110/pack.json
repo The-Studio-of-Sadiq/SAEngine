@@ -1,0 +1,95 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "bs8110",
+  "name": "BS 8110 + BS 6399 + BS 5950 (legacy British Standards)",
+  "edition": "British Standards",
+  "country": "GB",
+  "version": "0.1.0",
+  "extends": "bnbc2020",
+  "notCovered": ["seismic"],
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "areaLoads",
+    "liveReduction",
+    "combinations",
+    "wind",
+    "concreteMethods",
+    "concrete",
+    "steelLimitState"
+  ],
+  "description": "The withdrawn British Standards still used in many countries (alpha 9 track C10). Loads: BS 6399-1:1996 imposed floor loads with the reduction by floors and area, BS 6399-3 roof loads, BS 6399-2:1997 wind by the standard method (Ve = Vs Sb, qs = 0.613 Ve², Sb by height and distance from the sea, the 0.85 overall factor), the load combinations of BS 8110-1 Table 2.1 (1.4G + 1.6Q, 1.0G + 1.6Q, 1.4G + 1.4W, 1.0G + 1.4W, 1.2(G + Q + W)). Concrete: BS 8110-1:1997 limit state design (γm 1.5 and 1.05, 0.45 fcu over 0.9 x, x <= 0.5 d so K' = 0.156, emin 0.05 h <= 20 mm, the axial cap 0.4 fcu Ac + 0.8 fy Asc, shear vc of Table 3.8 with (400/d)^1/4 and (fcu/25)^1/3, least links, punching on the 1.5 d perimeter, span/effective depth with the modification factors of Tables 3.9-3.11, cover and mix by exposure (Table 3.3), anchorage and laps by fbu = β √fcu, member steel limits, braced and unbraced columns with the additional moments of 3.8.3, two-way slabs by the coefficients of Tables 3.13-3.14 with the corner torsion steel) and BS 8110-2 crack widths and calculated deflections. Steel: BS 5950-1:2000 members (py by thickness, classification, pc by the Perry-Robertson strut curves a-d, pb of lateral-torsional buckling, shear 0.6 py Av, the 4.8.3 interaction, restraint forces 2.5 %). Earthquake: not covered (the British Standards give no seismic loading): every location has Z = 0 and no earthquake cases are made; a Z entered per project uses the parent's (BNBC 2020) spectrum, named BNBC 2020 in the report. Not covered here and taken from BNBC 2020 (the pack this one extends), named BNBC 2020 in the report: concrete torsion, flat slabs, walls, footings, connections, masonry (BS 5628) and timber (BS 5268), the services and the other tables not in covers. Every value names its clause; VERIFY.md lists them for checking against the printed codes.",
+  "sources": [
+    {
+      "id": "BS8110-1",
+      "title": "BS 8110-1 Structural use of concrete. Code of practice for design and construction",
+      "edition": "1997 (with amendments)",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS8110-2",
+      "title": "BS 8110-2 Structural use of concrete. Code of practice for special circumstances",
+      "edition": "1985",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS6399-1",
+      "title": "BS 6399-1 Loading for buildings. Code of practice for dead and imposed loads",
+      "edition": "1996",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS6399-2",
+      "title": "BS 6399-2 Loading for buildings. Code of practice for wind loads",
+      "edition": "1997",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS6399-3",
+      "title": "BS 6399-3 Loading for buildings. Code of practice for imposed roof loads",
+      "edition": "1988",
+      "publisher": "BSI"
+    },
+    {
+      "id": "BS5950-1",
+      "title": "BS 5950-1 Structural use of steelwork in building. Code of practice for design: rolled and welded sections",
+      "edition": "2000",
+      "publisher": "BSI"
+    }
+  ],
+  "clauses": {
+    "locations": ["BS 6399-2:1997 Figure 6"],
+    "zoneCoefficients": ["Not covered: no seismic loading in BS 6399 or BS 8110"],
+    "occupancyCategories": ["BS 6399-2:1997 2.2.2.5, Annex D"],
+    "areaLoads": ["BS 6399-1:1996 Table 1", "BS 6399-3:1988 4"],
+    "liveReduction": ["BS 6399-1:1996 5, Tables 2-3"],
+    "combinations": ["BS 8110-1:1997 Table 2.1", "BS 5950-1:2000 Table 2"],
+    "wind": ["BS 6399-2:1997 2.1-2.4 (standard method)"],
+    "concreteMethods": ["BS 8110-1:1997", "BS 8110-2:1985"],
+    "concrete": ["BS 8110-2:1985 7.2"],
+    "steelLimitState": ["BS 5950-1:2000 Sections 3-4, Annexes B-C"]
+  },
+  "basis": {
+    "general": "BS 6399-1:1996, BS 6399-2:1997, BS 6399-3:1988 (no seismic loading)",
+    "concrete": "BS 8110-1:1997 (limit state design) and BS 8110-2:1985 (serviceability calculations); torsion, flat slabs, walls and footings from BNBC 2020 Part 6 Chapter 6 until covered",
+    "steel": "BS 5950-1:2000 (members); connections, the steel seismic provisions and the composite rules from BNBC 2020 Part 6 Chapter 10",
+    "method": "Limit state design (BS 8110, BS 5950)"
+  },
+  "tableCodes": {
+    "locations": "BS 6399-2:1997",
+    "occupancyCategories": "BS 6399-2:1997",
+    "areaLoads": "BS 6399-1:1996",
+    "liveReduction": "BS 6399-1:1996",
+    "combinations": "BS 8110-1:1997",
+    "wind": "BS 6399-2:1997",
+    "concreteMethods": "BS 8110-1:1997",
+    "concreteMethods.calculatedDeflection": "BS 8110-2:1985",
+    "concreteMethods.cracking": "BS 8110-2:1985",
+    "concrete": "BS 8110-2:1985",
+    "steelLimitState": "BS 5950-1:2000"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

@@ -1,0 +1,751 @@
+{
+  "$schema": "../../../schemas/timber.schema.json",
+  "$sources": [
+    "ANSI/AWC NDS 2018 National Design Specification for Wood Construction: Chapters 2-5 (design values and adjustment factors of sawn lumber and glued laminated timber), Chapter 12 (dowel-type fasteners), Appendix N (LRFD); NDS Supplement 2018 Tables 4A, 4D, 5A (reference design values)"
+  ],
+  "source": "NDS 2018: timber members by reference design values and their adjustment factors (method 'referenceDesign'), ASD by default, LRFD selectable (reference.format); the permissible stress tables of the pack it extends (BNBC 2020 Chapter 11) stay for packs that choose that method",
+  "method": "referenceDesign",
+  "deflection": {
+    "brittle": 360.0,
+    "span": 240.0,
+    "cantilever": 120.0,
+    "deadLoadFactor": 1.5
+  },
+  "reference": {
+    "units": "psi",
+    "toMPa": 0.00689476,
+    "format": "ASD",
+    "defaultSpecies": "douglasFirLarch",
+    "defaultGrade": "No.2",
+    "species": {
+      "douglasFirLarch": {
+        "name": "Douglas Fir-Larch",
+        "product": "sawn",
+        "G": 0.5,
+        "source": "NDS Supplement 2018 Table 4A (dimension lumber, 2-4 in. thick) and Table 4D (timbers, 5 in. and thicker), visually graded",
+        "grades": {
+          "Select Structural": {
+            "dimension": {
+              "Fb": 1500,
+              "Ft": 1000,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 1700,
+              "E": 1900000,
+              "Emin": 690000
+            },
+            "beamsStringers": {
+              "Fb": 1600,
+              "Ft": 950,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 1100,
+              "E": 1600000,
+              "Emin": 580000
+            },
+            "postsTimbers": {
+              "Fb": 1500,
+              "Ft": 1000,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 1150,
+              "E": 1600000,
+              "Emin": 580000
+            }
+          },
+          "No.1 & Btr": {
+            "dimension": {
+              "Fb": 1200,
+              "Ft": 800,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 1550,
+              "E": 1800000,
+              "Emin": 660000
+            }
+          },
+          "No.1": {
+            "dimension": {
+              "Fb": 1000,
+              "Ft": 675,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 1500,
+              "E": 1700000,
+              "Emin": 620000
+            },
+            "beamsStringers": {
+              "Fb": 1350,
+              "Ft": 675,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 925,
+              "E": 1600000,
+              "Emin": 580000
+            },
+            "postsTimbers": {
+              "Fb": 1200,
+              "Ft": 825,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 1000,
+              "E": 1600000,
+              "Emin": 580000
+            }
+          },
+          "No.2": {
+            "dimension": {
+              "Fb": 900,
+              "Ft": 575,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 1350,
+              "E": 1600000,
+              "Emin": 580000
+            },
+            "beamsStringers": {
+              "Fb": 875,
+              "Ft": 425,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 600,
+              "E": 1300000,
+              "Emin": 470000
+            },
+            "postsTimbers": {
+              "Fb": 750,
+              "Ft": 475,
+              "Fv": 170,
+              "Fcp": 625,
+              "Fc": 700,
+              "E": 1300000,
+              "Emin": 470000
+            }
+          },
+          "No.3": {
+            "dimension": {
+              "Fb": 525,
+              "Ft": 325,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 775,
+              "E": 1400000,
+              "Emin": 510000
+            }
+          },
+          "Stud": {
+            "dimension": {
+              "Fb": 700,
+              "Ft": 450,
+              "Fv": 180,
+              "Fcp": 625,
+              "Fc": 850,
+              "E": 1400000,
+              "Emin": 510000
+            }
+          }
+        }
+      },
+      "hemFir": {
+        "name": "Hem-Fir",
+        "product": "sawn",
+        "G": 0.43,
+        "source": "NDS Supplement 2018 Table 4A (dimension lumber, 2-4 in. thick), visually graded",
+        "grades": {
+          "Select Structural": {
+            "dimension": {
+              "Fb": 1400,
+              "Ft": 925,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 1500,
+              "E": 1600000,
+              "Emin": 580000
+            }
+          },
+          "No.1 & Btr": {
+            "dimension": {
+              "Fb": 1100,
+              "Ft": 725,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 1350,
+              "E": 1500000,
+              "Emin": 550000
+            }
+          },
+          "No.1": {
+            "dimension": {
+              "Fb": 975,
+              "Ft": 625,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 1350,
+              "E": 1500000,
+              "Emin": 550000
+            }
+          },
+          "No.2": {
+            "dimension": {
+              "Fb": 850,
+              "Ft": 525,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 1300,
+              "E": 1300000,
+              "Emin": 470000
+            }
+          },
+          "No.3": {
+            "dimension": {
+              "Fb": 500,
+              "Ft": 300,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 725,
+              "E": 1200000,
+              "Emin": 440000
+            }
+          },
+          "Stud": {
+            "dimension": {
+              "Fb": 675,
+              "Ft": 400,
+              "Fv": 150,
+              "Fcp": 405,
+              "Fc": 800,
+              "E": 1200000,
+              "Emin": 440000
+            }
+          }
+        }
+      },
+      "sprucePineFir": {
+        "name": "Spruce-Pine-Fir",
+        "product": "sawn",
+        "G": 0.42,
+        "source": "NDS Supplement 2018 Table 4A (dimension lumber, 2-4 in. thick), visually graded; No.1 and No.2 are one grade (No.1/No.2)",
+        "grades": {
+          "Select Structural": {
+            "dimension": {
+              "Fb": 1250,
+              "Ft": 700,
+              "Fv": 135,
+              "Fcp": 425,
+              "Fc": 1400,
+              "E": 1500000,
+              "Emin": 550000
+            }
+          },
+          "No.1": {
+            "dimension": {
+              "Fb": 875,
+              "Ft": 450,
+              "Fv": 135,
+              "Fcp": 425,
+              "Fc": 1150,
+              "E": 1400000,
+              "Emin": 510000
+            }
+          },
+          "No.2": {
+            "dimension": {
+              "Fb": 875,
+              "Ft": 450,
+              "Fv": 135,
+              "Fcp": 425,
+              "Fc": 1150,
+              "E": 1400000,
+              "Emin": 510000
+            }
+          },
+          "No.3": {
+            "dimension": {
+              "Fb": 500,
+              "Ft": 250,
+              "Fv": 135,
+              "Fcp": 425,
+              "Fc": 650,
+              "E": 1200000,
+              "Emin": 440000
+            }
+          },
+          "Stud": {
+            "dimension": {
+              "Fb": 675,
+              "Ft": 350,
+              "Fv": 135,
+              "Fcp": 425,
+              "Fc": 725,
+              "E": 1200000,
+              "Emin": 440000
+            }
+          }
+        }
+      },
+      "glulam": {
+        "name": "Structural glued laminated softwood timber",
+        "product": "glulam",
+        "G": 0.42,
+        "source": "NDS Supplement 2018 Table 5A (stress classes, bending about the x-x axis): Fbx+ (Fb), Fbx- (FbNegative), Fc⊥x tension face, Fvx, Ex, Ex min; Fby; Ft and Fc axially loaded",
+        "grades": {
+          "24F-1.8E": {
+            "glulam": {
+              "Fb": 2400,
+              "Ft": 1100,
+              "Fv": 265,
+              "Fcp": 650,
+              "Fc": 1600,
+              "E": 1800000,
+              "Emin": 950000,
+              "FbNegative": 1450,
+              "Fby": 1450
+            }
+          },
+          "20F-1.5E": {
+            "glulam": {
+              "Fb": 2000,
+              "Ft": 725,
+              "Fv": 210,
+              "Fcp": 425,
+              "Fc": 925,
+              "E": 1500000,
+              "Emin": 790000,
+              "FbNegative": 1100,
+              "Fby": 800
+            }
+          }
+        }
+      }
+    },
+    "sizeClasses": {
+      "dimensionMax": 100.0,
+      "beamsExcess": 51.0,
+      "thinMax": 70.0,
+      "timberDepth": 305.0,
+      "timberExponent": 9.0
+    },
+    "sizeFactors": {
+      "default": [
+        {
+          "depthMax": 89.0,
+          "Fb": [
+            1.5,
+            1.5
+          ],
+          "Ft": 1.5,
+          "Fc": 1.15
+        },
+        {
+          "depthMax": 114.0,
+          "Fb": [
+            1.4,
+            1.4
+          ],
+          "Ft": 1.4,
+          "Fc": 1.1
+        },
+        {
+          "depthMax": 140.0,
+          "Fb": [
+            1.3,
+            1.3
+          ],
+          "Ft": 1.3,
+          "Fc": 1.1
+        },
+        {
+          "depthMax": 184.0,
+          "Fb": [
+            1.2,
+            1.3
+          ],
+          "Ft": 1.2,
+          "Fc": 1.05
+        },
+        {
+          "depthMax": 235.0,
+          "Fb": [
+            1.1,
+            1.2
+          ],
+          "Ft": 1.1,
+          "Fc": 1.0
+        },
+        {
+          "depthMax": 286.0,
+          "Fb": [
+            1.0,
+            1.1
+          ],
+          "Ft": 1.0,
+          "Fc": 1.0
+        },
+        {
+          "depthMax": null,
+          "Fb": [
+            0.9,
+            1.0
+          ],
+          "Ft": 0.9,
+          "Fc": 0.9
+        }
+      ],
+      "stud": [
+        {
+          "depthMax": 89.0,
+          "Fb": [
+            1.1,
+            1.1
+          ],
+          "Ft": 1.1,
+          "Fc": 1.05
+        },
+        {
+          "depthMax": 140.0,
+          "Fb": [
+            1.0,
+            1.0
+          ],
+          "Ft": 1.0,
+          "Fc": 1.0
+        }
+      ]
+    },
+    "sizeFactorGroups": {
+      "Stud": "stud"
+    },
+    "flatUse": [
+      {
+        "widthMax": 64.0,
+        "factor": [
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "widthMax": 89.0,
+        "factor": [
+          1.1,
+          1.0
+        ]
+      },
+      {
+        "widthMax": 114.0,
+        "factor": [
+          1.1,
+          1.05
+        ]
+      },
+      {
+        "widthMax": 140.0,
+        "factor": [
+          1.15,
+          1.05
+        ]
+      },
+      {
+        "widthMax": 184.0,
+        "factor": [
+          1.15,
+          1.05
+        ]
+      },
+      {
+        "widthMax": null,
+        "factor": [
+          1.2,
+          1.1
+        ]
+      }
+    ],
+    "volume": {
+      "length": 6400.0,
+      "depth": 305.0,
+      "width": 130.0,
+      "exponent": 10.0
+    },
+    "wetService": {
+      "dimension": {
+        "factors": {
+          "Fb": 0.85,
+          "Ft": 1.0,
+          "Fv": 0.97,
+          "Fcp": 0.67,
+          "Fc": 0.8,
+          "E": 0.9,
+          "Emin": 0.9
+        },
+        "fbExempt": 1150.0,
+        "fcExempt": 750.0
+      },
+      "beamsStringers": {
+        "factors": {
+          "Fb": 1.0,
+          "Ft": 1.0,
+          "Fv": 1.0,
+          "Fcp": 0.67,
+          "Fc": 0.91,
+          "E": 1.0,
+          "Emin": 1.0
+        }
+      },
+      "postsTimbers": {
+        "factors": {
+          "Fb": 1.0,
+          "Ft": 1.0,
+          "Fv": 1.0,
+          "Fcp": 0.67,
+          "Fc": 0.91,
+          "E": 1.0,
+          "Emin": 1.0
+        }
+      },
+      "glulam": {
+        "factors": {
+          "Fb": 0.8,
+          "Ft": 0.8,
+          "Fv": 0.875,
+          "Fcp": 0.53,
+          "Fc": 0.73,
+          "E": 0.833,
+          "Emin": 0.833
+        }
+      }
+    },
+    "temperature": [
+      {
+        "tMax": 38.0,
+        "dry": {
+          "Fb": 1.0,
+          "Ft": 1.0,
+          "Fv": 1.0,
+          "Fcp": 1.0,
+          "Fc": 1.0,
+          "E": 1.0,
+          "Emin": 1.0
+        },
+        "wet": {
+          "Fb": 1.0,
+          "Ft": 1.0,
+          "Fv": 1.0,
+          "Fcp": 1.0,
+          "Fc": 1.0,
+          "E": 1.0,
+          "Emin": 1.0
+        }
+      },
+      {
+        "tMax": 52.0,
+        "dry": {
+          "Fb": 0.8,
+          "Ft": 0.9,
+          "Fv": 0.8,
+          "Fcp": 0.8,
+          "Fc": 0.8,
+          "E": 0.9,
+          "Emin": 0.9
+        },
+        "wet": {
+          "Fb": 0.7,
+          "Ft": 0.9,
+          "Fv": 0.7,
+          "Fcp": 0.7,
+          "Fc": 0.7,
+          "E": 0.9,
+          "Emin": 0.9
+        }
+      },
+      {
+        "tMax": 66.0,
+        "dry": {
+          "Fb": 0.7,
+          "Ft": 0.9,
+          "Fv": 0.7,
+          "Fcp": 0.7,
+          "Fc": 0.7,
+          "E": 0.9,
+          "Emin": 0.9
+        },
+        "wet": {
+          "Fb": 0.5,
+          "Ft": 0.9,
+          "Fv": 0.5,
+          "Fcp": 0.5,
+          "Fc": 0.5,
+          "E": 0.9,
+          "Emin": 0.9
+        }
+      }
+    ],
+    "incising": {
+      "Fb": 0.8,
+      "Ft": 0.8,
+      "Fv": 0.8,
+      "Fcp": 1.0,
+      "Fc": 0.8,
+      "E": 0.95,
+      "Emin": 0.95
+    },
+    "repetitive": 1.15,
+    "duration": {
+      "D": 0.9,
+      "SD": 0.9,
+      "L": "live",
+      "LP": "live",
+      "Lr": 1.25,
+      "S": 1.15,
+      "R": 1.25,
+      "W": 1.6,
+      "E": 1.6,
+      "F": 0.9,
+      "H": 0.9,
+      "T": 0.9,
+      "Fa": 1.6
+    },
+    "liveDuration": {
+      "continuous": 1.0,
+      "twoMonths": 1.15,
+      "sevenDays": 1.25,
+      "impact": 2.0
+    },
+    "lrfd": {
+      "KF": {
+        "Fb": 2.54,
+        "Ft": 2.7,
+        "Fv": 2.88,
+        "Fcp": 1.67,
+        "Fc": 2.4,
+        "Emin": 1.76
+      },
+      "phi": {
+        "Fb": 0.85,
+        "Ft": 0.8,
+        "Fv": 0.75,
+        "Fcp": 0.9,
+        "Fc": 0.9,
+        "Emin": 0.85
+      },
+      "connectionKF": 3.32,
+      "connectionPhi": 0.65,
+      "timeEffect": {
+        "dead": 0.6,
+        "roof": 0.8,
+        "lateral": 1.0,
+        "continuous": 0.8,
+        "twoMonths": 0.8,
+        "sevenDays": 0.8,
+        "impact": 1.25
+      }
+    },
+    "beamStability": {
+      "shortRatio": 7.0,
+      "shortFactor": 2.06,
+      "longRatio": 14.3,
+      "midFactor": 1.63,
+      "midDepth": 3.0,
+      "longFactor": 1.84,
+      "rbMax": 50.0,
+      "fbe": 1.2,
+      "a": 1.9,
+      "b": 0.95
+    },
+    "columnStability": {
+      "fce": 0.822,
+      "c": {
+        "sawn": 0.8,
+        "glulam": 0.9
+      },
+      "maxSlenderness": 50.0
+    },
+    "bearingArea": [
+      9.525,
+      152.0
+    ],
+    "dowels": {
+      "smallDiameter": 6.35,
+      "parallel": 11200.0,
+      "perpendicular": 6100.0,
+      "perpendicularExponent": 1.45,
+      "small": 16600.0,
+      "smallExponent": 1.84,
+      "boltFyb": 45000.0,
+      "nailFyb": [
+        [
+          3.61,
+          100000.0
+        ],
+        [
+          4.5,
+          90000.0
+        ],
+        [
+          6.0,
+          80000.0
+        ],
+        [
+          6.94,
+          70000.0
+        ]
+      ],
+      "rdLarge": {
+        "I": 4.0,
+        "II": 3.6,
+        "III": 3.2
+      },
+      "kTheta": 0.25,
+      "rdSmall": [
+        4.32,
+        2.2,
+        10.0
+      ],
+      "groupGamma": 180000.0,
+      "endFull": {
+        "tensionSoftwood": 7.0,
+        "tensionHardwood": 5.0,
+        "compression": 4.0
+      },
+      "endMin": {
+        "tensionSoftwood": 3.5,
+        "tensionHardwood": 2.5,
+        "compression": 2.0
+      },
+      "spacingFull": 4.0,
+      "spacingMin": 3.0,
+      "wetService": 0.7
+    }
+  },
+  "clauses": {
+    "chapter": "Chapters 2-5",
+    "referenceValues": "Supplement Tables 4A, 4D, 5A",
+    "duration": "Sec 2.3.2, Table 2.3.2 (CD)",
+    "wetService": "Sec 4.3.3, 5.3.3 (CM, Supplement Tables 4A, 4D, 5A adjustments)",
+    "temperature": "Sec 2.3.3, Table 2.3.3 (Ct)",
+    "incising": "Sec 4.3.8, Table 4.3.8 (Ci)",
+    "sizeFactor": "Sec 4.3.6 (CF, Supplement Table 4A, 4D)",
+    "flatUse": "Sec 4.3.7 (Cfu)",
+    "repetitive": "Sec 4.3.9 (Cr)",
+    "volume": "Sec 5.3.6 (CV)",
+    "beamStability": "Sec 3.3.3, Table 3.3.3 (CL)",
+    "column": "Sec 3.7.1 (CP)",
+    "bending": "Sec 3.3",
+    "shear": "Sec 3.4",
+    "shearSupport": "Sec 3.4.3.1",
+    "tension": "Sec 3.8.1",
+    "combinedCompression": "Sec 3.9.2, Eq 3.9-3",
+    "combinedTension": "Sec 3.9.1",
+    "bearing": "Sec 3.10.1, 3.10.4 (Cb)",
+    "deflection": "Sec 3.5.2 (Kcr 1.5); the limits L/240, L/360 with brittle finishes, cantilevers L/120 are SAEngine practice (IBC Table 1604.3 is not in the pack)",
+    "lrfd": "Appendix N, Tables N1, N2 (KF, φ)",
+    "timeEffect": "Appendix N, Table N3 (λ)",
+    "dowels": "Sec 12.3 (yield limit equations), Tables 12.3.1A, 12.3.1B, 12.3.3",
+    "group": "Sec 11.3.6 (Cg)",
+    "geometry": "Sec 12.5.1 (CΔ, Tables 12.5.1A, 12.5.1B)"
+  },
+  "sources": {
+    "reference": "NDS 2018: reference design values in psi (NDS Supplement Tables 4A, 4D, 5A); CD Table 2.3.2 (permanent 0.9, ten years 1.0, two months 1.15, seven days 1.25, ten minutes 1.6, impact 2.0); CM of dimension lumber Fb 0.85 (1.0 when Fb CF <= 1150 psi), Fv 0.97, Fc⊥ 0.67, Fc 0.8 (1.0 when Fc CF <= 750 psi), E 0.9; timbers Fc⊥ 0.67, Fc 0.91; glulam Fb 0.8, Ft 0.8, Fv 0.875, Fc⊥ 0.53, Fc 0.73, E 0.833; Ct Table 2.3.3; Ci Table 4.3.8; CF and Cfu Table 4A footnotes; timbers CF = (12/d)^(1/9); CV = (21/L)^(1/x) (12/d)^(1/x) (5.125/b)^(1/x), x = 10; Cr 1.15; CL Sec 3.3.3 with le of Table 3.3.3 (the 'any loading' row), RB <= 50, FbE = 1.20 Emin'/RB²; CP Sec 3.7.1, c 0.8 sawn, 0.9 glulam, FcE = 0.822 Emin'/(le/d)², le/d <= 50; Cb = (lb + 0.375)/lb under 6 in.; Appendix N: KF Fb 2.54, Ft 2.70, Fv 2.88, Fc 2.40, Fc⊥ 1.67, Emin 1.76, connections 3.32; φ 0.85, 0.80, 0.75, 0.90, 0.90, 0.85, connections 0.65; λ 0.6 (dead), 0.7 / 0.8 / 1.25 (storage / occupancy / impact live), 0.8 (roof live, snow), 1.0 (wind, earthquake); Chapter 12: Fe∥ = 11200 G, Fe⊥ = 6100 G^1.45 / √D (D >= 1/4 in.), 16600 G^1.84 (D < 1/4 in.), Rd 4 Kθ, 3.6 Kθ, 3.2 Kθ (Kθ = 1 + 0.25 θ/90), KD 2.2 (D <= 0.17 in.), 10 D + 0.5; Fyb 45 ksi bolts, nails by diameter; Cg Sec 11.3.6 (γ = 180 000 D^1.5); CΔ Table 12.5.1A, B; CM of fasteners in wet service 0.7 (Table 11.3.3)",
+    "durationCases": "SAEngine practice: the load case names to durations (D, SD, F, H, T permanent; L the material's live load duration; Lr and R seven days; S two months; W, E and the flood load ten minutes); a live load named 'continuous' (the default) takes ten years (occupancy), λ 0.8",
+    "location": "SAEngine practice: a material 'wet' or 'outside' is in wet service (moisture content above 19 %, NDS Sec 4.1.4)",
+    "lengths": "SAEngine practice: le of columns is the member length (pinned ends, Ke = 1.0), lu of beams the type's restraint spacing (else the length); side members of bolted and nailed joints of the member's species, as deep as the member"
+  }
+}

@@ -1,0 +1,366 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "bnbc2020",
+  "name": "BNBC 2020",
+  "edition": "BNBC 2020",
+  "country": "BD",
+  "version": "1.3.0",
+  "verified": "2026-11-09",
+  "extends": null,
+  "covers": [
+    "locations",
+    "zoneCoefficients",
+    "occupancyCategories",
+    "areaLoads",
+    "deadLoads",
+    "combinations",
+    "seismic",
+    "wind",
+    "materials",
+    "factors",
+    "concrete",
+    "detailing",
+    "steel",
+    "foundations",
+    "transfer",
+    "slabCoefficients",
+    "plumbing",
+    "hvac",
+    "electrical",
+    "fire",
+    "steelSections",
+    "liveReduction",
+    "fireResistance",
+    "planning",
+    "timber",
+    "masonry",
+    "cranes",
+    "fatigue",
+    "siteInvestigation",
+    "serviceability",
+    "nonstructural",
+    "steelStability",
+    "flood",
+    "pushover",
+    "accessibility",
+    "anchors",
+    "construction",
+    "concreteTime",
+    "composite",
+    "slabMethods",
+    "wallMethods",
+    "stairMethods",
+    "compositeConcrete",
+    "steelSeismic",
+    "isolation",
+    "nonlinearHistory",
+    "bamboo",
+    "ferrocement",
+    "designClauses",
+    "designLimits",
+    "citations",
+    "mepOpenings",
+    "floorVibration",
+    "windComfort",
+    "nonBuilding",
+    "embeddedWalls",
+    "barSchedule",
+    "excavationSupport",
+    "existing",
+    "nonlinearStability",
+    "connectionFe",
+    "precast",
+    "floorSpectra",
+    "cfdWind",
+    "fabrication",
+    "slopeStability",
+    "mepFabrication"
+  ],
+  "description": "Bangladesh National Building Code 2020: Part 6 (Structural Design: loads, wind and earthquake, load combinations, reinforced concrete, seismic detailing, structural steel and foundations), Part 8 (plumbing, air-conditioning, electrical services), Part 4 (fire protection) and the standard steel sections SAEngine designs with. The values SAEngine used before code packs, transcribed from its modules; every table names its clauses and pages.",
+  "sources": [
+    {
+      "id": "BNBC",
+      "title": "Bangladesh National Building Code",
+      "edition": "2020",
+      "publisher": "Housing and Building Research Institute (HBRI), Government of Bangladesh"
+    }
+  ],
+  "clauses": {
+    "fabrication": [
+      "BNBC 2020 gives no shop drawing conventions: AWS A2.4 weld symbols (Part 6 Chapter 10 is AISC 360-05 based) and SAEngine practice drilling allowances for the shop drawings and NC files"
+    ],
+    "mepFabrication": [
+      "BNBC 2020 Part 8 Sec 5.17.2, Table 8.5.14 (p1063): pipe hanger spacing; Part 8 Sec 2.11.4.8(b) (p911): duct supports (exhaust ducts, applied to all ducts as SAEngine practice); Part 4 Sec 4.2.3.14 and 4.2.10.6: fire main and sprinkler hangers (spacing, five times the water-filled weight plus 110 kg)"
+    ],
+    "cfdWind": [
+      "BNBC 2020 Part 6 Sec 2.4.16 (Method 3, wind tunnel procedure) and Sec 1.5.3.5: the CFD wind tunnel link (OpenFOAM installed by the user) gives engineer-supplied wind loads to be validated; directions, z0 and the 80 % lower limit are SAEngine practice"
+    ],
+    "nonlinearStability": [
+      "BNBC 2020 gives no GMNIA method (Part 6 Chapter 10, AISC 360-05 basis): SAEngine practice (AISC 360 Appendix 7 imperfections, EN 1993-1-5 Annex C, EN 1993-1-11)"
+    ],
+    "connectionFe": [
+      "BNBC 2020 gives no FE design of joints: SAEngine practice (EN 1993-1-5 C.8 strain limit, EN 1993-1-8 Table 6.11, AISC 360-05 Commentary B3.6)"
+    ],
+    "slopeStability": [
+      "BNBC 2020 Part 6 Sec 3.21 (p. 817) lists landslides as a geo-hazard and Sec 3.14 (p. 803) asks for the stability of adjoining buildings, with no slope method: limit equilibrium and the factors of safety are SAEngine practice (Bishop, Janbu, Spencer, Morgenstern-Price; FS 1.5 / 1.3 / 1.1, kh = 0.5 PGA)"
+    ],
+    "floorSpectra": [
+      "SAEngine practice where BNBC 2020 Part 6 Sec 2.5.15 gives no floor spectra: time history or direct spectrum-to-spectrum, ±15 % broadening (ASCE 4-16 Ch 6)"
+    ],
+    "precast": [
+      "BNBC 2020 Part 6 Sec 6.10 (pp. 987-992): precast concrete: bearing, integrity ties, connections, handling; the handling and erection values are SAEngine practice (PCI Design Handbook, Mast) where Sec 6.10.9 gives none"
+    ],
+    "existing": [
+      "BNBC 2020 Part 10 Sec 1.3.2 (gazette p. 5003) and Part 7 Sec 5.10.3-5.10.4 (gazette pp. 4506-4507): existing buildings analysed, strengthened and retrofitted (no method); the assessment and retrofit checks are SAEngine practice on the ASCE 41 basis"
+    ],
+    "excavationSupport": [
+      "BNBC 2020 Part 6 Sec 3.12 (p. 797) and Sec 3.16 (p. 805): retained excavation sides, sheet piles and tie-back anchors (no method); the staged analysis, struts and anchors are SAEngine practice (subgrade springs, BS 8081)"
+    ],
+    "locations": [
+      "BNBC 2020 Part 6 Table 6.2.8 (p. 600)",
+      "BNBC 2020 Part 6 Table 6.2.15 (p. 615)"
+    ],
+    "zoneCoefficients": [
+      "BNBC 2020 Part 6 Table 6.2.14 (p. 615)"
+    ],
+    "occupancyCategories": [
+      "BNBC 2020 Part 6 Table 6.1.1 (p. 480)",
+      "Table 6.2.9 (p. 601)",
+      "Table 6.2.17 (p. 616)"
+    ],
+    "areaLoads": [
+      "BNBC 2020 Part 6 Sec 2.3.3-2.3.12, Tables 6.2.3-6.2.6 (pp. 533-542)"
+    ],
+    "deadLoads": [
+      "BNBC 2020 Part 6 Sec 2.2.4, Tables 6.2.1 and 6.2.2 (pp. 529-531)"
+    ],
+    "combinations": [
+      "BNBC 2020 Part 6 Sec 2.7.1-2.7.3 (pp. 683-685), 2.5.13.5-2.5.13.6 (p. 647), 1.5.9 (p. 500)",
+      "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations"
+    ],
+    "seismic": [
+      "BNBC 2020 Part 6 Sec 2.5 (pp. 609-648)"
+    ],
+    "wind": [
+      "BNBC 2020 Part 6 Sec 2.4",
+      "Sec 2.4.11.3 and Figure 6.2.9 (pp. 559, 574-575): design wind load cases",
+      "Sec 2.4.8.2 and Table 6.2.10: gust-effect factor Gf of flexible buildings",
+      "Sec 2.4.11.4 and Figures 6.2.11-6.2.17 (pp. 560, 578-588): components and cladding (GCp) by zone, roof form and angle (gable, hip, monoslope, multispan, sawtooth, stepped, arched, domes)",
+      "Sec 2.4.12, Eqs 6.2.27-6.2.28 and Figures 6.2.18-6.2.19 (pp. 561-562, 589-595): open buildings, free roofs (MWFRS and components and cladding)",
+      "Sec 2.4.14, Eq 6.2.30 and Figures 6.2.21-6.2.23 (pp. 563, 598-601): other structures (chimneys, tanks, open signs and lattice frameworks, trussed towers), force coefficients Cf",
+      "Sec 2.4.7, Eq 6.2.5 and Figure 6.2.4 (pp. 553, 569-570): topographic factor Kzt of hills, ridges and escarpments",
+      "Sec 2.4.11.3, Eq 6.2.23 (p. 559): torsional eccentricity of flexible buildings",
+      "Sec 2.4.13, Eq 6.2.29 and Figure 6.2.20 (pp. 562-563, 596-597): solid freestanding walls and signs",
+      "Sec 2.4.15 (p. 563): rooftop structures and equipment on buildings with h ≤ 18.3 m"
+    ],
+    "materials": [
+      "BNBC 2020 Part 6 Sec 8.3.3 (pp. 1089-1090)"
+    ],
+    "factors": [
+      "BNBC 2020 Part 6 Sec 6.2.3 (pp. 897-898)"
+    ],
+    "concrete": [
+      "BNBC 2020 Part 6 Chapter 6",
+      "Sec 6.4.4 (pp. 926-931): torsion",
+      "Sec 6.2.5 (pp. 899-903): deflection",
+      "Sec 5.13.2 (p. 856), 6.1.7.1 and 6.1.8.1 (pp. 892-893): Ec and λ by aggregate; Sec 8.1.11.2 (p. 1075): shrinkage and temperature steel",
+      "Chapter 9 Sec 9.4-9.15 (pp. 1137-1160): prestressed concrete (stresses, losses, classes, deflection, strength, bonded reinforcement, slabs, integrity, anchorage zones, compression members)"
+    ],
+    "detailing": [
+      "BNBC 2020 Part 6 Sec 8.3 (pp. 1088-1122)",
+      "BNBC 2020 Part 6 Sec 8.1.6.1-8.1.6.3 (p. 1068)",
+      "BNBC 2020 Part 6 Sec 6.3.6.4-6.3.6.7 (p. 908): crack control, flange and skin steel; Sec 6.4.5 (pp. 931-933): shear friction; Sec 8.1.12 (pp. 1075-1076): structural integrity; Sec 9.5.3 (pp. 1141-1142): Class C tendon spacing"
+    ],
+    "steel": [
+      "BNBC 2020 Part 6 Chapter 10"
+    ],
+    "foundations": [
+      "BNBC 2020 Part 6 Chapter 3, Table 6.3.10a (p. 750)",
+      "BNBC 2020 Part 6 Sec 3.20 (pp. 807-814): machine foundations",
+      "BNBC 2020 Part 6 Appendix I Secs I.1-I.5 (part 2 pp. 481-495): strut-and-tie models"
+    ],
+    "transfer": [
+      "BNBC 2020 Part 6 Sec 6.4.6 (deep beams)",
+      "Sec 6.4.7 (brackets and corbels)",
+      "Sec 2.5.5.6 (p. 625): collectors"
+    ],
+    "slabCoefficients": [
+      "BNBC 2020 Part 6 Sec 6.5.8, Tables 6.6.8-6.6.11 (pp. 960-966)",
+      "Sec 6.1.4.3 (p. 891)",
+      "Sec 8.1.6 (p. 1068)",
+      "Sec 8.1.11.2 (p. 1075)"
+    ],
+    "plumbing": [
+      "BNBC 2020 Part 8 Chapters 5-7 and Appendices O, R, S (pp. 1034-1215)",
+      "BNBC 2020 Part 3 Sec 2.4.4 (p. 94)"
+    ],
+    "hvac": [
+      "BNBC 2020 Part 8 Chapter 2 (pp. 859-916)",
+      "BNBC 2020 Part 3 Chapter 4 (pp. 186-192)"
+    ],
+    "electrical": [
+      "BNBC 2020 Part 8 Chapter 1 (pp. 763-828)",
+      "BNBC 2020 Part 8 Appendix A (pp. 1167-1168)",
+      "BNBC 2020 Part 8 Sec 4.2.1 (pp. 982-983)"
+    ],
+    "fire": [
+      "BNBC 2020 Part 4 Chapters 4-5 (pp. 321-355)",
+      "BNBC 2020 Part 1 Chapter 2 and Part 3 Sec 2.4.4 (pp. 6, 94)"
+    ],
+    "steelSections": [
+      "EN 10365 (IPE, HEA, HEB)",
+      "IS 808 (ISMB, ISMC, equal angles)",
+      "EN 10056 (equal angles)",
+      "EN 10219 (SHS, RHS, CHS)"
+    ],
+    "liveReduction": [
+      "BNBC 2020 Part 6 Sec 2.3.13-2.3.14, Eqs 6.2.1-6.2.2, Table 6.2.7 (pp. 542-544)"
+    ],
+    "fireResistance": [
+      "BNBC 2020 Part 3 Sec 3.1, Tables 3.3.1(a)-(b) (pp. 165-172); Part 4 Sec 1.5(f), Table 4.1.1 (p. 284)",
+      "ACI 216.1-14 covers (advisory, not BNBC)"
+    ],
+    "planning": [
+      "BNBC 2020 Part 3 Chapter 1 (plot, open space, FAR and ground coverage by the planning authority's rules, Sec 1.8.1 and 1.9.3.1)",
+      "BNBC 2020 Part 3 Sec 1.5.2-1.5.3, Table 3.1.3 (p. 50); Sec 1.8.2-1.8.9, Table 3.1.5 (pp. 53-57); Sec 1.9.1-1.9.3, Tables 3.1.7-3.1.8 (pp. 60-63): the code's own site rules (buildingCode)",
+      "Dhaka Mohanagar Imarat Nirman Bidhimala 2008, Rules 46, 50, 51 and Tables 2, 3(A)-3(F)"
+    ],
+    "timber": [
+      "BNBC 2020 Part 6 Chapter 11 (timber structures), Secs 11.4-11.10 and 11.18 (pp. 285-337)"
+    ],
+    "masonry": [
+      "BNBC 2020 Part 6 Chapter 7 (masonry structures), Sec 7.2-7.8 (pp. 1003-1039): allowable stress design, with the strength design and earthquake values",
+      "TMS 602 / ACI 530.1 Tables 1-2: only the labelled f'm estimate from the unit strength (not BNBC)",
+      "BNBC 2020 Part 6 Sec 7.3.9 (embedded anchor bolts), 7.7 (strength design of slender walls and shear walls), 7.8.4-7.8.6 (earthquake detailing, Tables 6.7.15-6.7.17), 7.9 (high wind regions, Table 6.7.18), 7.11 (confined masonry) (pp. 1008-1011, 1030-1046, 1051-1061)"
+    ],
+    "cranes": [
+      "BNBC 2020 Part 6 Sec 2.3.12, Table 6.2.6 row 5(a)-(c) (pp. 541-542)",
+      "BNBC 2020 Part 6 Sec 1.6.6(i) (p. 502): moving loads for crane movements"
+    ],
+    "fatigue": [
+      "BNBC 2020 Part 6 Sec 10.17, Eqs 6.10.276-6.10.277 and Table 6.10.14a (gazette part 2 pp. 196-210)"
+    ],
+    "siteInvestigation": [
+      "BNBC 2020 Part 6 Sec 3.4.4-3.4.5 (pp. 702-704): number, spacing and depth of the borings",
+      "BNBC 2020 Part 6 Sec 3.5.3-3.5.8, Tables 6.3.2-6.3.4 (pp. 707-714) and Appendix E: organic, expansive, collapsible, dispersive and soft soils",
+      "BNBC 2020 Part 6 Sec 3.6.2, Tables 6.3.6a-6.3.6b (pp. 715-718) and Sec 3.10.1.29 (pp. 754-755): corrosivity and corrosive sites",
+      "BNBC 2020 Part 6 Sec 5.5.1-5.5.2, Table 6.5.2 (pp. 844-846): concrete in sulphate and chloride exposure",
+      "BNBC 2020 Part 6 Sec 3.21 (p. 814): geo-hazards"
+    ],
+    "serviceability": [
+      "BNBC 2020 Part 6 Sec 1.2.5, Table 6.1.2 and notes (pp. 482-483): member deflection limits",
+      "BNBC 2020 Part 6 Sec 1.5.6.1(a), 1.5.6.2 (pp. 499-500): storey drift and sway under wind",
+      "BNBC 2020 Part 6 Sec 1.2.10 (p. 485), 1.5.5 (p. 499), 1.8.4 (p. 507), 2.5.7.8 (p. 632): overturning",
+      "BNBC 2020 Part 6 Sec 2.7.5 (p. 686): serviceability combinations; Sec 10.12.3-10.12.4 (part 2 p. 172): steel"
+    ],
+    "nonstructural": [
+      "BNBC 2020 Part 6 Sec 2.5.15-2.5.15.4, Eqs 6.2.57-6.2.61 (pp. 649-652): nonstructural components",
+      "BNBC 2020 Part 6 Tables 6.2.22 and 6.2.23 (pp. 654-657): component coefficients",
+      "BNBC 2020 Part 6 Sec 1.7.3.2(b) and 1.7.3.6 (pp. 503-504): exterior panel connections, wall anchorage"
+      ],
+    "steelStability": [
+      "BNBC 2020 Part 6 Sec 10.3.2.2, Eqs 6.10.9-6.10.10 (part 2 pp. 52-53): design for stability, notional loads",
+      "BNBC 2020 Part 6 Sec 10.14, Eqs 6.10.262-6.10.264 (part 2 pp. 187-189): Direct Analysis Method"
+      ],
+    "flood": [
+      "BNBC 2020 Part 6 Sec 1.6.4-1.6.5 (p. 501): flood, surge and rain; stability factor 1.5",
+      "BNBC 2020 Part 6 Sec 2.6.2-2.6.3, Eqs 6.2.69-6.2.81, Tables 6.2.25-6.2.27 (pp. 667-679): rain, flood and surge",
+      "BNBC 2020 Part 6 Sec 2.6.6-2.6.8, Table 6.2.28, Figure 6.2.33, Eqs 6.2.82a-c (pp. 680-683): explosions, air raid shelters, helicopter landing areas"
+      ],
+    "pushover": [
+      "BNBC 2020 Part 6 Sec 2.5.12.1-2.5.12.4, Eqs 6.2.51-6.2.55 (pp. 641-644): nonlinear static analysis, target displacement, member acceptance"
+    ],
+    "accessibility": [
+      "BNBC 2020 Part 3 Sec 1.10.2 (p. 65), 1.14.11.5 (p. 70): driveways and walkway ramps",
+      "BNBC 2020 Part 3 Appendix D Sec D.5.2, Table 3.D.2 (pp. 227-228), D.11.1 (p. 236): accessible ramps",
+      "BNBC 2020 Part 3 Appendix F Sec F.7.3.1-F.7.3.3, Table 3.F.5 (pp. 272-273): carriageway and parking ramps",
+      "BNBC 2020 Part 4 Sec 3.11.1-3.11.9 (p. 315): ramps in means of escape"
+    ],
+    "anchors": [
+      "BNBC 2020 Part 6 Appendix K Sec K.1-K.9, Eqs 6.K.1-6.K.32 (part 2 pp. 526-564): anchoring to concrete",
+      "BNBC 2020 Part 6 Sec 10.10.9 (part 2 p. 138): anchor rods and embedments"
+      ],
+    "construction": [
+      "BNBC 2020 Part 6 Sec 3.8.9 (p. 725), 3.12-3.13 (pp. 797-800): excavation, adjoining property, dewatering",
+      "BNBC 2020 Part 6 Sec 3.15 (pp. 801-802), 3.17 (pp. 803-806), 3.19.1 (p. 806): fills, waterproofing, footings on fill",
+      "BNBC 2020 Part 7 Sec 1.7.2, 3.3 (part 2 pp. 625-626, 657-662): adjoining property, excavation and foundation work",
+      "BNBC 2020 Part 7 Sec 3.8, Table 7.3.1 (part 2 pp. 671-675): formwork and scaffold"
+    ],
+    "concreteTime": [
+      "BNBC 2020 Part 6 Sec 5.13.3-5.13.4, Eqs 6.5.3-6.5.4, Figures 6.5.1-6.5.2 (pp. 856-858): creep and shrinkage",
+      "BNBC 2020 Part 6 Sec 1.2.7, 1.2.16, 1.6.6(h),(j),(l), 2.6.9 (pp. 483-683): long-term properties, phased construction, creep and shrinkage, construction loads",
+      "BNBC 2020 Part 6 Sec 9.6.6-9.6.7, Table 6.9.3 (pp. 1144-1145): creep and shrinkage of the prestress losses"
+    ],
+    "composite": [
+      "BNBC 2020 Part 6 Chapter 13 Sec 13.1-13.4, Eqs 6.13.1-6.13.25 (part 2 pp. 370-390): steel-concrete composite beams, columns and connections",
+      "BNBC 2020 Part 6 Sec 6.3.13 (pp. 916-917): composite compression members"
+      ],
+    "slabMethods": [
+      "BNBC 2020 Part 6 Sec 6.5.5.1.1, 6.5.6, 6.5.7, Eqs 6.6.82-6.6.88, Tables 6.6.4-6.6.7 (pp. 949-960): direct design and equivalent frame methods",
+      "BNBC 2020 Part 6 Sec 6.5.3.6, 6.5.4 (pp. 946-949): corner reinforcement, openings"
+    ],
+    "wallMethods": [
+      "BNBC 2020 Part 6 Sec 6.6.7-6.6.8, Eqs 6.6.90-6.6.99 (pp. 970-972): walls as grade beams, slender walls"
+    ],
+    "stairMethods": [
+      "BNBC 2020 Part 6 Sec 6.7.1.3, 6.7.1.5.1, 6.7.2 (pp. 973-974): built-in flights, open wells, stringer beams",
+      "BNBC 2020 Part 6 Appendix M, Table 6.M.1, Figures 6.M.4, 6.M.6-6.M.9 (part 2 pp. 571-578): free-standing, sawtooth and helicoidal stairs"
+    ],
+    "compositeConcrete": [
+      "BNBC 2020 Part 6 Sec 6.12 (pp. 993-995): composite concrete flexural members, horizontal shear and ties"
+      ],
+    "steelSeismic": [
+      "BNBC 2020 Part 6 Sec 10.1.1.2, 10.20.1-10.20.12, Tables 6.10.17-6.10.18, Eqs 6.10.298-6.10.302 (part 2 pp. 227-258): seismic provisions for structural steel, general requirements and moment frames",
+      "BNBC 2020 Part 6 Appendix N (part 2 pp. 579-582): prequalified beam-column connections",
+      "BNBC 2020 Part 6 Sec 2.5.9.1(b) (p. 634): panel zone deformations in the drift of steel moment frames"
+    ],
+    "isolation": [
+      "BNBC 2020 Part 6 Sec 2.5.16-2.5.16.5, Eqs 6.2.62-6.2.68, Table 6.2.24 (pp. 652-666): seismically isolated buildings"
+    ],
+    "nonlinearHistory": [
+      "BNBC 2020 Part 6 Sec 2.5.11.1-2.5.11.5 (pp. 638-641): nonlinear time history analysis, records, response, member acceptance, design review",
+      "BNBC 2020 Part 6 Sec 2.5.14.1 (p. 647): storey drift of the nonlinear time history analysis"
+      ],
+    "bamboo": [
+      "BNBC 2020 Part 6 Chapter 4 Sec 4.4-4.7, Tables 6.4.6-6.4.8 (part 1 pp. 822-835): bamboo structures, permissible stresses, members and columns, joints"
+    ],
+    "ferrocement": [
+      "BNBC 2020 Part 6 Chapter 12 Sec 12.3-12.4, Tables 6.12.2-6.12.3, Eqs 6.12.1-6.12.5 (part 2 pp. 342-354) and Appendix U (part 2 pp. 612-613): ferrocement strength and service load design"
+    ],
+    "designClauses": [
+      "BNBC 2020 Parts 3, 4 and 6: the clause references of the member and connection design checks, notes and method text"
+    ],
+    "designLimits": [
+      "BNBC 2020 Part 6 Sec 6.4.1.2, 10.2.3.12; Part 3 Sec 1.14.5 and Part 4 Sec 3.10, Tables 4.3.5-4.3.6 (pp. 309-313): the cap of sqrt f'c in shear, the ERW wall thickness factor, the stair geometry rules"
+    ],
+    "citations": [
+      "BNBC 2020 Parts 3, 4, 6 and 8: the clause references the report, worksheets, drawings and bill of quantities print"
+      ],
+    "mepOpenings": [
+      "BNBC 2020 Part 6 Sec 5.16.3, 6.4.1.1.1, 6.4.10.6, 6.5.2.1, 6.5.4 and 6.6.3.4-6.6.3.7 (pp. 863-969): openings and sleeves through beams, slabs and walls"
+    ],
+    "floorVibration": [
+      "BNBC 2020 Part 6 Sec 1.4.2(e) (p. 495), Sec 10.12.5 (p. 1375): floor vibration by a rational method (none given); the method is SAEngine practice (AISC Design Guide 11, CCIP-016 / SCI P354)"
+    ],
+    "windComfort": [
+      "BNBC 2020 Part 6 Sec 10.12.6 (p. 1376): wind-induced motion of flexible buildings by a rational dynamic analysis (none given); the method is SAEngine practice (ASCE 7-05 Commentary C6.5.8)"
+    ],
+    "nonBuilding": [
+      "BNBC 2020 Part 6 Sec 2.5.18 (p. 669): non-building structures by ASCE/SEI 7-05 Chapter 15; Sec 2.5.15 (p. 653): supported structures over 25 % of W"
+    ],
+    "embeddedWalls": [
+      "BNBC 2020 Part 6 Sec 3.12 (p. 797): retained excavation sides (no method); the method is SAEngine practice (free and fixed earth support)"
+    ],
+    "barSchedule": [
+      "BS 8666:2020 (not part of BNBC 2020; SAEngine practice for schedules in Bangladesh): shape codes, cutting-length formulas, minimum scheduling radii and end projections of the bar bending schedule"
+    ]
+  },
+  "basis": {
+    "general": "BNBC 2020",
+    "concrete": "BNBC 2020 Part 6 Chapter 6",
+    "steel": "BNBC 2020 Part 6 Chapter 10",
+    "method": "Strength design (LRFD)"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

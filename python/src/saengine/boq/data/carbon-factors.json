@@ -1,0 +1,55 @@
+{
+  "schema": "saengine.carbon/1",
+  "name": "Embodied carbon factors (editable)",
+  "notes": [
+    "Indicative factors from public sources, cited per factor. They are production emissions of the material only (no transport, construction or end of life) and are meant to compare options, not to certify a building. Replace them with the factors of your suppliers' EPDs or of a carbon database you are licensed to use.",
+    "Each factor is in kg CO2e per kg of material and names the bill items it applies to in 'match'. Items in m3 or cft are turned into kg by 'density' (kg/m3); sand and stone chips default to the loose densities of the bill's materials take-off.",
+    "Concrete is counted by its ingredients (the cement, sand and stone chips of the materials take-off), so the concrete items themselves have no factor; a concrete whose mix is missing has no cement taken off and so no carbon. Cement in bags is the same cement as by weight and is not counted again.",
+    "A factor left empty (null) is not counted; the summary lists the materials it leaves out."
+  ],
+  "factors": [
+    {
+      "id": "cement",
+      "material": "Cement",
+      "factor": 0.588,
+      "match": { "group": "materials", "kind": ["cement"] },
+      "source": "Direct CO2 intensity of cement in India, 588 kg CO2 per tonne of cement (2017), reported by the WBCSD Cement Sustainability Initiative and TERI for the Indian cement industry. Direct (scope 1) emissions only. For comparison, the US EPA cement carbon intensities fact sheet (2021) gives a plant median of 0.776 t CO2 per tonne of cement for US plants."
+    },
+    {
+      "id": "rebar",
+      "material": "Reinforcing steel",
+      "factor": 1.92,
+      "match": { "group": "reinforcement" },
+      "source": "worldsteel, Sustainability indicators 2024 report: global average 1.92 t CO2 per tonne of crude steel cast (2023). Crude steel, all routes; an electric-arc route from scrap is much lower."
+    },
+    {
+      "id": "steel",
+      "material": "Structural steel",
+      "factor": 1.92,
+      "match": { "group": "steel" },
+      "source": "worldsteel, Sustainability indicators 2024 report: global average 1.92 t CO2 per tonne of crude steel cast (2023)."
+    },
+    {
+      "id": "sand",
+      "material": "Sand (fine aggregate)",
+      "factor": null,
+      "match": { "group": "materials", "kind": ["sand"] },
+      "source": "No public factor shipped: enter one from an EPD or a database you are licensed to use."
+    },
+    {
+      "id": "stone",
+      "material": "Stone chips (coarse aggregate)",
+      "factor": null,
+      "match": { "group": "materials", "kind": ["stone"] },
+      "source": "No public factor shipped: enter one from an EPD or a database you are licensed to use."
+    },
+    {
+      "id": "brick",
+      "material": "Brick work",
+      "factor": null,
+      "density": 1900,
+      "match": { "group": "masonry" },
+      "source": "No public factor shipped: enter one for fired-clay brick work (kg CO2e per kg; the density turns m3 into kg) from an EPD or a database you are licensed to use."
+    }
+  ]
+}

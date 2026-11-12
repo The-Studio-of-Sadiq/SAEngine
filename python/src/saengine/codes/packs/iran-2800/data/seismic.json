@@ -1,0 +1,179 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Standard 2800 (4th ed.) Chapter 2 (A, soil types, B = B1 N, I) and Chapter 3 (C = A B I / Ru, the minimum 0.12 A I, the period, Ru, Ω0 and Cd, the vertical distribution, the drift); see VERIFY.md"
+  ],
+  "source": "Standard 2800 (4th ed.): C = A B I / Ru with B = B1 N of the soil type (B1 = S0 + (S - S0 + 1) T/T0 below T0, S + 1 to Ts, (S + 1) Ts/T beyond; N = 1 to Ts, rising linearly to 1.7 at 4 s in the zones of very high and high hazard, to 1.4 in the moderate and low zones, constant beyond), at least 0.12 A I; by the generic shapeFactors spectrum method (A as Z, Ru as μ, Sp = 1, kμ = μ). The soil parameters of the moderate and low zones differ (N, and S0, S of soil type IV): each soil type has a site class for zones 1-2 (I-IV) and one for zones 3-4 (IL-IVL). Entered from knowledge of the standard, every value to be checked against the printed standard (VERIFY.md).",
+  "defaultSiteClass": "III",
+  "defaultSystem": "rcSmf",
+  "siteClasses": {
+    "I": {
+      "description": "Soil type I, zones of very high and high hazard: rock and very dense soil (vs above 750 m/s; T0 0.1 s, Ts 0.4 s, S0 1.0, S 1.5)",
+      "vs30": [750, null],
+      "shape": [
+        { "upTo": 0.1, "a": 1.0, "b": 15.0 },
+        { "upTo": 0.4, "a": 2.5 },
+        { "upTo": 4.0, "a": 0.19444, "c": 2.30556, "n": 1.0, "t0": 0.4 },
+        { "c": 4.25, "n": 1.0, "t0": 0.4 }
+      ]
+    },
+    "II": {
+      "description": "Soil type II, zones of very high and high hazard: dense soil and soft rock (vs 375-750 m/s; T0 0.1 s, Ts 0.5 s, S0 1.0, S 1.5)",
+      "vs30": [375, 750],
+      "shape": [
+        { "upTo": 0.1, "a": 1.0, "b": 15.0 },
+        { "upTo": 0.5, "a": 2.5 },
+        { "upTo": 4.0, "a": 0.25, "c": 2.25, "n": 1.0, "t0": 0.5 },
+        { "c": 4.25, "n": 1.0, "t0": 0.5 }
+      ]
+    },
+    "III": {
+      "description": "Soil type III, zones of very high and high hazard: medium dense soil (vs 175-375 m/s; T0 0.15 s, Ts 0.7 s, S0 1.1, S 1.75)",
+      "vs30": [175, 375],
+      "shape": [
+        { "upTo": 0.15, "a": 1.1, "b": 11.0 },
+        { "upTo": 0.7, "a": 2.75 },
+        { "upTo": 4.0, "a": 0.40833, "c": 2.34167, "n": 1.0, "t0": 0.7 },
+        { "c": 4.675, "n": 1.0, "t0": 0.7 }
+      ]
+    },
+    "IV": {
+      "description": "Soil type IV, zones of very high and high hazard: soft soil (vs below 175 m/s; T0 0.15 s, Ts 1.0 s, S0 1.1, S 1.75)",
+      "vs30": [null, 175],
+      "shape": [
+        { "upTo": 0.15, "a": 1.1, "b": 11.0 },
+        { "upTo": 1.0, "a": 2.75 },
+        { "upTo": 4.0, "a": 0.64167, "c": 2.10833, "n": 1.0, "t0": 1.0 },
+        { "c": 4.675, "n": 1.0, "t0": 1.0 }
+      ]
+    },
+    "IL": {
+      "description": "Soil type I, zones of moderate and low hazard (T0 0.1 s, Ts 0.4 s, S0 1.0, S 1.5; N up to 1.4)",
+      "vs30": [750, null],
+      "shape": [
+        { "upTo": 0.1, "a": 1.0, "b": 15.0 },
+        { "upTo": 0.4, "a": 2.5 },
+        { "upTo": 4.0, "a": 0.11111, "c": 2.38889, "n": 1.0, "t0": 0.4 },
+        { "c": 3.5, "n": 1.0, "t0": 0.4 }
+      ]
+    },
+    "IIL": {
+      "description": "Soil type II, zones of moderate and low hazard (T0 0.1 s, Ts 0.5 s, S0 1.0, S 1.5; N up to 1.4)",
+      "vs30": [375, 750],
+      "shape": [
+        { "upTo": 0.1, "a": 1.0, "b": 15.0 },
+        { "upTo": 0.5, "a": 2.5 },
+        { "upTo": 4.0, "a": 0.14286, "c": 2.35714, "n": 1.0, "t0": 0.5 },
+        { "c": 3.5, "n": 1.0, "t0": 0.5 }
+      ]
+    },
+    "IIIL": {
+      "description": "Soil type III, zones of moderate and low hazard (T0 0.15 s, Ts 0.7 s, S0 1.1, S 1.75; N up to 1.4)",
+      "vs30": [175, 375],
+      "shape": [
+        { "upTo": 0.15, "a": 1.1, "b": 11.0 },
+        { "upTo": 0.7, "a": 2.75 },
+        { "upTo": 4.0, "a": 0.23333, "c": 2.51667, "n": 1.0, "t0": 0.7 },
+        { "c": 3.85, "n": 1.0, "t0": 0.7 }
+      ]
+    },
+    "IVL": {
+      "description": "Soil type IV, zones of moderate and low hazard (T0 0.15 s, Ts 1.0 s, S0 1.3, S 2.25; N up to 1.4)",
+      "vs30": [null, 175],
+      "shape": [
+        { "upTo": 0.15, "a": 1.3, "b": 13.0 },
+        { "upTo": 1.0, "a": 3.25 },
+        { "upTo": 4.0, "a": 0.43333, "c": 2.81667, "n": 1.0, "t0": 1.0 },
+        { "c": 4.55, "n": 1.0, "t0": 1.0 }
+      ]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "Standard 2800 (4th ed.) 3-3-1 (C = A B I / Ru)",
+    "shapeFactors": {
+      "performance": [[1.0, 1.0], [20.0, 1.0]],
+      "ductilityPeriod": null,
+      "leastZShare": 0.12,
+      "clauses": {
+        "performance": "Standard 2800 3-3-1 (Ru as the system's R; no Sp)",
+        "least": "Standard 2800 3-3-1 (C at least 0.12 A I)",
+        "shape": "Standard 2800 2-4, Table 2-2 and Eqs 2-1 to 2-4 (B1, N)"
+      }
+    },
+    "clauses": {
+      "shape": "Standard 2800 (4th ed.) 2-4, Table 2-2 (T0, Ts, S0, S), Eqs 2-1 to 2-4",
+      "static": "Standard 2800 3-3 (SAEngine practice: the plateau below T0 for the equivalent static method)",
+      "design": "Standard 2800 3-3-1 (C = A B I / Ru)"
+    }
+  },
+  "systems": {
+    "rcSmf": { "name": "RC special moment frame", "R": 7.5, "Omega0": 3.0, "Cd": 5.5, "row": "Table 3-4 (moment frame, special RC)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcImf": { "name": "RC intermediate moment frame", "R": 5.0, "Omega0": 3.0, "Cd": 4.5, "row": "Table 3-4 (moment frame, intermediate RC)", "heightLimits": { "B": null, "C": null, "D": 35.0 }, "frame": "intermediate", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcOmf": { "name": "RC ordinary moment frame", "R": 3.5, "Omega0": 3.0, "Cd": 3.0, "row": "Table 3-4 (moment frame, ordinary RC)", "heightLimits": { "B": null, "C": 15.0, "D": 0.0 }, "frame": "ordinary", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcSpecialWallFrame": { "name": "RC building frame with special structural walls", "R": 6.0, "Omega0": 2.5, "Cd": 5.0, "row": "Table 3-4 (building frame, special RC walls)", "heightLimits": { "B": null, "C": null, "D": 50.0 }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcDualSpecial": { "name": "RC dual system (special moment frame and special walls)", "R": 7.5, "Omega0": 2.5, "Cd": 6.0, "row": "Table 3-4 (dual, special RC frame and walls)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "dualSpecial", "dual": true },
+    "steelSmf": { "name": "Steel special moment frame", "R": 7.5, "Omega0": 3.0, "Cd": 5.5, "row": "Table 3-4 (moment frame, special steel)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelScbf": { "name": "Steel special concentrically braced frame", "R": 5.5, "Omega0": 2.0, "Cd": 5.0, "row": "Table 3-4 (building frame, special concentric braces)", "heightLimits": { "B": null, "C": null, "D": 50.0 }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelEbf": { "name": "Steel eccentrically braced frame", "R": 7.0, "Omega0": 2.0, "Cd": 4.0, "row": "Table 3-4 (building frame, eccentric braces)", "heightLimits": { "B": null, "C": null, "D": 50.0 }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame", "dual": false }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": ["steelSmf"],
+    "steelBracedFrame": ["steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems of Standard 2800 Table 3-4"
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.05, "m": 0.9 },
+    "steelMomentFrame": { "Ct": 0.08, "m": 0.75 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.05, "m": 0.75 },
+    "other": { "Ct": 0.05, "m": 0.75 }
+  },
+  "designCategories": {
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["D", "D", "C", "C"] } }
+  },
+  "requiredDetailing": { "B": "ordinary", "C": "intermediate", "D": "special" },
+  "allowableDrift": { "I": 0.02, "II": 0.02, "III": 0.02, "IV": 0.02 },
+  "allowableDriftLabel": "Buildings with T of 0.7 s or more (Cd × the displacements of the design forces); 0.025 below 0.7 s (enter it as a Code Value)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "displacementFactor",
+  "dampingEta": 1.0,
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 1.0 },
+  "liveShare": 0.2,
+  "minimumScale": 0.9,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 3.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.6667,
+  "lateralForce": { "distribution": "heightPower", "clause": "Standard 2800 (4th ed.) 3-3-5 (Fi = V Wi hi^k / Σ Wj hj^k, k = 0.5 T + 0.75 between 1 and 2)" },
+  "clauses": {
+    "scale": "Standard 2800 (4th ed.) 3-4-2-3 (modal base shear at least 0.9 of the static one; check)",
+    "torsion": "Standard 2800 3-3-9 (accidental eccentricity ±0.05 b, amplified up to 3)",
+    "orthogonal": "Standard 2800 3-3-3 (100 % + 30 %)",
+    "drift": "Standard 2800 3-5 (0.025 for T < 0.7 s, 0.020 otherwise, with Cd)",
+    "sdc": "SAEngine practice: the detailing by zone (very high and high: special; moderate and low: intermediate)",
+    "modes": "Standard 2800 3-4-2 (90 % of the mass)",
+    "systems": "Standard 2800 (4th ed.) Table 3-4",
+    "period": "Standard 2800 3-3-6 (T = 0.05 H^0.9, 0.08 H^0.75, 0.05 H^0.75)",
+    "weight": "Standard 2800 3-3-2 (dead load + 20 % of the live load for residences and offices; 40 % assembly, 60 % storage)",
+    "elf": "Standard 2800 3-3-1 (V = C W)",
+    "spectrum": "Standard 2800 2-4"
+  },
+  "sources": {
+    "siteClasses": "Standard 2800 (4th ed.) 2-3, Table 2-2: T0, Ts, S0, S of the soil types I-IV (very high and high zones: 0.1/0.4/1.0/1.5, 0.1/0.5/1.0/1.5, 0.15/0.7/1.1/1.75, 0.15/1.0/1.1/1.75; moderate and low: the same but IV 1.3/2.25), N = 1 + k (T - Ts) from Ts to 4 s with k = 0.7/(4 - Ts) (very high, high) or 0.4/(4 - Ts) (moderate, low), 1.7 or 1.4 beyond; B = B1 N written as shape branches a + b T + c (Ts/T) (uncertain, VERIFY.md R4-R6)",
+    "systems": "Standard 2800 (4th ed.) Table 3-4: Ru, Ω0, Cd and height limits (uncertain values, VERIFY.md R8)",
+    "periodCoefficients": "Standard 2800 (4th ed.) 3-3-6: T = 0.05 H^0.9 RC moment frames, 0.08 H^0.75 steel moment frames, 0.05 H^0.75 the others (0.8 × with infill walls: not set)",
+    "designCategories": "SAEngine practice: Standard 2800 has no Seismic Design Category; special detailing in zones 1-2, intermediate in 3-4 (INBC Part 9 ductility levels, check)",
+    "liveShare": "Standard 2800 3-3-2: 20 % of the live load (residences, offices; enter 40 % or 60 % as a Code Value)",
+    "minimumScale": "Standard 2800 3-4-2-3 (uncertain: 0.85 regular / 0.9 irregular buildings believed; 0.9 taken)",
+    "verticalFactor": "Standard 2800 3-3-10: the vertical design acceleration 2/3 A (check)"
+  }
+}

@@ -1,0 +1,340 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$sources": [
+    "BNBC 1993 Part 6 Table 6.2.8 (basic wind speeds)",
+    "BNBC 1993 Part 6 Figure 6.2.24 (seismic zoning map)"
+  ],
+  "$remove": [
+    "towns"
+  ],
+  "source": "BNBC 1993 (and its 2006 reissue) Part 6: the basic wind speed Vb of Table 6.2.8 (fastest-mile, km/h; here in m/s = km/h / 3.6) and the seismic zone 1-3 of the zoning map, by district (the default pack's district names). Every value to be checked against the printed code (VERIFY.md). The site map's town list of the default pack is removed (its Z and V are BNBC 2020's).",
+  "locations": {
+    "bagerhat": {
+      "zone": 1,
+      "windSpeed": 70.0
+    },
+    "bandarban": {
+      "zone": 2,
+      "windSpeed": 55.56
+    },
+    "barguna": {
+      "zone": 1,
+      "windSpeed": 72.22
+    },
+    "barishal": {
+      "zone": 1,
+      "windSpeed": 71.11
+    },
+    "bhola": {
+      "zone": 1,
+      "windSpeed": 62.5
+    },
+    "bogura": {
+      "zone": 2,
+      "windSpeed": 55.0
+    },
+    "brahmanbaria": {
+      "zone": 2,
+      "windSpeed": 50.0
+    },
+    "chandpur": {
+      "zone": 2,
+      "windSpeed": 44.44
+    },
+    "chapainawabganj": {
+      "zone": 1,
+      "windSpeed": 36.11
+    },
+    "chattogram": {
+      "zone": 2,
+      "windSpeed": 72.22
+    },
+    "chuadanga": {
+      "zone": 1,
+      "windSpeed": 55.0
+    },
+    "coxsbazar": {
+      "zone": 2,
+      "windSpeed": 72.22
+    },
+    "cumilla": {
+      "zone": 2,
+      "windSpeed": 54.44
+    },
+    "dhaka": {
+      "zone": 2,
+      "windSpeed": 58.33
+    },
+    "dinajpur": {
+      "zone": 2,
+      "windSpeed": 36.11
+    },
+    "faridpur": {
+      "zone": 2,
+      "windSpeed": 56.11
+    },
+    "feni": {
+      "zone": 2,
+      "windSpeed": 56.94
+    },
+    "gaibandha": {
+      "zone": 3,
+      "windSpeed": 58.33
+    },
+    "gazipur": {
+      "zone": 2,
+      "windSpeed": 59.72
+    },
+    "gopalganj": {
+      "zone": 1,
+      "windSpeed": 67.22
+    },
+    "habiganj": {
+      "zone": 3,
+      "windSpeed": 47.78
+    },
+    "jamalpur": {
+      "zone": 3,
+      "windSpeed": 50.0
+    },
+    "jashore": {
+      "zone": 1,
+      "windSpeed": 56.94
+    },
+    "jhalokati": {
+      "zone": 1,
+      "windSpeed": 72.22
+    },
+    "jhenaidah": {
+      "zone": 1,
+      "windSpeed": 57.78
+    },
+    "joypurhat": {
+      "zone": 2,
+      "windSpeed": 50.0
+    },
+    "khagrachhari": {
+      "zone": 2,
+      "windSpeed": 50.0
+    },
+    "khulna": {
+      "zone": 1,
+      "windSpeed": 66.11
+    },
+    "kishoreganj": {
+      "zone": 3,
+      "windSpeed": 57.5
+    },
+    "kurigram": {
+      "zone": 3,
+      "windSpeed": 58.33
+    },
+    "kushtia": {
+      "zone": 1,
+      "windSpeed": 59.72
+    },
+    "lakshmipur": {
+      "zone": 1,
+      "windSpeed": 45.0
+    },
+    "lalmonirhat": {
+      "zone": 3,
+      "windSpeed": 56.67
+    },
+    "madaripur": {
+      "zone": 1,
+      "windSpeed": 61.11
+    },
+    "magura": {
+      "zone": 1,
+      "windSpeed": 57.78
+    },
+    "manikganj": {
+      "zone": 2,
+      "windSpeed": 51.39
+    },
+    "meherpur": {
+      "zone": 1,
+      "windSpeed": 51.39
+    },
+    "moulvibazar": {
+      "zone": 3,
+      "windSpeed": 46.67
+    },
+    "munshiganj": {
+      "zone": 2,
+      "windSpeed": 51.11
+    },
+    "mymensingh": {
+      "zone": 3,
+      "windSpeed": 60.28
+    },
+    "naogaon": {
+      "zone": 2,
+      "windSpeed": 48.61
+    },
+    "narail": {
+      "zone": 1,
+      "windSpeed": 61.67
+    },
+    "narayanganj": {
+      "zone": 2,
+      "windSpeed": 54.17
+    },
+    "narsingdi": {
+      "zone": 2,
+      "windSpeed": 52.78
+    },
+    "natore": {
+      "zone": 2,
+      "windSpeed": 55.0
+    },
+    "netrokona": {
+      "zone": 3,
+      "windSpeed": 58.33
+    },
+    "nilphamari": {
+      "zone": 3,
+      "windSpeed": 41.94
+    },
+    "noakhali": {
+      "zone": 1,
+      "windSpeed": 51.11
+    },
+    "pabna": {
+      "zone": 2,
+      "windSpeed": 56.11
+    },
+    "panchagarh": {
+      "zone": 2,
+      "windSpeed": 36.11
+    },
+    "patuakhali": {
+      "zone": 1,
+      "windSpeed": 72.22
+    },
+    "pirojpur": {
+      "zone": 1,
+      "windSpeed": 72.22
+    },
+    "rajbari": {
+      "zone": 2,
+      "windSpeed": 52.22
+    },
+    "rajshahi": {
+      "zone": 1,
+      "windSpeed": 43.06
+    },
+    "rangamati": {
+      "zone": 2,
+      "windSpeed": 50.0
+    },
+    "rangpur": {
+      "zone": 3,
+      "windSpeed": 58.06
+    },
+    "satkhira": {
+      "zone": 1,
+      "windSpeed": 50.83
+    },
+    "shariatpur": {
+      "zone": 1,
+      "windSpeed": 55.0
+    },
+    "sherpur": {
+      "zone": 3,
+      "windSpeed": 55.56
+    },
+    "sirajganj": {
+      "zone": 2,
+      "windSpeed": 44.44
+    },
+    "srimangal": {
+      "zone": 3,
+      "windSpeed": 44.44
+    },
+    "sunamganj": {
+      "zone": 3,
+      "windSpeed": 54.17
+    },
+    "sylhet": {
+      "zone": 3,
+      "windSpeed": 54.17
+    },
+    "tangail": {
+      "zone": 2,
+      "windSpeed": 44.44
+    },
+    "thakurgaon": {
+      "zone": 2,
+      "windSpeed": 36.11
+    }
+  },
+  "sources": {
+    "bagerhat": "BNBC 1993 Table 6.2.8: 252 km/h; zone 1",
+    "bandarban": "BNBC 1993 Table 6.2.8: 200 km/h; zone 2",
+    "barguna": "BNBC 1993 Table 6.2.8: 260 km/h; zone 1",
+    "barishal": "BNBC 1993 Table 6.2.8: 256 km/h; zone 1",
+    "bhola": "BNBC 1993 Table 6.2.8: 225 km/h; zone 1",
+    "bogura": "BNBC 1993 Table 6.2.8: 198 km/h; zone 2",
+    "brahmanbaria": "BNBC 1993 Table 6.2.8: 180 km/h; zone 2",
+    "chandpur": "BNBC 1993 Table 6.2.8: 160 km/h; zone 2",
+    "chapainawabganj": "BNBC 1993 Table 6.2.8: 130 km/h; zone 1",
+    "chattogram": "BNBC 1993 Table 6.2.8: 260 km/h; zone 2",
+    "chuadanga": "BNBC 1993 Table 6.2.8: 198 km/h; zone 1",
+    "coxsbazar": "BNBC 1993 Table 6.2.8: 260 km/h; zone 2",
+    "cumilla": "BNBC 1993 Table 6.2.8: 196 km/h; zone 2",
+    "dhaka": "BNBC 1993 Table 6.2.8: 210 km/h; zone 2",
+    "dinajpur": "BNBC 1993 Table 6.2.8: 130 km/h; zone 2",
+    "faridpur": "BNBC 1993 Table 6.2.8: 202 km/h; zone 2",
+    "feni": "BNBC 1993 Table 6.2.8: 205 km/h; zone 2",
+    "gaibandha": "BNBC 1993 Table 6.2.8: 210 km/h; zone 3",
+    "gazipur": "BNBC 1993 Table 6.2.8: 215 km/h; zone 2",
+    "gopalganj": "BNBC 1993 Table 6.2.8: 242 km/h; zone 1",
+    "habiganj": "BNBC 1993 Table 6.2.8: 172 km/h; zone 3",
+    "jamalpur": "BNBC 1993 Table 6.2.8: 180 km/h; zone 3",
+    "jashore": "BNBC 1993 Table 6.2.8: 205 km/h; zone 1",
+    "jhalokati": "BNBC 1993 Table 6.2.8: 260 km/h; zone 1",
+    "jhenaidah": "BNBC 1993 Table 6.2.8: 208 km/h; zone 1",
+    "joypurhat": "BNBC 1993 Table 6.2.8: 180 km/h; zone 2",
+    "khagrachhari": "BNBC 1993 Table 6.2.8: 180 km/h; zone 2",
+    "khulna": "BNBC 1993 Table 6.2.8: 238 km/h; zone 1",
+    "kishoreganj": "BNBC 1993 Table 6.2.8: 207 km/h; zone 3",
+    "kurigram": "BNBC 1993 Table 6.2.8: 210 km/h; zone 3",
+    "kushtia": "BNBC 1993 Table 6.2.8: 215 km/h; zone 1",
+    "lakshmipur": "BNBC 1993 Table 6.2.8: 162 km/h; zone 1",
+    "lalmonirhat": "BNBC 1993 Table 6.2.8: 204 km/h; zone 3",
+    "madaripur": "BNBC 1993 Table 6.2.8: 220 km/h; zone 1",
+    "magura": "BNBC 1993 Table 6.2.8: 208 km/h; zone 1",
+    "manikganj": "BNBC 1993 Table 6.2.8: 185 km/h; zone 2",
+    "meherpur": "BNBC 1993 Table 6.2.8: 185 km/h; zone 1",
+    "moulvibazar": "BNBC 1993 Table 6.2.8: 168 km/h; zone 3",
+    "munshiganj": "BNBC 1993 Table 6.2.8: 184 km/h; zone 2",
+    "mymensingh": "BNBC 1993 Table 6.2.8: 217 km/h; zone 3",
+    "naogaon": "BNBC 1993 Table 6.2.8: 175 km/h; zone 2",
+    "narail": "BNBC 1993 Table 6.2.8: 222 km/h; zone 1",
+    "narayanganj": "BNBC 1993 Table 6.2.8: 195 km/h; zone 2",
+    "narsingdi": "BNBC 1993 Table 6.2.8: 190 km/h; zone 2",
+    "natore": "BNBC 1993 Table 6.2.8: 198 km/h; zone 2",
+    "netrokona": "BNBC 1993 Table 6.2.8: 210 km/h; zone 3",
+    "nilphamari": "BNBC 1993 Table 6.2.8: 151 km/h; zone 3",
+    "noakhali": "BNBC 1993 Table 6.2.8: 184 km/h; zone 1",
+    "pabna": "BNBC 1993 Table 6.2.8: 202 km/h; zone 2",
+    "panchagarh": "BNBC 1993 Table 6.2.8: 130 km/h; zone 2",
+    "patuakhali": "BNBC 1993 Table 6.2.8: 260 km/h; zone 1",
+    "pirojpur": "BNBC 1993 Table 6.2.8: 260 km/h; zone 1",
+    "rajbari": "BNBC 1993 Table 6.2.8: 188 km/h; zone 2",
+    "rajshahi": "BNBC 1993 Table 6.2.8: 155 km/h; zone 1",
+    "rangamati": "BNBC 1993 Table 6.2.8: 180 km/h; zone 2",
+    "rangpur": "BNBC 1993 Table 6.2.8: 209 km/h; zone 3",
+    "satkhira": "BNBC 1993 Table 6.2.8: 183 km/h; zone 1",
+    "shariatpur": "BNBC 1993 Table 6.2.8: 198 km/h; zone 1",
+    "sherpur": "BNBC 1993 Table 6.2.8: 200 km/h; zone 3",
+    "sirajganj": "BNBC 1993 Table 6.2.8: 160 km/h; zone 2",
+    "srimangal": "BNBC 1993 Table 6.2.8: 160 km/h; zone 3",
+    "sunamganj": "BNBC 1993 Table 6.2.8: 195 km/h; zone 3",
+    "sylhet": "BNBC 1993 Table 6.2.8: 195 km/h; zone 3",
+    "tangail": "BNBC 1993 Table 6.2.8: 160 km/h; zone 2",
+    "thakurgaon": "BNBC 1993 Table 6.2.8: 130 km/h; zone 2"
+  }
+}

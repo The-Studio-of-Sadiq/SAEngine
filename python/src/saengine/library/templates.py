@@ -1,0 +1,765 @@
+"""Starting values for new entries in the visual library editors.
+
+When the user adds a material or an object type, switches a profile shape or turns on an
+optional group (reinforcement, mix, ...), the editor inserts the template for that schema
+definition, so the file always stays valid. They are ordinary editable values, chosen to be
+typical, not recommendations; ``tests/test_library.py`` validates every template against its
+model.
+
+Keys are JSON Schema ``$defs`` names. Material templates are keyed ``Material:<category>``.
+References to other entries (``material``, ``pile``) are placeholders that the editor
+replaces with an existing id of the right kind.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from saengine.library.defaults import default_material_library
+from saengine.library.materials import Category
+from saengine.library.settings import Analysis
+from saengine.library.shapes import (
+    Arch,
+    BarrelVault,
+    CableNet,
+    DeckGrillage,
+    Dome,
+    JacketFrame,
+    PlaneTruss,
+    PortalFrame,
+    RevolutionShell,
+    SpaceTruss,
+    TrussTower,
+)
+
+# Parametric shapes start at typical sizes of their kind; "MEMBER" is replaced by a member type.
+_SHAPES = [
+    SpaceTruss(lengthX=36000, lengthY=24000, baysX=12, baysY=8, depth=2000, memberType="MEMBER"),
+    PlaneTruss(span=24000, depth=2400, panels=8, memberType="MEMBER"),
+    Arch(span=30000, rise=7500, segments=12, memberType="MEMBER"),
+    Dome(radius=20000, rise=8000, rings=6, segments=24, memberType="MEMBER"),
+    BarrelVault(span=24000, rise=6000, length=36000, segments=12, bays=6, memberType="MEMBER"),
+    CableNet(
+        lengthX=36000, lengthY=24000, divisionsX=12, divisionsY=8, rise=3000, memberType="MEMBER"
+    ),
+    PortalFrame(
+        width=24000, length=60000, bays=8, eaveHeight=7500, columnType="MEMBER", rafterType="MEMBER"
+    ),
+    # Alpha 9 L9: a two-span deck grillage, a telecom tower, a silo shell and a jacket ("PANEL"
+    # is replaced by a slab or wall type).
+    DeckGrillage(spans=[20000, 20000], girders=4, girderSpacing=2500, memberType="MEMBER"),
+    TrussTower(height=40000, baseWidth=6000, topWidth=1500, panels=10, memberType="MEMBER"),
+    RevolutionShell(height=24000, baseRadius=4000, rings=12, segments=24, panelType="PANEL"),
+    JacketFrame(height=42000, bays=4, memberType="MEMBER"),
+]
+
+_REBAR = "B420DWR"
+_CONCRETE = "C24.1"
+
+#: Alpha 9 L9: the bridges and special structures of Project Settings (typical sizes).
+_GIRDER: dict[str, Any] = {
+    "depth": 1500,
+    "webWidth": 400,
+    "concrete": _CONCRETE,
+    "rebar": _REBAR,
+    "bottomBars": 8,
+    "bottomDiameter": 32,
+    "topBars": 0,
+    "topDiameter": 25,
+}
+_SPECIAL_TEMPLATES: dict[str, dict[str, Any]] = {
+    "Bridge": {
+        "id": "BR1",
+        "name": "Two-lane girder bridge",
+        "spans": [20.0],
+        "carriageway": 7.5,
+        "girders": 4,
+        "girderSpacing": 2.5,
+        "girder": _GIRDER,
+    },
+    "GirderSection": _GIRDER,
+    "GirderPrestress": {"area": 2800, "depth": 1350},
+    "BridgeBearing": {"support": 0, "kind": "fixed"},
+    "BridgeRating": {"condition": 1.0, "system": 1.0},
+    "LatticeTower": {
+        "id": "TW1",
+        "name": "Telecom tower",
+        "height": 40.0,
+        "baseWidth": 6.0,
+        "topWidth": 1.5,
+        "panels": 10,
+        "legType": "TOWER-LEG",
+        "bracingType": "TOWER-BRACE",
+    },
+    "Antenna": {"name": "Panel antenna", "elevation": 38.0, "area": 0.8, "weight": 0.3},
+    "Silo": {
+        "id": "SL1",
+        "name": "Grain silo",
+        "diameter": 8.0,
+        "height": 24.0,
+        "concrete": _CONCRETE,
+        "rebar": _REBAR,
+    },
+    "Chimney": {
+        "id": "CH1",
+        "name": "Chimney",
+        "height": 60.0,
+        "baseDiameter": 5.0,
+        "topDiameter": 3.0,
+        "baseThickness": 300,
+        "topThickness": 200,
+        "material": _CONCRETE,
+    },
+    "CoolingTower": {
+        "id": "CT1",
+        "name": "Cooling tower",
+        "height": 100.0,
+        "baseRadius": 40.0,
+        "throatRadius": 26.0,
+        "throatHeight": 80.0,
+        "topRadius": 28.0,
+        "concrete": _CONCRETE,
+    },
+    "OffshoreStructure": {
+        "id": "OS1",
+        "name": "Four-leg jacket",
+        "waterDepth": 30.0,
+        "deckElevation": 12.0,
+        "legType": "JACKET-LEG",
+        "braceType": "JACKET-BRACE",
+        "waveHeight": 10.0,
+        "wavePeriod": 10.0,
+    },
+    "PipingSystem": {
+        "id": "P1",
+        "name": "Steam line",
+        "route": [{"x": 0, "y": 0, "z": 3}, {"x": 12, "y": 0, "z": 3}, {"x": 12, "y": 6, "z": 3}],
+        "outsideDiameter": 168.3,
+        "wallThickness": 7.11,
+        "supports": [{"at": 0, "kind": "anchor", "nozzle": True}, {"at": 2, "kind": "anchor"}],
+    },
+    "PipePoint": {"x": 0, "y": 0, "z": 0},
+    "PipeSupport": {"at": 0, "kind": "rest"},
+}
+
+
+def _material_templates() -> dict[str, dict[str, Any]]:
+    templates: dict[str, dict[str, Any]] = {}
+    for material in default_material_library().materials:
+        key = f"Material:{material.category.value}"
+        if key not in templates:
+            templates[key] = material.model_dump(mode="json", by_alias=True, exclude_none=True)
+    # Timber has no default material: a Group B sawn timber for dry use (the default pack's Part 6
+    # Chapter 11), E the group's least.
+    templates[f"Material:{Category.TIMBER.value}"] = {
+        "id": "TIMBER-B",
+        "name": "Sawn timber, group B",
+        "category": "timber",
+        "mechanical": {"E": 9800, "density": 650},
+        "timber": {"group": "B", "location": "inside"},
+    }
+    # B39: bamboo (Bambusa tulda, green; E the analysis's mean) and ferrocement mortar.
+    templates[f"Material:{Category.BAMBOO.value}"] = {
+        "id": "BAMBOO",
+        "name": "Bamboo, Bambusa tulda",
+        "category": "bamboo",
+        "mechanical": {"E": 10300, "density": 610},
+        "bamboo": {"species": "Bambusa tulda", "condition": "green"},
+    }
+    templates[f"Material:{Category.FERROCEMENT.value}"] = {
+        "id": "FERRO35",
+        "name": "Ferrocement mortar, f'c 35 MPa",
+        "category": "ferrocement",
+        "mechanical": {"E": 27800, "density": 2400},
+        "ferrocement": {"fc": 35},
+    }
+    # Alpha 9 C6: structural aluminium (the alloys of a code pack's aluminium table).
+    templates[f"Material:{Category.ALUMINIUM.value}"] = {
+        "id": "AW6082T6",
+        "name": "Aluminium EN AW-6082 T6",
+        "category": "aluminium",
+        "mechanical": {"E": 70000, "density": 2700, "nu": 0.3},
+        "aluminium": {"alloy": "EN AW-6082 T6"},
+    }
+    # Alpha 9 L7: structural glass (the kinds of a code pack's glass table).
+    templates[f"Material:{Category.GLASS.value}"] = {
+        "id": "GLASS-T",
+        "name": "Toughened glass",
+        "category": "glass",
+        "mechanical": {"E": 70000, "density": 2500, "nu": 0.22},
+        "glass": {"kind": "toughened"},
+    }
+    templates[f"Material:{Category.OTHER.value}"] = {
+        "id": "MAT",
+        "name": "New material",
+        "category": "other",
+        "mechanical": {},
+    }
+    return templates
+
+
+TEMPLATES: dict[str, dict[str, Any]] = {
+    **_material_templates(),
+    # materials
+    "Mechanical": {},
+    "ConcreteProperties": {"fc": 24.1},
+    "SteelProperties": {"fy": 420},
+    "MasonryProperties": {"unit": "first-class burnt clay brick"},
+    "TimberProperties": {"group": "B", "location": "inside"},
+    # timber members and joints (saengine.design.timber)
+    "TimberMember": {},
+    # bamboo and ferrocement (B39, saengine.design.bamboo / saengine.design.ferrocement)
+    "BambooProperties": {"condition": "green"},
+    "BambooTested": {"rupture": 60, "E": 10000, "compression": 40},
+    "FerrocementProperties": {"fc": 35},
+    "AluminiumProperties": {"alloy": "EN AW-6082 T6"},  # alpha 9 C6
+    # alpha 9 L7: special members (joists, web openings, glass, aluminium joints, filled plate
+    # walls, membranes); "S355" names a steel the editor replaces with an existing one
+    "GlassProperties": {"kind": "toughened"},
+    "SteelJoist": {},
+    "JoistMember": {"profile": {"shape": "L", "depth": 50, "width": 50, "thickness": 5}},
+    "BeamWebOpenings": {},
+    "GlassPanel": {},
+    "GlassFin": {},
+    "AluminiumJoint": {},
+    "FilledPlateWall": {"plateMaterial": "S355"},
+    "MembraneCorner": {"x": 0, "y": 0, "z": 0},
+    "MembraneFabric": {},
+    "MembraneCables": {},
+    "BambooMember": {},
+    "BambooJoint": {"kind": "gusset", "fastening": "fishPlate"},
+    "FerrocementMember": {"mesh": "wovenSquare", "layers": 4, "wireDiameter": 1.0, "spacing": 13},
+    "FerrocementBars": {"diameter": 6, "spacing": 100},
+    # steel beams' deflection limits (B9, saengine.design.steel.members.deflection_checks)
+    "MemberServiceability": {},
+    # composite beams and columns (B32, saengine.design.steel.composite); "concrete" names a
+    # concrete of the default library
+    "CompositeBeam": {"type": "compositeBeam", "concrete": "C20.7"},
+    "CompositeColumn": {"type": "compositeColumn", "concrete": "C20.7"},
+    "CompositeDeck": {},
+    # alpha 9 P8: composite slabs on deck (saengine.design.composite_slab) and the slab bars
+    # across a composite beam
+    "CompositeSlabDeck": {},
+    "SlabTransverseBars": {},
+    # B38: buckling-restrained braces (β, ω from the qualifying tests) and steel plate walls
+    "BucklingRestrainedBrace": {
+        "type": "bucklingRestrained",
+        "coreArea": 3000,
+        "beta": 1.1,
+        "omega": 1.3,
+    },
+    "SteelPlateWall": {"type": "steelPlateWall"},
+    # Optional parts of members and settings the editor adds (steel connections 2, corbels,
+    # composite concrete, masonry, isolation, flood and special loads, P-delta factors); the
+    # materials name the default library's.
+    "SteelSplice": {"type": "coverPlate"},
+    # The steel beam and brace connections (a discriminated union): the editor's Connection
+    # select writes the alternative's discriminator; its fields take the model's defaults.
+    **{
+        name: {"type": tag}
+        for name, tag in (
+            ("FinPlateConnection", "finPlate"),
+            ("EndPlateConnection", "endPlate"),
+            ("BraceGussetConnection", "gusset"),
+            ("FlangePlateConnection", "flangePlate"),
+            ("HssJointConnection", "hssJoint"),
+            ("HssMomentConnection", "hssMoment"),
+        )
+    },
+    "ColumnBasePlate": {},
+    "HssCapPlate": {},
+    "SeismicIsolator": {},
+    "GradeBeamWall": {},
+    "MasonryAnchorBolts": {},
+    "WallConfinement": {"concrete": "C20.7", "rebar": "B420DWR"},
+    "CompositeTopping": {"toppingThickness": 100},
+    "CorbelBars": {"count": 3, "dia": 16},
+    "Corbel": {
+        "width": 300,
+        "depth": 450,
+        "edgeDepth": 300,
+        "projection": 300,
+        "mainBars": {"count": 3, "dia": 16},
+    },
+    "BeamCorbels": {},
+    "Helipad": {},
+    "CfdWind": {},  # alpha 9: optional sub-object
+    "HazardSource": {
+        "provider": "manual",
+        "service": "Entered by hand",
+        "date": "2026-01-01",
+    },  # alpha 9 C22 (normally written by the lookup)
+    "FloorSpectra": {},  # alpha 9: optional sub-object
+    "NonlinearStability": {},  # alpha 9: optional sub-object
+    "IsolatorPropertyModification": {},  # alpha 9: optional sub-object
+    "Cable": {"pretension": 10.0},  # alpha 9 L4: a cable brace
+    "SupplementalDamper": {"kind": "viscous", "coefficient": 500.0},  # alpha 9 P6: a viscous damper
+    "PrecastPiece": {"element": "beam"},  # alpha 9 L1: a precast piece
+    # W4C-15: a precast slab, column or wall type starts as its own element (the beam's would be
+    # rejected on a slab type, PRECAST_ELEMENTS).
+    "PrecastPiece:slab": {"element": "hollowCore"},
+    "PrecastPiece:column": {"element": "column"},
+    "PrecastPiece:wall": {"element": "wallPanel"},
+    "SnowDrift": {"upperLength": 10.0, "stepHeight": 2.0},  # alpha 9 C1: a roof step
+    "SpectralSite": {},  # alpha 9 C1: the site's mapped spectral values, all optional
+    "AirRaidShelter": {"storeysAbove": 1},
+    "PDeltaFactors": {},
+    "SlabShrinkage": {"freeStrain": 0.0004, "coefficient": 1.0, "aging": 0.8, "creep": 2.0},
+    "TimberNotch": {"face": "tension", "depth": 30, "length": 100},
+    "TimberSpaced": {"pieces": 2, "connectors": "end20"},
+    "TimberNailedJoint": {"type": "nails", "size": "3.55", "count": 8},
+    "TimberBoltedJoint": {"type": "bolts", "diameter": 16, "count": 4},
+    "TimberSplitRingJoint": {"type": "splitRing", "diameter": 100, "count": 2},
+    "TimberDiscDowelJoint": {"type": "discDowel", "diameter": 100, "thickness": 30, "count": 2},
+    "NominalMix": {
+        "method": "nominal",
+        "ratio": [1, 1.5, 3],
+        "waterCement": 0.45,
+        "cementType": "OPC",
+    },
+    "DesignMix": {
+        "method": "design",
+        "cement": 400,
+        "water": 180,
+        "fineAggregate": 700,
+        "coarseAggregate": 1100,
+        "cementType": "OPC",
+        "admixtures": [],
+    },
+    "Admixture": {"name": "Superplasticizer", "amount": 1, "unit": "% of cement"},
+    "Source": {},
+    # profiles
+    "RectangleProfile": {"shape": "rectangle", "xDim": 250, "yDim": 450},
+    "CircleProfile": {"shape": "circle", "radius": 250},
+    "RectangleHollowProfile": {
+        "shape": "rectangleHollow",
+        "xDim": 150,
+        "yDim": 150,
+        "wallThickness": 8,
+    },
+    "CircleHollowProfile": {"shape": "circleHollow", "radius": 85, "wallThickness": 6},
+    "IShapeProfile": {
+        "shape": "I",
+        "overallWidth": 165,
+        "overallDepth": 310,
+        "webThickness": 5.8,
+        "flangeThickness": 9.7,
+        "filletRadius": 8.9,
+    },
+    "TShapeProfile": {
+        "shape": "T",
+        "depth": 150,
+        "flangeWidth": 150,
+        "webThickness": 8,
+        "flangeThickness": 10,
+    },
+    "LShapeProfile": {"shape": "L", "depth": 75, "width": 75, "thickness": 6},
+    "DesignedProfile": {"shape": "designed", "section": "SD1"},
+    "UShapeProfile": {
+        "shape": "U",
+        "depth": 200,
+        "flangeWidth": 75,
+        "webThickness": 6,
+        "flangeThickness": 10,
+    },
+    "CShapeProfile": {
+        "shape": "C",
+        "depth": 200,
+        "width": 75,
+        "wallThickness": 2,
+        "girth": 20,
+    },
+    "ZShapeProfile": {
+        "shape": "Z",
+        "depth": 200,
+        "width": 75,
+        "wallThickness": 2,
+        "girth": 20,
+    },
+    # reinforcement
+    "BarGroup": {"position": "bottom", "count": 3, "dia": 16},
+    "Transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
+    "TransverseZone": {"spacing": 100},
+    "SpliceZone": {"spacing": 100},
+    "LinearReinforcement": {
+        "material": _REBAR,
+        "cover": 40,
+        "longitudinal": [
+            {"position": "top", "count": 2, "dia": 16},
+            {"position": "bottom", "count": 3, "dia": 16},
+        ],
+        "transverse": {"type": "stirrup", "dia": 10, "spacing": 150, "legs": 2},
+    },
+    # A column's bars go round its perimeter, held by ties ("<defName>:<kind>" is the template
+    # of that definition in an object of that kind).
+    "LinearReinforcement:column": {
+        "material": _REBAR,
+        "cover": 40,
+        "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
+        "transverse": {"type": "tie", "dia": 10, "spacing": 150, "legs": 2},
+    },
+    # SL-14 of walk 3: a column of a special moment frame starts with closer ties, a leg on
+    # each bar of a face (the editor sets the legs from the bars) and end zones: typical
+    # starting values within the usual confinement limits for Ø16 bars, not a design.
+    "LinearReinforcement:column:special": {
+        "material": _REBAR,
+        "cover": 40,
+        "longitudinal": [{"position": "perimeter", "count": 8, "dia": 16}],
+        "transverse": {
+            "type": "tie",
+            "dia": 10,
+            "spacing": 95,
+            "legs": 3,
+            "legsX": 3,
+            "zone": {"spacing": 75},
+        },
+    },
+    "BarMesh": {"dia": 10, "spacing": 150},
+    "ChordBars": {"count": 2, "dia": 12},
+    "PunchingReinforcement": {
+        "kind": "studs",
+        "dia": 12,
+        "perLine": 8,
+        "lines": 4,
+        "firstLine": 50,
+        "spacing": 100,
+    },
+    "DropPanel": {"depth": 100, "length": 2400, "width": 2400},
+    "ColumnCapital": {"size": 1000, "depth": 300},
+    "SlabRibs": {"direction": "both", "width": 125, "depth": 300, "spacing": 750},
+    "PlanarReinforcement": {
+        "material": _REBAR,
+        "cover": 25,
+        "bottomX": {"dia": 10, "spacing": 150},
+        "bottomY": {"dia": 10, "spacing": 150},
+    },
+    "WallReinforcement": {
+        "material": _REBAR,
+        "cover": 25,
+        "layers": 2,
+        "vertical": {"dia": 12, "spacing": 200},
+        "horizontal": {"dia": 10, "spacing": 200},
+    },
+    "BoundaryHoops": {"dia": 10, "spacing": 100, "legsAcross": 2, "legsAlong": 2},
+    "WallBoundary": {
+        "length": 400,
+        "count": 4,
+        "dia": 16,
+        "hoop": {"dia": 10, "spacing": 100, "legsAcross": 2, "legsAlong": 2},
+    },
+    "CouplingDiagonal": {"count": 4, "dia": 20},
+    "CouplingGroupHoops": {"dia": 10, "spacing": 100},
+    "StairReinforcement": {
+        "material": _REBAR,
+        "cover": 20,
+        "main": {"dia": 12, "spacing": 150},
+        "distribution": {"dia": 10, "spacing": 200},
+    },
+    # object types
+    "Beam": {
+        "id": "B",
+        "name": "New beam",
+        "kind": "beam",
+        "material": _CONCRETE,
+        "profile": {"shape": "rectangle", "xDim": 250, "yDim": 450},
+    },
+    "Column": {
+        "id": "C",
+        "name": "New column",
+        "kind": "column",
+        "material": _CONCRETE,
+        "profile": {"shape": "rectangle", "xDim": 400, "yDim": 400},
+    },
+    "Brace": {
+        "id": "BR",
+        "name": "New brace",
+        "kind": "brace",
+        "material": "A36",
+        "profile": {"shape": "L", "depth": 75, "width": 75, "thickness": 6},
+    },
+    "Slab": {
+        "id": "S",
+        "name": "New slab",
+        "kind": "slab",
+        "material": _CONCRETE,
+        "thickness": 150,
+        "system": "twoWay",
+    },
+    "Wall": {
+        "id": "W",
+        "name": "New wall",
+        "kind": "wall",
+        "material": _CONCRETE,
+        "thickness": 200,
+        "structural": True,
+    },
+    "Staircase": {
+        "id": "ST",
+        "name": "New staircase",
+        "kind": "staircase",
+        "material": _CONCRETE,
+        "waistThickness": 150,
+        "riser": 150,
+        "tread": 250,
+        "flightWidth": 1200,
+    },
+    "Footing": {
+        "id": "F",
+        "name": "New footing",
+        "kind": "footing",
+        "material": _CONCRETE,
+        "footingType": "isolated",
+        "length": 2000,
+        "width": 2000,
+        "thickness": 450,
+    },
+    "PileCap": {
+        "id": "PC",
+        "name": "New pile cap",
+        "kind": "pileCap",
+        "material": _CONCRETE,
+        "length": 2400,
+        "width": 2400,
+        "thickness": 900,
+    },
+    "Pile": {
+        "id": "P",
+        "name": "New pile",
+        "kind": "pile",
+        "material": _CONCRETE,
+        "pileType": "bored",
+        "profile": {"shape": "circle", "radius": 300},
+        "length": 18000,
+    },
+    # building model (the editor computes labels/positions for grid lines and stories)
+    "GridLine": {"label": "C", "position": 12000},
+    "Story": {"id": "L2", "name": "Level 2", "elevation": 6400},
+    "GridPoint": {"x": "A", "y": "1", "dx": 0, "dy": 0},
+    "PlacedColumn": {
+        "id": "C-A1",
+        "type": "C",
+        "at": {"x": "A", "y": "1"},
+        "base": "BASE",
+        "top": "L1",
+    },
+    "PlacedBeam": {
+        "id": "B-A1-B1",
+        "type": "B",
+        "story": "L1",
+        "start": {"x": "A", "y": "1"},
+        "end": {"x": "B", "y": "1"},
+    },
+    "PlacedWall": {
+        "id": "W-A1-A2",
+        "type": "W",
+        "base": "BASE",
+        "top": "L1",
+        "start": {"x": "A", "y": "1"},
+        "end": {"x": "A", "y": "2"},
+    },
+    "PlacedSlab": {
+        "id": "S-A1",
+        "type": "S",
+        "story": "L1",
+        "boundary": [
+            {"x": "A", "y": "1"},
+            {"x": "B", "y": "1"},
+            {"x": "B", "y": "2"},
+            {"x": "A", "y": "2"},
+        ],
+    },
+    "PlacedFooting": {"id": "F-A1", "type": "F", "story": "BASE", "at": {"x": "A", "y": "1"}},
+    "Underlay": {"story": "L1", "file": "Underlays/architect-L1.dxf"},
+    # project settings
+    "AreaLoad": {
+        "id": "AL",
+        "name": "Office",
+        "use": "office",
+        "live": 2.4,
+        "finish": 1.2,
+        "partitions": 1.0,
+    },
+    "LoadCombination": {"name": "1.2D + 1.6L", "D": 1.2, "L": 1.6},
+    "CraneRunway": {
+        "id": "CR1",
+        "name": "10 t overhead crane",
+        "capacity": 100.0,
+        "bridgeWeight": 80.0,
+        "trolleyWeight": 15.0,
+        "span": 20000.0,
+        "runwaySpan": 6000.0,
+    },
+    "FrameModifiers": {"I33": 0.35},
+    "ShellModifiers": {"bending": 0.25},
+    "DesignOverwrites": {"k3": 1.0},
+    "MomentMagnifiers": {"cm": 1.0},
+    "MassSource": {"dead": 1.0, "superimposed": 1.0},
+    "ExtraMass": {"story": "L1", "weight": 50},
+    "Analysis": Analysis().model_dump(mode="json"),
+    "Pushover": {"directions": ["X", "Y"]},
+    "NonlinearHistory": {"fibreWalls": True},
+    # P4: the existing building, its tests, conditions and retrofit measures.
+    "ExistingBuilding": {"procedure": "linear", "state": "asBuilt"},
+    "MaterialTest": {"material": _CONCRETE, "kind": "core", "values": [20.0, 22.0, 18.0]},
+    "MemberCondition": {"members": ["C-A1"], "barLoss": 0.1},
+    "RcJacket": {"kind": "rcJacket", "id": "J1", "members": ["C-A1"], "thickness": 100},
+    "FrpWrap": {
+        "kind": "frp",
+        "id": "F1",
+        "members": ["C-A1"],
+        "purpose": "confinement",
+        "thickness": 0.165,
+        "modulus": 230000,
+        "ruptureStrain": 0.015,
+    },
+    "AddedMembers": {"kind": "added", "id": "A1", "members": ["W-A1-A2"]},
+    "ChecklistAnswer": {"item": "loadPath", "answer": "C"},
+    "Solid": {"id": "MASS", "name": "Mass concrete", "kind": "solid", "material": _CONCRETE},
+    # alpha 9 L7: a four-point tensile membrane (its fabric a material of category "other")
+    "Membrane": {"id": "MEM1", "name": "Four-point sail", "kind": "membrane", "material": "MAT"},
+    "Block": {
+        "id": "K1",
+        "type": "MASS",
+        "outline": [
+            {"x": 0, "y": 0, "z": 0},
+            {"x": 4000, "y": 0, "z": 0},
+            {"x": 4000, "y": 4000, "z": 0},
+            {"x": 0, "y": 4000, "z": 0},
+        ],
+        "thickness": 1000,
+    },
+    "TimeHistory": {
+        "name": "El Centro X",
+        "record": "02 Project Settings/records/ElCentro.AT2",
+        "direction": "X",
+    },
+    # structural model (special structures)
+    "CartesianGrid": {"kind": "cartesian", "id": "G2", "x": [], "y": [], "z": []},
+    "CylindricalGrid": {"kind": "cylindrical", "id": "G2", "radii": [], "angles": [], "z": []},
+    "AngleLine": {"label": "R1", "angle": 0},
+    "Point": {"x": 0, "y": 0, "z": 0},
+    "Member": {
+        "id": "M1",
+        "type": "B300x500",
+        "start": {"x": 0, "y": 0, "z": 0},
+        "end": {"x": 6000, "y": 0, "z": 0},
+    },
+    "Area": {
+        "id": "A1",
+        "type": "S150",
+        "outline": [
+            {"x": 0, "y": 0, "z": 0},
+            {"x": 6000, "y": 0, "z": 0},
+            {"x": 6000, "y": 5000, "z": 0},
+            {"x": 0, "y": 5000, "z": 0},
+        ],
+    },
+    "Opening": {
+        "outline": [
+            {"x": 1000, "y": 1000, "z": 0},
+            {"x": 2000, "y": 1000, "z": 0},
+            {"x": 2000, "y": 2000, "z": 0},
+        ]
+    },
+    "Support": {"id": "SP1", "at": {"x": 0, "y": 0, "z": 0}, "fixity": "fixed"},
+    "ProjectInfo": {"name": "Project"},
+    # building model elements
+    "SlabOpening": {"id": "O1", "host": "S1", "x": 0, "y": 0, "xDim": 1000, "yDim": 1000},
+    "TendonPoint": {"at": 0, "height": 100},
+    # A band over two 8 m spans of a 250 mm slab: high over the supports, low mid-span.
+    "SlabTendon": {
+        "id": "PT1",
+        "host": "S1",
+        "layout": "banded",
+        "x1": 0,
+        "y1": 0,
+        "x2": 16000,
+        "y2": 0,
+        "width": 4000,
+        "count": 8,
+        "strands": 1,
+        # 0.75 fpu (SAEngine default) leaves the stress after transfer within the usual
+        # 0.74 fpu limit; the code pack's jacking and transfer limits are checked.
+        "jacking": 0.75,
+        "profile": [
+            {"at": 0, "height": 125},
+            {"at": 3600, "height": 40},
+            {"at": 8000, "height": 210},
+            {"at": 12400, "height": 40},
+            {"at": 16000, "height": 125},
+        ],
+    },
+    "WallOpening": {
+        "id": "D1",
+        "host": "W1",
+        "offset": 500,
+        "sill": 0,
+        "width": 900,
+        "height": 2100,
+    },
+    "Stair": {
+        "id": "ST1",
+        "type": "ST",
+        "base": "BASE",
+        "top": "L1",
+        "x": 0,
+        "y": 0,
+        "direction": 0,
+    },
+    "InclinedMember": {
+        "id": "M1",
+        "type": "BR",
+        "x1": 0,
+        "y1": 0,
+        "z1": 0,
+        "x2": 6000,
+        "y2": 0,
+        "z2": 3200,
+    },
+    "ColumnElement": {
+        "id": "C1",
+        "type": "C",
+        "kind": "column",
+        "position": [0, 0],
+        "bottom": 0,
+        "top": 3200,
+    },
+    "BeamElement": {
+        "id": "B1",
+        "type": "B",
+        "kind": "beam",
+        "start": [0, 0],
+        "end": [6000, 0],
+        "elevation": 3200,
+    },
+    "WallElement": {
+        "id": "W1",
+        "type": "W",
+        "kind": "wall",
+        "start": [0, 0],
+        "end": [6000, 0],
+        "bottom": 0,
+        "top": 3200,
+    },
+    "SlabElement": {
+        "id": "S1",
+        "type": "S",
+        "kind": "slab",
+        "boundary": [[0, 0], [6000, 0], [6000, 5000], [0, 5000]],
+        "elevation": 3200,
+    },
+    "FootingElement": {
+        "id": "F1",
+        "type": "F",
+        "kind": "footing",
+        "position": [0, 0],
+        "elevation": 0,
+    },
+    # parametric shapes (structural model)
+    **{type(shape).__name__: shape.model_dump(mode="json", exclude_none=True) for shape in _SHAPES},
+    # B31: a built-up steel compression member (design overwrites)
+    "BuiltUpMember": {"connectors": "snugTight", "spacing": 600, "component": "L 75x75x6"},
+    # alpha 9 L9: bridges and special structures (Project Settings); "TOWER-LEG" and the like
+    # name object types the engineer picks (04 Objects)
+    **_SPECIAL_TEMPLATES,
+}

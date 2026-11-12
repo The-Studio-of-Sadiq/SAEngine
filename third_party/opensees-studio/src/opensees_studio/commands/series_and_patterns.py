@@ -1,0 +1,107 @@
+"""Undoable add of a TimeSeries or a LoadPattern.
+
+These generic helpers keep the PathTimeSeries + UniformExcitation
+dialogs simple: the dialog builds the core entity, the command appends
+it to the right project list and tracks the insertion for undo.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from opensees_studio.commands.base import ProjectCommand
+
+if TYPE_CHECKING:
+    from opensees_studio.core import LoadPattern, TimeSeries
+    from opensees_studio.viewmodels import ProjectViewModel
+
+
+class AddTimeSeriesCommand(ProjectCommand):
+    """Append a :class:`TimeSeries` to the project (undoable)."""
+
+    def __init__(self, vm: ProjectViewModel, ts: TimeSeries) -> None:
+        super().__init__(vm, f"Add time series '{ts.name or ts.id}'")
+        self._ts = ts
+
+    def redo(self) -> None:
+        existing = {t.id for t in self.project.time_series}
+        if self._ts.id in existing:
+            raise ValueError(f"TimeSeries id {self._ts.id} already exists.")
+        self.project.time_series.append(self._ts)
+        self._notify()
+
+    def undo(self) -> None:
+        self.project.time_series[:] = [t for t in self.project.time_series if t.id != self._ts.id]
+        self._notify()
+
+
+class ReplaceTimeSeriesCommand(ProjectCommand):
+    """Swap the :class:`TimeSeries` with the same id for ``ts`` (undoable).
+
+    Used when a generated series is edited: the patterns keep pointing at
+    the id, only the entity behind it changes.
+    """
+
+    def __init__(self, vm: ProjectViewModel, ts: TimeSeries) -> None:
+        super().__init__(vm, f"Edit time series '{ts.name or ts.id}'")
+        self._ts = ts
+        self._old: TimeSeries | None = None
+
+    def _swap(self, new: TimeSeries) -> TimeSeries:
+        series = self.project.time_series
+        for i, old in enumerate(series):
+            if old.id == new.id:
+                series[i] = new
+                return old
+        raise ValueError(f"TimeSeries id {new.id} does not exist.")
+
+    def redo(self) -> None:
+        self._old = self._swap(self._ts)
+        self._notify()
+
+    def undo(self) -> None:
+        assert self._old is not None
+        self._swap(self._old)
+        self._notify()
+
+
+class DeleteTimeSeriesCommand(ProjectCommand):
+    """Delete an unreferenced series, preserving its position for undo."""
+
+    def __init__(self, vm: ProjectViewModel, series_id: int) -> None:
+        super().__init__(vm, f"Delete time series {series_id}")
+        for pattern in self.project.load_patterns:
+            for attr in ("time_series_id", "accel_series_id", "vel_series_id", "disp_series_id"):
+                if getattr(pattern, attr, None) == series_id:
+                    raise ValueError(f"Time series {series_id} is used by pattern {pattern.id}.")
+        self._index = next(i for i, ts in enumerate(self.project.time_series) if ts.id == series_id)
+        self._series = self.project.time_series[self._index]
+
+    def redo(self) -> None:
+        self.project.time_series.pop(self._index)
+        self._notify()
+
+    def undo(self) -> None:
+        self.project.time_series.insert(self._index, self._series)
+        self._notify()
+
+
+class AddLoadPatternCommand(ProjectCommand):
+    """Append a :class:`LoadPattern` to the project (undoable)."""
+
+    def __init__(self, vm: ProjectViewModel, pattern: LoadPattern) -> None:
+        super().__init__(vm, f"Add pattern '{pattern.name or pattern.id}'")
+        self._pattern = pattern
+
+    def redo(self) -> None:
+        existing = {p.id for p in self.project.load_patterns}
+        if self._pattern.id in existing:
+            raise ValueError(f"Pattern id {self._pattern.id} already exists.")
+        self.project.load_patterns.append(self._pattern)
+        self._notify()
+
+    def undo(self) -> None:
+        self.project.load_patterns[:] = [
+            p for p in self.project.load_patterns if p.id != self._pattern.id
+        ]
+        self._notify()

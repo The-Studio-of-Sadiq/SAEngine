@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SP 20.13330.2016 8.2.4, 8.2.5 (ψA1, ψn1)"
+  ],
+  "source": "SP 20.13330.2016 8.2.4: beams and slabs of the uses of items 1, 2 and 12 a with a loaded area A > A1 = 9 m² take ψA1 = 0.4 + 0.6 / √(A / A1) = 0.4 + 1.8 / √A; 8.2.5: columns, walls and foundations of n floors ψn1 = 0.4 + (ψA1 - 0.4) / √n, which is the same formula on the n floors' area (KLL = 1); the halls of ψA2 (items 4, 11, 12 b, c) are not reduced (P).",
+  "method": "influenceArea",
+  "influenceMin": 9.0,
+  "constant": 0.4,
+  "coefficient": 1.8,
+  "minOneFloor": 0.4,
+  "minFloors": 0.4,
+  "heavyLive": 10.0,
+  "heavyFactor": 1.0,
+  "notReduced": [
+    "balcony",
+    "officeCorridor",
+    "assemblyFixed",
+    "assemblyMovable",
+    "retailGround",
+    "retailUpper",
+    "storageLight",
+    "parking",
+    "stairs",
+    "roof",
+    "roofGarden",
+    "dining",
+    "libraryReading",
+    "libraryStacks",
+    "gymnasium",
+    "manufacturingLight",
+    "operatingRoom"
+  ],
+  "twoFloorsOnly": [],
+  "kll": {
+    "interiorColumn": 1,
+    "exteriorColumn": 1,
+    "edgeColumnCantilever": 1,
+    "cornerColumnCantilever": 1,
+    "interiorBeam": 1,
+    "edgeBeam": 1,
+    "other": 1
+  },
+  "sources": {
+    "constant": "SP 20.13330.2016 8.2.4 Eq 8.1: ψA1 = 0.4 + 0.6/√(A/A1), A1 = 9 m²",
+    "coefficient": "0.6 √9 = 1.8: L = L0 (0.4 + 1.8/√(KLL AT)), KLL = 1",
+    "minFloors": "SP 20.13330.2016 8.2.5 Eq 8.3: ψn1 = 0.4 + (ψA1 - 0.4)/√n; with AT the n floors' area the formula gives it (KLL 1)",
+    "notReduced": "SAEngine practice (P): the uses of ψA2 (halls, shops, corridors of public buildings) and storage, parking, roofs, machine rooms not reduced",
+    "heavyLive": "Not an SP value: no heavy-load rule (10 kN/m² taken)",
+    "kll": "Not an SP value: the area rule has no element factor (all 1)"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/embeddedWalls.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 3.12-3.12.2.3 (pp. 797-800): excavation sides kept by shoring, sheeting, sheet piling or retaining walls; no design method for embedded walls",
+    "SAEngine practice where BNBC 2020 is silent: limit equilibrium of embedded walls by free and fixed earth support (Blum's equivalent beam), factor 2.0 on the passive resistance (CIRIA Report 104, Padfield and Mair 1984), embedment × 1.2 for fixed earth support, the least surcharge 10 kPa and the unplanned excavation 10 % of the retained height up to 0.5 m (CIRIA C580 / EN 1997-1 9.3.2.2); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (Part 6 Sec 3.12, p. 797: excavation sides retained, no method): embedded walls by free and fixed earth support with a factor on the passive resistance",
+  "method": "factoredPassive",
+  "passiveFactor": 2.0,
+  "variableFactor": 1.0,
+  "embedmentIncrease": 1.2,
+  "freeEarthIncrease": 1.0,
+  "minimumSurcharge": 10.0,
+  "overdigShare": 0.1,
+  "overdigMax": 0.5,
+  "clauses": {
+    "required": "Part 6 Sec 3.12 (p. 797): sides of excavations retained (no design method)",
+    "method": "SAEngine practice where BNBC 2020 is silent: free and fixed earth support (Blum), passive resistance / 2.0 (CIRIA Report 104)",
+    "overdig": "SAEngine practice where BNBC 2020 is silent: unplanned excavation 10 % of the retained height, at most 0.5 m (EN 1997-1 9.3.2.2, CIRIA C580)"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "TBDY 2018 7.2.5; TS 708:2016 (verify)"
+  ],
+  "structuralFcMin": 25.0,
+  "rebarFyMax": 500.0,
+  "rebarGrades": [
+    {
+      "id": "B420C",
+      "name": "TS 708 B420C",
+      "fy": 420.0,
+      "standard": "TS 708:2016"
+    },
+    {
+      "id": "B500C",
+      "name": "TS 708 B500C",
+      "fy": 500.0,
+      "standard": "TS 708:2016"
+    }
+  ],
+  "sources": {
+    "structuralFcMin": "TBDY 2018 7.2.5.1: concrete of the structural system of buildings not below C25 (verify; TS 500:2000 alone permits lower classes)",
+    "rebarFyMax": "TBDY 2018 7.2.5.3 and TS 708:2016: B420C and B500C reinforcement, fyk at most 500 MPa (verify)",
+    "rebarGrades": "TS 708:2016 B420C and B500C (fyk 420 and 500 MPa), in place of the parent's ASTM grades (verify)"
+  }
+}

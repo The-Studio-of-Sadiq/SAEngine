@@ -1,0 +1,66 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE 7-22 Sec 4.7.2-4.7.6, Eq 4.7-1, Table 4.7-1",
+    "ASCE 7-22 Sec 4.8.2, Eq 4.8-1 (roof live loads)"
+  ],
+  "source": "ASCE 7-22 Sec 4.7 (reduction of uniform live loads), Sec 4.8.2 (roofs)",
+  "influenceMin": 37.16,
+  "constant": 0.25,
+  "coefficient": 4.57,
+  "minOneFloor": 0.5,
+  "minFloors": 0.4,
+  "heavyLive": 4.79,
+  "heavyFactor": 0.8,
+  "notReduced": [
+    "assemblyFixed",
+    "assemblyMovable",
+    "assemblyPlatform",
+    "stageFloor",
+    "stadiumFixed",
+    "stadiumBleachers",
+    "grandstand"
+  ],
+  "assemblyMax": 4.79,
+  "twoFloorsOnly": ["parking"],
+  "notReducedBuildings": [],
+  "oneWaySlabWidth": 1.5,
+  "kll": {
+    "interiorColumn": 4,
+    "exteriorColumn": 4,
+    "edgeColumnCantilever": 3,
+    "cornerColumnCantilever": 2,
+    "interiorBeam": 2,
+    "edgeBeam": 2,
+    "other": 1
+  },
+  "roof": {
+    "areaLow": 18.58,
+    "areaHigh": 55.74,
+    "r1Constant": 1.2,
+    "r1Coefficient": 0.011,
+    "r1Min": 0.6,
+    "riseLow": 4,
+    "riseHigh": 12,
+    "r2Constant": 1.2,
+    "r2Coefficient": 0.05,
+    "r2Min": 0.6,
+    "slopeF": 0.12,
+    "archF": 32,
+    "minimum": 0.58,
+    "maximum": 0.96,
+    "uses": ["roof", "awning"]
+  },
+  "sources": {
+    "influenceMin": "ASCE 7-22 Sec 4.7.2: members with KLL AT of 400 ft² (37.16 m²) or more",
+    "constant": "ASCE 7-22 Eq 4.7-1: L = L0 (0.25 + 15/sqrt(KLL AT)), 15/sqrt(ft²) = 4.57/sqrt(m²)",
+    "minOneFloor": "ASCE 7-22 Sec 4.7.2: at least 0.50 L0 for members supporting one floor, 0.40 L0 for two or more",
+    "heavyLive": "ASCE 7-22 Sec 4.7.3: live loads over 100 psf (4.79 kN/m²) not reduced, except 20 % on members supporting two or more floors",
+    "notReduced": "ASCE 7-22 Sec 4.7.5: live loads of 100 psf or less not reduced in assembly uses",
+    "twoFloorsOnly": "ASCE 7-22 Sec 4.7.4: passenger vehicle garages not reduced, except 20 % on members supporting two or more floors",
+    "oneWaySlabWidth": "ASCE 7-22 Sec 4.7.6: AT of a one-way slab at most 1.5 times the span squared",
+    "kll": "ASCE 7-22 Table 4.7-1, live load element factor KLL",
+    "roof": "ASCE 7-22 Sec 4.8.2, Eq 4.8-1: Lr = L0 R1 R2, 12 psf <= Lr <= 20 psf (0.58-0.96 kN/m²); R1 = 1 (AT <= 200 ft²), 1.2 - 0.001 AT (ft²), 0.6 (AT >= 600 ft²); R2 = 1 (F <= 4), 1.2 - 0.05 F, 0.6 (F >= 12), F the rise in inches per foot (0.12 x the slope in per cent), 32 x rise/span for an arch or dome"
+  }
+}

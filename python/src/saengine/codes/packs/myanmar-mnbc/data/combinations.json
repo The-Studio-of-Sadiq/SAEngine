@@ -1,0 +1,83 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$sources": [
+    "MNBC 2020 Part 3 load combinations in the ASCE 7-05 Sec 2.3.2 / 2.4.1 form: the wind W of the 50-year basic wind speed at 1.6 in strength design and 1.0 in allowable stress design; E at 1.0 / 0.7"
+  ],
+  "$mergeKeys": {
+    "strength": "id",
+    "allowable": "id",
+    "service": "id"
+  },
+  "source": "MNBC 2020 Part 3 load combinations (ASCE 7-05 Sec 2.3.2 and 2.4.1 form, as SAEngine reads MNBC's adoption): 1.4D; 1.2D + 1.6L + 0.5Lr; 1.2D + 1.6Lr + (L or 0.8W); 1.2D + 1.6W + L + 0.5Lr; 1.2D + 1.0E + L + 0.2S; 0.9D + 1.6W; 0.9D + 1.0E. D includes SD; F with the factor of D; H at 1.6 where it adds to the other loads. The seismic load effects (Ev, Ω0) and the rest are the parent's (ASCE 7-22 Sec 12.4, the same form).",
+  "strength": [
+    {"id": "1", "name": "1.4D", "factors": {"D": 1.4, "F": 1.4}, "source": "MNBC 2020 Part 3, combination 1 (ASCE 7-05 Sec 2.3.2 form)"},
+    {"id": "2", "name": "1.2D + 1.6L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "L": 1.6, "H": 1.6, "Lr": 0.5}, "source": "MNBC 2020 Part 3, combination 2, 1.2(D + F + T) + 1.6(L + H) + 0.5(Lr or S or R)"},
+    {"id": "3L", "name": "1.2D + 1.6Lr + 1.0L", "factors": {"D": 1.2, "F": 1.2, "Lr": 1.6, "L": 1.0, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 3, 1.2D + 1.6(Lr or S or R) + (L or 0.8W)"},
+    {"id": "3W", "name": "1.2D + 1.6Lr + 0.8W", "factors": {"D": 1.2, "F": 1.2, "Lr": 1.6, "W": 0.8, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 3, 1.2D + 1.6(Lr or S or R) + (L or 0.8W)"},
+    {"id": "4", "name": "1.2D + 1.6W + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 1.6, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 4, 1.2D + 1.6W + L + 0.5(Lr or S or R)"},
+    {"id": "5", "name": "0.9D + 1.6W", "factors": {"D": 0.9, "W": 1.6, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 6, 0.9D + 1.6W + 1.6H", "note": "F left out where it counteracts W (an empty tank): SAEngine practice, on the safe side"},
+    {"id": "6", "name": "1.2D + 1.0E + 1.0L + 0.2S", "factors": {"D": 1.2, "F": 1.2, "E": 1.0, "L": 1.0, "S": 0.2, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 5, 1.2D + 1.0E + L + 0.2S; Ev = 0.2 SDS D"},
+    {"id": "7", "name": "0.9D + 1.0E", "factors": {"D": 0.9, "E": 1.0, "H": 1.6}, "source": "MNBC 2020 Part 3, combination 7, 0.9D + 1.0E + 1.6H", "note": "F left out where it counteracts E: SAEngine practice, on the safe side"}
+  ],
+  "allowable": [
+    {"id": "1", "name": "D", "factors": {"D": 1.0, "F": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 1 (ASCE 7-05 Sec 2.4.1 form)"},
+    {"id": "2", "name": "D + L", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 2"},
+    {"id": "3", "name": "D + Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "Lr": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 3, D + (Lr or S or R)"},
+    {"id": "4", "name": "D + 0.75L + 0.75Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "Lr": 0.75}, "source": "MNBC 2020 Part 3, ASD combination 4"},
+    {"id": "5W", "name": "D + W", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 5, D + (W or 0.7E)"},
+    {"id": "5E", "name": "D + 0.7E", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "E": 0.7}, "source": "MNBC 2020 Part 3, ASD combination 5, D + (W or 0.7E)"},
+    {"id": "6W", "name": "D + 0.75L + 0.75W + 0.75Lr", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.75, "Lr": 0.75}, "source": "MNBC 2020 Part 3, ASD combination 6, D + 0.75(W or 0.7E) + 0.75L + 0.75(Lr or S or R)"},
+    {"id": "6E", "name": "D + 0.525E + 0.75L + 0.75S", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "E": 0.525, "L": 0.75, "S": 0.75}, "source": "MNBC 2020 Part 3, ASD combination 6 with 0.75(0.7E)"},
+    {"id": "7", "name": "0.6D + W", "factors": {"D": 0.6, "W": 1.0, "H": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 7, 0.6D + W + H"},
+    {"id": "8", "name": "0.6D + 0.7E", "factors": {"D": 0.6, "E": 0.7, "H": 1.0}, "source": "MNBC 2020 Part 3, ASD combination 8, 0.6D + 0.7E + H"}
+  ],
+  "service": [
+    {"id": "1", "name": "D + L", "factors": {"D": 1.0, "L": 1.0, "Lr": 1.0}, "source": "Serviceability: vertical deflection, short-term effects (ASCE 7-05 Appendix C commentary form)", "note": "L taken with the roof live load Lr at 1.0 (a member carries one or the other)"},
+    {"id": "2", "name": "D + 0.5L", "factors": {"D": 1.0, "L": 0.5}, "source": "Serviceability: creep and other long-term effects (ASCE 7-05 Appendix C commentary form)"},
+    {"id": "3", "name": "D + 0.5L + 0.7W", "factors": {"D": 1.0, "L": 0.5, "W": 0.7}, "source": "Serviceability: drift under wind (ASCE 7-05 Appendix C commentary CC.1.2: about 0.7 of the 50-year wind for a 10-year return)", "note": "0.7W as the service wind: SAEngine practice; the commentary leaves the wind's return period to the engineer"}
+  ],
+  "temperature": [
+    {"name": "1.2D + 1.0T + 1.6L + 0.5Lr", "$remove": true},
+    {"name": "1.2D - 1.0T + 1.6L + 0.5Lr", "$remove": true},
+    {"name": "1.2D + 1.2T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": 1.2, "L": 1.6, "Lr": 0.5}},
+    {"name": "1.2D - 1.2T + 1.6L + 0.5Lr", "factors": {"D": 1.2, "T": -1.2, "L": 1.6, "Lr": 0.5}}
+  ],
+  "flood": {
+    "$replace": true,
+    "coastal": {
+      "source": "MNBC 2020 Part 3 in the ASCE 7-05 Sec 2.3.3 and 2.4.2 form: V zones and coastal A zones",
+      "strength": [
+        {"id": "4Fa", "name": "1.2D + 1.6W + 2.0Fa + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 1.6, "Fa": 2.0, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "ASCE 7-05 Sec 2.3.3 form: 1.6W of combination 4 replaced by 1.6W + 2.0Fa"},
+        {"id": "5Fa", "name": "0.9D + 1.6W + 2.0Fa", "factors": {"D": 0.9, "W": 1.6, "Fa": 2.0, "H": 1.6}, "source": "ASCE 7-05 Sec 2.3.3 form: 1.6W of combination 6 replaced by 1.6W + 2.0Fa"}
+      ],
+      "allowable": [
+        {"id": "5Fa", "name": "D + W + 1.5Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0, "Fa": 1.5}, "source": "ASCE 7-05 Sec 2.4.2 form: 1.5Fa added to combination 5, E = 0"},
+        {"id": "6Fa", "name": "D + 0.75L + 0.75W + 0.75Lr + 1.5Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.75, "Lr": 0.75, "Fa": 1.5}, "source": "ASCE 7-05 Sec 2.4.2 form: 1.5Fa added to combination 6, E = 0"},
+        {"id": "7Fa", "name": "0.6D + W + 1.5Fa", "factors": {"D": 0.6, "W": 1.0, "H": 1.0, "Fa": 1.5}, "source": "ASCE 7-05 Sec 2.4.2 form: 1.5Fa added to combination 7"}
+      ]
+    },
+    "inland": {
+      "source": "MNBC 2020 Part 3 in the ASCE 7-05 Sec 2.3.3 and 2.4.2 form: noncoastal A zones",
+      "strength": [
+        {"id": "4Fa", "name": "1.2D + 0.8W + 1.0Fa + 1.0L + 0.5Lr", "factors": {"D": 1.2, "F": 1.2, "W": 0.8, "Fa": 1.0, "L": 1.0, "Lr": 0.5, "H": 1.6}, "source": "ASCE 7-05 Sec 2.3.3 form: 1.6W of combination 4 replaced by 0.8W + 1.0Fa"},
+        {"id": "5Fa", "name": "0.9D + 0.8W + 1.0Fa", "factors": {"D": 0.9, "W": 0.8, "Fa": 1.0, "H": 1.6}, "source": "ASCE 7-05 Sec 2.3.3 form: 1.6W of combination 6 replaced by 0.8W + 1.0Fa"}
+      ],
+      "allowable": [
+        {"id": "5Fa", "name": "D + W + 0.75Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "W": 1.0, "Fa": 0.75}, "source": "ASCE 7-05 Sec 2.4.2 form: 0.75Fa added to combination 5, E = 0"},
+        {"id": "6Fa", "name": "D + 0.75L + 0.75W + 0.75Lr + 0.75Fa", "factors": {"D": 1.0, "H": 1.0, "F": 1.0, "L": 0.75, "W": 0.75, "Lr": 0.75, "Fa": 0.75}, "source": "ASCE 7-05 Sec 2.4.2 form: 0.75Fa added to combination 6, E = 0"},
+        {"id": "7Fa", "name": "0.6D + W + 0.75Fa", "factors": {"D": 0.6, "W": 1.0, "H": 1.0, "Fa": 0.75}, "source": "ASCE 7-05 Sec 2.4.2 form: 0.75Fa added to combination 7"}
+      ]
+    }
+  },
+  "sources": {
+    "strength": "MNBC 2020 Part 3 (ASCE 7-05 Sec 2.3.2 form, the ids of the parent's rows kept: 5 is 0.9D + 1.6W, 6 is 1.2D + E + L + 0.2S): the combinations with one or more loads not acting are investigated",
+    "allowable": "MNBC 2020 Part 3 (ASCE 7-05 Sec 2.4.1 form, W at 1.0 for the 50-year wind)",
+    "service": "Serviceability combinations (ASCE 7-05 Appendix C commentary form; SAEngine practice 0.7W)",
+    "temperature": "ASCE 7-05 Sec 2.3.2 combination 2 form: T at 1.2",
+    "flood": "ASCE 7-05 Sec 2.3.3 and 2.4.2 form"
+  },
+  "clauses": {
+    "strength": "Part 3 (load combinations, strength design)",
+    "temperature": "Part 3 (load combinations, T)"
+  }
+}

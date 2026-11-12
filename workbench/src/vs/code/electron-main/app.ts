@@ -48,6 +48,8 @@ import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../../platform/extensions/common/extensionHostStarter.js';
 import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
 import { IExternalTerminalMainService } from '../../platform/externalTerminal/electron-main/externalTerminal.js';
+import { ISaenginePackagesService, PACKAGES_CHANNEL } from '../../platform/saengine/common/packages.js';
+import { SaenginePackagesMainService } from '../../platform/saengine/electron-main/packagesMainService.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../platform/externalTerminal/node/externalTerminalService.js';
 import { ISandboxHelperMainService } from '../../platform/sandbox/electron-main/sandboxHelperService.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
@@ -1316,6 +1318,9 @@ export class CodeApplication extends Disposable {
 		}
 		services.set(ISandboxHelperMainService, new SyncDescriptor(SandboxHelperService));
 
+		// SAEngine packages (index fetch, signature check, pinned downloads)
+		services.set(ISaenginePackagesService, new SyncDescriptor(SaenginePackagesMainService));
+
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
@@ -1501,6 +1506,10 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
+
+		// SAEngine packages
+		const saenginePackagesChannel = ProxyChannel.fromService(accessor.get(ISaenginePackagesService), disposables);
+		mainProcessElectronServer.registerChannel(PACKAGES_CHANNEL, saenginePackagesChannel);
 
 		// Sandbox Helper
 		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperMainService), disposables);

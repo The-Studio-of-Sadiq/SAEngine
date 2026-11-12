@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.142.0",
+  "version": "0.0.48",
   "distro": "a0e7521b2a1e3289e4118fad155277b200aebd35",
   "author": {
     "name": "Microsoft Corporation"
@@ -113,6 +113,8 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@microsoft/mxc-sdk": "1.0.0",
     "@parcel/watcher": "^2.5.6",
+    "@saengine/cad-editor": "file:../packages/cad-editor",
+    "@saengine/fem-viewer": "file:../packages/fem-viewer",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.46-43",
     "@vscode/copilot-api": "^0.5.2",
@@ -153,6 +155,7 @@
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
     "libsodium-wrappers": "^0.8.4",
+    "maplibre-gl": "6.12.0",
     "minimist": "^1.2.8",
     "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
@@ -164,6 +167,7 @@
     "tar": "^7.5.20",
     "tas-client": "0.4.6",
     "undici": "^7.28.0",
+    "vscode-jsonrpc": "^8.2.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
@@ -283,6 +287,8 @@
       "node-addon-api": "7.1.0"
     },
     "koffi": "3.2.1",
+    "@maplibre/geojson-vt": "6.1.2",
+    "@mapbox/tiny-sdf": "2.2.0",
     "serialize-javascript": "^7.0.3",
     "yauzl": "^3.3.1"
   },

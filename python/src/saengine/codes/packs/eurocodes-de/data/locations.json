@@ -1,0 +1,91 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "DIN EN 1991-1-4/NA:2010-12 Annex NA.A (wind zones 1-4, vb,0) and DIN EN 1998-1/NA:2021-07 (DIN 4149:2005) seismic zones 0-3"
+  ],
+  "source": "DIN EN 1991-1-4/NA Annex NA.A: wind zone of each town with vb,0 22.5, 25.0, 27.5, 30.0 m/s (zones 1-4); DIN EN 1998-1/NA (zones of DIN 4149): seismic zone 0-3 with agR (zoneCoefficients). The zones are assigned by district in the annexes' tables: check each town (VERIFY.md). Elsewhere a custom location (enter agR as Z and vb,0 as V).",
+  "default": "berlin",
+  "locations": {
+    "berlin": {
+      "name": "Berlin (wind zone 2, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "hamburg": {
+      "name": "Hamburg (wind zone 3, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 27.5
+    },
+    "muenchen": {
+      "name": "München (wind zone 1, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "koeln": {
+      "name": "Köln (wind zone 1, seismic zone 1)",
+      "zone": 1,
+      "windSpeed": 22.5
+    },
+    "frankfurt": {
+      "name": "Frankfurt am Main (wind zone 1, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "stuttgart": {
+      "name": "Stuttgart (wind zone 1, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 22.5
+    },
+    "duesseldorf": {
+      "name": "Düsseldorf (wind zone 2, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "hannover": {
+      "name": "Hannover (wind zone 2, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "dresden": {
+      "name": "Dresden (wind zone 2, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "leipzig": {
+      "name": "Leipzig (wind zone 2, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 25.0
+    },
+    "aachen": {
+      "name": "Aachen (wind zone 1, seismic zone 3)",
+      "zone": 3,
+      "windSpeed": 22.5
+    },
+    "albstadt": {
+      "name": "Albstadt (wind zone 1, seismic zone 3)",
+      "zone": 3,
+      "windSpeed": 22.5
+    },
+    "freiburg": {
+      "name": "Freiburg im Breisgau (wind zone 1, seismic zone 1)",
+      "zone": 1,
+      "windSpeed": 22.5
+    },
+    "kiel": {
+      "name": "Kiel (wind zone 3, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 27.5
+    },
+    "rostock": {
+      "name": "Rostock (wind zone 3, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 27.5
+    },
+    "westerland": {
+      "name": "Westerland (Sylt) (wind zone 4, seismic zone 0)",
+      "zone": 0,
+      "windSpeed": 30.0
+    }
+  }
+}

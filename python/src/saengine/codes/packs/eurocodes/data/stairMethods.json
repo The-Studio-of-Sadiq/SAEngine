@@ -1,0 +1,459 @@
+{
+  "$schema": "../../../schemas/stairMethods.schema.json",
+  "$sources": [
+    "SAEngine practice where EN 1992-1-1 gives no method for stairs; flights designed as beams and slabs by EN 1992-1-1"
+  ],
+  "source": "SAEngine practice where EN 1992-1-1 gives no method for stairs; flights designed as beams and slabs by EN 1992-1-1",
+  "sources": {
+    "builtIn": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "openWellShare": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stringers": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "freeStanding": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "freeStanding.Mo": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "sawtooth": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "helicoidal": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "helicoidal": {
+    "charts": [
+      {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "radiusRatio": 1.05,
+        "widthRatio": 5,
+        "betas": [
+          90,
+          135,
+          180,
+          225,
+          270,
+          315,
+          360
+        ],
+        "curves": [
+          {
+            "k": "k1",
+            "phi": 20,
+            "values": [
+              0.065,
+              0.046,
+              0.007,
+              -0.059,
+              -0.179,
+              -0.356,
+              -0.555
+            ]
+          },
+          {
+            "k": "k1",
+            "phi": 30,
+            "values": [
+              0.065,
+              0.046,
+              0.007,
+              -0.059,
+              -0.179,
+              -0.356,
+              -0.555
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 20,
+            "values": [
+              0.45,
+              0.898,
+              1.3,
+              1.61,
+              1.875,
+              2.105,
+              2.32
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 25,
+            "values": [
+              0.45,
+              0.827,
+              1.138,
+              1.371,
+              1.564,
+              1.749,
+              1.94
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 30,
+            "values": [
+              0.45,
+              0.749,
+              0.989,
+              1.18,
+              1.334,
+              1.506,
+              1.68
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 20,
+            "values": [
+              -0.19,
+              -0.254,
+              -0.322,
+              -0.39,
+              -0.576,
+              -0.96,
+              -1.53
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 30,
+            "values": [
+              -0.14,
+              -0.173,
+              -0.213,
+              -0.288,
+              -0.518,
+              -0.96,
+              -1.47
+            ]
+          }
+        ]
+      },
+      {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "radiusRatio": 1.05,
+        "widthRatio": 13,
+        "betas": [
+          90,
+          135,
+          180,
+          225,
+          270,
+          315,
+          360
+        ],
+        "curves": [
+          {
+            "k": "k1",
+            "phi": 20,
+            "values": [
+              -0.01,
+              -0.02,
+              -0.043,
+              -0.1,
+              -0.207,
+              -0.4,
+              -0.66
+            ]
+          },
+          {
+            "k": "k1",
+            "phi": 30,
+            "values": [
+              -0.01,
+              -0.02,
+              -0.043,
+              -0.1,
+              -0.207,
+              -0.4,
+              -0.66
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 20,
+            "values": [
+              1.16,
+              1.43,
+              1.694,
+              1.9,
+              2.077,
+              2.28,
+              2.48
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 25,
+            "values": [
+              1.017,
+              1.2,
+              1.379,
+              1.54,
+              1.694,
+              1.87,
+              2.05
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 30,
+            "values": [
+              0.892,
+              1.024,
+              1.16,
+              1.31,
+              1.431,
+              1.6,
+              1.76
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 20,
+            "values": [
+              -0.07,
+              -0.08,
+              -0.097,
+              -0.18,
+              -0.41,
+              -0.85,
+              -1.41
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 30,
+            "values": [
+              -0.05,
+              -0.07,
+              -0.097,
+              -0.18,
+              -0.41,
+              -0.82,
+              -1.34
+            ]
+          }
+        ]
+      },
+      {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "radiusRatio": 1.1,
+        "widthRatio": 5,
+        "betas": [
+          90,
+          135,
+          180,
+          225,
+          270,
+          315,
+          360
+        ],
+        "curves": [
+          {
+            "k": "k1",
+            "phi": 20,
+            "values": [
+              0.05,
+              0.007,
+              -0.042,
+              -0.119,
+              -0.255,
+              -0.455,
+              -0.69
+            ]
+          },
+          {
+            "k": "k1",
+            "phi": 30,
+            "values": [
+              0.05,
+              0.007,
+              -0.042,
+              -0.119,
+              -0.255,
+              -0.455,
+              -0.69
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 20,
+            "values": [
+              0.44,
+              0.913,
+              1.357,
+              1.676,
+              1.916,
+              2.118,
+              2.31
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 25,
+            "values": [
+              0.44,
+              0.85,
+              1.19,
+              1.44,
+              1.614,
+              1.79,
+              1.97
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 30,
+            "values": [
+              0.44,
+              0.773,
+              1.044,
+              1.238,
+              1.389,
+              1.545,
+              1.71
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 20,
+            "values": [
+              -0.205,
+              -0.281,
+              -0.355,
+              -0.412,
+              -0.594,
+              -0.97,
+              -1.55
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 30,
+            "values": [
+              -0.16,
+              -0.193,
+              -0.23,
+              -0.307,
+              -0.532,
+              -0.97,
+              -1.48
+            ]
+          }
+        ]
+      },
+      {
+        "source": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+        "radiusRatio": 1.1,
+        "widthRatio": 13,
+        "betas": [
+          90,
+          135,
+          180,
+          225,
+          270,
+          315,
+          360
+        ],
+        "curves": [
+          {
+            "k": "k1",
+            "phi": 20,
+            "values": [
+              0.012,
+              -0.018,
+              -0.079,
+              -0.153,
+              -0.274,
+              -0.467,
+              -0.71
+            ]
+          },
+          {
+            "k": "k1",
+            "phi": 30,
+            "values": [
+              0.012,
+              -0.018,
+              -0.079,
+              -0.17,
+              -0.31,
+              -0.577,
+              -0.91
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 20,
+            "values": [
+              1.096,
+              1.448,
+              1.762,
+              1.99,
+              2.15,
+              2.32,
+              2.5
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 25,
+            "values": [
+              1.08,
+              1.291,
+              1.492,
+              1.665,
+              1.847,
+              2.042,
+              2.24
+            ]
+          },
+          {
+            "k": "k2",
+            "phi": 30,
+            "values": [
+              0.991,
+              1.212,
+              1.437,
+              1.605,
+              1.762,
+              1.921,
+              2.09
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 20,
+            "values": [
+              -0.084,
+              -0.084,
+              -0.123,
+              -0.255,
+              -0.546,
+              -1.011,
+              -1.58
+            ]
+          },
+          {
+            "k": "k3",
+            "phi": 30,
+            "values": [
+              -0.084,
+              -0.084,
+              -0.123,
+              -0.2,
+              -0.431,
+              -0.854,
+              -1.38
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "clauses": {
+    "builtIn": "",
+    "openWell": "",
+    "stringers": "",
+    "special": "",
+    "freeStanding": "",
+    "freeStandingDetailing": "",
+    "sawtooth": "",
+    "sawtoothCorners": "",
+    "helicoidal": ""
+  }
+}

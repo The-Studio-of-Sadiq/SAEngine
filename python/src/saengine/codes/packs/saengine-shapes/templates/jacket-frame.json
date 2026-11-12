@@ -1,0 +1,21 @@
+{
+  "name": "Jacket / monopile",
+  "description": "Offshore jacket at the Generate panel's starting values.",
+  "shape": {
+    "kind": "jacketFrame",
+    "form": "jacket",
+    "height": 42000.0,
+    "baseWidth": 20000.0,
+    "topWidth": 12000.0,
+    "bays": 4,
+    "memberType": "MEMBER",
+    "braceType": null,
+    "supports": "fixed",
+    "origin": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "rotation": 0.0
+  }
+}

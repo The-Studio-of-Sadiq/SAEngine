@@ -1,0 +1,1137 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The visual editors of the JSON project files (jsonDocumentEditor.ts and its subclasses) and the
+ * schema forms they show. Spacing, sizes and colours come from the shared tokens
+ * (saengineTokens.css); the framed editors sit in the shared editor frame (editorFrame.css). */
+
+.saengine-library-editor {
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-foreground);
+}
+
+.saengine-library-editor .hidden {
+	display: none !important;
+}
+
+/* native scrollbars of the scrolling areas in the theme's slider colours (both themes) */
+.saengine-library-editor .sa-form-page,
+.saengine-library-editor .sa-section-list,
+.saengine-library-editor .library-list,
+.saengine-library-editor .library-detail,
+.saengine-library-editor .form-table {
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.saengine-library-editor .library-banner {
+	display: none;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-warningBackground);
+	border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+.saengine-library-editor .library-banner.visible {
+	display: flex;
+}
+
+/* an upstream part changed since the document was built: information, not a fault */
+.saengine-library-editor .library-banner.outdated {
+	color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-infoBackground);
+	border-bottom-color: var(--vscode-inputValidation-infoBorder);
+}
+
+.saengine-library-editor .library-banner .monaco-button {
+	width: auto;
+	flex-shrink: 0;
+	padding: 2px 10px;
+}
+
+.saengine-library-editor .library-body {
+	flex: 1;
+	display: flex;
+	min-height: 0;
+}
+
+/* ── framed editors ─────────────────────────────────────────────────────── */
+
+/* a file the editor cannot show: a quiet empty state in place of the body */
+.saengine-library-editor.framed .library-empty-state {
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--sa-space-3, 12px);
+	flex: 1;
+	padding: var(--sa-space-6, 24px);
+	text-align: center;
+}
+
+.saengine-library-editor.framed .library-empty-state.visible {
+	display: flex;
+}
+
+.saengine-library-editor.framed .library-empty-text {
+	max-width: 480px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	line-height: 1.5;
+}
+
+.saengine-library-editor.framed .library-empty-actions {
+	display: flex;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor.framed .library-empty-actions .monaco-button {
+	width: auto;
+	padding: 3px var(--sa-space-3, 12px);
+}
+
+/* a page holding one form (a settings section, the grids and stories) */
+.saengine-library-editor .sa-form-page {
+	flex: 1;
+	min-width: 0;
+	overflow-x: auto;
+	overflow-y: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+}
+
+.saengine-library-editor .sa-form-page-title {
+	margin: 0 0 var(--sa-space-3, 12px);
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+}
+
+/* ── project settings: sections on the left ─────────────────────────────── */
+
+.saengine-library-editor .sa-section-list {
+	flex: none;
+	width: 188px;
+	overflow-y: auto;
+	padding: var(--sa-space-2, 8px) 0;
+	border-right: 1px solid var(--sa-border, var(--vscode-panel-border));
+	outline: none;
+	box-sizing: border-box;
+}
+
+.saengine-library-editor .sa-section-item {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 26px;
+	margin: 0 var(--sa-space-2, 8px);
+	padding: 0 var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.saengine-library-editor .sa-section-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-library-editor .sa-section-item.selected {
+	color: var(--vscode-list-inactiveSelectionForeground);
+	background: var(--vscode-list-inactiveSelectionBackground);
+	font-weight: 600;
+}
+
+/* the lists show focus on their selected row, not around the whole list */
+.monaco-workbench .saengine-library-editor .sa-section-list:focus,
+.monaco-workbench .saengine-library-editor .library-list:focus {
+	outline: none;
+}
+
+.saengine-library-editor .sa-section-list:focus-visible .sa-section-item.selected {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-library-editor .sa-section-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-library-editor .sa-section-warning {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+	font-size: 14px;
+}
+
+/* a narrow editor (side by side, properties shown): a narrower section list, tighter page */
+.saengine-library-editor .library-body.sa-sections {
+	container-type: inline-size;
+}
+
+@container (max-width: 600px) {
+	.saengine-library-editor .sa-section-list {
+		width: 132px;
+	}
+
+	.saengine-library-editor .sa-sections .sa-form-page {
+		padding: var(--sa-space-3, 12px);
+	}
+}
+
+/* the project type selector in the toolbar */
+.saengine-library-editor .settings-project-type {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-project-type-select {
+	width: 160px;
+}
+
+/* code values in the properties panel */
+.saengine-library-editor .settings-values {
+	margin-top: var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .settings-values .sa-props-row > .value {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* long values wrap in the narrow panel; it never scrolls sideways */
+.saengine-library-editor .saengine-editor-frame .settings-values,
+.saengine-library-editor .settings-code-pack-chips {
+	overflow-x: hidden;
+}
+
+.saengine-library-editor .settings-values .sa-props-row.problem > .value {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-values-action {
+	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-overridden {
+	margin-left: 2px;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+	font-weight: 600;
+}
+
+/* the grids summary in the properties panel */
+.saengine-library-editor .grids-summary-value {
+	margin-top: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-library-editor .grids-members {
+	margin-top: var(--sa-space-3, 12px);
+}
+
+/* ── materials and object types: list and form ──────────────────────────── */
+
+.saengine-library-editor .library-master {
+	width: 260px;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	border-right: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-library-editor .library-list {
+	flex: 1;
+	overflow: auto;
+	padding: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
+	outline: none;
+}
+
+.saengine-library-editor .library-list-group {
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px) var(--sa-space-1, 4px);
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-library-editor .library-list-item {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 26px;
+	margin: 0 var(--sa-space-2, 8px);
+	padding: 0 var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.saengine-library-editor .library-list-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-library-editor .library-list-item.selected {
+	color: var(--vscode-list-inactiveSelectionForeground);
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.saengine-library-editor .library-list:focus .library-list-item.selected {
+	color: var(--vscode-list-activeSelectionForeground);
+	background: var(--vscode-list-activeSelectionBackground);
+}
+
+.saengine-library-editor .library-list:focus-visible .library-list-item.selected {
+	outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+	outline-offset: -1px;
+}
+
+.saengine-library-editor .library-list-item .item-id {
+	min-width: 72px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-library-editor .library-list-item .item-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-library-editor .library-list:focus .library-list-item.selected .item-name {
+	color: inherit;
+}
+
+.saengine-library-editor .library-list-empty {
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-library-editor .library-detail {
+	flex: 1;
+	min-width: 0;
+	overflow-x: auto;
+	overflow-y: auto;
+	padding: var(--sa-space-4, 16px) var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+}
+
+.saengine-library-editor .library-detail-header {
+	margin-bottom: var(--sa-space-3, 12px);
+}
+
+.saengine-library-editor .library-detail-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2, 8px);
+	min-width: 0;
+}
+
+.saengine-library-editor .library-detail-name {
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-library-editor .library-detail-id {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+}
+
+/* the editors outside the frame still head their detail with an h2 */
+.saengine-library-editor .library-detail-header h2 {
+	margin: 0 0 var(--sa-space-2, 8px);
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+}
+
+/* ── schema forms: label column, field column, units as suffixes ───────── */
+
+.saengine-library-editor .library-form {
+	max-width: 1100px;
+}
+
+.saengine-library-editor .form-field {
+	display: grid;
+	grid-template-columns: minmax(120px, 200px) minmax(160px, 300px);
+	column-gap: var(--sa-space-3, 12px);
+	align-items: center;
+	min-height: 30px;
+}
+
+.saengine-library-editor .form-label-cell {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	min-width: 0;
+}
+
+.saengine-library-editor .form-label {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: var(--vscode-foreground);
+}
+
+.saengine-library-editor .form-label.clickable,
+.saengine-library-editor .form-group-title.clickable {
+	cursor: pointer;
+}
+
+/* a field's problem, written below it (the popup only shows while it has focus) */
+.saengine-library-editor .form-message {
+	grid-column: 1 / -1;
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-library-editor .form-message:empty {
+	display: none;
+}
+
+.saengine-library-editor .form-field.invalid .form-message {
+	padding: 2px 0 4px;
+}
+
+/* what an entered override replaces, or a value derived from the field (a column's ρ) */
+.saengine-library-editor .form-note {
+	grid-column: 1 / -1;
+	padding: 1px 0 3px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-library-editor .form-note:empty {
+	display: none;
+}
+
+.saengine-library-editor .form-cell > .form-note {
+	flex-basis: 100%;
+}
+
+/* field help and code value hovers wrap between words, never inside one */
+.monaco-workbench .workbench-hover .hover-contents,
+.monaco-workbench .monaco-hover .markdown-hover > .hover-contents {
+	word-break: normal;
+	overflow-wrap: break-word;
+	hyphens: manual;
+	min-width: min(240px, 90vw);
+}
+
+/* the description behind a quiet "?", shown with the row's hover or focus */
+.saengine-library-editor .form-help {
+	flex: none;
+	font-size: 12px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	opacity: 0.55;
+	cursor: help;
+	transition: opacity 0.1s;
+}
+
+.saengine-library-editor .form-field:hover .form-help,
+.saengine-library-editor .form-field:focus-within .form-help {
+	opacity: 1;
+}
+
+.saengine-library-editor .form-control {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	width: 100%;
+	min-width: 0;
+}
+
+.saengine-library-editor .form-control > .monaco-inputbox,
+.saengine-library-editor .form-control > .monaco-select-box,
+.saengine-library-editor .form-control > .form-input-unit {
+	flex: 1;
+	min-width: 0;
+}
+
+/* one height for text fields and selects */
+.saengine-library-editor .form-control .monaco-select-box,
+.saengine-library-editor .form-cell .monaco-select-box,
+.saengine-library-editor .form-group-select .monaco-select-box,
+.saengine-library-editor .settings-project-type-select .monaco-select-box {
+	height: 26px;
+	/* text lines up with the text fields and stops short of the arrow */
+	padding: 0 22px 0 6px;
+	text-overflow: ellipsis;
+}
+
+.saengine-library-editor .form-input-unit {
+	position: relative;
+}
+
+.saengine-library-editor .form-input-unit .monaco-inputbox > .ibwrapper > .input {
+	padding-right: 52px;
+}
+
+.saengine-library-editor .form-unit {
+	position: absolute;
+	top: 50%;
+	right: var(--sa-space-2, 8px);
+	transform: translateY(-50%);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	pointer-events: none;
+}
+
+/* groups: a quiet heading and its fields */
+.saengine-library-editor .form-group {
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .form-group:first-child {
+	margin-top: 0;
+}
+
+.saengine-library-editor .form-group-header {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	min-height: 26px;
+	padding-bottom: var(--sa-space-1, 4px);
+	margin-bottom: var(--sa-space-1, 4px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-library-editor .form-group-title {
+	font-weight: 600;
+}
+
+/* a group chosen from alternatives (a profile shape): its selector sits in the field column */
+.saengine-library-editor .form-group-header:has(> .form-group-select) {
+	display: grid;
+	grid-template-columns: minmax(120px, 200px) minmax(160px, 300px);
+	column-gap: var(--sa-space-3, 12px);
+}
+
+.saengine-library-editor .form-group-select {
+	min-width: 0;
+}
+
+/* no indent: every field of a form shares one label column and one field column */
+.saengine-library-editor .form-group-body {
+	padding-left: 0;
+}
+
+/* nested groups: the heading in the muted small caps of the part sidebar */
+.saengine-library-editor .form-group-body .form-group-header,
+.saengine-library-editor .form-array-fields .form-group-header {
+	border-bottom: none;
+	padding-bottom: 0;
+	margin-bottom: 0;
+}
+
+.saengine-library-editor .form-group-body .form-group-title,
+.saengine-library-editor .form-array-fields .form-group-title {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-library-editor .form-group-body .form-group {
+	margin-top: var(--sa-space-3, 12px);
+}
+
+.saengine-library-editor .form-group-body .form-group-body {
+	padding-left: 0;
+}
+
+.saengine-library-editor .form-array-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sa-space-2, 8px);
+	padding: var(--sa-space-1, 4px) 0 var(--sa-space-1, 4px) var(--sa-space-3, 12px);
+	border-left: 2px solid var(--sa-border, var(--vscode-panel-border));
+	margin: var(--sa-space-1, 4px) 0;
+}
+
+.saengine-library-editor .form-array-fields {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-library-editor .form-array-add {
+	padding: var(--sa-space-1, 4px) 0;
+}
+
+.saengine-library-editor .form-array-add .monaco-button {
+	display: inline-flex;
+	width: auto;
+	padding: 2px var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .form-inline-array {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .form-inline-input {
+	width: 56px;
+}
+
+/* W4B-14: one check box per choice of a list of choices */
+.saengine-library-editor .form-inline-choice {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+	margin-right: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .form-inline-separator {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-library-editor .library-variant .monaco-select-box {
+	width: 100%;
+}
+
+/* small borderless icon buttons: remove a row, add or remove a part */
+.saengine-library-editor .form-icon-button {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: transparent;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	cursor: pointer;
+}
+
+.saengine-library-editor .form-icon-button:hover:not(:disabled) {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.saengine-library-editor .form-icon-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-library-editor .form-icon-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* keyboard focus on checkboxes and buttons of the form */
+.saengine-library-editor .library-form .monaco-custom-toggle:focus-visible,
+.saengine-library-editor .library-form .monaco-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* ── rule warnings from the Python models: inline and quiet ─────────────── */
+
+.saengine-library-editor .library-list-item .item-warning {
+	margin-left: auto;
+	color: var(--sa-warn, var(--vscode-problemsWarningIcon-foreground));
+}
+
+.saengine-library-editor .library-list-problems,
+.saengine-library-editor .library-problems.visible {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1, 4px);
+	padding: 2px 0 2px var(--sa-space-2, 8px);
+	margin: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	font-size: var(--sa-font-s, 12px);
+	border-left: 2px solid var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .library-problems {
+	display: none;
+	max-width: 640px;
+	margin: 0 0 var(--sa-space-3, 12px);
+}
+
+.saengine-library-editor .library-problem {
+	display: flex;
+	gap: var(--sa-space-2, 8px);
+	align-items: flex-start;
+	line-height: 18px;
+}
+
+.saengine-library-editor .library-problem .codicon {
+	flex: none;
+	font-size: 14px;
+	line-height: 18px;
+	color: var(--sa-warn, var(--vscode-problemsWarningIcon-foreground));
+}
+
+/* ── arrays of simple rows (grid lines, stories, area loads, bar groups) ─── */
+
+.saengine-library-editor .form-table {
+	display: grid;
+	justify-content: start;
+	align-items: center;
+	gap: var(--sa-space-1, 4px) var(--sa-space-2, 8px);
+	padding: var(--sa-space-1, 4px) 0;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.saengine-library-editor .form-table-header {
+	align-self: end;
+	font-size: var(--sa-font-s, 12px);
+	line-height: 16px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	/* Narrow number columns wrap their unit onto a second line instead of cutting it off. */
+	overflow-wrap: anywhere;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+}
+
+.saengine-library-editor .form-table .form-cell {
+	width: auto;
+	max-width: none;
+}
+
+.saengine-library-editor .form-table .form-cell.invalid {
+	flex-wrap: wrap;
+}
+
+.saengine-library-editor .form-cell > .form-message {
+	flex-basis: 100%;
+}
+
+.saengine-library-editor .form-table .form-cell > .monaco-inputbox,
+.saengine-library-editor .form-table .form-cell > .monaco-select-box {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-library-editor .form-table .form-cell-label {
+	display: none;
+}
+
+.saengine-library-editor .form-table-actions {
+	justify-self: start;
+}
+
+/* SL-11: a value that follows another (E from f'c) is shown muted, not like a typed one. */
+.saengine-library-editor .sa-derived input {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-style: italic;
+}
+
+.saengine-library-editor .library-fc-offer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+/* SL-8: a wide table (load combinations) keeps its rows on one line each, tighter, and scrolls sideways. */
+.saengine-library-editor .form-table.wide {
+	column-gap: var(--sa-space-1, 4px);
+	padding-bottom: var(--sa-space-2, 8px);
+}
+
+/*
+ * A table too wide for its column (schemaForm.ts stackWhenNarrow): each row becomes label/field
+ * pairs, the remove button closing the row, so nothing scrolls sideways.
+ */
+.saengine-library-editor .form-table.stacked {
+	grid-template-columns: minmax(64px, max-content) minmax(0, 300px) !important;
+	overflow-x: visible;
+}
+
+.saengine-library-editor .form-table.stacked .form-table-header {
+	display: none;
+}
+
+.saengine-library-editor .form-table.stacked .form-cell {
+	display: contents;
+}
+
+.saengine-library-editor .form-table.stacked .form-cell-label {
+	display: block;
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-library-editor .form-table.stacked .form-cell > .monaco-inputbox,
+.saengine-library-editor .form-table.stacked .form-cell > .monaco-select-box {
+	min-width: 0;
+}
+
+.saengine-library-editor .form-table.stacked .form-cell > .monaco-custom-toggle {
+	justify-self: start;
+}
+
+.saengine-library-editor .form-table.stacked .form-table-actions {
+	grid-column: 1 / -1;
+	justify-self: stretch;
+	display: flex;
+	justify-content: flex-end;
+	padding-bottom: var(--sa-space-1, 4px);
+	margin-bottom: var(--sa-space-1, 4px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-widget-border, transparent));
+}
+
+/* ── building model editor (buildingEditor.ts, structureEditor.ts) ── */
+
+.saengine-library-editor .building-editor {
+	flex: 1;
+	min-width: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding: 16px 24px 32px;
+}
+
+.saengine-library-editor .building-editor h2 {
+	margin: 0 0 4px;
+	font-size: 18px;
+	font-weight: 600;
+}
+
+.saengine-library-editor .building-intro {
+	max-width: 720px;
+	margin: 0 0 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .building-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 24px;
+	max-width: 720px;
+	margin: 8px 0 4px;
+	padding: 8px 12px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+
+.saengine-library-editor .building-summary .summary-label {
+	color: var(--vscode-descriptionForeground);
+	margin-right: 6px;
+}
+
+.saengine-library-editor .building-table {
+	display: grid;
+	grid-template-columns: repeat(4, auto);
+	justify-content: start;
+	gap: 4px 24px;
+	margin: 4px 0 16px;
+}
+
+.saengine-library-editor .building-table .header {
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .building-table .number {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-library-editor .building-actions {
+	display: flex;
+	gap: 8px;
+	margin: 8px 0 16px;
+}
+
+.saengine-library-editor .building-actions .monaco-button {
+	width: auto;
+	padding: 2px 10px;
+}
+
+/* building model: header, then the 3D view (or the summary tables) filling the editor */
+
+.saengine-library-editor .building-editor.building-3d {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+
+.saengine-library-editor .building-3d .building-header {
+	flex: none;
+	padding: 12px 24px 4px;
+}
+
+.saengine-library-editor .building-3d .building-title {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+}
+
+.saengine-library-editor .building-3d .building-title .building-intro {
+	margin: 0;
+}
+
+.saengine-library-editor .building-3d .building-actions {
+	margin: 8px 0 4px;
+	flex-wrap: wrap;
+}
+
+.saengine-library-editor .building-3d .building-status {
+	display: none;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	padding: 0 24px 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .building-3d .building-status.visible {
+	display: flex;
+}
+
+.saengine-library-editor .building-3d .building-status .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.saengine-library-editor .building-3d .building-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	border-top: 1px solid var(--vscode-editorGroup-border, transparent);
+}
+
+.saengine-library-editor .building-3d .building-summary-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0 24px 32px;
+}
+
+.saengine-library-editor .building-3d .hidden {
+	display: none;
+}
+
+.saengine-library-editor .building-3d .building-additions-view {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 4px 24px 32px;
+}
+
+.saengine-library-editor .building-3d .building-views {
+	display: flex;
+	gap: 0;
+	margin-left: 8px;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button {
+	border-radius: 0;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button:first-child {
+	border-radius: 2px 0 0 2px;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button:last-child {
+	border-radius: 0 2px 2px 0;
+}
+
+.saengine-library-editor .building-3d .building-views .monaco-button.active {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}
+
+/* the "Generate from BNBC 2020" button in the Load Combinations title, and the section's note */
+.saengine-library-editor .sa-form-page-title .settings-generate {
+	display: inline-block;
+	margin-left: var(--sa-space-3, 12px);
+	vertical-align: middle;
+	font-size: var(--sa-font-s, 12px);
+	font-weight: normal;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.saengine-library-editor .settings-generate .monaco-button {
+	padding: 2px 8px;
+}
+
+.saengine-library-editor .settings-section-note {
+	max-width: 760px;
+	margin-bottom: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-values-problem {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-values .sa-props-row.problem > .value > .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	font-size: 12px;
+	vertical-align: -2px;
+}
+
+.saengine-library-editor .settings-source-warning {
+	display: block;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-source-warning > .codicon {
+	margin-right: var(--sa-space-1, 4px);
+	vertical-align: -2px;
+}
+
+.saengine-library-editor .settings-source-action {
+	display: inline-block;
+	margin-top: var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .settings-source-action > .monaco-button {
+	width: auto;
+	padding: 2px 10px;
+}
+
+/* an entry's form keeps its fields, tables and their buttons together on a wide screen */
+.saengine-library-editor .library-detail .library-form {
+	max-width: 820px;
+}
+
+/* New/Edit beside the designed section field, and one-click fixes of a type the section contradicts */
+.saengine-library-editor .library-designed-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .library-designed-actions > .monaco-button,
+.saengine-library-editor .library-designed-fix > .monaco-button {
+	width: auto;
+	padding: 2px 10px;
+}
+
+.saengine-library-editor .library-designed-fix {
+	margin-left: var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .library-steel-ratio .library-problem {
+	grid-column: 1 / -1;
+}
+
+/* Project Settings > Code Values: the pack's values and the project's overrides */
+.saengine-library-editor .settings-code-values-heading {
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-1, 4px);
+	font-weight: 600;
+}
+
+.saengine-library-editor .settings-code-values-bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px);
+	margin: var(--sa-space-3, 12px) 0 var(--sa-space-2, 8px);
+}
+
+.saengine-library-editor .settings-code-values-table {
+	width: 200px;
+}
+
+.saengine-library-editor .settings-code-values-filter {
+	flex: 1 1 160px;
+	max-width: 320px;
+}
+
+.saengine-library-editor .settings-code-values {
+	display: grid;
+	grid-template-columns: minmax(160px, 2fr) minmax(70px, 1fr) minmax(90px, 1fr) auto;
+	column-gap: var(--sa-space-2, 8px);
+	row-gap: 2px;
+	align-items: center;
+}
+
+.saengine-library-editor .settings-code-values-row {
+	display: contents;
+}
+
+.saengine-library-editor .settings-code-values-row.header > span {
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-path {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+}
+
+/* SL-1: the value's name in words, its path small, its description and clause under it. */
+.saengine-library-editor .settings-code-values-label {
+	font-family: var(--vscode-font-family);
+	font-size: 13px;
+	margin-right: var(--sa-space-1, 4px);
+}
+
+.saengine-library-editor .settings-code-values-key {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.saengine-library-editor .settings-code-values-desc {
+	display: block;
+	font-family: var(--vscode-font-family);
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-group {
+	grid-column: 1 / -1;
+	margin-top: var(--sa-space-2, 8px);
+	font-weight: 600;
+}
+
+/* SL-1: the code pack's value shown in an empty field is plainly not an entry. */
+.saengine-library-editor .settings-code-values-input input::placeholder {
+	font-style: italic;
+	opacity: 0.55;
+}
+
+.saengine-library-editor .settings-code-values-row.overridden .settings-code-values-path {
+	font-weight: 600;
+}
+
+.saengine-library-editor .settings-code-values-row.overridden .settings-code-values-path::before {
+	content: '• ';
+	color: var(--vscode-textLink-foreground);
+}
+
+.saengine-library-editor .settings-code-values-pack {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+}
+
+.saengine-library-editor .settings-code-values-tag {
+	margin-left: var(--sa-space-1, 4px);
+	padding: 0 4px;
+	border-radius: 3px;
+	font-family: var(--vscode-font-family);
+	font-size: 11px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.saengine-library-editor .settings-code-values-problem {
+	grid-column: 1 / -1;
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-library-editor .settings-code-values > .sa-props-note {
+	grid-column: 1 / -1;
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../schemas/shellStructures.schema.json",
+  "$sources": [
+    "EN 1991-4:2006: 5.2.1 (Janssen pressures on filling of slender silos), 5.2.4.3.1 (discharge factors of Action Assessment Class 1), Annex E Table E.1 (stored solids), Annex A (γF 1.5); EN 1991-1-4:2005 Annex E.1.5.2 (vortex shedding, effective correlation length method), Table E.4 and E.5, Figure E.2 (clat,0), Annex F Table F.2 (δs), 7.9.2 Table 7.12 (pressure distribution around circular cylinders); cooling tower internal suction -0.5 SAEngine practice; see VERIFY.md"
+  ],
+  "source": "EN 1991-4 silo pressures, EN 1991-1-4 Annex E vortex shedding and 7.9 cylinder pressures",
+  "silos": {
+    "method": "janssen",
+    "solids": {
+      "wheat": {"label": "Wheat", "weight": 9.0, "phi": 30.0, "k": 0.54, "aK": 1.11, "mu": {"D1": 0.24, "D2": 0.38, "D3": 0.57}, "aMu": 1.16},
+      "maize": {"label": "Maize", "weight": 8.4, "phi": 31.0, "k": 0.53, "aK": 1.14, "mu": {"D1": 0.22, "D2": 0.36, "D3": 0.53}, "aMu": 1.24},
+      "cement": {"label": "Cement", "weight": 16.0, "phi": 30.0, "k": 0.54, "aK": 1.2, "mu": {"D1": 0.41, "D2": 0.46, "D3": 0.51}, "aMu": 1.07}
+    },
+    "dischargeHorizontal": 1.15,
+    "dischargeFriction": 1.1,
+    "loadFactor": 1.5
+  },
+  "chimneys": {
+    "method": "correlationLength",
+    "strouhal": 0.18,
+    "modeFactor": 0.13,
+    "kwMax": 0.6,
+    "lateral": [[10000, 0.7], [300000, 0.7], [500000, 0.2], [5000000, 0.2], [10000000, 0.3], [100000000, 0.3]],
+    "correlation": [6.0, 12.0, 12.0],
+    "damping": {"steelWelded": 0.012, "steelInsulated": 0.02, "concrete": 0.03},
+    "speedMargin": 1.25,
+    "airDensity": 1.25,
+    "kinematicViscosity": 1.5e-5,
+    "loadFactor": 1.5
+  },
+  "coolingTowers": {
+    "method": "cylinderDistribution",
+    "rows": [
+      {"reynolds": 500000, "alphaMin": 85, "cpMin": -2.2, "alphaA": 135, "cpBase": -0.4},
+      {"reynolds": 2000000, "alphaMin": 80, "cpMin": -1.9, "alphaA": 120, "cpBase": -0.7},
+      {"reynolds": 10000000, "alphaMin": 75, "cpMin": -1.5, "alphaA": 105, "cpBase": -0.8}
+    ],
+    "internal": -0.5,
+    "loadFactor": 1.5
+  },
+  "clauses": {
+    "code": "EN 1991-4 / EN 1991-1-4",
+    "silos": "EN 1991-4 5.2.1, 5.2.4.3.1, Annex E",
+    "chimneys": "EN 1991-1-4 Annex E.1.5.2",
+    "coolingTowers": "EN 1991-1-4 7.9.2, Table 7.12",
+    "damping": "EN 1991-1-4 Annex F, Table F.2"
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "SBC 301-2018: Chapters 11, 12 and 20 (the ASCE 7-16 form): site classes, Fa and Fv, SMS = Fa SS, SM1 = Fv S1, SDS = 2/3 SMS, SD1 = 2/3 SM1; the rest of the seismic rules as the base pack (ASCE 7-22, the same numbers)"
+  ],
+  "defaultSiteClass": "SD",
+  "siteClasses": {
+    "$replace": true,
+    "SA": {
+      "description": "Site class A: hard rock (vs30 above 1500 m/s)",
+      "vs30": [
+        1500,
+        null
+      ]
+    },
+    "SB": {
+      "description": "Site class B: rock (vs30 760-1500 m/s)",
+      "vs30": [
+        760,
+        1500
+      ]
+    },
+    "SC": {
+      "description": "Site class C: very dense soil and soft rock (vs30 360-760 m/s)",
+      "vs30": [
+        360,
+        760
+      ]
+    },
+    "SD": {
+      "description": "Site class D: stiff soil (vs30 180-360 m/s)",
+      "vs30": [
+        180,
+        360
+      ]
+    },
+    "SE": {
+      "description": "Site class E: soft clay soil (vs30 below 180 m/s)",
+      "vs30": [
+        null,
+        180
+      ]
+    },
+    "SF": {
+      "description": "Site class F: soils needing a site response analysis"
+    }
+  },
+  "designSpectrum": {
+    "multiPeriod": null,
+    "siteCoefficients": {
+      "fa": {
+        "points": [
+          0.25,
+          0.5,
+          0.75,
+          1.0,
+          1.25,
+          1.5
+        ],
+        "classes": {
+          "SA": [
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "SB": [
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9,
+            0.9
+          ],
+          "SC": [
+            1.3,
+            1.3,
+            1.2,
+            1.2,
+            1.2,
+            1.2
+          ],
+          "SD": [
+            1.6,
+            1.4,
+            1.2,
+            1.1,
+            1.0,
+            1.0
+          ],
+          "SE": [
+            2.4,
+            1.7,
+            1.3,
+            1.1,
+            0.9,
+            0.8
+          ]
+        }
+      },
+      "fv": {
+        "points": [
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6
+        ],
+        "classes": {
+          "SA": [
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "SB": [
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "SC": [
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.5,
+            1.4
+          ],
+          "SD": [
+            2.4,
+            2.2,
+            2.0,
+            1.9,
+            1.8,
+            1.7
+          ],
+          "SE": [
+            4.2,
+            3.3,
+            2.8,
+            2.4,
+            2.2,
+            2.0
+          ]
+        }
+      },
+      "clause": "Sec 11.4.3, Tables 11.4-1 and 11.4-2"
+    },
+    "clauses": {
+      "spectrum": "Sec 11.4.6, Figure 11.4-1",
+      "design": "Sec 11.4.4 and 11.4.5",
+      "sdc": "Sec 11.6, Tables 11.6-1 and 11.6-2",
+      "cs": "Sec 12.8.1.1",
+      "coefficients": "Sec 11.4.3, Tables 11.4-1 and 11.4-2"
+    }
+  },
+  "siteSpecificStudy": {
+    "clause": "Sec 11.4.8 and Sec 20.3.1"
+  }
+}

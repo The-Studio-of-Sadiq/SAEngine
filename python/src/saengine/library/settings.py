@@ -1,0 +1,4686 @@
+"""Project settings (``02 Project Settings/project-settings.json``): codes, occupancy, site and loads.
+
+Part 2 is upstream of the floor plan, the building model and the analysis: they read these
+settings and never write them. The code pack chosen here (``codePack``) is the governing code;
+its tables give the defaults and the lists the settings choose from (towns, area uses, structural
+systems, site classes: checked against the chosen pack when the settings are read,
+:func:`pack_choices`; the schema's lists are the default pack's, :mod:`saengine.library.code_data`,
+the editors' fallback), and every derived value can be overridden. Clause numbers left in the
+descriptions below are the default pack's (BNBC 2020).
+
+Units: kN/m² for area loads, m/s for wind speed.
+"""
+
+from __future__ import annotations
+
+import functools
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
+
+from saengine import units as units_lib
+from saengine.codes import context as code_context
+from saengine.codes.manifest import PACK_ID_PATTERN
+from saengine.codes.registry import DEFAULT_PACK, CodePack, CodePackError
+from saengine.library import code_data
+from saengine.library.labels import field_title
+from saengine.library.materials import Id
+from saengine.library.special_structures import (  # noqa: F401 - alpha 9 L9, the editors' $defs
+    Antenna,
+    Bridge,
+    BridgeBearing,
+    BridgeRating,
+    Chimney,
+    CoolingTower,
+    GirderPrestress,
+    GirderSection,
+    LatticeTower,
+    OffshoreStructure,
+    PipePoint,
+    PipeSupport,
+    PipingSystem,
+    Silo,
+    SpecialStructures,
+)
+
+SCHEMA_ID = "saengine.projectSettings/1"
+
+Pressure = Annotated[float, Field(ge=0, description="[kN/m²]")]
+
+
+def _choice(ids: list[str]) -> Any:
+    """A string id of one of the code pack's lists. Which ids are allowed is the pack's the
+    settings choose (:meth:`ProjectSettings._pack_lists`); the schema lists the default pack's,
+    the editors' fallback when the backend cannot say."""
+    return Annotated[str, WithJsonSchema({"type": "string", "enum": ids})]
+
+
+#: The code pack's towns (``locations``), and "custom".
+LocationId = _choice([*code_data.LOCATIONS, "custom"])
+#: The code pack's area uses (``areaLoads.uses``), and "custom".
+AreaUseId = _choice([*code_data.AREA_USES, "custom"])
+#: The code pack's seismic force-resisting systems (``seismic.systems``).
+SystemId = _choice(list(code_data.STRUCTURAL_SYSTEMS))
+#: The code pack's site classes (``seismic.siteClasses``).
+SiteClassId = _choice(list(code_data.SITE_CLASSES))
+#: C4: the code pack's wind exposures or terrain categories (``wind.exposures``).
+ExposureId = _choice(list(code_data.EXPOSURES))
+
+
+def _labels(names: list[str]) -> dict[str, Any]:
+    """Readable names of an enum's values for the editors (JSON Schema ``enumDescriptions``)."""
+    return {"enumDescriptions": names}
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid", populate_by_name=True, field_title_generator=field_title
+    )
+
+
+class ProjectInfo(_Model):
+    name: str = Field(min_length=1)
+    number: str | None = Field(default=None, title="Project number")
+    client: str | None = None
+    engineer: str | None = Field(default=None, title="Structural engineer")
+    address: str | None = None
+    language: Literal["en", "bn"] = Field(
+        default="en",
+        title="Language",
+        description="Language of the reports and drawings: labels, headings and notes, with "
+        "Bengali digits in Bangla. Units, symbols and code clause numbers stay as they are. "
+        "SAEngine's own screens follow the display language, which Project offers to match.",
+        json_schema_extra=_labels(["English", "বাংলা (Bangla)"]),
+    )
+
+
+class Codes(_Model):
+    """Deprecated: the design code is the code pack (codePack); the report states the labels of
+    its basis. Old files keep validating; the value is not read and not written back."""
+
+    general: Literal["BNBC 2020"] = Field(default="BNBC 2020", title="Loads and general")
+    concrete: Literal["BNBC 2020 Part 6 Chapter 6", "ACI 318-19"] = "BNBC 2020 Part 6 Chapter 6"
+    steel: Literal["BNBC 2020 Part 6 Chapter 10", "AISC 360-22"] = "BNBC 2020 Part 6 Chapter 10"
+    method: Literal["strength"] = Field(
+        default="strength", title="Design method", description="Strength design (LRFD)."
+    )
+
+
+class Occupancy(_Model):
+    use: Literal[
+        "residential",
+        "office",
+        "educational",
+        "healthcare",
+        "assembly",
+        "retail",
+        "industrial",
+        "storage",
+        "parking",
+        "mixed",
+    ] = Field(
+        default="residential",
+        title="Building use",
+        json_schema_extra=_labels(
+            [
+                "Residential",
+                "Office",
+                "Educational",
+                "Health care",
+                "Assembly",
+                "Retail",
+                "Industrial",
+                "Storage",
+                "Parking",
+                "Mixed use",
+            ]
+        ),
+    )
+    cycloneShelter: bool = Field(
+        default=False,
+        title="Cyclone shelter",
+        description="The building is a cyclone shelter: its live loads are never reduced where "
+        "the code pack says so (liveReduction.notReducedBuildings).",
+    )
+    category: Literal["I", "II", "III", "IV"] = Field(
+        default="II",
+        title="Occupancy category",
+        description="The default pack's Table 6.1.1.",
+        json_schema_extra=_labels(
+            [f"{k}: {v.description}" for k, v in code_data.OCCUPANCY_CATEGORIES.items()]
+        ),
+    )
+
+
+# ── B16: flood and surge, rain, helicopter landing areas and the other special loads ──
+def _flood_ids(key: str) -> tuple[list[str], list[str]]:
+    """(ids, labels) of the default code pack's flood table entries ``key`` (surge regions,
+    water level stations), for the editors' lists; the pack in force validates the choice."""
+    from saengine.codes.tables import builtin_table
+
+    rows = getattr(builtin_table("flood"), key)
+    return list(rows), [getattr(r, "name", k) for k, r in rows.items()]
+
+
+_SURGE_IDS, _SURGE_LABELS = _flood_ids("surgeRegions")
+_STATION_IDS, _STATION_LABELS = _flood_ids("waterLevels")
+SurgeRegionId = Literal[tuple(_SURGE_IDS)]  # type: ignore[valid-type]
+WaterLevelId = Literal[tuple(_STATION_IDS)]  # type: ignore[valid-type]
+
+
+class FloodSite(_Model):
+    """Flood and surge at the site: the loads Fa on the structure (hydrodynamic and wave
+    loads, in the wind's direction), the hydrostatic pressure and the buoyancy for the walls
+    and foundations, and the combinations of a flood or tidal surge zone."""
+
+    zone: Literal["none", "inland", "coastalRisk", "coastalHighRisk"] = Field(
+        default="none",
+        title="Flood zone",
+        description="Inland: riverine flood. Coastal: the cyclone storm surge risk areas of the "
+        "code's coastal map (risk area, or the high risk strip and the off-shore islands).",
+        json_schema_extra=_labels(
+            [
+                "Not in a flood or surge zone",
+                "Inland flood",
+                "Coastal risk area",
+                "Coastal high risk area",
+            ]
+        ),
+    )
+    groundLevel: float | None = Field(
+        default=None,
+        title="Ground level yg",
+        description="Elevation of the ground at the site [m above the datum of the water levels].",
+        json_schema_extra={"unitKind": "length"},  # W4A-19: shown in ft in US units
+    )
+    floodLevel: float | None = Field(
+        default=None,
+        title="Flood level",
+        description="Inland: the flood elevation of the return period the occupancy category "
+        "asks for [m above the datum]; coastal: a site-specific extreme water level yT that "
+        "replaces the location's.",
+        json_schema_extra={"unitKind": "length"},
+    )
+    surgeRegion: SurgeRegionId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Coastal region",
+        description="The coastal region of the design surge height at the sea coast hT.",
+        json_schema_extra=_labels(_SURGE_LABELS),
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance from the coast",
+        description="From the spring tide high-water limit on the sea coast [km].",
+    )
+    surgeHeight: float | None = Field(
+        default=None,
+        ge=0,
+        title="Surge height hs",
+        description="A site-specific maximum surge height [m] in place of the coastal region's.",
+    )
+    waterLevelStation: WaterLevelId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Water level location",
+        description="The nearest coastal location of the extreme surface water levels yT.",
+        json_schema_extra=_labels(_STATION_LABELS),
+    )
+    velocity: float | None = Field(
+        default=None,
+        gt=0,
+        title="Water velocity V",
+        description="Average velocity of the flood water [m/s]. Empty: the upper estimate "
+        "√(g ds) of the code (coastal); inland, no moving water.",
+    )
+    dragCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        title="Drag coefficient a",
+        description="Shape factor of the equivalent surcharge depth; empty: the code's least.",
+    )
+    saltWater: bool | None = Field(
+        default=None,
+        title="Salt water",
+        description="Unit weight of salt water. Empty: salt in coastal zones, fresh inland.",
+    )
+    floodOpenings: bool = Field(
+        default=False,
+        title="Openings for flood water",
+        description="The enclosed spaces below the flood level let water in and out (wet "
+        "floodproofing): reduced uplift and lateral loads; columns, not walls, take the waves. "
+        "Off: a dry floodproofed building, with buoyancy and the full hydrostatic pressure.",
+    )
+    waveCombination: Literal["pack", "sum", "larger"] = Field(
+        default="pack",
+        title="Moving water and breaking waves",
+        description="How the hydrodynamic load of moving water and the breaking wave load are "
+        "taken together in Fa: their sum (on the safe side; SAEngine practice where the code "
+        "gives no rule) or the larger of the two (per direction, by its total). Code pack: the "
+        "active pack's choice (the sum when it gives none).",
+        json_schema_extra=_labels(
+            [
+                "As the code pack says",
+                "Sum of the two (SAEngine practice, conservative)",
+                "Larger of the two",
+            ]
+        ),
+    )
+    groundElevation: float | None = Field(
+        default=None,
+        title="Ground in the model",
+        description="Elevation of the ground surface in the building model [mm]; empty: the "
+        "base of the model.",
+    )
+    channelWidth: float | None = Field(
+        default=None,
+        ge=0,
+        title="Upstream channel width",
+        description="Width of the upstream flow channel within 30 m of the building [m], for "
+        "the debris impact load; empty: no blockage reduction.",
+    )
+
+
+class RainSite(_Model):
+    """Rain on the roof with its primary drains blocked (case R)."""
+
+    depth: float | None = Field(
+        default=None,
+        ge=0,
+        title="Water depth to the secondary drains",
+        description="Depth of rainwater on the undeflected roof [mm] up to the inlet of the "
+        "secondary (overflow) drainage, or to the top of the parapet where there is none. "
+        "Empty: no rain case R.",
+    )
+    controlledDrainage: bool = Field(
+        default=False,
+        title="Controlled drainage",
+        description="The roof has controlled drainage: the code's allowance is added.",
+    )
+
+
+class SpectralSite(_Model):
+    """C1: the site's mapped spectral values (a pack whose ``seismic.designSpectrum`` method is
+    mappedSpectral, :mod:`saengine.fem.spectral_hazard`). Give SDS and SD1; or SMS and SM1
+    (the design share of the pack makes SDS, SD1); or the multi-period MCER spectrum. S1 sets
+    the lower bound of Cs near faults and the Seismic Design Category E/F; TL the long-period
+    branch."""
+
+    sds: float | None = Field(
+        default=None,
+        gt=0,
+        title="SDS",
+        description="Design spectral acceleration at short periods [g].",
+    )
+    sd1: float | None = Field(
+        default=None, gt=0, title="SD1", description="Design spectral acceleration at 1 s [g]."
+    )
+    sms: float | None = Field(
+        default=None,
+        gt=0,
+        title="SMS",
+        description="MCER spectral acceleration at short periods [g] (used when SDS is empty).",
+    )
+    sm1: float | None = Field(
+        default=None,
+        gt=0,
+        title="SM1",
+        description="MCER spectral acceleration at 1 s [g] (used when SD1 is empty).",
+    )
+    ss: float | None = Field(
+        default=None,
+        gt=0,
+        title="SS",
+        description="Mapped MCER acceleration at short periods [g] (for the report).",
+    )
+    s1: float | None = Field(
+        default=None,
+        gt=0,
+        title="S1",
+        description="Mapped MCER acceleration at 1 s [g]: the "
+        "near-fault lower bound of Cs and the categories E and F.",
+    )
+    tl: float | None = Field(
+        default=None,
+        gt=0,
+        title="TL",
+        description="Long-period transition period [s]. Empty: "
+        "no long-period branch (the spectrum stays SD1/T).",
+    )
+    designSpectrum: list[tuple[float, float]] = Field(
+        default_factory=list,
+        title="Multi-period design spectrum",
+        description="(T [s], Sa [g]) points of the site's multi-period design spectrum (5 % "
+        "damped): used for the response spectrum analysis instead of the two-period one.",
+    )
+    mcerSpectrum: list[tuple[float, float]] = Field(
+        default_factory=list,
+        title="Multi-period MCER spectrum",
+        description="(T [s], Sa [g]) points of the site's multi-period MCER spectrum: SDS and "
+        "SD1 from it by the code pack's rule when they are not given.",
+    )
+    # Alpha 9 C16: the near-source factors of packs whose spectrum is ubc97 (UBC-97 form).
+    sourceType: Literal["A", "B", "C"] | None = Field(
+        default=None,
+        title="Seismic source type",
+        description="Type of the nearest seismic source (A, B or C), for code packs with "
+        "near-source factors Na and Nv (the UBC 1997 form). Empty: not given.",
+    )
+    sourceDistance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance to the seismic source",
+        description="Closest distance to the known seismic source [km], for Na and Nv.",
+    )
+    na: float | None = Field(
+        default=None,
+        gt=0,
+        title="Na",
+        description="Near-source factor Na (replaces the one from the source type and distance).",
+    )
+    nv: float | None = Field(
+        default=None,
+        gt=0,
+        title="Nv",
+        description="Near-source factor Nv (replaces the one from the source type and distance).",
+    )
+
+
+class HazardSource(_Model):
+    """Alpha 9 C22: where the site's hazard values came from when they were looked up online by
+    the site's coordinates (:mod:`saengine.gis.hazard_lookup`): the service, the date, the
+    query sent and the values it gave, kept in the project so that reopening it needs no
+    network. The values applied are in their own fields (``site.spectral`` etc.) and stay
+    editable; the report names this source beside each value that still equals the service's."""
+
+    provider: str = Field(
+        min_length=1, title="Provider", description="The code pack's provider id."
+    )
+    service: str = Field(min_length=1, title="Service", description="The web service's name.")
+    publisher: str = Field(default="", title="Publisher")
+    reference: str = Field(
+        default="", title="Code edition", description="The edition the values are for."
+    )
+    codePack: str = Field(
+        default="", title="Code pack", description="The pack that named the provider."
+    )
+    date: str = Field(
+        min_length=1, title="Date", description="When the values were looked up (UTC, ISO 8601)."
+    )
+    url: str = Field(
+        default="", title="Request", description="The request sent (endpoint and query)."
+    )
+    query: dict[str, str] = Field(
+        default_factory=dict, title="Query", description="The query parameters sent."
+    )
+    values: dict[str, Any] = Field(
+        default_factory=dict,
+        title="Values given",
+        description="Settings field (site.spectral.sds, ...) -> the value the service gave, in "
+        "the field's unit (a spectrum: its (T, Sa) points).",
+    )
+    applied: list[str] = Field(
+        default_factory=list, title="Values applied", description="The fields the values went into."
+    )
+
+
+class SnowDrift(_Model):
+    """A roof step: the drift on the lower roof (reported, not applied to the model)."""
+
+    upperLength: float = Field(gt=0, title="Upper roof length lu", description="[m]")
+    lowerLength: float | None = Field(
+        default=None, gt=0, title="Lower roof length", description="[m], for the windward drift."
+    )
+    stepHeight: float = Field(
+        gt=0, title="Step height", description="Height from the lower roof to the upper [m]."
+    )
+    windParameter: float | None = Field(
+        default=None,
+        gt=0,
+        title="Winter wind parameter W2",
+        description="From the code's map; empty: the code pack's default.",
+    )
+
+
+class SnowSite(_Model):
+    """The snow load on the ground and the roof's conditions, for the roof snow of the code
+    pack's ``snow`` table (:mod:`saengine.fem.snow_load`; C4 and C1). The roof's pitch is Wind >
+    Cladding: roof form (flat: 0°)."""
+
+    groundLoad: float | None = Field(
+        default=None,
+        gt=0,
+        title="Ground snow load",
+        description="Snow load on the ground at the site [kN/m²] (sk of EN 1991-1-3, pg of ASCE "
+        "7: the code's snow map or tool). Empty: no snow, or the code pack's value of the "
+        "Snow zone and Site altitude where the pack has one.",
+    )
+    # Alpha 9 C15: the zone of a pack's ground snow rule (snow.groundLoad).
+    zone: str | None = Field(
+        default=None,
+        title="Snow zone",
+        description="The zone of the code's snow map (an id of the code pack's snow "
+        "zones, such as 2 or 1a) for the ground snow load by zone and the site altitude, where "
+        "the pack has that rule and no ground snow load is entered.",
+    )
+    exposure: str | None = Field(
+        default=None,
+        title="Snow exposure",
+        description="Exposure of the site and roof (an id of the code pack's snow exposures, "
+        "such as normal or C-partiallyExposed). Empty: the pack's default.",
+    )
+    thermal: float | None = Field(
+        default=None,
+        gt=0,
+        title="Thermal coefficient Ct",
+        description="Overrides the code pack's thermal coefficient (heated glass roofs, cold or "
+        "unheated buildings).",
+    )
+    slippery: bool = Field(
+        default=False,
+        title="Slippery roof",
+        description="An unobstructed slippery roof surface (packs whose slope factor depends on "
+        "it).",
+    )
+    drift: SnowDrift | None = Field(
+        default=None,
+        title="Drift at a roof step",
+        description="C1: a roof step for the drift of packs that cover drifts (reported, not "
+        "applied).",
+    )
+
+
+class Helipad(_Model):
+    """A helicopter landing or touch-down area."""
+
+    slabs: list[str] = Field(
+        default_factory=list,
+        description="Slabs of the landing area; empty: the roof slabs.",
+    )
+    weight: float = Field(default=0.0, ge=0, title="Helicopter weight W1", description="[kN]")
+    loadedWeight: float = Field(
+        default=0.0, ge=0, title="Fully loaded weight W2", description="[kN]"
+    )
+    gear: Literal["hydraulic", "rigid"] = Field(
+        default="rigid",
+        title="Landing gear",
+        json_schema_extra=_labels(["Hydraulic shock absorbers", "Rigid or skid-type landing gear"]),
+    )
+
+
+class ExplosionRoom(_Model):
+    """A room where a gas explosion is to be designed for (internal overpressure)."""
+
+    name: str = Field(min_length=1)
+    ventArea: float = Field(gt=0, title="Window area A0", description="[m²]")
+    volume: float = Field(gt=0, title="Room volume v", description="[m³]")
+
+
+class AirRaidShelter(_Model):
+    """An air raid shelter below the building (basement)."""
+
+    storeysAbove: int = Field(ge=0, title="Storeys above", description="Usable storeys above it.")
+    stableConstruction: bool = Field(
+        default=True,
+        title="Particularly stable construction",
+        description="Bearing structure of reinforced in-situ concrete.",
+    )
+    meanLive: float | None = Field(
+        default=None,
+        ge=0,
+        title="Mean live load above",
+        description="Mean live load of the storeys above [kN/m²]; empty: the floors' area load.",
+    )
+
+
+class Site(_Model):
+    location: LocationId = Field(  # type: ignore[valid-type]
+        default="dhaka",
+        description="District town of the code pack's hazard tables; sets the seismic zone "
+        "and the basic wind speed. Open the list and type the first letters to find a town; "
+        "elsewhere choose Custom and enter Z and V.",
+        json_schema_extra=_labels(
+            [
+                f"{v.name} (zone {v.zone}, Z {code_data.ZONE_COEFFICIENT[v.zone]:.2f}, "
+                f"V {v.wind_speed:g} m/s)"
+                for v in code_data.LOCATIONS.values()
+            ]
+            + ["Custom (enter Z and V)"]
+        ),
+    )
+    siteClassSource: Literal["soilReport", "entered"] = Field(
+        default="soilReport",
+        title="Site class source",
+        description="From the soil report: the governing (softest) site class of the boreholes "
+        "of 1 Soil Report; the entered class is used while the report gives none.",
+        json_schema_extra=_labels(["From the soil report", "Entered"]),
+    )
+    siteClass: SiteClassId = Field(  # type: ignore[valid-type]
+        default="SD",
+        title="Site class",
+        description="One of the code pack's site classes. Used when the source is Entered, or "
+        "while the soil report has no boreholes that give a class.",
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.SITE_CLASSES.items()]),
+    )
+    zoneCoefficient: float | None = Field(
+        default=None,
+        gt=0,
+        lt=1,
+        title="Seismic zone coefficient Z",
+        description="Overrides the location's value (the code pack's coefficient of the "
+        "location's seismic zone).",
+    )
+    windSpeed: float | None = Field(
+        default=None,
+        gt=0,
+        title="Basic wind speed",
+        description="Overrides the location's value [m/s] (the code pack's basic wind speed).",
+    )
+    # Alpha 9 C15: the site altitude for a pack's altitude factor (wind) and snow by altitude.
+    altitude: float | None = Field(
+        default=None,
+        ge=0,
+        title="Site altitude",
+        description="Altitude of the site above mean sea level [m], for code packs whose basic "
+        "wind velocity or ground snow load depends on it (National Annexes). Empty: 0 m.",
+    )
+    # C1: the mapped spectral values of packs whose design spectrum is mappedSpectral.
+    spectral: SpectralSite | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Mapped spectral values",
+        description="The site's design spectral accelerations from the hazard maps or tool of "
+        "the code (code packs whose seismic hazard is mapped, such as ASCE 7-22 Sec 11.4). A "
+        "pack with seismic zones ignores them.",
+    )
+    # Alpha 9 C22: the online lookup the mapped values came from (none: entered by hand).
+    hazardSource: HazardSource | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Hazard values looked up",
+        description="Where the hazard values came from when they were looked up online by the "
+        "site's coordinates (Look Up Hazard Values): the service, date and query. Values edited "
+        "afterwards are the engineer's; the report says which ones still equal the service's.",
+    )
+    # B16: flood and surge, rain and the other special loads.
+    flood: FloodSite = Field(default_factory=FloodSite, title="Flood and surge")
+    rain: RainSite = Field(default_factory=RainSite, title="Rain")
+    snow: SnowSite = Field(default_factory=SnowSite, title="Snow")
+    helipad: Helipad | None = Field(default=None, title="Helicopter landing area")
+    explosionRooms: list[ExplosionRoom] = Field(
+        default_factory=list,
+        title="Gas explosion rooms",
+        description="Rooms designed for an internal gas explosion (walls and floors).",
+    )
+    airRaidShelter: AirRaidShelter | None = Field(default=None, title="Air raid shelter")
+
+
+class AdjacentStructure(_Model):
+    name: str = Field(min_length=1, description="The adjacent building or unit.")
+    gap: float = Field(ge=0, title="Gap", description="Clear distance [mm] to it.")
+    displacement: float = Field(
+        default=0.0,
+        ge=0,
+        title="Its maximum displacement",
+        description="Its computed maximum horizontal displacement [mm] at the levels facing "
+        "this building (0: not known).",
+    )
+    sameProperty: bool = Field(
+        default=True,
+        title="Same property",
+        description="It belongs to the same property (another unit of this building). Not on "
+        "the same property, the gap counts to the property line.",
+    )
+    sameFloorLevels: bool = Field(
+        default=False,
+        title="Same floor levels",
+        description="Its floors are at the same elevations as this building's.",
+    )
+
+
+class Seismic(_Model):
+    system: SystemId = Field(  # type: ignore[valid-type]
+        default="rcSmf",
+        title="Structural system",
+        description="Seismic force-resisting system of the code pack. It gives R, Ω0 and Cd "
+        "and the seismic detailing of the members; it must be permitted in the Seismic Design "
+        "Category of the site.",
+        json_schema_extra=_labels([v.name for v in code_data.STRUCTURAL_SYSTEMS.values()]),
+    )
+    r: float | None = Field(
+        default=None,
+        gt=0,
+        title="Response reduction factor R",
+        description="Overrides the system's value.",
+    )
+    omega: float | None = Field(
+        default=None,
+        gt=0,
+        title="Overstrength factor Ω0",
+        description="Overrides the system's value.",
+    )
+    cd: float | None = Field(
+        default=None,
+        gt=0,
+        title="Deflection amplification Cd",
+        description="Overrides the system's value.",
+    )
+    # ── B2: combinations of systems, damping, drift table rows, diaphragms and separation ──
+    systemY: SystemId | None = Field(  # type: ignore[valid-type]
+        default=None,
+        title="Structural system in Y",
+        description="A different seismic force-resisting system along Y: its own R, Ω0 and Cd "
+        "apply in Y, with its limitations. Empty: the structural system above in both "
+        "directions.",
+        json_schema_extra=_labels([v.name for v in code_data.STRUCTURAL_SYSTEMS.values()]),
+    )
+    otherSystems: list[SystemId] = Field(  # type: ignore[valid-type]
+        default_factory=list,
+        title="Other systems in X",
+        description="Other seismic force-resisting systems that resist the forces along X "
+        "together with the structural system (beside it or in other storeys), other than a "
+        "dual system: R is the least of them, Cd and Ω0 the largest, and the most stringent "
+        "height limit applies. Without a system in Y they apply in Y too.",
+    )
+    otherSystemsY: list[SystemId] = Field(  # type: ignore[valid-type]
+        default_factory=list,
+        title="Other systems in Y",
+        description="The same along Y, with a structural system in Y.",
+    )
+    damping: float | None = Field(
+        default=None,
+        gt=0,
+        lt=0.5,
+        title="Viscous damping ratio ξ",
+        description="Damping of the structure as a ratio of critical (0.05 for 5 %). The design "
+        "spectrum is corrected by the code's damping factor η. Empty: the code's reference "
+        "damping (5 %, η = 1).",
+    )
+    driftTolerantFinishes: bool = Field(
+        default=False,
+        title="Finishes designed for the storey drift",
+        description="The interior walls, partitions, ceilings and exterior walls are designed to "
+        "accommodate the storey drifts: a building of few storeys may take the larger "
+        "allowable drift of the code's drift table.",
+    )
+    cantileverMasonryWalls: bool = Field(
+        default=False,
+        title="Masonry walls cantilevered",
+        description="Masonry shear walls cantilevered from their base, with negligible coupling "
+        "between them: the drift table's row for masonry cantilever shear walls.",
+    )
+    diaphragmDeflectionLimit: float | None = Field(
+        default=None,
+        gt=0,
+        title="Permissible diaphragm deflection",
+        description="In-plane deflection [mm] the elements attached to the floors (walls, "
+        "partitions, cladding) can take while keeping their integrity. The diaphragm "
+        "deflection is checked against it; empty: it is reported only.",
+    )
+    propertyLineGap: float | None = Field(
+        default=None,
+        ge=0,
+        title="Gap to the property line",
+        description="Least distance [mm] from the building to the property line. It must be at "
+        "least the building's computed maximum displacement.",
+    )
+    adjacent: list[AdjacentStructure] = Field(
+        default_factory=list,
+        title="Adjacent structures",
+        description="Other buildings or structurally independent units next to this one, for "
+        "the separation check against pounding.",
+    )
+    # ── B12: soft storeys ──
+    softStoreys: list[str] = Field(
+        default_factory=list,
+        title="Soft storeys",
+        description="Storeys (by name) to design as soft storeys besides those the stiffness "
+        "check finds: for example an open parking floor below storeys with infill walls, "
+        "which the analysis model leaves out.",
+    )
+    softStoreyDesign: Literal["factors", "dynamicInfill"] = Field(
+        default="factors",
+        title="Soft storey design",
+        description="factors: the soft storey's columns and beams take the code's factor on the "
+        "earthquake forces, its structural walls the wall factor. dynamicInfill: a dynamic "
+        "analysis with the infill walls and the members' inelastic deformation was done "
+        "outside SAEngine (the factors are not applied; the engineer is responsible for it).",
+        json_schema_extra=_labels(
+            ["Factors on the earthquake forces", "Dynamic analysis with infill (outside)"]
+        ),
+    )
+
+
+class CladdingRoof(_Model):
+    """The building's roof as the components-and-cladding figures see it (B14;
+    :func:`saengine.fem.loads.cladding_pressures`)."""
+
+    form: Literal[
+        "flat", "gable", "hip", "monoslope", "multispan", "sawtooth", "stepped", "arched", "dome"
+    ] = Field(
+        default="flat",
+        description="Roof form: its zones and coefficients come from the code pack's figure for "
+        "that form and angle.",
+        json_schema_extra=_labels(
+            [
+                "Flat",
+                "Gable",
+                "Hip",
+                "Monoslope",
+                "Multispan gable",
+                "Sawtooth",
+                "Stepped (flat, two levels)",
+                "Arched",
+                "Dome",
+            ]
+        ),
+    )
+    angle: float | None = Field(
+        default=None,
+        ge=0,
+        le=90,
+        title="Roof angle θ",
+        description="Angle of the roof plane from horizontal [°]; arched roofs: the slope at the "
+        "springline. Empty: 0 (flat).",
+    )
+    rise: float | None = Field(
+        default=None,
+        gt=0,
+        title="Rise ratio",
+        description="Arched roofs: rise to span r; domes: rise to diameter f/D.",
+    )
+    stepHeight: float | None = Field(
+        default=None,
+        gt=0,
+        title="Step height h1",
+        description="Stepped roofs: height of the upper part above the lower roof [m].",
+    )
+
+
+#: Alpha 9 L3: wind directions every this many degrees when neither the project nor the code
+#: pack's ``cfdWind`` table gives a step (SAEngine practice: 12 directions).
+CFD_DIRECTION_STEP = 30.0
+
+
+class CfdWind(_Model):
+    """Alpha 9 L3: the CFD wind tunnel (:mod:`saengine.fem.cfd_wind`): an OpenFOAM case per wind
+    direction around the building's envelope, run by the user's own OpenFOAM installation (not
+    part of SAEngine), and its surface pressures as storey forces. The results are
+    engineer-supplied: they need validation (a wind tunnel test) before design use."""
+
+    directions: list[float] = Field(
+        default_factory=list,
+        description="Wind directions [°]: where the wind blows to, counter-clockwise from the "
+        "model's +X (0° along +X, 90° along +Y). Empty: every direction step.",
+    )
+    directionStep: float | None = Field(
+        default=None,
+        gt=0,
+        le=90,
+        title="Direction step",
+        description="Directions every this many degrees [°] when none are listed. Empty: the "
+        "code pack's (30° where it gives none).",
+    )
+    roughness: float | None = Field(
+        default=None,
+        gt=0,
+        le=5,
+        title="Roughness length z0",
+        description="Aerodynamic roughness length z0 [m] of the approaching boundary layer. "
+        "Empty: the code pack's for the wind exposure (Project Settings > Wind).",
+    )
+    turbulence: Literal["kEpsilon", "kOmegaSST"] = Field(
+        default="kEpsilon",
+        title="Turbulence model",
+        description="The RANS turbulence model of the steady simulation.",
+        json_schema_extra=_labels(["k-ε (standard)", "k-ω SST"]),
+    )
+    cellsPerHeight: int = Field(
+        default=8,
+        ge=4,
+        le=40,
+        title="Cells per building height",
+        description="Background mesh cells over the building's height (the domain's cells are "
+        "cubes of H / this).",
+    )
+    surfaceLevel: int = Field(
+        default=3,
+        ge=0,
+        le=6,
+        title="Refinement at the building",
+        description="Levels of halving of the background cells at the building's surface "
+        "(snappyHexMesh).",
+    )
+    wakeLevel: int = Field(
+        default=1,
+        ge=0,
+        le=4,
+        title="Refinement around the building",
+        description="Levels of halving in a box around the building and its wake.",
+    )
+    maxCells: int = Field(
+        default=4_000_000,
+        ge=100_000,
+        title="Most background cells",
+        description="The background mesh is made coarser until it has at most this many cells.",
+    )
+    iterations: int = Field(
+        default=1500,
+        ge=100,
+        le=50_000,
+        description="Most iterations of the steady solver per direction.",
+    )
+    residual: float = Field(
+        default=1e-4,
+        gt=0,
+        lt=0.1,
+        title="Residual target",
+        description="The solver stops earlier once the pressure residual is below this.",
+    )
+    processors: int = Field(
+        default=1,
+        ge=1,
+        le=256,
+        description="Parallel processes of the solver (MPI); 1: serial.",
+    )
+    useInAnalysis: bool = Field(
+        default=False,
+        title="Use in the analysis",
+        description="The wind cases WX, WY (and the other directions as the wind variants "
+        "WXN, WYN, WX2, ...) take the CFD storey forces in place of the code's, scaled with the "
+        "code's design velocity pressure at the roof and at least the code pack's share of the "
+        "code's base shear. Engineer-supplied loads: validate them first.",
+    )
+
+
+class Wind(_Model):
+    exposure: ExposureId = Field(  # type: ignore[valid-type]
+        default="A",
+        description="Exposure category (6.2.9.3), or the terrain category of the code pack's "
+        "wind table.",
+        json_schema_extra=_labels([f"{k}: {v}" for k, v in code_data.EXPOSURES.items()]),
+    )
+    directionality: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Directionality factor Kd",
+        description="Overrides the code's value for buildings (the default pack's Table 6.2.12).",
+    )
+    topographic: float | None = Field(
+        default=None,
+        ge=1,
+        title="Topographic factor Kzt",
+        description="Overrides the code's value for flat terrain; above 1 on hills, ridges and "
+        "escarpments (the default pack's Sec 2.4.7).",
+    )
+    gust: float | None = Field(
+        default=None,
+        gt=0,
+        title="Gust effect factor G",
+        description="Overrides the code's value for every building (the default pack's Sec 2.4.8.1). "
+        "Left empty, a flexible building (natural frequency below 1 Hz) gets Gf of Sec 2.4.8.2 "
+        "from its modal frequency.",
+    )
+    naturalFrequency: float | None = Field(
+        default=None,
+        gt=0,
+        title="Natural frequency n1",
+        description="The building's fundamental natural frequency [Hz] for the gust-effect "
+        "factor (the default pack's Sec 2.4.8.2). Empty: from the modal analysis of the model, in each "
+        "wind direction.",
+    )
+    damping: float | None = Field(
+        default=None,
+        gt=0,
+        lt=0.2,
+        title="Damping ratio β",
+        description="Damping ratio of the gust-effect factor Gf (the default pack's Sec 2.4.8.2). "
+        "Empty: the code pack's (0.02, a concrete building; 0.01 for steel).",
+    )
+    enclosure: Literal["enclosed", "partiallyEnclosed", "open"] = Field(
+        default="enclosed",
+        title="Enclosure",
+        description="Enclosure classification for the internal pressure (GCpi) of the "
+        "components and cladding (the default pack's Sec 2.4.2 and Figure 6.2.5).",
+        json_schema_extra=_labels(
+            ["Enclosed (GCpi ±0.18)", "Partially enclosed (GCpi ±0.55)", "Open (GCpi 0)"]
+        ),
+    )
+    claddingArea: float | None = Field(
+        default=None,
+        gt=0,
+        title="Cladding effective wind area",
+        description="Effective wind area [m²] of the cladding element checked (a glazing panel, "
+        "a wall panel: span × the larger of its width and span/3). Empty: the smallest area "
+        "of the figures, the largest pressures.",
+    )
+    parapetHeight: float | None = Field(
+        default=None,
+        ge=0,
+        title="Parapet height",
+        description="Height of the roof parapet [m]. One of 0.9 m or more turns roof zone 3 "
+        "into zone 2; the parapet's own pressures are given too.",
+    )
+    openingArea: float | None = Field(
+        default=None,
+        gt=0,
+        title="Area of openings Aog",
+        description="Total area of openings in the envelope (walls and roof) [m²] of a "
+        "partially enclosed building with one unpartitioned large volume: reduces (GCpi) by "
+        "the code's Ri. Empty: no reduction.",
+    )
+    internalVolume: float | None = Field(
+        default=None,
+        gt=0,
+        title="Internal volume Vi",
+        description="Unpartitioned internal volume [m³] for Ri. Empty: from the model (the "
+        "volume under the roof of a clad special structure).",
+    )
+    claddingRoof: CladdingRoof = Field(
+        default_factory=lambda: CladdingRoof(),
+        title="Cladding: roof form",
+        description="The building's roof for the components and cladding pressures (the code "
+        "pack's roof figures by form and angle).",
+    )
+    openStructure: OpenStructureWind = Field(
+        default_factory=lambda: OpenStructureWind(),
+        title="Open structures",
+        description="Wind on the members of a special structure (trusses, frames, towers, "
+        "canopy frames, chimneys): F = qz·G·Cf·Af on each member (the code pack's other "
+        "structures).",
+    )
+    # B22: topography, the flexible building's eccentricity, rooftop equipment.
+    topography: WindTopography = Field(
+        default_factory=lambda: WindTopography(),
+        title="Topography",
+        description="An isolated hill, ridge or escarpment at the site: the topographic factor "
+        "Kzt at each height from the code pack's speed-up multipliers (unless Kzt is given "
+        "above).",
+    )
+    shearCentreDistance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Shear centre offset eR",
+        description="Distance between the floors' elastic shear centre and centre of mass [m] "
+        "of a flexible building (natural frequency below 1 Hz): its torsional eccentricity "
+        "follows the code pack's flexible-building formula. Empty: the rigid building's "
+        "eccentricity.",
+    )
+    rooftopEquipment: list[RooftopEquipment] = Field(
+        default_factory=list,
+        title="Rooftop equipment",
+        description="Tanks, plant, stair and lift rooms and similar structures on the roof: "
+        "their wind force (with the code pack's increase on low buildings) is added to the "
+        "roof level's wind.",
+    )
+    # Alpha 9 L3: the CFD wind tunnel (OpenFOAM installed by the user).
+    cfd: CfdWind | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="CFD wind tunnel",
+        description="Wind on the building's envelope by a steady CFD simulation (OpenFOAM, "
+        "installed separately) per wind direction: surface pressure coefficients, storey "
+        "forces, and optionally the wind cases from them. Empty: not used.",
+    )
+
+
+class WindTopography(_Model):
+    """A hill, ridge or escarpment at the site (the code pack's topographic effects; read by
+    :func:`saengine.fem.loads.topographic_terms`)."""
+
+    feature: Literal["none", "ridge", "escarpment", "hill"] = Field(
+        default="none",
+        title="Feature",
+        description="The topographic feature the building stands on or near.",
+        json_schema_extra=_labels(
+            ["None (flat terrain)", "2-D ridge", "2-D escarpment", "3-D axisymmetrical hill"]
+        ),
+    )
+    height: float | None = Field(
+        default=None,
+        gt=0,
+        title="Height H",
+        description="Height of the feature over the upwind terrain [m].",
+    )
+    length: float | None = Field(
+        default=None,
+        gt=0,
+        title="Half-height distance Lh",
+        description="Distance upwind of the crest to where the ground is half the feature's "
+        "height [m].",
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance from the crest x",
+        description="Horizontal distance from the crest to the building [m]. Empty: 0, at "
+        "the crest.",
+    )
+    side: Literal["upwind", "downwind"] = Field(
+        default="upwind",
+        title="Side of the crest",
+        description="Whether the building is upwind or downwind of the crest.",
+        json_schema_extra=_labels(["Upwind", "Downwind"]),
+    )
+    isolated: bool = Field(
+        default=True,
+        title="Isolated and unobstructed",
+        description="The feature is isolated, unobstructed upwind, protrudes above the "
+        "upwind terrain by a factor of two or more, and the building stands in its upper half "
+        "or near the crest. Off: no speed-up (Kzt 1).",
+    )
+
+
+class RooftopEquipment(_Model):
+    """A rooftop structure or piece of equipment (the code pack's chimneys, tanks and rooftop
+    equipment force coefficients)."""
+
+    name: str = ""
+    section: Literal["square", "polygonal", "round"] = Field(
+        default="square",
+        title="Cross-section",
+        description="Square or rectangular, hexagonal or octagonal, or round.",
+        json_schema_extra=_labels(["Square or rectangular", "Hexagonal or octagonal", "Round"]),
+    )
+    surface: Literal["moderatelySmooth", "rough", "veryRough"] = Field(
+        default="moderatelySmooth",
+        title="Surface (round)",
+        description="Surface of a round section; ribs and spoilers make it rough (D'/D 0.02) "
+        "or very rough (0.08).",
+        json_schema_extra=_labels(["Moderately smooth", "Rough", "Very rough"]),
+    )
+    sizeX: float = Field(
+        gt=0, title="Size along X", description="Plan size along X [m] (round: the diameter)."
+    )
+    sizeY: float = Field(
+        gt=0, title="Size along Y", description="Plan size along Y [m] (round: the diameter)."
+    )
+    height: float = Field(gt=0, title="Height", description="Height above the roof [m].")
+    count: int = Field(default=1, ge=1, title="Count", description="How many alike.")
+
+
+class OpenStructureWind(_Model):
+    """Wind on the members of a special structure by force coefficients (the default pack's Part 6 Sec
+    2.4, design wind loads on other structures: open signs and lattice frameworks, trussed
+    towers; :mod:`saengine.fem.open_wind`)."""
+
+    form: Literal["lattice", "squareTower", "triangularTower", "clad", "chimney", "none"] = Field(
+        default="lattice",
+        description="Lattice: an open framework (trusses, frames); towers: Cf of a trussed "
+        "tower's face; clad: a clad shed, vault or dome, the wall and roof pressures (with "
+        "internal pressure) on its panels, or with the enclosure open (a canopy, a free roof) "
+        "the free roof's net pressures; chimney: a chimney, stack or tank modelled as members, "
+        "Cf by its cross-section and h/D; none: no wind on special structures.",
+        json_schema_extra=_labels(
+            [
+                "Lattice framework",
+                "Square trussed tower",
+                "Triangular trussed tower",
+                "Clad building or canopy (pressures on its panels)",
+                "Chimney, stack or tank",
+                "None",
+            ]
+        ),
+    )
+    chimneySection: Literal["square", "squareDiagonal", "polygonal", "round"] = Field(
+        default="round",
+        title="Chimney: cross-section",
+        description="Cross-section of a chimney, stack or tank (form chimney).",
+        json_schema_extra=_labels(
+            [
+                "Square, wind normal to a face",
+                "Square, wind along the diagonal",
+                "Hexagonal or octagonal",
+                "Round",
+            ]
+        ),
+    )
+    chimneySurface: Literal["moderatelySmooth", "rough", "veryRough"] = Field(
+        default="moderatelySmooth",
+        title="Chimney: surface (round)",
+        description="Surface of a round chimney or tank.",
+        json_schema_extra=_labels(["Moderately smooth", "Rough", "Very rough"]),
+    )
+    method: Literal["allHeights", "lowRise"] = Field(
+        default="allHeights",
+        title="Clad: pressure method",
+        description="All heights: q·G·Cp of walls and roofs; low-rise: the combined (GCpf) of "
+        "low-rise buildings with their load patterns (where the building is low-rise).",
+        json_schema_extra=_labels(["All heights (Cp)", "Low-rise (GCpf)"]),
+    )
+    roof: Literal["planar", "arched", "dome"] = Field(
+        default="planar",
+        title="Clad: roof form",
+        description="Planar: flat, gable, hip or monoslope roofs; arched: a barrel vault or "
+        "arch roof; dome: a dome on a circular base.",
+        json_schema_extra=_labels(["Flat, gable, hip, monoslope", "Arched", "Dome"]),
+    )
+    solidity: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Solidity ratio ε",
+        description="Solid area over gross area of the face. Empty: from the model, in each "
+        "wind direction (the members' projected area over their projected outline).",
+    )
+    roundMembers: bool = Field(
+        default=False,
+        title="Rounded members",
+        description="Members are round (pipes, rods): the rounded-member coefficients.",
+    )
+    blockage: Literal["clear", "obstructed"] = Field(
+        default="clear",
+        title="Clad, open: wind flow under the roof",
+        description="An open clad structure (a canopy, a free roof; enclosure open) takes the "
+        "net pressures of free roofs: clear when at most half the space under the roof is "
+        "blocked (by goods, vehicles, walls), obstructed when more is.",
+        json_schema_extra=_labels(["Clear (≤ 50 % blocked)", "Obstructed (> 50 % blocked)"]),
+    )
+
+
+class CraneRunway(_Model):
+    """A bridge or monorail crane on a pair of runway beams (the code pack's ``cranes`` table;
+    :mod:`saengine.fem.cranes`). Weights are in kN, lengths in mm."""
+
+    id: Id
+    name: str = ""
+    kind: Literal["cabOperated", "remoteOperated", "pendantOperated", "handGeared", "monorail"] = (
+        Field(
+            default="pendantOperated",
+            description="Sets the impact and horizontal forces (the code pack's crane table).",
+            json_schema_extra=_labels(
+                [
+                    "Cab-operated bridge crane",
+                    "Remotely operated bridge crane",
+                    "Pendant-operated bridge crane",
+                    "Manually operated (hand-geared) crane",
+                    "Powered monorail",
+                ]
+            ),
+        )
+    )
+    capacity: float = Field(gt=0, description="Rated capacity [kN].")
+    bridgeWeight: float = Field(ge=0, title="Bridge weight", description="Crane bridge [kN].")
+    trolleyWeight: float = Field(
+        ge=0, title="Hoist and trolley weight", description="Hoist and trolley [kN]."
+    )
+    span: float = Field(gt=0, description="Between the rail centre lines [mm].")
+    hookApproach: float = Field(
+        default=1000,
+        ge=0,
+        title="Hook approach",
+        description="Closest the hook comes to a rail [mm].",
+    )
+    wheels: int = Field(default=2, ge=1, le=4, description="Wheels on each rail.")
+    wheelBase: float = Field(
+        default=3000, ge=0, title="Wheel base", description="Between the wheels on a rail [mm]."
+    )
+    runwaySpan: float = Field(
+        gt=0,
+        title="Runway beam span",
+        description="Between the columns (the bay), simply supported runway beams [mm].",
+    )
+    railLevel: float | None = Field(
+        default=None, title="Rail level", description="Top of the rail [mm], for the report."
+    )
+    beamType: Id | None = Field(
+        default=None,
+        title="Runway beam type",
+        description="Steel beam type of the runway beams, checked for the wheel loads; empty: "
+        "loads only.",
+    )
+    runwayAxis: Literal["X", "Y"] | None = Field(
+        default=None,
+        title="Runway direction",
+        description="Plan axis the runway beams run along; with both column lines, the crane "
+        "loads are applied to the frames as moving load cases. Empty: loads only.",
+    )
+    columnLineA: float | None = Field(
+        default=None,
+        title="Column line A",
+        description="Plan coordinate across the runway of the first line of crane columns [mm] "
+        "(y for a runway along X).",
+    )
+    columnLineB: float | None = Field(
+        default=None,
+        title="Column line B",
+        description="Plan coordinate across the runway of the second line of crane columns [mm]; "
+        "the rails are centred between the lines, 'span' apart (the bracket eccentricity).",
+    )
+    runwayStart: float | None = Field(
+        default=None,
+        title="Runway start",
+        description="Along the runway, first column coordinate it covers [mm] (empty: all).",
+    )
+    runwayEnd: float | None = Field(
+        default=None,
+        title="Runway end",
+        description="Along the runway, last column coordinate it covers [mm] (empty: all).",
+    )
+    fatigueCategory: str | None = Field(
+        default=None,
+        title="Fatigue stress category",
+        description="Stress category of the runway beam's governing detail (the code pack's "
+        "fatigue table, e.g. A, B, B', C, D, E, E', F). Empty: no fatigue check.",
+    )
+    cyclesPerDay: float = Field(
+        default=0,
+        ge=0,
+        title="Load cycles per day",
+        description="Crane passes (stress range fluctuations) a day, for the fatigue check.",
+    )
+    designLife: float = Field(
+        default=50,
+        gt=0,
+        title="Design life",
+        description="Years of service, for the number of fatigue cycles.",
+    )
+
+
+class Pushover(_Model):
+    """Nonlinear static (pushover) analyses of the frames and walls, with fiber sections."""
+
+    directions: list[Literal["X", "Y"]] = Field(
+        default_factory=lambda: ["X", "Y"], min_length=1, description="Directions to push in."
+    )
+    pattern: Literal["firstMode", "seismic", "uniform"] = Field(
+        default="firstMode",
+        title="Load pattern",
+        description="How the lateral load is spread over the height. The code pack names the "
+        "pattern its pushover method requires (the results flag another one).",
+        json_schema_extra=_labels(
+            [
+                "First mode (the fundamental mode's shape times the masses)",
+                "Seismic (the code's storey forces, growing with height)",
+                "Uniform (in proportion to the masses)",
+            ]
+        ),
+    )
+    fibreWalls: bool = Field(
+        default=True,
+        title="Fibre walls",
+        description="Reinforced concrete walls without openings become fibre wall elements "
+        "that crack and yield (one per storey, tied to the floors by rigid arms); off: walls "
+        "stay elastic shells.",
+    )
+    targetDrift: float = Field(
+        default=2.0,
+        gt=0,
+        le=10,
+        title="Target roof drift",
+        description="Roof displacement to push to, as a share of the height [%].",
+    )
+    steps: int = Field(default=100, ge=10, le=2000, description="Steps to the target drift.")
+
+
+class NonlinearHistory(_Model):
+    """B36: nonlinear time history analyses of the time histories above, with the frames and
+    walls as fibre elements (08 FEM/nonlinear-history.osmodel)."""
+
+    fibreWalls: bool = Field(
+        default=True,
+        title="Fibre walls",
+        description="Reinforced concrete walls without openings become fibre wall elements "
+        "(as in the pushover); off: walls stay elastic shells.",
+    )
+    damping: float | None = Field(
+        default=None,
+        ge=0,
+        le=0.3,
+        title="Damping ratio",
+        description="Damping ratio of the first mode [-], in proportion to the committed "
+        "stiffness. Empty: each time history's own.",
+    )
+    dampingModel: Literal["pack", "mode1Stiffness", "rayleigh"] = Field(
+        default="pack",
+        title="Damping model",
+        description="By the code pack: its damping for the nonlinear runs (the ratio above "
+        "still wins when given). First mode, stiffness: the ratio on the first mode in "
+        "proportion to the committed stiffness. Rayleigh: in proportion to the mass and the "
+        "committed stiffness, the ratio at the first mode and at the code pack's second period "
+        "(a fifth of the first when the pack gives none).",
+        json_schema_extra=_labels(
+            ["By the code pack", "First mode, stiffness proportional", "Rayleigh"]
+        ),
+    )
+    checkHinges: bool = Field(
+        default=True,
+        title="Hinges",
+        description="Where the code pack checks the members by hinges (its pushover hinges), "
+        "the runs keep the end sections' deformations so that each hinge's peak over the "
+        "record is read (a larger results file).",
+    )
+
+
+class TimeHistory(_Model):
+    """A ground acceleration record run as a time-history analysis."""
+
+    name: str = Field(min_length=1)
+    record: str = Field(
+        min_length=1,
+        title="Record file",
+        description="Acceleration record in the project folder, e.g. "
+        "'02 Project Settings/records/ElCentro.AT2': PEER .AT2, two columns (time, "
+        "acceleration; spaces or commas, a CSV file may start with a header line) or one value "
+        "per line. SAEngine bundles no third-party records: use records whose terms allow it.",
+    )
+    units: Literal["g", "m/s2"] = Field(
+        default="g",
+        description="Units of the record's accelerations.",
+        json_schema_extra=_labels(["g", "m/s²"]),
+    )
+    dt: float | None = Field(
+        default=None,
+        gt=0,
+        title="Time step",
+        description="Sampling interval [s] of a record with one value per line; the others "
+        "carry their own.",
+    )
+    direction: Literal["X", "Y"] = Field(default="X", description="Direction of the shaking.")
+    scale: float = Field(default=1.0, gt=0, description="Factor on the record's accelerations.")
+    damping: float = Field(
+        default=0.05, ge=0, le=0.3, description="Damping ratio of the first mode [-]."
+    )
+    # ── B19: suites, pairs and scaling to the code spectrum (saengine.fem.records) ──
+    recordOrthogonal: str | None = Field(
+        default=None,
+        title="Orthogonal component",
+        description="For a three-dimensional analysis: the other horizontal component of the "
+        "same event, a record file in the project folder like the first. The pair is applied "
+        "simultaneously, this one across the direction above, with one scale factor on both. "
+        "Empty: the record acts in its direction alone (a two-dimensional suite).",
+    )
+    scaling: Literal["auto", "code", "manual"] = Field(
+        default="auto",
+        title="Scaling",
+        description="Code: the suite of records in the same direction (or of pairs) is scaled "
+        "together so that its mean spectrum meets the code pack's criterion against the design "
+        "spectrum over its period range; the factor above is then not used. Manual: the "
+        "factor above. Automatic: Code when the earthquake design uses the time histories, "
+        "Manual otherwise.",
+        json_schema_extra=_labels(["Automatic", "To the code spectrum", "Manual factor"]),
+    )
+    # ── P5: the record's metadata (shown with the suite, not used in the analysis) ──
+    magnitude: float | None = Field(
+        default=None, gt=0, le=10, title="Magnitude Mw", description="Moment magnitude."
+    )
+    distance: float | None = Field(
+        default=None,
+        ge=0,
+        title="Distance R",
+        description="Source-to-site distance [km] (as the record's database gives it, e.g. "
+        "the rupture distance).",
+    )
+    vs30: float | None = Field(
+        default=None,
+        gt=0,
+        title="Vs30",
+        description="Time-averaged shear-wave velocity of the top 30 m at the station [m/s].",
+    )
+    source: str = Field(
+        default="",
+        title="Source and licence",
+        description="Where the record comes from and under which terms it may be used (e.g. "
+        "the database and its record number).",
+    )
+
+
+class Thermal(_Model):
+    """The temperature load case T (the default pack's Part 6 Sec 2.6.4; T in the combinations of Sec
+    2.7)."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Temperature case T",
+        description="Add the load case T: the members' restrained expansion or contraction and "
+        "the bending of a sun-heated roof. The code (the default pack) asks for temperature "
+        "effects where "
+        "significant, unless expansion joints relieve them (Part 6 Sec 2.6.4). With rigid floor "
+        "diaphragms, this case is analysed without them, so the floors can expand.",
+    )
+    uniform: float = Field(
+        default=20.0,
+        ge=-60,
+        le=60,
+        title="Uniform change ΔTu",
+        json_schema_extra={"unitKind": "temperatureChange"},
+        description="Change of the members' temperature from the construction temperature [°C], "
+        "+ expansion. The default pack gives no design range; take the site's range of shade air "
+        "temperature (Sec 2.6.4(a)). The combinations apply it as a rise (+T) and a fall (-T); "
+        "enter the larger. Suggestion for Bangladesh: 20 °C.",
+    )
+    gradient: float = Field(
+        default=10.0,
+        ge=-40,
+        le=40,
+        title="Roof gradient ΔTg",
+        json_schema_extra={"unitKind": "temperatureChange"},
+        description="Top face minus bottom face of the roof's beams and slabs [°C] (sun-heated "
+        "roof); 0 for none. Not given by the default pack; about 10 °C is a common assumption for an "
+        "uninsulated concrete roof.",
+    )
+    scope: Literal["roof", "all"] = Field(
+        default="roof",
+        title="Uniform change applies to",
+        description="The roof's beams and slabs (a sun-exposed roof over a shaded building), or "
+        "every member and shell (an open structure). The roof is every horizontal beam and "
+        "slab with nothing above it: the main roof and any stair, lift-machine or tank room "
+        "roof above it.",
+        json_schema_extra=_labels(["Roof beams and slabs", "All members and shells"]),
+    )
+
+
+FireHours = Literal[0, 1, 1.5, 2, 3, 4]
+
+
+class FireResistance(_Model):
+    """The least fire resistance ratings the members are checked for, on top of those of the
+    construction type (Construction); 0: the construction type's only."""
+
+    columns: FireHours = Field(
+        default=0,
+        title="Columns",
+        description="Rating of the columns at least [h] (0: the construction type's rating). "
+        "The authority may ask for more than the construction type for hazardous uses.",
+    )
+    beams: FireHours = Field(
+        default=0, title="Beams", description="Rating of the beams at least [h]."
+    )
+    slabs: FireHours = Field(
+        default=0, title="Slabs", description="Rating of the slabs at least [h]."
+    )
+    walls: FireHours = Field(
+        default=0, title="Walls", description="Rating of the structural walls at least [h]."
+    )
+
+
+# B18: the construction type and the concrete's aggregate type, generic settings that the fire
+# resistance checks (design/fire_resistance.py) and later the RC material rules and the site
+# planning checks read. The choices offered are those of the default code pack's
+# fireResistance table; a type another pack does not know is reported by the checks.
+def _construction_choices() -> tuple[list[str], list[str]]:
+    from saengine.codes.tables import builtin_table
+
+    types = builtin_table("fireResistance", DEFAULT_PACK).constructionTypes
+    return ["", *types], ["Not classified", *(t.label for t in types.values())]
+
+
+_CONSTRUCTION_IDS, _CONSTRUCTION_LABELS = _construction_choices()
+
+AggregateId = Literal["siliceous", "carbonate", "sandLightweight", "lightweight", "brick"]
+
+
+class Construction(_Model):
+    """How the building is built: its construction type (fire resistance) and the concrete's
+    coarse aggregate."""
+
+    constructionType: str = Field(
+        default="",
+        max_length=32,
+        title="Construction type",
+        description="Construction type by fire resistance (the code pack's fireResistance "
+        "table): it sets the ratings the columns, beams, slabs and walls are checked for. "
+        "Empty: not classified (only the ratings of Analysis model > Fire resistance).",
+        json_schema_extra={"enum": _CONSTRUCTION_IDS, "enumDescriptions": _CONSTRUCTION_LABELS},
+    )
+    aggregate: AggregateId = Field(
+        default="siliceous",
+        title="Concrete aggregate",
+        description="Type of the concrete's coarse aggregate: it sets the least concrete sizes "
+        "for a fire rating (siliceous is the least favourable) and, by the code pack, the "
+        "concrete's modulus Ec, its λ and the slabs' shrinkage and temperature steel (brick "
+        "chips: a lower Ec and more shrinkage steel). A concrete material's E that is still "
+        "the default follows it; an E you type is kept.",
+        json_schema_extra=_labels(
+            ["Siliceous", "Carbonate", "Sand-lightweight", "Lightweight", "Brick chips"]
+        ),
+    )
+    jointBars: Literal["auto", "x", "y", "sameLayer"] = Field(
+        default="auto",
+        title="Crossing beam bars at joints",
+        description="Where beams from two directions cross at a beam-column joint, which "
+        "direction is the main one (SAEngine practice; the code gives no rule). Top bars: the "
+        "secondary direction's go in the second layer, under the main one's, and its hogging d "
+        "is that bar diameter less. Bottom bars: the secondary direction's pass one main bar "
+        "diameter higher, over the main one's, and its sagging d is that much less. Auto: the "
+        "deeper beam is the main one; beams of equal depth: the plan direction with the longer "
+        "mean span. X or Y: that direction is the main one everywhere. Same layer: both at the "
+        "same level, top and bottom (flagged as a clash in the drawings).",
+        json_schema_extra=_labels(
+            [
+                "Auto (deeper beam, then longer spans)",
+                "X beams main",
+                "Y beams main",
+                "Same layer (flagged)",
+            ]
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_joint_top_bars(cls, data: Any) -> Any:
+        """The setting's former key 'jointTopBars' (named when it ordered only the top bars;
+        it now orders the bottom bars too) is read as 'jointBars'."""
+        if isinstance(data, dict) and "jointTopBars" in data:
+            former = data["jointTopBars"]
+            data = {k: v for k, v in data.items() if k != "jointTopBars"}
+            data.setdefault("jointBars", former)
+        return data
+
+    fireSeparation: float | None = Field(
+        default=None,
+        ge=0,
+        title="Fire separation distance [m]",
+        description="Distance of the exterior walls to the property line or the next building. "
+        "Given: the structural walls are checked for the larger of the interior and the "
+        "exterior bearing wall ratings. Empty: as interior bearing walls.",
+    )
+
+
+class SettlementSupport(_Model):
+    """A column base that settles in the settlement case ST."""
+
+    column: Id = Field(
+        title="Column", description="Column of the building model whose base settles."
+    )
+    value: float = Field(
+        gt=0, le=500, title="Settlement", description="Downward settlement of the base [mm]."
+    )
+
+
+class Settlement(_Model):
+    """The support settlement case ST: imposed settlements of column bases. The default pack's Part 6
+    counts differential settlement among the self-straining effects T of its load combinations
+    (Sec 2.7); ST takes T's factor."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Settlement case ST",
+        description="Add the load case ST: the listed column bases settle by the given amounts "
+        "(the differential settlement the soil report or 9 Substructure expects). Fixed bases "
+        "only (not with soil springs).",
+    )
+    supports: list[SettlementSupport] = Field(
+        default_factory=list,
+        title="Settling supports",
+        description="Column bases and their settlement.",
+    )
+
+
+class CastDay(_Model):
+    """The day a level's floor is cast (alpha 9 P2)."""
+
+    level: str = Field(min_length=1, description="The level's (storey's) name.")
+    day: float = Field(ge=0, description="Days from the start of construction.")
+
+
+class TimeDependent(_Model):
+    """Creep, shrinkage and column shortening (B25): the time-dependent shortening of the
+    concrete columns of a building built storey by storey, by the creep and shrinkage model of
+    the code pack in force (fem.concrete_time, fem.staged), worked out from the run."""
+
+    enabled: bool = Field(
+        default=False,
+        title="Column shortening",
+        description="Work out the elastic, creep and shrinkage shortening of every concrete "
+        "column line from the run, storey by storey in time, and the differential shortening "
+        "of the beams between them. Uses the construction sequence's stages when it is on.",
+    )
+    exposure: Literal["indoor", "outdoor"] = Field(
+        default="indoor",
+        description="Ambient exposure of the columns: the relative humidity and the "
+        "reinforced-section shrinkage coefficient of the code pack.",
+        json_schema_extra=_labels(["Indoor", "Outdoor"]),
+    )
+    relativeHumidity: float | None = Field(
+        default=None,
+        gt=0,
+        le=100,
+        title="Relative humidity",
+        description="Ambient relative humidity [%]. Empty: the code pack's value of the exposure.",
+    )
+    cycleDays: float = Field(
+        default=7.0,
+        gt=0,
+        le=365,
+        title="Floor cycle",
+        description="Days between casting one floor and the next.",
+    )
+    curingDays: float = Field(
+        default=7.0, ge=0, le=90, title="Curing", description="Days before drying starts."
+    )
+    superimposedAfterDays: float = Field(
+        default=90.0,
+        ge=0,
+        title="Finishes and occupancy",
+        description="Days after the frame is complete that the superimposed dead load and the "
+        "sustained live load are applied.",
+    )
+    sustainedLive: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        title="Sustained live share",
+        description="Share of the live load L that acts for long enough to creep.",
+    )
+    serviceLifeYears: float = Field(
+        default=30.0,
+        gt=0,
+        le=100,
+        title="Service life",
+        description="Years after completion the final shortening is worked out at (at most "
+        "the age the code pack's final creep is for).",
+    )
+    steelRatio: float = Field(
+        default=0.01,
+        ge=0,
+        le=0.08,
+        title="Column steel ratio",
+        description="Longitudinal steel ratio ρ of the columns for the transformed section and "
+        "the reinforced shrinkage (a lower ratio gives more shortening).",
+    )
+    waterContent: float | None = Field(
+        default=None,
+        gt=0,
+        title="Water content",
+        description="Free water of the mix [litre/m³]. Empty: the code pack's reference mix.",
+    )
+    # Alpha 9 P2: the analysis method, walls and cores, the construction days, the forces case.
+    method: Literal["pack", "superposition", "ageAdjusted"] = Field(
+        default="pack",
+        title="Analysis method",
+        description="How the shortening is worked out: the code pack's choice; superposition "
+        "of each load's creep (the steel restrains the elastic strain only); or the "
+        "age-adjusted effective modulus (the steel also restrains the creep and shrinkage).",
+        json_schema_extra=_labels(["Code pack's", "Superposition", "Age-adjusted modulus"]),
+    )
+    walls: bool = Field(
+        default=False,
+        title="Walls and cores",
+        description="Also work out the shortening of the shell walls and cores, storey by "
+        "storey from their membrane forces, and compare them with the columns beside them.",
+    )
+    wallSteelRatio: float = Field(
+        default=0.005,
+        ge=0,
+        le=0.08,
+        title="Wall steel ratio",
+        description="Vertical steel ratio ρ of the walls.",
+    )
+    strength: float | None = Field(
+        default=None,
+        gt=0,
+        title="Concrete strength",
+        description="f'c (fck) [MPa] for the creep and shrinkage models that depend on it. "
+        "Empty: each member's from its modulus by the code pack's Ec rule.",
+    )
+    castDays: list[CastDay] = Field(
+        default_factory=list,
+        title="Casting days",
+        description="The day a level's floor (and the storey below it) is cast, where it is "
+        "not the floor cycle's; the storey is loaded one cycle later.",
+    )
+    liveAfterDays: float | None = Field(
+        default=None,
+        ge=0,
+        title="Occupancy",
+        description="Days after the frame is complete that the sustained live load is applied. "
+        "Empty: with the finishes.",
+    )
+    finalDays: float | None = Field(
+        default=None,
+        gt=0,
+        title="Final time",
+        description="Days from the start of construction the final shortening is worked out at "
+        "(e.g. 10000). Empty: the service life after completion.",
+    )
+    forcesCase: bool = Field(
+        default=False,
+        title="Creep and shrinkage forces",
+        description="Add the load case CS: the creep and shrinkage strains of the columns and "
+        "walls after their floors are cast, stage by stage, as imposed strains on the model, "
+        "with the forces relaxed by the age-adjusted effective modulus. The combinations take "
+        "it with the code pack's factor (Reset Combinations adds them). Runs the gravity cases "
+        "once more while the model is derived.",
+    )
+
+
+class PDeltaFactors(_Model):
+    """Load factors of the gravity preload of the P-Delta analysis; each one not given is the
+    code pack's preload factor (1.0 when the pack gives none)."""
+
+    D: float = Field(default_factory=lambda: _preload("D"), ge=0, description="Dead load.")
+    SD: float = Field(
+        default_factory=lambda: _preload("SD"), ge=0, description="Superimposed dead load."
+    )
+    F: float = Field(
+        default_factory=lambda: _preload("F"),
+        ge=0,
+        description="Fluid loads (07 MEP equipment contents).",
+    )
+    L: float = Field(default_factory=lambda: _preload("L"), ge=0, description="Live load.")
+
+
+def _preload(case: str) -> float:
+    """The P-Delta preload factor of ``case`` of the code pack in force; 1.0 when it gives none."""
+    from saengine.fem.second_order import pdelta_factors
+
+    return float(pdelta_factors().get(case, 1.0))
+
+
+class Slenderness(_Model):
+    """How column slenderness is designed for (the default pack's Part 6 Sec 6.3.10)."""
+
+    effectiveLength: Literal["unity", "chart"] = Field(
+        default="unity",
+        title="Effective length factor k (nonsway)",
+        description="1.0: conservative, as the code pack allows. Chart: the nonsway alignment "
+        "chart with ψ from the code pack's cracked moments of inertia of columns, beams and "
+        "flat plates. Sway storeys always use the sway chart.",
+        json_schema_extra=_labels(["k = 1.0", "Alignment chart"]),
+    )
+    swayMagnifier: Literal["Q", "sumPc"] = Field(
+        default="Q",
+        title="Sway magnifier δs",
+        description="Q: δs = 1/(1 − Q) (the default pack's Part 6 Eq. 6.6.27), at most 1.5. ΣPc: δs = "
+        "1/(1 − ΣPu/(0.75 ΣPc)) (Eq. 6.6.28), Pc with EI/(1 + βdns) of each combination (Sec "
+        "6.3.10.7.4).",
+        json_schema_extra=_labels(["1/(1 − Q)", "ΣPu / ΣPc"]),
+    )
+    stiffness: Literal["0.4EcIg", "bars"] = Field(
+        default="0.4EcIg",
+        title="EI for Pc",
+        description="0.4 Ec Ig/(1 + βdns) (the default pack's Part 6 Eq. 6.6.22) or (0.2 Ec Ig + Es Ise)/"
+        "(1 + βdns) with the bars (Eq. 6.6.21).",
+        json_schema_extra=_labels(["0.4 Ec Ig", "0.2 Ec Ig + Es Ise (with the bars)"]),
+    )
+    fixedBasePsi: float = Field(
+        default=1.0,
+        ge=0,
+        title="ψ at a fixed base",
+        description="End restraint ψ of a column on a fixed support, for the alignment charts.",
+    )
+    driftFactor: float | None = Field(
+        default=None,
+        gt=0,
+        title="Storey drift factor for Q",
+        description="Empty (automatic): 1.0 when the analysed model ran its lateral cases on "
+        "cracked sections (read from the model, not from these settings); with gross sections "
+        "each storey's "
+        "first-order drift Δo is multiplied by its cracked-over-gross drift ratio (the code "
+        "pack's cracked moments of inertia, walls cracked). A number is used as given.",
+    )
+
+
+class ExtraMass(_Model):
+    """A weight added to the seismic mass of a story (equipment not modelled, a tank's water)."""
+
+    story: str | None = Field(
+        default=None, description="Id of the story it goes to (or give the elevation z)."
+    )
+    z: float | None = Field(default=None, title="Elevation z", description="[mm]")
+    weight: float = Field(gt=0, description="[kN]")
+    x: float | None = Field(
+        default=None, description="Plan position [mm]; empty: the story's centre of mass."
+    )
+    y: float | None = Field(default=None, description="[mm]")
+
+
+class MassSource(_Model):
+    """What forms the seismic weight W and the masses (the default pack's Part 6 Sec 2.5.7.3: the dead
+    load including partition walls, 25 % of the live load (50 % above 3 kN/m²) and permanent
+    equipment and retained liquid in full; how the partition allowance counts is the code
+    pack's ``seismic.partitionWeight`` unless ``partitions`` chooses)."""
+
+    dead: float = Field(default=1.0, ge=0, title="Dead load factor", description="On D.")
+    superimposed: float = Field(
+        default=1.0, ge=0, title="Superimposed dead factor", description="On SD."
+    )
+    liveShare: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Live load share",
+        description="Empty: the code's (25 %, 50 % for live loads above 3 kN/m²). A number "
+        "replaces both (the code's are minimums).",
+    )
+    partitions: Literal["pack", "full", "withLiveShare", "factor"] = Field(
+        default="pack",
+        title="Partition allowance in W",
+        description="How the area loads' partition allowance counts in the seismic weight. In "
+        "full: like the dead load (partition walls are part of W); the live load share and its "
+        "threshold use the floor live load without the allowance. With the live share: the "
+        "allowance counts as live load, the threshold judged on the live load and the "
+        "allowance together. A factor: the allowance times the partition factor below. Code "
+        "pack: the active pack's choice (in full when it gives none).",
+        json_schema_extra=_labels(
+            [
+                "As the code pack says",
+                "In full (like dead load)",
+                "With the live load share",
+                "A factor of my own",
+            ]
+        ),
+    )
+    partitionShare: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Partition factor",
+        description="Share of the partition allowance in W (0 to 1) when the allowance in W "
+        "is a factor of my own.",
+    )
+    extraMasses: list[ExtraMass] = Field(
+        default_factory=list, title="Extra masses", description="Weights added per story."
+    )
+
+
+class MaterialTest(_Model):
+    """P4: tests of one material of the existing building (03 Materials)."""
+
+    material: Id = Field(description="The material tested (an id of 03 Materials).")
+    kind: Literal["core", "rebound", "upv", "tensile"] = Field(
+        description="Concrete cores, rebound hammer, ultrasonic pulse velocity (concrete); "
+        "tensile tests of bar or steel samples.",
+        json_schema_extra=_labels(
+            ["Concrete cores", "Rebound hammer", "Ultrasonic pulse velocity", "Tensile tests"]
+        ),
+    )
+    values: list[Annotated[float, Field(gt=0)]] = Field(
+        min_length=1,
+        title="Results",
+        description="The strength of each test [MPa]: core strengths (corrected to standard "
+        "cylinders), the rebound or pulse velocity estimates, the bars' or steel's yield "
+        "strength.",
+    )
+    calibration: float | None = Field(
+        default=None,
+        gt=0,
+        description="Rebound and pulse velocity: the factor that turns their estimates into "
+        "core strengths (from cores taken beside them). Empty: they are shown, not used.",
+    )
+    location: str = Field(default="", description="Storey or members tested (for the report).")
+
+
+class MemberCondition(_Model):
+    """P4: the condition of members found on site: corrosion of the bars and weak concrete."""
+
+    members: list[Id] = Field(
+        min_length=1,
+        description="Members (ids of 06 BIM) or object types (ids of 04 Objects) it applies to.",
+    )
+    barLoss: float = Field(
+        default=0.0,
+        ge=0,
+        lt=0.9,
+        title="Bar area lost",
+        description="Share of the bars' area lost to corrosion (0.1 = 10 %), longitudinal and "
+        "transverse.",
+    )
+    concreteFactor: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="Concrete strength factor",
+        description="Share of the concrete strength left where it is deteriorated (1: sound).",
+    )
+    note: str = ""
+
+
+class RcJacket(_Model):
+    """P4: a reinforced concrete jacket on all four sides of a beam or column."""
+
+    kind: Literal["rcJacket"] = "rcJacket"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="Members jacketed (ids of 06 BIM).")
+    thickness: float = Field(gt=0, description="Jacket thickness on each face [mm].")
+    concrete: Id | None = Field(
+        default=None, description="The jacket's concrete (03 Materials); empty: the member's."
+    )
+    rebar: Id | None = Field(
+        default=None, description="The jacket's bars (03 Materials); empty: the member's."
+    )
+    bars: int = Field(default=8, ge=4, description="Added longitudinal bars (around).")
+    barDia: float = Field(default=16, gt=0, title="Bar diameter", description="[mm]")
+    tieDia: float = Field(default=10, gt=0, title="Tie diameter", description="[mm]")
+    tieSpacing: float = Field(default=100, gt=0, title="Tie spacing", description="[mm]")
+    cover: float = Field(default=40, gt=0, description="Clear cover to the jacket's ties [mm].")
+
+
+class FrpWrap(_Model):
+    """P4: externally bonded fibre-reinforced polymer on beams or columns."""
+
+    kind: Literal["frp"] = "frp"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="Members strengthened (ids of 06 BIM).")
+    purpose: Literal["confinement", "shear", "flexure"] = Field(
+        description="Confinement: a column wrapped all round (axial strength, ductility, "
+        "shear). Shear: wraps or strips across the member. Flexure: a laminate on the tension "
+        "face along the member.",
+        json_schema_extra=_labels(["Confinement (wrap)", "Shear", "Flexure (laminate)"]),
+    )
+    fibre: Literal["carbon", "glass", "aramid"] = "carbon"
+    exposure: Literal["interior", "exterior", "aggressive"] = "interior"
+    plies: int = Field(default=1, ge=1, le=10)
+    thickness: float = Field(gt=0, description="Thickness of one ply [mm].")
+    modulus: float = Field(gt=0, title="Tensile modulus Ef", description="[MPa]")
+    ruptureStrain: float = Field(
+        gt=0, lt=0.1, title="Rupture strain εfu*", description="The manufacturer's [-]."
+    )
+    scheme: Literal["fullWrap", "uWrap", "twoSides"] = Field(
+        default="fullWrap",
+        description="Shear: wrapped all round, a U on three sides, or on the two sides.",
+        json_schema_extra=_labels(["Full wrap", "U-wrap", "Two sides"]),
+    )
+    width: float | None = Field(
+        default=None, gt=0, description="Strips: their width [mm]; empty: continuous."
+    )
+    spacing: float | None = Field(
+        default=None, gt=0, description="Strips: their spacing [mm]; empty: continuous."
+    )
+    face: Literal["bottom", "top"] = Field(
+        default="bottom", description="Flexure: the face the laminate is on."
+    )
+    laminateWidth: float | None = Field(
+        default=None, gt=0, description="Flexure: the laminate's width [mm]; empty: the member's."
+    )
+    cornerRadius: float = Field(
+        default=25,
+        gt=0,
+        title="Corner radius",
+        description="Confinement of rectangular columns: the rounded corners' radius [mm].",
+    )
+
+
+class AddedMembers(_Model):
+    """P4: members added by the retrofit (new walls, braces or columns of 06 BIM): left out of
+    the as-built model and designed like any new member by the code pack's methods."""
+
+    kind: Literal["added"] = "added"
+    id: Id
+    members: list[Id] = Field(min_length=1, description="The added members (ids of 06 BIM).")
+    note: str = ""
+
+
+RetrofitMeasure = Annotated[RcJacket | FrpWrap | AddedMembers, Field(discriminator="kind")]
+
+
+class ChecklistAnswer(_Model):
+    """P4: the engineer's answer to one statement of the code pack's screening checklist."""
+
+    item: str = Field(min_length=1, description="The statement's id (the results list them).")
+    answer: Literal["C", "NC", "NA", "U"] = Field(
+        description="Compliant, non-compliant, not applicable, unknown.",
+        json_schema_extra=_labels(["Compliant", "Non-compliant", "Not applicable", "Unknown"]),
+    )
+    note: str = ""
+
+
+class NonlinearStability(_Model):
+    """Alpha 9 L4: nonlinear buckling of the steel frames with imperfections (GMNIA) and the
+    large-displacement analysis of cables, under one load combination (fem/nonlinear_stability.py,
+    by the code pack's nonlinearStability table)."""
+
+    combination: str | None = Field(
+        default=None,
+        description="The load combination followed (its name). Empty: the first one.",
+    )
+    imperfection: Literal["eigenmode", "equivalent", "none"] = Field(
+        default="eigenmode",
+        description="Eigenmode: the first buckling mode scaled to the code pack's amplitude. "
+        "Equivalent: the code pack's sway and member bow imperfections. None: the perfect "
+        "frame.",
+        json_schema_extra=_labels(
+            ["First buckling mode", "Equivalent sway and bow", "None (perfect frame)"]
+        ),
+    )
+    material: Literal["plastic", "elastic"] = Field(
+        default="plastic",
+        description="Plastic: steel members as fibre elements that yield (GMNIA). Elastic: "
+        "geometric nonlinearity only (GNIA).",
+        json_schema_extra=_labels(["Elastic-plastic steel (GMNIA)", "Elastic (GNIA)"]),
+    )
+    direction: Literal["X", "Y"] = Field(
+        default="X", description="Direction of the sway imperfection (equivalent)."
+    )
+    method: Literal["arcLength", "displacementControl"] | None = Field(
+        default=None,
+        title="Path method",
+        description="How the path is followed past λ = 1. Empty: the code pack's.",
+        json_schema_extra=_labels(["Arc length", "Displacement control"]),
+    )
+    steps: int | None = Field(
+        default=None,
+        ge=5,
+        le=5000,
+        description="Steps of the path at most. Empty: the code pack's.",
+    )
+    segments: int = Field(
+        default=4, ge=1, le=20, description="Pieces each frame element is cut into (to bow)."
+    )
+    curve: str | None = Field(
+        default=None,
+        title="Buckling curve",
+        description="The buckling curve whose bow ratio applies (a0, a, b, c, d where the "
+        "code pack gives them by curve). Empty: the code pack's default.",
+    )
+    bowRatio: float | None = Field(
+        default=None,
+        gt=0,
+        title="Bow ratio",
+        description="L / e0 of the bow. Empty: the code pack's.",
+    )
+    swayRatio: float | None = Field(
+        default=None,
+        gt=0,
+        title="Sway ratio",
+        description="1 / φ of the sway. Empty: the code pack's.",
+    )
+
+
+class ExistingBuilding(_Model):
+    """P4: the assessment of an existing building and its retrofit (fem/existing_building.py,
+    by the code pack's ``existing`` table): the knowledge level, the as-built strengths from
+    tests, the members' condition, the procedure and the retrofit measures."""
+
+    knowledgeLevel: str | None = Field(
+        default=None,
+        description="An id of the code pack's knowledge levels (ASCE 41: minimum, usual, "
+        "comprehensive; EN 1998-3: KL1-KL3). Empty: the pack's default.",
+    )
+    knowledgeFactor: float | None = Field(
+        default=None, gt=0, le=1, title="Knowledge factor κ", description="Empty: the level's."
+    )
+    confidenceFactor: float | None = Field(
+        default=None, ge=1, title="Confidence factor CF", description="Empty: the level's."
+    )
+    tests: list[MaterialTest] = Field(
+        default_factory=list,
+        title="Material tests",
+        description="Cores, rebound and pulse velocity estimates, tensile tests: the as-built "
+        "strengths. A material without tests takes its strength from the drawings (03 "
+        "Materials) with the pack's factors.",
+    )
+    conditions: list[MemberCondition] = Field(
+        default_factory=list, description="Corrosion and deterioration found on site."
+    )
+    procedure: Literal["linear", "nonlinear"] = Field(
+        default="linear",
+        description="Linear: the members' demands from the linear analysis with the code "
+        "pack's m-factors or chord rotations. Nonlinear: the pushover's hinges (Analysis "
+        "model, Pushover).",
+        json_schema_extra=_labels(["Linear", "Nonlinear (pushover)"]),
+    )
+    state: Literal["asBuilt", "retrofitted"] = Field(
+        default="asBuilt",
+        title="Model",
+        description="As built: the analysis model without the retrofit. Retrofitted: with the "
+        "jackets and the added members. Run both for the before and after comparison.",
+        json_schema_extra=_labels(["As built", "Retrofitted"]),
+    )
+    c1c2: float | None = Field(
+        default=None,
+        gt=0,
+        title="C1·C2",
+        description="Linear procedure: the modification factor of the pseudo-seismic force. "
+        "Empty: from the code pack's table by the period and the largest m.",
+    )
+    retrofit: list[RetrofitMeasure] = Field(
+        default_factory=list,
+        description="Concrete jackets, FRP wraps and laminates, added walls and braces.",
+    )
+    checklist: list[ChecklistAnswer] = Field(
+        default_factory=list,
+        title="Tier 1 checklist",
+        description="The answers to the code pack's screening statements (the results list "
+        "them with their ids); a statement not answered is shown as unknown.",
+    )
+
+
+#: Former ids of ``Analysis.patternLive`` and the ids they are read as.
+FORMER_PATTERN_LIVE = {"bnbc": "adjacent", "bnbcAlternateFloors": "adjacentAlternateFloors"}
+
+
+class FloorSpectra(_Model):
+    """Alpha 9 L5: floor (in-structure) response spectra at chosen floors
+    (:mod:`saengine.fem.floor_spectra`), by the code pack's ``floorSpectra`` table."""
+
+    method: Literal["pack", "timeHistory", "spectrumToSpectrum"] = Field(
+        default="pack",
+        description="From the run's time-history cases (the floors' acceleration histories) or "
+        "by the direct spectrum-to-spectrum method (the site's spectrum through the modes); "
+        "by the code pack: its default, the time history when the run has one.",
+        json_schema_extra=_labels(["By the code pack", "Time history", "Spectrum to spectrum"]),
+    )
+    stories: list[Id] = Field(
+        default_factory=list,
+        description="The stories (ids of the floor plan) to compute; empty: every floor.",
+    )
+    damping: list[float] = Field(
+        default_factory=list,
+        description="Component damping ratios [-]; empty: the code pack's.",
+    )
+    broadening: float | None = Field(
+        default=None,
+        ge=0,
+        lt=1,
+        description="Peak broadening ± share of the period; empty: the code pack's (±15 %).",
+    )
+    useForComponents: bool = Field(
+        default=False,
+        title="Use for the components",
+        description="The nonstructural components' forces follow from their floor's spectrum "
+        "(within the code's least and largest force) in place of the height formula.",
+    )
+
+
+class Analysis(_Model):
+    """How the analysis model (Part 8) represents the building."""
+
+    slabs: Literal["loadsToBeams", "shells"] = Field(
+        default="loadsToBeams",
+        description="Slabs on beams hand their loads to the beams (45° rule); flat slabs and "
+        "slabs whose bending matters are meshed as shells.",
+        json_schema_extra=_labels(
+            ["Loads to beams (slab not in the stiffness)", "Shells (plate bending, flat slabs)"]
+        ),
+    )
+    diaphragm: Literal["rigid", "flexible"] = Field(
+        default="rigid",
+        title="Floor diaphragm",
+        description="Rigid: every floor moves as a rigid plate in plan. Flexible: floors are as "
+        "stiff in plan as their beams (and shell slabs) make them.",
+        json_schema_extra=_labels(["Rigid", "Flexible (from the modelled elements)"]),
+    )
+    meshSize: float = Field(
+        default=500,
+        ge=100,
+        title="Mesh size",
+        description="Largest side of a shell element [mm], and with slabs as loads to beams the "
+        "largest beam element (the slabs' triangles and trapezoids are applied over it). 500 mm: "
+        "beams on shell slabs get their gravity moments "
+        "within about 5 % of a converged mesh.",
+    )
+    meshBySpan: bool = Field(
+        default=True,
+        title="Mesh by slab span",
+        description="Shell slabs meshed no coarser than their shorter span / 8 where that is "
+        "finer than the mesh size (at least 200 mm).",
+    )
+    meshCheck: bool = Field(
+        default=True,
+        title="Mesh convergence check",
+        description="Run All also solves the gravity cases on a mesh twice as coarse and warns "
+        "when a beam end moment changes by more than 5 % (the mesh is then too coarse).",
+    )
+    partitionLoads: Literal["architecture", "allowance"] = Field(
+        default="architecture",
+        title="Partition walls",
+        description="From the architecture: the walls drawn in Architecture load the beams and "
+        "slabs under them as line loads in their positions (the default pack's Part 6 Sec "
+        "2.2.5); the area load's partition allowance is dropped only on the stories where "
+        "interior partitions are drawn (a façade or perimeter wall does not replace it, and the "
+        "analysis notes say where it was dropped). With no architecture drawn the allowance "
+        "holds everywhere. Allowance: the walls are not applied and the area load's flat "
+        "partition allowance holds everywhere (Sec 2.3.6).",
+        json_schema_extra=_labels(
+            [
+                "From the architecture (the allowance stays until interior partitions are drawn)",
+                "Flat allowance (area load)",
+            ]
+        ),
+    )
+    partitionAllowanceCase: Literal["pack", "L", "SD"] = Field(
+        default="pack",
+        title="Partition allowance as",
+        description="Load case of the area loads' partition allowance (partitions not on the "
+        "plans): a live load L (factored, reduced and in the seismic weight as the floor live "
+        "load) or superimposed dead SD. Code pack: the active pack's choice (live load when it "
+        "gives none).",
+        json_schema_extra=_labels(
+            ["As the code pack says", "Live load (L)", "Superimposed dead load (SD)"]
+        ),
+    )
+    massLumping: Literal["storyLevels", "levelAbove"] = Field(
+        default="storyLevels",
+        title="Seismic mass",
+        description="Story levels: every node's weight goes to the nearest story level (to its "
+        "diaphragm), the lower half of the first story to the base, where it does not take part "
+        "(as the usual analysis programs lump it). Level above: every "
+        "weight counts for the first level above the base and its mass stays where it is.",
+        json_schema_extra=_labels(
+            ["Lumped at the story levels", "Each node's own (lower first story to level 1)"]
+        ),
+    )
+    massSource: MassSource = Field(
+        default_factory=lambda: MassSource(),
+        title="Mass source",
+        description="What forms the seismic weight W (the default pack's Part 6 Sec 2.5.7.3): factors on "
+        "the dead loads, the live load share and extra masses.",
+    )
+    accidentalEccentricity: bool = Field(
+        default=True,
+        title="Eccentric static earthquake cases",
+        description="Add the static cases EXP, EXN, EYP, EYN: EX and EY with the story masses "
+        "shifted across the force by the code pack's accidental eccentricity (a share of the "
+        "building's width). With equivalent static design, every E combination is checked "
+        "with both.",
+    )
+    windTorsionCases: bool = Field(
+        default=True,
+        title="Wind torsional cases",
+        description="Add the torsional wind cases WTX, WTY and design every one-direction wind "
+        "combination for the four design wind load cases of the code pack: full, partial "
+        "with torsion, both directions together, and both with both torsions (the shares and "
+        "eccentricities are the pack's). Off: Cases 1 and 3 only.",
+    )
+    patternLive: Literal["adjacent", "adjacentAlternateFloors", "alternate", "off"] = Field(
+        default="adjacent",
+        title="Live load arrangement",
+        description="The code pack's arrangement of live load (the default pack's Part 6 Sec "
+        "6.1.12.2): live load on two adjacent spans and on alternate spans of the column grid, "
+        "as extra cases LP1, LP2 ... enveloped with the full live load. Adjacent and alternate: "
+        "adjacent spans on each floor alone (one case per pair and floor) and alternate spans "
+        "as a checkerboard over the floors. Adjacent on alternate floors: fewer cases, support "
+        "moments up to about 2 % lower. Alternate spans only. Off: the full live load on every "
+        "span. The former values 'bnbc' and 'bnbcAlternateFloors' are read as 'adjacent' and "
+        "'adjacentAlternateFloors'.",
+        json_schema_extra=_labels(
+            [
+                "Adjacent and alternate spans (adjacent each floor, alternate checkerboard)",
+                "Adjacent on alternate floors (fewer cases)",
+                "Alternate spans only",
+                "Off (full live load only)",
+            ]
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _former_pattern_live(cls, data: Any) -> Any:
+        """The arrangement's former ids named after the code: 'bnbc' is read as 'adjacent' and
+        'bnbcAlternateFloors' as 'adjacentAlternateFloors'."""
+        if isinstance(data, dict) and data.get("patternLive") in FORMER_PATTERN_LIVE:
+            data = {**data, "patternLive": FORMER_PATTERN_LIVE[data["patternLive"]]}
+        return data
+
+    deflection: Literal["sensitive", "insensitive", "off"] = Field(
+        default="sensitive",
+        title="Beam deflection limits",
+        description="Beams are checked for deflection (the default pack's Part 6 Sec 6.2.5) unless they "
+        "are at least as deep as Table 6.6.1 asks: immediate live-load deflection l/360 "
+        "(l/180 roofs) and, after the nonstructural elements are attached, l/480 where they are "
+        "likely to be damaged (masonry partitions, the usual case) or l/240 where not "
+        "(Table 6.6.2). Off: not checked.",
+        json_schema_extra=_labels(
+            [
+                "Partitions likely to be damaged (l/480)",
+                "Not likely to be damaged (l/240)",
+                "Off",
+            ]
+        ),
+    )
+    sustainedLive: float = Field(
+        default=0.25,
+        ge=0,
+        le=1,
+        title="Sustained share of the live load",
+        description="Share of the live load taken as sustained for the long-term deflection "
+        "(an SAEngine assumption for residential and office floors; raise it for storage).",
+    )
+    liveLoadReduction: bool = Field(
+        default=False,
+        title="Live load reduction",
+        description="Reduce the live loads of beams and columns by the code pack's rule "
+        "(liveReduction): the floor live load by the influence area KLL AT, the ordinary roof "
+        "live load Lr by the tributary area and the roof slope. A member's design overwrite can "
+        "give its own factor.",
+    )
+    reducedLiveFactor: bool = Field(
+        default=False,
+        title="Reduced live load factor",
+        description="Take the code pack's permitted lower factor on L in the strength "
+        "combinations it names, where its conditions hold (the floor live loads and uses). "
+        "Applied when the load combinations are reset to the code's.",
+    )
+    roofSlope: float = Field(
+        default=0.0,
+        ge=0,
+        title="Roof slope",
+        description="Slope of a pitched roof in per cent (rise / run × 100), for the roof live "
+        "load by slope and its reduction; 0 for a flat roof.",
+    )
+    periodMethod: Literal["approximate", "analysis"] = Field(
+        default="approximate",
+        title="Period for the static base shear",
+        description="Approximate: Ta = Ct·hn^m (the default pack's Part 6 Eq. 6.2.38). Analysis: the "
+        "modal period of each direction, at most 1.4 Ta (Sec 2.5.7.2 (a)) and not below Ta.",
+        json_schema_extra=_labels(["Approximate Ta", "From the modal analysis (≤ 1.4 Ta)"]),
+    )
+    endOffsets: bool = Field(
+        default=True,
+        title="End offsets (rigid zones)",
+        description="Beams and columns end at the faces of their supports: the part inside a "
+        "joint is a rigid zone of the rigid zone factor times its length, and the forces are "
+        "also reported at the support faces, where the design takes them (beams at the column "
+        "faces, columns at the beam soffit and the top of the slab).",
+    )
+    rigidZoneFactor: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        title="Rigid zone factor",
+        description="Share of an end offset that is rigid (0: the whole length flexible, the "
+        "forces still read at the faces; 1: fully rigid). Concrete and other non-steel beams "
+        "and columns; steel ones take the steel factor below.",
+    )
+    steelRigidZoneFactor: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        title="Rigid zone factor (steel)",
+        description="Rigid zone factor of the beams and columns with a steel section. Empty: "
+        "the code pack's (its steel seismic practice; 0 in the default pack, SAEngine practice), "
+        "else 0: a centreline model, so the panel zones of steel moment frames deform in the "
+        "drift and are checked on their own.",
+    )
+    exactColumnRotation: bool = Field(
+        default=True,
+        title="Columns at any angle",
+        description="A column turned by an angle that is not a multiple of 90° is analysed and "
+        "designed on its own axes.",
+    )
+    responseSpectrum: bool = Field(
+        default=True,
+        title="Response spectrum",
+        description="Add response spectrum analyses in X and Y with the code pack's design "
+        "spectrum of the site (CQC of the modes).",
+    )
+    stiffness: Literal["gross", "aci"] = Field(
+        default="aci",
+        title="Section stiffness",
+        description="Cracked (default): concrete and masonry members with the code pack's "
+        "cracked moments of inertia of columns, walls (uncracked or cracked), beams, flat "
+        "plates and slabs (area: the gross area). The code asks the response spectrum model "
+        "to consider the effects of cracked sections, and uses these properties for the "
+        "lateral deflections. Gross: the uncracked sections (the model is then too stiff: periods come "
+        "out shorter and drifts smaller than the code intends).",
+        json_schema_extra=_labels(["Gross sections", "Cracked (the code pack's factors)"]),
+    )
+    crackedFor: Literal["all", "lateral"] = Field(
+        default="lateral",
+        title="Cracked stiffness for",
+        description="Lateral cases: wind, earthquake, modal, response spectrum and time "
+        "histories on the cracked sections, the gravity cases on the gross ones. All cases: "
+        "the model's sections are the cracked ones (as property modifiers on the sections).",
+        json_schema_extra=_labels(["All cases", "Lateral cases only"]),
+    )
+    wallsCracked: bool = Field(
+        default=False,
+        title="Walls cracked",
+        description="Walls at the code pack's cracked moment of inertia instead of the "
+        "uncracked one.",
+    )
+    secondOrder: Literal["none", "pDelta"] = Field(
+        default="none",
+        title="Second-order analysis",
+        description="None: columns are designed for slenderness by moment magnification (the default pack's "
+        "Part 6 Sec 6.3.10.6 and 6.3.10.7). P-Delta: the columns get P-Delta "
+        "transformations and every case is solved on the stiffness of the structure under "
+        "the gravity preload (the default pack's Part 6 Sec 2.5.7.9, 6.3.10.4), so the sway magnifier δs "
+        "is 1 and only the effects along the column length (δns) are added (Sec 6.3.10.2.2).",
+        json_schema_extra=_labels(["None (moment magnification)", "P-Delta analysis"]),
+    )
+    pDeltaFactors: PDeltaFactors | None = Field(
+        default=None,
+        title="P-Delta preload factors",
+        description="The gravity loads the P-Delta stiffness is taken under. Empty: the code "
+        "pack's preload factors (the gravity part of its seismic strength combination).",
+    )
+    firstOrderReference: bool = Field(
+        default=True,
+        title="First-order reference cases",
+        description="With P-Delta, also run each lateral static case first order (EX-1, ...), "
+        "for the drift amplification and the stability coefficient θ of the default pack's Part 6 Sec "
+        "2.5.7.9 in the report.",
+    )
+    notionalLoads: Literal["none", "secondOrder", "firstOrder", "directAnalysis"] = Field(
+        default="none",
+        title="Steel stability design method",
+        description="How steel frames are designed for stability (the code pack's steel "
+        "stability rules), with lateral notional loads Ni at each level as the cases NXD, NYD "
+        "(from D and SD), NXL, NYL (from L) and NXLr, NYLr (from Lr), scaled in each "
+        "combination by its own factors. Second-order analysis: Ni a share of Yi in the "
+        "gravity-only combinations, in ±X and ±Y. First-order analysis: Ni from the drift "
+        "ratio Δ/L, at least a share of Yi, in every combination (with the lateral load's "
+        "direction; gravity-only ones in ±X and ±Y), members with K = 1. Direct analysis "
+        "method: a P-Delta analysis on the reduced axial and flexural stiffness of the steel "
+        "members, Ni a share of Yi in every combination, and every steel member checked with "
+        "K = 1; required by the code where the second-order drift exceeds the first-order "
+        "drift by more than its limit. The shares, factors and limit are the code pack's.",
+        json_schema_extra=_labels(
+            [
+                "None",
+                "Second-order analysis",
+                "First-order analysis (Δ/L)",
+                "Direct analysis method (reduced stiffness, K = 1)",
+            ]
+        ),
+    )
+    notionalDrift: float = Field(
+        default=0.0,
+        ge=0,
+        le=0.05,
+        title="First-order drift ratio Δ/L",
+        description="First-order analysis: the largest storey drift ratio under the strength "
+        "load combinations, for Ni = 2.1 (Δ/L) Yi (at least 0.0042 Yi). 0: the minimum.",
+    )
+    directAnalysisTau: Literal["additive", "checked"] = Field(
+        default="additive",
+        title="Direct analysis: τb",
+        description="τb of the reduced flexural stiffness 0.8 τb EI. Additive: τb = 1 for "
+        "every member with the additive notional load 0.001 Yi on top of 0.002 Yi, valid "
+        "whatever the axial forces. Checked: τb = 1 without the additive load, and each steel "
+        "column is checked for αPr <= 0.5 Py, where τb = 1 holds (a column above it fails: "
+        "use Additive or a heavier section).",
+        json_schema_extra=_labels(
+            ["τb = 1 with the additive notional load", "τb = 1, checked per column"]
+        ),
+    )
+    directAnalysisNotional: Literal["allCombinations", "gravityOnly"] = Field(
+        default="allCombinations",
+        title="Direct analysis: notional loads in",
+        description="All combinations: the notional loads are added to every combination, "
+        "in the direction of its lateral load (the gravity-only ones in ±X and ±Y). "
+        "Gravity-only combinations: allowed where the second-order drift is at most 1.5 times "
+        "the first-order drift, which the design then checks.",
+        json_schema_extra=_labels(["All combinations", "Gravity-only combinations"]),
+    )
+    slenderness: Slenderness = Field(default_factory=Slenderness, title="Column slenderness")
+    seismicDesign: Literal["static", "responseSpectrum", "timeHistory"] = Field(
+        default="responseSpectrum",
+        title="Earthquake design forces",
+        description="Response spectrum: when the response spectrum cases run, E in the design "
+        "combinations is the response spectrum, scaled up to 85 % of the equivalent static base "
+        "shear (the default pack's Part 6 Sec 2.5.9.4), with the accidental torsion and the orthogonal "
+        "rule below (the static cases EX and EY otherwise). Static: the equivalent static cases "
+        "EX and EY. Linear time history: E is the design value over the suite of time "
+        "histories (the largest response, or the mean from the number of records the code "
+        "pack names), scaled up to the equivalent static base shear, with the accidental "
+        "torsion; it needs the response spectrum cases too (torsional irregularity, walls), "
+        "and a direction without a complete suite keeps the response spectrum.",
+        json_schema_extra=_labels(
+            [
+                "Equivalent static (EX, EY)",
+                "Response spectrum, scaled to the static base shear",
+                "Linear time history, scaled",
+            ]
+        ),
+    )
+    timeHistoryPeriod: float | None = Field(
+        default=None,
+        gt=0,
+        title="Time history: period T",
+        description="The fundamental period [s] the records are scaled for (the period range "
+        "of the code pack is a share of it). Empty: the approximate period Ta of each "
+        "direction when the model is made; the design then checks the suite again with the "
+        "modal period and scales it up if the criterion is not met.",
+    )
+    timeHistoryScaling: Literal["individual", "uniform"] = Field(
+        default="individual",
+        title="Time history: suite scaling",
+        description="Individual: each record (or pair) is first fitted to the design spectrum "
+        "over the period range, then one factor lifts the suite to the criterion. Uniform: one "
+        "factor on every record as recorded.",
+        json_schema_extra=_labels(["Fitted, then one factor", "One factor"]),
+    )
+    timeHistoryModification: Literal["pack", "amplitude", "matching"] = Field(
+        default="pack",
+        title="Time history: modification",
+        description="How the records scaled to the code spectrum are brought to it. By the "
+        "code pack: its choice for each procedure (linear, nonlinear). Amplitude scaling: one "
+        "factor per record (or pair) over the period range. Spectral matching: each record "
+        "adjusted until its spectrum matches the target over the range (the code pack's "
+        "matching method and its criterion for matched records), written to 08 FEM/matched-"
+        "records.",
+        json_schema_extra=_labels(["By the code pack", "Amplitude scaling", "Spectral matching"]),
+    )
+    timeHistoryMatching: Literal["pack", "frequencyDomain"] = Field(
+        default="pack",
+        title="Time history: matching method",
+        description="The spectral matching method: the code pack's, or matching in the "
+        "frequency domain (the Fourier amplitudes adjusted by the ratio of the target to the "
+        "record's spectrum, with a baseline correction).",
+        json_schema_extra=_labels(["By the code pack", "Frequency domain"]),
+    )
+    seismicOrthogonal: Literal["auto", "always", "never"] = Field(
+        default="auto",
+        title="Orthogonal effects",
+        description="Automatic: each direction's earthquake with the code pack's share of the "
+        "other direction's (E = EX + a EY and a EX + EY) in Seismic Design Category D; one "
+        "direction at a time in B and C. Always: also for a Category C building with "
+        "non-parallel systems (irregularity type V).",
+        json_schema_extra=_labels(["By the Seismic Design Category", "Always", "Never"]),
+    )
+    seismicAccidentalTorsion: bool = Field(
+        default=True,
+        title="Accidental torsion",
+        description="Add the static torsional moments of the code pack's accidental "
+        "eccentricity (± a share of the building's width L times the floor force F) at each "
+        "floor to the response spectrum; amplified by Ax where the building is torsionally "
+        "irregular in Seismic Design Category C or D; with orthogonal effects the shift in one "
+        "direction at a time, the larger effect governing.",
+    )
+    seismicVerticalComponent: bool = Field(
+        default=True,
+        title="Vertical earthquake component",
+        description="E = Eh ± Ev with Ev from the code pack's vertical factor on a_h D (a_h "
+        "the pack's share of Z S).",
+    )
+    seismicLiveFactor: float | None = Field(
+        default=None,
+        ge=0,
+        title="Live load factor with E",
+        description="Factor on L in the strength combination with E. Empty: the project's own "
+        "static earthquake combination's (the code pack may permit a lower factor for light "
+        "live loads, see its combination notes).",
+    )
+    seismicRedundancy: float = Field(
+        default=1.0,
+        ge=1.0,
+        le=1.3,
+        title="Redundancy factor ρ (drift)",
+        description="The allowable storey drift of moment frames in Category D is Δa/ρ (the "
+        "code pack's redundancy factor): 1.0, or more for low redundancy.",
+    )
+    seismicSigns: Literal["corners", "plusMinus"] = Field(
+        default="corners",
+        title="Response spectrum signs",
+        description="Response spectrum results have no sign: the design takes ± the envelope, "
+        "every force component at its peak. Corners: columns and walls checked at ±N, ±My, ±Mz "
+        "(8 patterns). ±: +E and −E only.",
+        json_schema_extra=_labels(["±N, ±My, ±Mz (8 patterns)", "+E and −E"]),
+    )
+    constructionSequence: bool = Field(
+        default=False,
+        title="Construction sequence",
+        description="Apply the self-weight storey by storey as the building is built (a linear "
+        "sequential construction analysis): each storey carries only the self-weight added "
+        "after it is built, as for the column shortening of tall buildings. Superimposed dead, "
+        "live and lateral loads act on the completed building. Buildings only.",
+    )
+    timeHistories: list[TimeHistory] = Field(
+        default_factory=list,
+        title="Time histories",
+        description="Earthquake records to run through the structure step by step, after its "
+        "dead loads.",
+    )
+    pushover: Pushover | None = Field(
+        default=None,
+        description="Pushover analyses: the frames as fiber elements that crack and yield, "
+        "pushed sideways after the gravity loads (08 FEM/pushover.osmodel).",
+    )
+    nonlinearHistory: NonlinearHistory | None = Field(
+        default=None,
+        title="Nonlinear time history",
+        description="Nonlinear time history analyses: the time histories above run through "
+        "the frames and walls as fibre elements that crack and yield, the records scaled to "
+        "the code pack's real design spectrum (08 FEM/nonlinear-history.osmodel); the results "
+        "check the storey drifts and the members' deformations by the code pack's rules.",
+    )
+    existingBuilding: ExistingBuilding | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Existing building",
+        description="Assessment of an existing building and its retrofit (P4): the "
+        "knowledge level, the as-built strengths from tests, the members' condition and the "
+        "retrofit measures; the results check every member by the code pack's assessment "
+        "rules (its existing table). Empty: a new building.",
+    )
+    nonlinearStability: NonlinearStability | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Nonlinear stability",
+        description="Nonlinear buckling with imperfections (GMNIA) of the steel frames and the "
+        "large-displacement analysis of cables under one load combination: the path of the load "
+        "factor, the limit load factor against the linear buckling factor αcr, and the cables' "
+        "sag and tension (alpha 9 L4; run from the FEM results). Empty: not made.",
+    )
+    floorSpectra: FloorSpectra | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Floor response spectra",
+        description="Floor response spectra at chosen floors (alpha 9 L5), from the time "
+        "histories or by the direct method, broadened; they can give the nonstructural "
+        "components' forces. Empty: not computed.",
+    )
+    thermal: Thermal = Field(default_factory=Thermal, title="Temperature")
+    settlement: Settlement = Field(default_factory=Settlement, title="Support settlement")
+    timeDependent: TimeDependent = Field(
+        default_factory=TimeDependent, title="Creep, shrinkage and column shortening"
+    )
+    fireResistance: FireResistance = Field(
+        default_factory=FireResistance,
+        title="Fire resistance",
+        description="Least ratings the members' sizes are checked for, on top of those of "
+        "the construction type (Construction).",
+    )
+    supports: Literal["fixed", "soilSprings"] = Field(
+        default="fixed",
+        title="Column supports",
+        description="Fixed: the column bases are fixed. Soil springs: each column base stands on "
+        "its foundation of 9 Substructure, on springs from the soil of 1 Soil Report (the default pack's "
+        "Part 6 Sec 1.2.7.3). Footings: ASCE 41-06 Sec 4.4.2.1.2 (Gazetas 1991). Pile caps: their "
+        "piles' head stiffnesses. Rafts: shells on subgrade springs. Columns without a "
+        "foundation, strip footings and walls stay fixed. The foundations of 9 Substructure are "
+        "then designed from a fixed-base run of the same model (Compare Fixed Base and Soil "
+        "Springs; Run All runs it).",
+        json_schema_extra=_labels(["Fixed", "Soil springs (Part 9 foundations on Part 1 soil)"]),
+    )
+    ssiShearModulusRatio: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        title="Effective shear modulus ratio G/G0",
+        description="Soil shear modulus under earthquake strains over the small-strain one from "
+        "the SPT (Vs = 97.0 N^0.314 m/s, Imai & Tonouchi 1982). Empty: from the site's effective "
+        "peak acceleration (2/3)·Z·S, by ASCE 7-05 Table 19.2-1 (0.81 at 0.10 g or less, 0.64 at "
+        "0.15 g, 0.49 at 0.20 g, 0.42 at 0.30 g or more, linear between).",
+    )
+    ssiPileGroupFactor: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        title="Pile group factor (lateral)",
+        description="Multiplies the summed lateral and torsional stiffness of a cap's piles. 1.0: "
+        "no pile-soil-pile interaction (the default pack's Part 6 Sec 3.10.1.19 takes a group efficiency "
+        "of 1.0 for capacity).",
+    )
+    ssiEmbedment: bool = Field(
+        default=True,
+        title="Footing embedment",
+        description="Increase the footings' springs by the embedment factors of ASCE 41-06 Sec "
+        "4.4.2.1.2 (depth below the finished ground, sides in contact up to the footing's "
+        "thickness).",
+    )
+
+
+class Foundation(_Model):
+    """Soil values of the footing design. The net allowable bearing pressure of each footing
+    comes from 1 Soil Report (its nearest boreholes, at the footing's founding level and size)
+    unless it is overridden here."""
+
+    allowableBearing: float | None = Field(
+        default=None,
+        gt=0,
+        title="Allowable bearing override qa",
+        description="Net allowable bearing pressure [kPa] used for every footing instead of the "
+        "soil report's. Leave empty to take qa per footing from 1 Soil Report; without boreholes "
+        "and without an override, the footings are designed without the bearing check.",
+    )
+    soilUnitWeight: float = Field(
+        default=18.0,
+        gt=0,
+        title="Soil unit weight γ",
+        description="Unit weight of the backfill above the footings [kN/m³].",
+    )
+    groundLevel: float = Field(
+        default=0.0,
+        title="Ground level",
+        description="Elevation of the finished ground [mm]; the soil cover above a footing is "
+        "measured from it.",
+    )
+
+
+class AreaLoad(_Model):
+    """Loads on floor area of one use: live load and superimposed dead loads."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    use: AreaUseId = Field(  # type: ignore[valid-type]
+        default="residential",
+        description="Use of the area (the code pack's area uses and their live loads).",
+        json_schema_extra=_labels(
+            [f"{v.name} ({v.live} kN/m²)" for v in code_data.AREA_USES.values()] + ["Custom"]
+        ),
+    )
+    live: Pressure = Field(description="Live load [kN/m²]; at least the code minimum for the use.")
+    finish: Pressure = Field(default=0, title="Floor finish", description="[kN/m²]")
+    partitions: Pressure = Field(
+        default=0,
+        description="Partition allowance [kN/m²] for light partitions not on the plans; a live "
+        "load or a superimposed dead load, as set in Analysis Model › Partition allowance as.",
+    )
+
+    def superimposed(self, case: str) -> float:
+        """Its superimposed dead load SD [kN/m²]: the finish, and the partition allowance when
+        ``case`` (the allowance's load case, :func:`partition_case`) is SD."""
+        return self.finish + (self.partitions if case == "SD" else 0.0)
+
+    def floor_live(self, case: str) -> float:
+        """Its live load [kN/m²]: the live load, and the partition allowance when ``case`` (the
+        allowance's load case, :func:`partition_case`) is L."""
+        return self.live + (self.partitions if case == "L" else 0.0)
+
+
+#: The partition allowance's load case when neither the project nor the code pack gives one:
+#: L, a live load (an allowance for movable partitions not on the plans is an imposed load).
+PARTITION_CASE_DEFAULT = "L"
+
+
+def partition_case_basis(settings: Any = None, pack: CodePack | None = None) -> tuple[str, str]:
+    """(load case, where it comes from) of the partition allowance: the project's setting
+    (``analysis.partitionAllowanceCase``) when it names one, else the code pack's
+    (``areaLoads.partitions.loadCase`` of ``pack``, default the pack in force), else
+    :data:`PARTITION_CASE_DEFAULT`. "L": a live load in the floor live load case (on the roof
+    too); "SD": superimposed dead. Read at every run: nothing is stored."""
+    chosen = getattr(getattr(settings, "analysis", None), "partitionAllowanceCase", "pack")
+    if chosen in ("L", "SD"):
+        return chosen, "project setting"
+    pack = pack or code_context.current()
+    rule = pack.table("areaLoads").partitions if pack.has("areaLoads") else None
+    case = getattr(rule, "loadCase", None) if rule is not None else None
+    if case in ("L", "SD"):
+        # The pack's, a project override of it, or the generic default (codes/generic).
+        return case, pack.value_source("areaLoads", "partitions.loadCase")
+    from saengine.codes import generic
+
+    return PARTITION_CASE_DEFAULT, generic.label(code_context.code_name(pack))
+
+
+def partition_case(settings: Any = None, pack: CodePack | None = None) -> str:
+    """The partition allowance's load case, "L" or "SD" (:func:`partition_case_basis`)."""
+    return partition_case_basis(settings, pack)[0]
+
+
+#: How the partition allowance counts in the seismic weight W when neither the project nor the
+#: code pack says: in full, like the dead load (partition walls are part of the dead load in
+#: W; ASCE 7-22 Sec 12.7.2 also counts partitions in W, at least 0.48 kPa).
+PARTITION_WEIGHT_DEFAULT = "full"
+
+
+@dataclass(frozen=True)
+class PartitionWeight:
+    """How the partition allowance counts in the seismic weight W (:func:`seismic_weight_rule`).
+
+    ``mode``: "full" (100 %, like the dead load; the live share and its threshold use the floor
+    live load without the allowance), "withLiveShare" (as the live load of its case, the
+    threshold judged on the live load with the allowance) or "factor" (``factor`` times the
+    allowance); ``case``: the allowance's load case (L or SD); ``source``: where the mode comes
+    from."""
+
+    mode: str
+    factor: float | None
+    case: str
+    source: str
+
+    @property
+    def separate(self) -> bool:
+        """Whether the allowance's weight is counted apart from the rest of its load case (in
+        full while it is a live load, or a factor of the project's). Otherwise it counts as its
+        case does: with the live share in L, in full in SD."""
+        return self.mode == "factor" or (self.mode == "full" and self.case == "L")
+
+    def share(self) -> float:
+        """The allowance's share in W when it is :attr:`separate`."""
+        return float(self.factor) if self.mode == "factor" and self.factor is not None else 1.0
+
+    def words(self) -> str:
+        """The rule in words, for the notes and the report."""
+        if self.mode == "factor" and self.factor is not None:
+            return f"partition allowance x{self.share():g}"
+        if self.mode == "withLiveShare" and self.case == "L":
+            return "partition allowance with the live load (its share judged on live + partitions)"
+        return "partition allowance in full (the live share judged without it)"
+
+
+@dataclass(frozen=True)
+class SeismicWeightRule:
+    """The shares of the loads in the seismic weight W: the code pack's live share (and its
+    heavy-live rule), the project's live share override and the partition allowance's rule.
+    Every path that forms W (the analysis masses, the static seismic weight and base shear,
+    the preliminary sizes, the report and the ETABS mass source) reads it from here."""
+
+    live_share: float
+    heavy_limit: float | None
+    heavy_share: float | None
+    user_live_share: float | None
+    partitions: PartitionWeight
+    #: Alpha 9 C19 (seismic liveWeight "byUse"): the share in W of each area use's live load,
+    #: its seismicLive over its live load (areaLoads); empty: by the shares above.
+    use_shares: dict[str, float] = dataclass_field(default_factory=dict)
+
+    def live(self, kpa: float | None = None, use: str | None = None) -> float:
+        """The share of a live load of ``kpa`` [kN/m²] in W (unknown: the light-load share);
+        ``use``: the area use it is of, for a pack that counts each use's own share."""
+        if self.user_live_share is not None:
+            return float(self.user_live_share)
+        if use is not None and use in self.use_shares:
+            return float(self.use_shares[use])
+        if (
+            kpa is not None
+            and self.heavy_limit is not None
+            and self.heavy_share is not None
+            and kpa > self.heavy_limit + 1e-9
+        ):
+            return max(self.live_share, self.heavy_share)
+        return self.live_share
+
+    def area(self, live: float, partitions: float, use: str | None = None) -> tuple[float, float]:
+        """(share of the live load, share of the partition allowance) in W of a floor area of
+        ``live`` and ``partitions`` [kN/m²] (of area use ``use``, where known)."""
+        rule = self.partitions
+        if rule.separate:
+            return self.live(live, use), rule.share()
+        if rule.case == "L":
+            both = self.live(live + partitions, use)
+            return both, both
+        return self.live(live, use), 1.0
+
+    def weight(self, live: float, partitions: float, use: str | None = None) -> float:
+        """The live load and partition allowance [kN/m²] that count in W."""
+        a, b = self.area(live, partitions, use)
+        return a * live + b * partitions
+
+
+def _field(part: Any, name: str, default: Any) -> Any:
+    """``part.name`` of a model or ``part[name]`` of a dict, else ``default``."""
+    if isinstance(part, dict):
+        return part.get(name, default)
+    return getattr(part, name, default) if part is not None else default
+
+
+def _mass_source(settings: Any) -> Any:
+    return _field(_field(settings, "analysis", None), "massSource", None)
+
+
+def partition_weight_basis(settings: Any = None, pack: CodePack | None = None) -> PartitionWeight:
+    """How the partition allowance counts in W: the project's ``analysis.massSource.partitions``
+    (with ``partitionShare`` for "factor") when it names one, else the code pack's
+    ``seismic.partitionWeight`` (a project override of it through ``codeOverrides`` included),
+    else :data:`PARTITION_WEIGHT_DEFAULT` (the generic default). Read at every run."""
+    case = partition_case(settings, pack)
+    source = _mass_source(settings)
+    chosen = _field(source, "partitions", "pack")
+    share = _field(source, "partitionShare", None)
+    if chosen == "factor" and share is not None:
+        return PartitionWeight("factor", float(share), case, "project setting")
+    if chosen in ("full", "withLiveShare"):
+        return PartitionWeight(chosen, None, case, "project setting")
+    pack = pack or code_context.current()
+    value = getattr(pack.table("seismic"), "partitionWeight", None) if pack.has("seismic") else None
+    if value in ("full", "withLiveShare"):
+        # The pack's (with its clause), a project override of it, or the generic default.
+        source = pack.value_source("seismic", "partitionWeight")
+        ref = code_context.source_ref("seismic", "partitionWeight", pack)
+        if ref and source.startswith("code pack"):
+            source = f"{source}, {ref}"
+        return PartitionWeight(value, None, case, source)
+    from saengine.codes import generic
+
+    return PartitionWeight(
+        PARTITION_WEIGHT_DEFAULT, None, case, generic.label(code_context.code_name(pack))
+    )
+
+
+def seismic_weight_rule(
+    settings: Any = None, pack: CodePack | None = None, table: Any = None
+) -> SeismicWeightRule:
+    """The shares of the loads in W (:class:`SeismicWeightRule`) for ``settings`` under ``pack``
+    (default the pack in force; ``table``: its seismic table when already read). The
+    heavy-live rule holds once the pack gives its share."""
+    pack = pack or code_context.current()
+    table = table if table is not None else pack.table("seismic")
+    heavy_share = getattr(table, "heavyLiveShare", None)
+    heavy_limit = getattr(table, "heavyLiveLimit", None) if heavy_share is not None else None
+    user = _field(_mass_source(settings), "liveShare", None)
+    # Alpha 9 C19: each use's seismicLive / live where the pack counts W by use.
+    use_shares: dict[str, float] = {}
+    if getattr(table, "liveWeight", "share") == "byUse" and pack.has("areaLoads"):
+        for use_id, row in pack.table("areaLoads").uses.items():
+            if row.seismicLive is not None and row.live:
+                use_shares[use_id] = min(float(row.seismicLive) / float(row.live), 1.0)
+    return SeismicWeightRule(
+        live_share=float(table.liveShare),
+        heavy_limit=None if heavy_limit is None else float(heavy_limit),
+        heavy_share=None if heavy_share is None else float(heavy_share),
+        user_live_share=None if user is None else float(user),
+        partitions=partition_weight_basis(settings, pack),
+        use_shares=use_shares,
+    )
+
+
+class LoadCombination(_Model):
+    """Factors on the load cases. D applies to the dead and superimposed dead loads."""
+
+    name: str = Field(min_length=1)
+    D: float = Field(
+        default=0,
+        description="Factor on the dead load D, which includes the superimposed dead load SD "
+        "(floor finish; partitions where the code pack makes them dead).",
+    )
+    L: float = Field(default=0, description="Factor on the live load L.")
+    Lr: float = Field(default=0, description="Factor on the roof live load Lr.")
+    WX: float = Field(default=0, title="Wx", description="Factor on the wind load along X.")
+    WY: float = Field(default=0, title="Wy", description="Factor on the wind load along Y.")
+    EX: float = Field(default=0, title="Ex", description="Factor on the earthquake load along X.")
+    EY: float = Field(default=0, title="Ey", description="Factor on the earthquake load along Y.")
+    T: float = Field(
+        default=0,
+        title="T",
+        description="Factor on the temperature case T (Analysis model → Temperature), as the "
+        "code pack's combinations with T give it.",
+    )
+    ST: float = Field(
+        default=0,
+        title="ST",
+        description="Factor on the support settlement case ST (Analysis model → Support "
+        "settlement): differential settlement is a self-straining effect T, so it takes T's "
+        "factor of the code pack's combination.",
+    )
+    # Alpha 9 P2: the creep and shrinkage forces case (Analysis model → Creep, shrinkage and
+    # column shortening → Creep and shrinkage forces), left out of the file while 0.
+    CS: float = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="CS",
+        description="Factor on the creep and shrinkage forces case CS, a self-straining action "
+        "with the factor of the code pack's combinations with CS.",
+    )
+    F: float | None = Field(
+        default=None,
+        title="F",
+        description="Factor on the fluid loads (the contents of equipment in 07 MEP), as the "
+        "code pack's combination gives it (see its notes). Empty (older files): the D factor "
+        "where it is above 1.0, else 0.",
+    )
+
+    H: float | None = Field(
+        default=None,
+        title="H",
+        description="Factor on the lateral earth and groundwater pressure on the basement walls "
+        "(case H, 9 Substructure), as the code pack's combination gives it. Empty (older "
+        "files): 1.6 in the combinations with 1.6L and in the 0.9D ones, else 0.",
+    )
+
+    FaX: float = Field(
+        default=0,
+        title="FaX",
+        description="Factor on the flood and surge load along X (Site → Flood and surge), "
+        "acting with the wind along X.",
+    )
+    FaY: float = Field(default=0, title="FaY", description="The same along Y.")
+    # C1: the roof snow S of a pack whose snow is its own case (snow.loadCase "S").
+    S: float = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="S",
+        description="Factor on the roof snow load S (Site → Snow; a pack whose snow is its own "
+        "case). The combination is formed without it while the model has no snow.",
+    )
+
+    @model_validator(mode="after")
+    def _fluid_factor(self) -> LoadCombination:
+        if self.F is None:
+            self.F = self.D if self.D > 1.0 else 0.0
+        if self.H is None:
+            self.H = 1.6 if self.L >= 1.6 or 0 < self.D <= 0.9 else 0.0
+        return self
+
+
+class DrawingRevision(_Model):
+    """One revision of the drawing set, as the title block's revision table lists it."""
+
+    code: str = Field(min_length=1, title="Revision", description="Its code: 0, A, P1, ...")
+    date: str | None = Field(default=None, description="Its date, as it is to be printed.")
+    description: str | None = Field(default=None, description="What changed.")
+    by: str | None = Field(default=None, title="By", description="Initials of who revised it.")
+
+
+DRAFTING_FONTS = ("Arial", "Arial Narrow", "Calibri", "Segoe UI", "Tahoma")
+LINEWEIGHTS = (0.09, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0)
+
+
+class DrawingLayer(_Model):
+    """One layer of SAEngine's scheme (docs/drawings-layers.md) as the office draws it."""
+
+    layer: str = Field(
+        min_length=1,
+        title="SAEngine layer",
+        description="A layer of SAEngine's scheme: S-GRID, S-COLS, A-WALL, P-DOMW, ...",
+    )
+    name: str | None = Field(
+        default=None,
+        title="Office name",
+        description="The office's name for it; empty: the scheme's (with the layer prefix).",
+    )
+    color: int | None = Field(
+        default=None, ge=1, le=255, title="Colour", description="AutoCAD Colour Index 1-255."
+    )
+    lineweight: Literal[LINEWEIGHTS] | None = Field(  # type: ignore[valid-type]
+        default=None, title="Lineweight", description="Plotted lineweight [mm]."
+    )
+
+
+class DraftingStandard(_Model):
+    """The office's drafting standard: layer names, colours and lineweights, the text font, the
+    dimension arrows, the sheet number prefixes and the office lines of the title block. Saved
+    as a file (Drawings, Office standard) it carries over to the office's other projects."""
+
+    name: str = Field(default="", description="The standard's name, e.g. the office's.")
+    font: Literal[DRAFTING_FONTS] = Field(  # type: ignore[valid-type]
+        default="Arial",
+        description="TrueType font of the text (Windows fonts; LibreCAD draws its own).",
+    )
+    arrows: Literal["tick", "closed", "dot", "oblique"] = Field(
+        default="tick",
+        title="Dimension arrows",
+        json_schema_extra=_labels(
+            ["Architectural tick", "Closed filled arrow", "Small dot", "Oblique stroke"]
+        ),
+    )
+    layerPrefix: str = Field(
+        default="",
+        title="Layer prefix",
+        description="Put before every layer name, e.g. 'XY-' (a layer's office name wins).",
+    )
+    layers: list[DrawingLayer] = Field(
+        default_factory=list, description="Layers drawn other than the scheme."
+    )
+    structuralPrefix: str = Field(default="S-", title="Structural sheets")
+    architecturalPrefix: str = Field(default="A-", title="Architectural sheets")
+    plumbingPrefix: str = Field(default="P-", title="Plumbing sheets")
+    mechanicalPrefix: str = Field(default="M-", title="HVAC sheets")
+    electricalPrefix: str = Field(default="E-", title="Electrical sheets")
+    firePrefix: str = Field(default="FP-", title="Fire protection sheets")
+    coordinationPrefix: str = Field(default="MC-", title="MEP coordination sheets")
+    officeLine: str | None = Field(
+        default=None,
+        title="Office address line",
+        description="Under the firm's name in the title block: address, phone, licence no.",
+    )
+    disclaimer: str | None = Field(
+        default=None,
+        description="Printed above the status in the title block, e.g. 'Do not scale.'",
+    )
+
+
+PLAN_SCALES = (50, 75, 100, 125, 150, 200, 250)
+DETAIL_SCALES = (10, 20, 25, 50)
+
+
+class Fabrication(_Model):
+    """Alpha 9 L10: the steel shop drawings, the DSTV NC files and the BVBS rebar files of 11
+    Exports (saengine.fabrication). Every field has a default: nothing needs entering."""
+
+    orderNumber: str | None = Field(
+        default=None,
+        title="Order number",
+        description="The fabrication order in the NC files' headers; empty: the project number.",
+    )
+    phase: str = Field(
+        default="1", description="The erection phase in the NC files' headers (DSTV)."
+    )
+    weldSymbols: Literal["pack", "aws", "isoA", "isoB"] = Field(
+        default="pack",
+        title="Weld symbols",
+        description="The weld symbols of the shop drawings: the code pack's choice, AWS A2.4, or "
+        "ISO 2553 system A or B.",
+        json_schema_extra=_labels(
+            ["The code pack's", "AWS A2.4", "ISO 2553 system A", "ISO 2553 system B"]
+        ),
+    )
+    sheetSize: Literal["A1", "A2", "A3"] = Field(
+        default="A3", title="Shop drawing sheet size", description="ISO sheet of the shop drawings."
+    )
+    endClearance: float = Field(
+        default=12,
+        ge=0,
+        le=50,
+        title="Beam end clearance",
+        description="Gap between a beam's cut end and the face it frames into [mm] (fin plates, "
+        "flange plates, gussets; an end plate is cut to the face less its thickness).",
+    )
+    beamPrefix: str = Field(default="B", min_length=1, title="Beam assembly marks")
+    columnPrefix: str = Field(default="C", min_length=1, title="Column assembly marks")
+    bracePrefix: str = Field(default="BR", min_length=1, title="Brace assembly marks")
+    partPrefix: str = Field(default="p", min_length=1, title="Part marks")
+    ncMarking: bool = Field(
+        default=True,
+        title="Mark the parts",
+        description="The NC files carry the part mark to scribe on each part (DSTV SI block).",
+    )
+    bvbsDrawing: str | None = Field(
+        default=None,
+        title="BVBS schedule number",
+        description="The bar schedule's number in the BVBS files; empty: 'BBS'.",
+    )
+
+
+def _scale(default: int, scales: tuple[int, ...], title: str, description: str) -> Any:
+    return Field(
+        default=default,
+        title=title,
+        description=description,
+        json_schema_extra=_labels([f"1:{s}" for s in scales]),
+    )
+
+
+class Drawings(_Model):
+    """The structural drawings of 11 Exports: the title block and the sheets. The project's
+    name, number, client and address come from Project; the fields here print on every sheet."""
+
+    firm: str | None = Field(default=None, description="The consulting firm on the title block.")
+    engineer: str | None = Field(
+        default=None,
+        title="Engineer",
+        description="The engineer in charge; empty: Project's structural engineer.",
+    )
+    drawnBy: str | None = Field(default=None, title="Drawn by")
+    checkedBy: str | None = Field(default=None, title="Checked by")
+    approvedBy: str | None = Field(default=None, title="Approved by")
+    projectNumber: str | None = Field(
+        default=None,
+        title="Project number",
+        description="The drawing set's project number; empty: Project's number.",
+    )
+    status: str = Field(
+        default="FOR REVIEW",
+        description="The issue status on the title block (FOR REVIEW, FOR CONSTRUCTION, ...).",
+    )
+    revisions: list[DrawingRevision] = Field(
+        default_factory=list,
+        description="The revisions of the set, oldest first; the last is the current revision "
+        "(0 when there is none).",
+    )
+    sheetSize: Literal["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"] = Field(
+        default="A1",
+        title="Sheet size",
+        description="Sheet of every drawing: ISO A0-A3, or the US ANSI D (34 x 22 in) and "
+        "ARCH D (36 x 24 in); a new project takes its code pack's sheet.",
+    )
+    planScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        100,
+        PLAN_SCALES,
+        "Plan scale",
+        "Foundation and framing plans; a plan that does not fit is drawn at the next smaller "
+        "scale (noted).",
+    )
+    slabScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        50, PLAN_SCALES, "Slab plan scale", "Slab reinforcement plans."
+    )
+    elevationScale: Literal[PLAN_SCALES] = _scale(  # type: ignore[valid-type]
+        50, PLAN_SCALES, "Elevation scale", "Beam elevations and wall elevations."
+    )
+    detailScale: Literal[DETAIL_SCALES] = _scale(  # type: ignore[valid-type]
+        25,
+        DETAIL_SCALES,
+        "Detail scale",
+        "Column sections, beam sections, footing and stair details; a detail that does not fit "
+        "is drawn at the next smaller scale.",
+    )
+    developmentLength: Literal["simplified", "general"] = Field(
+        default="simplified",
+        title="Development length",
+        description="The default pack's Part 6, 8.2.3: the simplified form (8.2.3.2) or the general "
+        "Eq. 6.8.1 with cb from the cover and bar spacing (8.2.3.3, Ktr = 0).",
+        json_schema_extra=_labels(["Simplified (8.2.3.2)", "General, Eq. 6.8.1 (8.2.3.3)"]),
+    )
+    curtail: bool = Field(
+        default=True,
+        title="Cut off beam top bars",
+        description="Stop the extra top bars of beams past the supports; off: every bar runs "
+        "the full length.",
+    )
+    standard: DraftingStandard = Field(
+        default_factory=DraftingStandard,
+        title="Office standard",
+        description="Layers, font, arrows, sheet numbers and title block lines of the office.",
+    )
+    fabrication: Fabrication = Field(
+        default_factory=Fabrication,
+        title="Fabrication",
+        description="Steel shop drawings, NC files (DSTV) and rebar CNC files (BVBS) of 11 "
+        "Exports: marks, weld symbols, clearances and the files' headers.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_boq_reinforcement(cls, data: Any) -> Any:
+        """Earlier projects chose how 10 BOQ took the reinforcement (measured or from the bar
+        bending schedule); the bill now always takes the detailed bars: the choice is dropped."""
+        if isinstance(data, dict) and "boqReinforcement" in data:
+            data = {k: v for k, v in data.items() if k != "boqReinforcement"}
+        return data
+
+
+class Report(_Model):
+    """The printed design report of 11 Exports."""
+
+    appendix: Literal["governing", "all", "none"] = Field(
+        default="governing",
+        title="Appendix of element checks",
+        description="Which elements the appendix prints every check of: governing (the element "
+        "of each object type and storey with the largest utilisation, and every element that "
+        "fails), all (every element: hundreds of pages for a tall building) or none. The member "
+        "tables list every element either way.",
+    )
+    template: str = Field(
+        default="default",
+        pattern=r"^[a-z0-9][a-z0-9-]{0,63}$",
+        title="Template",
+        description="The report template printed: its id, the file name of one in "
+        "11 Exports/report-templates, or a built-in one (default: every section in full; "
+        "summary: the results without each element's calculations). The template chooses the "
+        "sections, their order and detail, the cover, the letterhead and the members printed.",
+    )
+
+
+# ── C13: display units (saengine.units); stored values stay SI ──
+def _unit_choice(kind: str, title: str) -> Any:
+    """A per-quantity unit choice: one of the kind's US customary units, or None (its first)."""
+    options = units_lib.KINDS[kind].options
+    # W4A-31: the units' own symbols as their labels ("ft", "mph", "plf"), not "Ft", "Mph".
+    choice = Annotated[
+        Literal[options],  # type: ignore[valid-type]
+        Field(json_schema_extra={"enumDescriptions": list(options)}),
+    ]
+    return Annotated[
+        choice | None,  # type: ignore[valid-type]
+        Field(title=title, description=f"US customary only; empty: {options[0]}."),
+    ]
+
+
+_UnitLength = _unit_choice("length", "Lengths and levels")
+_UnitDimension = _unit_choice("dimension", "Member sizes and spacings")
+_UnitForce = _unit_choice("force", "Forces")
+_UnitStress = _unit_choice("stress", "Stresses")
+_UnitPressure = _unit_choice("pressure", "Area loads and pressures")
+_UnitMoment = _unit_choice("moment", "Moments")
+_UnitLineLoad = _unit_choice("lineLoad", "Line loads")
+_UnitUnitWeight = _unit_choice("unitWeight", "Unit weights")
+_UnitVolume = _unit_choice("volume", "Volumes")
+_UnitVelocity = _unit_choice("velocity", "Speeds")
+
+
+class DisplayUnits(_Model):
+    """How the project shows its numbers (alpha 9, C13). Every value is stored and computed
+    in SI; switching the system changes only what the editors, the report, the drawings, the
+    bar bending schedule, the BOQ and the CSV files print, never a stored value."""
+
+    system: Literal["SI", "USCustomary"] = Field(
+        default="SI",
+        title="Unit system",
+        description="SI (mm, m, kN, MPa, kN/m²) or US customary (in, ft, kip, ksi, psf). A new "
+        "project takes the code pack's suggestion (the US pack: US customary).",
+        json_schema_extra=_labels(["SI", "US customary"]),
+    )
+    length: _UnitLength = None
+    dimension: _UnitDimension = None
+    force: _UnitForce = None
+    stress: _UnitStress = None
+    pressure: _UnitPressure = None
+    moment: _UnitMoment = None
+    lineLoad: _UnitLineLoad = None
+    unitWeight: _UnitUnitWeight = None
+    volume: _UnitVolume = None
+    velocity: _UnitVelocity = None
+
+    def is_default(self) -> bool:
+        return self.system == "SI" and all(
+            getattr(self, k) is None for k in type(self).model_fields if k != "system"
+        )
+
+
+class ProjectSettings(_Model):
+    schema_: Literal["saengine.projectSettings/1"] = Field(default=SCHEMA_ID, alias="schema")
+    project: ProjectInfo
+    codePack: str = Field(
+        default=DEFAULT_PACK,
+        pattern=PACK_ID_PATTERN,
+        title="Design code",
+        description="Id of the code pack the project follows (its towns and hazard values, "
+        "importance factors, structural systems, live load minimums, load combinations and "
+        "seismic and wind coefficients). Built-in: bnbc2020. A project's own packs live in "
+        "02 Project Settings/code-packs/<id>/; the user's in the SAEngine user folder.",
+    )
+    codes: Codes | None = Field(
+        default=None,
+        exclude=True,
+        title="Codes (deprecated)",
+        description="Deprecated: the design code is chosen by codePack. Read from old files "
+        "and dropped when they are saved.",
+        json_schema_extra={"deprecated": True},
+    )
+    occupancy: Occupancy = Field(default_factory=Occupancy)
+    construction: Construction = Field(
+        default_factory=Construction,
+        title="Construction",
+        description="Construction type and concrete aggregate (fire resistance).",
+    )
+    site: Site = Field(default_factory=Site)
+    seismic: Seismic = Field(default_factory=Seismic)
+    wind: Wind = Field(default_factory=Wind)
+    areaLoads: list[AreaLoad] = Field(default_factory=list, title="Area loads")
+    floorLoad: Id = Field(
+        title="Floors", description="Area load of the floors unless the floor plan says otherwise."
+    )
+    roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
+    combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
+    cranes: list[CraneRunway] = Field(
+        default_factory=list,
+        title="Crane runways",
+        description="Overhead and monorail cranes: wheel loads with impact, lateral and "
+        "longitudinal forces, runway beam checks and the loads on the columns.",
+    )
+    # Alpha 9 L9: bridges and special structures (saengine.special); left out of the file
+    # while empty, so the settings of projects without them stay as they were.
+    specialStructures: SpecialStructures = Field(
+        default_factory=SpecialStructures,
+        exclude_if=lambda value: value.is_empty(),
+        title="Bridges and Special Structures",
+        description="Bridges (traffic loads, girders, bearings, rating), lattice towers, silos, "
+        "chimneys, cooling towers, offshore jackets and piping, by the code pack's methods.",
+    )
+    analysis: Analysis = Field(default_factory=Analysis, title="Analysis model")
+    foundation: Foundation = Field(
+        default_factory=Foundation,
+        description="Soil values for the footing design (from the soil report).",
+    )
+    drawings: Drawings = Field(
+        default_factory=Drawings,
+        description="The title block and sheets of the structural drawings (11 Exports).",
+    )
+    report: Report = Field(
+        default_factory=Report,
+        title="Design report",
+        description="The printed design report (11 Exports).",
+    )
+    units: DisplayUnits = Field(
+        default_factory=DisplayUnits,
+        exclude_if=lambda value: value.is_default(),
+        title="Units",
+        description="The units the project is shown in; values are stored in SI.",
+    )
+    codeOverrides: dict[str, Any] = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        title="Code values",
+        description="The project's own values of code pack values: the value's path in the "
+        "pack (table.key.key, e.g. factors.phi.shear) -> the project's value. Merged over the "
+        "code pack for every run; a value not overridden follows the pack. An override the "
+        "pack has no value for, or that its table does not accept, is reported and not used.",
+    )
+
+    @model_validator(mode="after")
+    def _pack_lists(self) -> ProjectSettings:
+        """The town, area uses, structural systems and site class are ids of the lists of the
+        code pack the settings choose (with the project's own packs of
+        :func:`saengine.codes.context.project`). The default pack without a project: its
+        built-in lists (no pack is loaded to read a file). A pack that cannot be found here (a
+        project's pack read without its project) is not checked: :func:`check` reports it."""
+        in_force = code_context.in_force()
+        if self.codePack == DEFAULT_PACK and code_context.project_root() is None:
+            if in_force is not None and in_force.id == DEFAULT_PACK:
+                lists = pack_choices(in_force)
+            else:
+                lists = _builtin_choices()
+        else:
+            try:
+                lists = pack_choices(code_context.pack_for(self, strict=True))
+            except CodePackError:
+                return self
+        choices = {key: {c["id"] for c in rows} for key, rows in lists.items()}
+        pack_name = code_data.EDITION if self.codePack == DEFAULT_PACK else self.codePack
+        wrong: list[tuple[str, str]] = []
+
+        def need(where: str, label: str, key: str, value: str | None) -> None:
+            if value is not None and key in choices and value not in choices[key]:
+                wrong.append((where, f"{label} '{value}'"))
+
+        need("site.location", "Location", "locations", self.site.location)
+        need("site.siteClass", "Site class", "siteClasses", self.site.siteClass)
+        need("wind.exposure", "Exposure", "exposures", self.wind.exposure)
+        seismic = self.seismic
+        need("seismic.system", "Structural system", "systems", seismic.system)
+        need("seismic.systemY", "Structural system in Y", "systems", seismic.systemY)
+        for system in [*seismic.otherSystems, *seismic.otherSystemsY]:
+            need("seismic.otherSystems", "Other system", "systems", system)
+        for index, load in enumerate(self.areaLoads):
+            need(f"areaLoads.{index}.use", f"Area load {load.id} use", "areaUses", load.use)
+        if wrong:
+            raise PackListError(pack_name, wrong)
+        return self
+
+
+class PackListError(ValueError):
+    """Settings choices that are not in the lists of the code pack in force: ``wrong`` holds
+    each one's settings path and its words ("Location 'dhaka'"), so the settings check puts
+    each problem on its own page (walk 4 W4C-28) rather than one message of internal keys."""
+
+    def __init__(self, pack_name: str, wrong: list[tuple[str, str]]) -> None:
+        self.pack_name = pack_name
+        self.wrong = wrong
+        super().__init__(
+            f"not in the lists of the code pack {pack_name}: {', '.join(w for _, w in wrong)}"
+        )
+
+    def problems(self) -> list[tuple[str, str]]:
+        """(path, message) of each choice: its words and what to do."""
+        return [
+            (path, f"{words} is not in the lists of the code pack {self.pack_name}: choose one")
+            for path, words in self.wrong
+        ]
+
+
+def pack_choices(pack: CodePack, units: Any = None) -> dict[str, list[dict[str, str]]]:
+    """The entries the settings' lists offer under ``pack``, in the pack's order, as ``{"id",
+    "label"}``: ``locations`` (and "custom"), ``areaUses`` (and "custom"), ``systems``,
+    ``siteClasses``. A list the pack has no table for is left out (any id is then taken).
+    Walk 4: ``siteClassClause``, the clause that classes the site (the pack's own
+    ``designClauses.generator.siteClass``), for the New Building wizard's hint. ``units``
+    (:class:`saengine.units.Units`, walk 4 W4A-19/20): the labels' loads and wind speeds in
+    the project's display units; SI as before when None."""
+    out = _choices(lambda name: pack.table(name) if pack.has(name) else None, units)
+    owner = (
+        pack.clause_owner("designClauses", "generator", "siteClass")
+        if pack.has("designClauses")
+        else None
+    )
+    if owner is not None and owner[0] == pack.id and owner[1]:
+        out["siteClassClause"] = [{"id": owner[1], "label": owner[1]}]
+    # Walk 4 (W4A-6): the units a new project under the pack starts in and its bar grades.
+    suggested = getattr(pack.info, "units", None) or "SI"
+    out["units"] = [{"id": suggested, "label": suggested}]
+    # W4A-27: the exposure a new project under the pack starts in (the one the generator
+    # saves), so the wizard shows and sends the same.
+    if pack.has("wind"):
+        start = new_project_exposure(pack.table("wind"), Wind().exposure)
+        if start is not None:
+            out["defaultExposure"] = [{"id": start, "label": start}]
+    grades = (
+        getattr(pack.table("materials"), "rebarGrades", None) if pack.has("materials") else None
+    )
+    if grades:
+        out["rebarGrades"] = [{"id": g.id, "label": g.name} for g in grades]
+    # W4A-19: the settings fields the pack has no use for (its own list, and Z where it has no
+    # zone coefficients), which the settings editor leaves out.
+    hidden = list(getattr(pack.info, "hiddenSettings", None) or [])
+    if not pack.has("zoneCoefficients"):
+        hidden.append("site.zoneCoefficient")
+    if hidden:
+        out["hiddenFields"] = [{"id": path, "label": path} for path in dict.fromkeys(hidden)]
+    # W4A-23: what the Wind page's inputs mean under a pack with its own wind table (its
+    # sources of the factors they override), e.g. cdir and co of EN 1991-1-4 for Kd and Kzt.
+    wind_owner = pack.value_owner("wind") if pack.has("wind") else None
+    if pack.id != DEFAULT_PACK and wind_owner is not None and wind_owner[0] != DEFAULT_PACK:
+        sources = getattr(pack.table("wind"), "sources", None) or {}
+        rows = [
+            {"id": f"wind.{field}", "label": str(sources[key])}
+            for field, key in _WIND_FIELDS.items()
+            if sources.get(key)
+        ]
+        if rows:
+            out["windFields"] = rows
+    return out
+
+
+#: Project Settings > Wind fields and the wind table's sources that say what they set.
+_WIND_FIELDS = {
+    "exposure": "exposures",
+    "directionality": "directionality",
+    "topographic": "topographic",
+    "gust": "gust",
+}
+
+
+@functools.cache
+def _builtin_choices() -> dict[str, list[dict[str, str]]]:
+    """:func:`pack_choices` of the built-in default pack (read once, without the registry)."""
+    from saengine.codes.tables import builtin_table
+
+    return _choices(lambda name: builtin_table(name, DEFAULT_PACK))
+
+
+def keyed_label(key: str, description: str) -> str:
+    """A list entry's label "key: description", or the description alone where it already
+    names the entry before a colon ("Exposure C: open terrain ...", "Site class D: ...";
+    walk 4 W4A-28: not "C: Exposure C: ...")."""
+    head, sep, _ = description.partition(": ")
+    if sep and len(head) <= 30:
+        return description
+    return f"{key}: {description}"
+
+
+def new_project_exposure(wind: Any, wanted: str | None) -> str | None:
+    """The wind exposure a new project under a pack with the wind table ``wind`` starts in:
+    ``wanted`` when it is one of the pack's exposures, else the pack's ``defaultExposure``,
+    else terrain category "II", else the first (None: the table lists none)."""
+    exposures = list(getattr(wind, "exposures", None) or [])
+    if not exposures:
+        return None
+    if wanted in exposures:
+        return wanted
+    chosen = getattr(wind, "defaultExposure", None)  # C7
+    return chosen if chosen in exposures else "II" if "II" in exposures else exposures[0]
+
+
+def _choices(table: Any, units: Any = None) -> dict[str, list[dict[str, str]]]:
+    """The lists of :func:`pack_choices` from ``table(name)`` (None: the pack has no such table)."""
+    out: dict[str, list[dict[str, str]]] = {}
+    shown = units is not None and not units.si
+
+    def speed(v: float) -> str:
+        return units.format(v, "m/s") if shown else f"{v:g} m/s"
+
+    def load(v: float) -> str:
+        return units.format(v, "kN/m²") if shown else f"{v} kN/m²"
+
+    locations, zone_table = table("locations"), table("zoneCoefficients")
+    area, seismic = table("areaLoads"), table("seismic")
+    wind = table("wind")
+    if wind is not None:
+        out["exposures"] = [
+            {"id": k, "label": keyed_label(k, v.description)} for k, v in wind.exposures.items()
+        ]
+    if locations is not None:
+        zones = dict(zone_table.zones) if zone_table is not None else {}
+        rows = []
+        for key, v in locations.locations.items():
+            z = zones.get(v.zone)
+            label = v.zoneLabel or v.zone  # Alpha 9 C16: the code's name of the zone
+            hazard = f"zone {label}, Z {z:.2f}, " if z is not None else f"zone {label}, "
+            if v.ss is not None and v.s1 is not None:  # Alpha 9 C23: the town's mapped values
+                hazard = f"zone {label}, SS {v.ss:g}, S1 {v.s1:g}, "
+            if v.spectrum:  # Alpha 9 C17: the town's uniform hazard spectrum
+                short = min(v.spectrum, key=lambda p: abs(p[0] - 0.2))
+                hazard = f"Sa({short[0]:g}) {short[1]:g}, "
+            rows.append({"id": key, "label": f"{v.name} ({hazard}V {speed(v.windSpeed)})"})
+        # W4A-19: a pack without zone coefficients asks for the site's values, not Z.
+        custom = "Custom (enter Z and V)" if zone_table is not None else "Custom (enter V)"
+        out["locations"] = [*rows, {"id": "custom", "label": custom}]
+    if area is not None:
+        out["areaUses"] = [
+            *({"id": k, "label": f"{v.name} ({load(v.live)})"} for k, v in area.uses.items()),
+            {"id": "custom", "label": "Custom"},
+        ]
+    if seismic is not None:
+        out["systems"] = [{"id": k, "label": v.name} for k, v in seismic.systems.items()]
+        out["siteClasses"] = [
+            {"id": k, "label": keyed_label(k, v.description)}
+            for k, v in seismic.siteClasses.items()
+        ]
+        # C1: the pack's design spectrum method, so the editors ask for the site values it
+        # takes (mappedSpectral: SDS, SD1 instead of Z).
+        rule = getattr(seismic, "designSpectrum", None)
+        method = rule.method if rule is not None else "reducedElastic"
+        out["designSpectrum"] = [{"id": method, "label": method}]
+    # Alpha 9 P4: the knowledge levels of the pack's assessment of existing buildings.
+    try:
+        existing = table("existing")
+    except Exception:  # noqa: BLE001 - a broken table leaves the other lists as they are
+        existing = None
+    if existing is not None:
+        out["knowledgeLevels"] = [
+            {"id": k.id, "label": k.label or k.id} for k in existing.knowledge
+        ]
+    return out
+
+
+def strength_combinations(
+    thermal: bool = False,
+    pack: CodePack | None = None,
+    settlement: bool = False,
+    settings: ProjectSettings | None = None,
+    creep_shrinkage: bool = False,
+) -> list[LoadCombination]:
+    """The code pack's strength combinations, with wind and earthquake in ±X and ±Y
+    (:func:`saengine.fem.combinations.expand_rows`); with ``thermal``, combination 2 also with
+    ±T (:func:`saengine.fem.thermal.strength_combinations_with_t`) right after it, the
+    combination without T kept. A pack row without F or H gives them no factor.
+
+    With ``settings``, the pack's permitted factor changes (``exceptions``) apply where their
+    conditions hold: the reduced live load factor when ``analysis.reducedLiveFactor`` is on,
+    and the wind factor of concrete frames when the wind is not reduced by directionality
+    (:func:`saengine.fem.combinations.exception_applies`)."""
+    from saengine.fem import combinations as fc
+
+    pack = pack or code_context.current()
+    table = pack.table("combinations")
+    rows = list(table.strength)
+    for name, exception in (getattr(table, "exceptions", None) or {}).items():
+        if settings is None or not _exception_wanted(name, exception, settings, pack):
+            continue
+        rows = [fc.apply_exception(row, exception) for row in rows]
+    first = rows[1].name if len(rows) > 1 else None  # combination 2: where T and ST go
+    result = []
+    for label, factors, row in fc.expand_rows(rows):
+        result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
+        if row.name != first:
+            continue
+        if thermal:
+            from saengine.fem.thermal import strength_combinations_with_t
+
+            for t_name, t_factors in strength_combinations_with_t():
+                result.append(LoadCombination(name=t_name, **t_factors))
+        if settlement:
+            from saengine.fem.settlement import strength_combinations_with_st
+
+            for st_name, st_factors in strength_combinations_with_st(thermal):
+                result.append(LoadCombination(name=st_name, **st_factors))
+        if creep_shrinkage:
+            # Alpha 9 P2: the pack's rows with the creep and shrinkage forces case CS.
+            for cs_name, cs_factors, _row in fc.expand_rows(list(table.creepShrinkage)):
+                result.append(LoadCombination(name=cs_name, **{"F": 0.0, "H": 0.0, **cs_factors}))
+    # B16: the pack's combinations of the project's flood or tidal surge zone (Fa with the
+    # wind in its direction), with the same permitted factor changes.
+    if settings is not None:
+        from saengine.fem.flood import zone_kind
+
+        group = (getattr(table, "flood", None) or {}).get(zone_kind(settings.site.flood.zone))
+        flood_rows = list(group.strength) if group is not None else []
+        for name, exception in (getattr(table, "exceptions", None) or {}).items():
+            if flood_rows and _exception_wanted(name, exception, settings, pack):
+                flood_rows = [fc.apply_exception(row, exception) for row in flood_rows]
+        for label, factors, _row in fc.expand_rows(flood_rows):
+            result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
+    return result
+
+
+def project_strength_combinations(
+    settings: ProjectSettings, pack: CodePack | None = None
+) -> list[LoadCombination]:
+    """The strength combinations ``pack`` (default: the pack in force) generates for the
+    project ``settings`` (Project Settings > Load Combinations > Generate): with ±T, ST and CS
+    where the analysis model has those cases, and the pack's factor exceptions where they
+    hold (:func:`strength_combinations`)."""
+    analysis = settings.analysis
+    timed = analysis.timeDependent
+    pack = pack or code_context.current()
+    with code_context.using(pack):  # the T, ST and CS rows of the same pack
+        return strength_combinations(
+            thermal=analysis.thermal.enabled,
+            pack=pack,
+            settlement=analysis.settlement.enabled,
+            settings=settings,
+            creep_shrinkage=bool(timed.enabled and getattr(timed, "forcesCase", False)),
+        )
+
+
+def combinations_from_pack(settings: ProjectSettings, pack: CodePack | None = None) -> bool:
+    """Whether the project's strength combinations are those ``pack`` generates for it
+    (:func:`project_strength_combinations`, the same factors in any order; the names are not
+    compared, a factor 0 as none): False when they were edited, or kept from another pack after
+    a pack change."""
+
+    def key(c: LoadCombination) -> tuple[tuple[str, float], ...]:
+        data = c.model_dump(mode="json", exclude={"name"}, exclude_none=True)
+        return tuple(
+            sorted(
+                (k, round(float(v), 4))
+                for k, v in data.items()
+                if isinstance(v, int | float) and abs(v) > 1e-9  # an empty F or H as 0
+            )
+        )
+
+    try:
+        expected = project_strength_combinations(settings, pack)
+    except Exception:  # noqa: BLE001 - a pack without combinations: nothing to compare with
+        return False
+    return sorted(map(key, settings.combinations)) == sorted(map(key, expected))
+
+
+def area_loads_from_pack(
+    settings: ProjectSettings, pack: CodePack | None = None
+) -> tuple[list[AreaLoad], list[str]]:
+    """W4A-22: the project's area loads with the live load of ``pack``'s (default: the pack in
+    force) area use for each one whose use the pack lists (a custom use, or one the pack does
+    not list, is kept as it is); and the ids of those whose live load that changes (none: the
+    area loads are the pack's already). Finishes and partitions are the project's."""
+    pack = pack or code_context.current()
+    uses = pack.table("areaLoads").uses if pack.has("areaLoads") else {}
+    rows: list[AreaLoad] = []
+    changed: list[str] = []
+    for area in settings.areaLoads:
+        use = uses.get(area.use)
+        if use is None or abs(float(use.live) - float(area.live)) < 1e-9:
+            rows.append(area)
+            continue
+        rows.append(area.model_copy(update={"live": float(use.live)}))
+        changed.append(area.id)
+    return rows, changed
+
+
+def _exception_wanted(name: str, exception: Any, settings: ProjectSettings, pack: CodePack) -> bool:
+    """Whether the project takes the pack's factor exception ``name``: one on the live load
+    when ``analysis.reducedLiveFactor`` is chosen, one on the wind when its conditions hold."""
+    from saengine.fem.combinations import exception_applies
+
+    if exception.case == "L":
+        if not getattr(settings.analysis, "reducedLiveFactor", False):
+            return False
+        loads = [(a.use, float(a.live)) for a in settings.areaLoads]
+        return exception_applies(exception, live_loads=loads)[0]
+    directionality = None
+    if pack.has("wind"):
+        directionality = getattr(pack.table("wind"), "directionality", None)
+    system = (
+        pack.table("seismic").systems.get(settings.seismic.system) if pack.has("seismic") else None
+    )
+    material = "concrete" if system is not None and system.concrete and not system.masonry else None
+    return exception_applies(exception, directionality=directionality, material=material)[0]
+
+
+def new_project_finishes(pack: Any = None) -> tuple[float, float]:
+    """(floor and stair finish, roof finish) [kN/m²] a new project starts with: the code pack's
+    ``areaLoads.newProject`` (walk 4 W4A-20: the US pack's 25 and 30 psf), else 1.2 and 1.5."""
+    pack = pack or code_context.current()
+    table = pack.table("areaLoads") if pack.has("areaLoads") else None
+    given = getattr(table, "newProject", None)
+    if given is None:
+        return 1.2, 1.5
+    return float(given.finish), float(given.roofFinish)
+
+
+def default_area_loads() -> list[AreaLoad]:
+    # The partition allowance: the code pack's least uniform allowance for partitions not on
+    # the plans (1.0 kN/m² when the pack sets none).
+    allowance = getattr(code_context.current().table("areaLoads"), "partitions", None)
+    finish, roof_finish = new_project_finishes()
+    return [
+        AreaLoad(
+            id="FL",
+            name="Floors",
+            use="residential",
+            live=code_data.AREA_USES["residential"].live,
+            finish=finish,
+            partitions=allowance.minimum if allowance is not None else 1.0,
+        ),
+        AreaLoad(
+            id="ST",
+            name="Stairs",
+            use="stairs",
+            live=code_data.AREA_USES["stairs"].live,
+            finish=finish,
+        ),
+        AreaLoad(
+            id="RF",
+            name="Roof",
+            use="roof",
+            live=code_data.AREA_USES["roof"].live,
+            finish=roof_finish,
+        ),
+    ]
+
+
+def default_project_settings(
+    name: str = "Project", code_pack: str | None = None
+) -> ProjectSettings:
+    """A new project's settings; with ``code_pack`` (another pack than the default) the
+    settings of :func:`settings_for_pack` under it, with the pack's own defaults (``fresh``)."""
+    settings = ProjectSettings(
+        project=ProjectInfo(name=name),
+        areaLoads=default_area_loads(),
+        floorLoad="FL",
+        roofLoad="RF",
+        combinations=strength_combinations(),
+    )
+    if code_pack and code_pack != settings.codePack:
+        return settings_for_pack(settings, code_pack, fresh=True)
+    return settings
+
+
+def settings_for_pack(
+    settings: ProjectSettings | dict[str, Any], code_pack: str, fresh: bool = False
+) -> ProjectSettings:
+    """``settings`` switched to the code pack ``code_pack`` (C7): every choice the pack's lists
+    lack (town, site class, systems, exposure, area uses) becomes the pack's default (its
+    ``locations.default``, ``seismic.defaultSiteClass``, ``seismic.defaultSystem``,
+    ``wind.defaultExposure``, else the first of its list); the area loads take the pack's live
+    load of their use, and the combinations the pack's. Raises :class:`CodePackError` when the
+    pack cannot be found (with the project's own packs of
+    :func:`saengine.codes.context.project`). With ``fresh`` (a new project's settings, whose
+    choices are the default pack's, not the engineer's), the pack's defaults replace them even
+    where the pack's lists have them too (an exposure "A" of another meaning)."""
+    data = (
+        settings.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if isinstance(settings, ProjectSettings)
+        else dict(settings)
+    )
+    data["codePack"] = code_pack
+    pack = code_context.pack_for(
+        {"codePack": code_pack, "codeOverrides": data.get("codeOverrides") or {}}, strict=True
+    )
+    lists = {k: [c["id"] for c in v] for k, v in pack_choices(pack).items()}
+
+    def pick(key: str, value: Any, preferred: str | None) -> Any:
+        ids = lists.get(key)
+        if fresh and ids and preferred in ids:
+            return preferred
+        if not ids or value in ids:
+            return value
+        return preferred if preferred in ids else ids[0]
+
+    seismic = pack.table("seismic") if pack.has("seismic") else None
+    wind = pack.table("wind") if pack.has("wind") else None
+    locations = pack.table("locations") if pack.has("locations") else None
+    site = dict(data.get("site") or {})
+    if site.get("location") != "custom":
+        site["location"] = pick(
+            "locations", site.get("location", "dhaka"), getattr(locations, "default", None)
+        )
+    site["siteClass"] = pick(
+        "siteClasses", site.get("siteClass", "SD"), getattr(seismic, "defaultSiteClass", None)
+    )
+    data["site"] = site
+    quake = dict(data.get("seismic") or {})
+    default_system = getattr(seismic, "defaultSystem", None)
+    quake["system"] = pick("systems", quake.get("system", "rcSmf"), default_system)
+    if quake.get("systemY") is not None:
+        quake["systemY"] = pick("systems", quake["systemY"], default_system)
+    for key in ("otherSystems", "otherSystemsY"):
+        if quake.get(key):
+            quake[key] = [v for v in quake[key] if v in lists.get("systems", [v])]
+    data["seismic"] = quake
+    wind_data = dict(data.get("wind") or {})
+    wind_data["exposure"] = pick(
+        "exposures", wind_data.get("exposure", "A"), getattr(wind, "defaultExposure", None)
+    )
+    data["wind"] = wind_data
+    if pack.has("areaLoads"):
+        uses = pack.table("areaLoads").uses
+        allowance = getattr(pack.table("areaLoads"), "partitions", None)
+        finishes = new_project_finishes(pack)
+        loads = []
+        for load in data.get("areaLoads") or []:
+            load = dict(load)
+            use = load.get("use")
+            if fresh and load.get("finish"):
+                # W4A-20: a new project's finishes are the pack's (the US pack's psf).
+                load["finish"] = finishes[1] if use == "roof" else finishes[0]
+            if allowance is not None and load.get("partitions"):
+                load["partitions"] = allowance.minimum
+            if use in uses:
+                load["live"] = uses[use].live
+            elif use != "custom":
+                load["use"] = "custom"
+            loads.append(load)
+        data["areaLoads"] = loads
+    if pack.has("combinations"):
+        data["combinations"] = [
+            c.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for c in strength_combinations(pack=pack)
+        ]
+    # C13: the units the pack suggests, for settings that chose none (a new project's).
+    suggested = getattr(pack.info, "units", None)
+    if suggested and suggested != "SI" and not data.get("units"):
+        choices = dict(getattr(pack.info, "unitChoices", None) or {})
+        data["units"] = {**choices, "system": suggested}
+    # Walk 4 (W4A-17): a new project's drawing sheet is the pack's (the US pack: ARCH D).
+    sheet = getattr(pack.info, "sheetSize", None)
+    if fresh and sheet:
+        data["drawings"] = {**(data.get("drawings") or {}), "sheetSize": sheet}
+    return ProjectSettings.model_validate(data)
+
+
+def code_pack(settings: ProjectSettings | None = None) -> CodePack:
+    """The code pack the settings choose (``codePack``), with the project-local packs of the
+    project in :func:`saengine.codes.context.project`. Raises :class:`CodePackError` when it is
+    not installed or cannot be used (:func:`check` reports that)."""
+    return code_context.pack_for(settings)
+
+
+@dataclass(frozen=True)
+class CodeBasis:
+    """What the design follows, as the report and the design method state it."""
+
+    general: str
+    concrete: str
+    steel: str
+    method: str
+
+    def rows(self) -> list[list[str]]:
+        return [
+            ["Loads and general", self.general],
+            ["Concrete", self.concrete],
+            ["Steel", self.steel],
+            ["Design method", self.method],
+        ]
+
+
+def code_basis(settings: ProjectSettings | None = None) -> CodeBasis:
+    """The labels of the code the settings choose, from its pack's ``basis`` (inherited along
+    the packs it extends); a label no pack gives is the pack's edition (or name), the method
+    strength design. Raises :class:`CodePackError` as :func:`code_pack`."""
+    pack = code_pack(settings)
+    labels = pack.basis
+    edition = pack.edition or pack.name
+    return CodeBasis(
+        general=labels.get("general", edition),
+        concrete=labels.get("concrete", edition),
+        steel=labels.get("steel", edition),
+        method=labels.get("method", "Strength design (LRFD)"),
+    )
+
+
+def derived(settings: ProjectSettings) -> dict[str, Any]:
+    """The code values the settings imply (from the project's code pack), each with where it
+    comes from."""
+    pack = code_pack(settings)
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    location = locations.get(settings.site.location)
+    category = pack.table("occupancyCategories").categories[settings.occupancy.category]
+    system = pack.table("seismic").systems[settings.seismic.system]
+    zones = pack.table("zoneCoefficients").zones if pack.has("zoneCoefficients") else {}
+    zone_z = zones.get(location.zone) if location else None
+    zone = location.zone if location else None
+    # Alpha 9 C25 (SP 14.13330.2018 4.3 type): the town's zone on the pack's hazard map of the
+    # occupancy category (locations mapZones); unchanged for a pack without hazardMaps.
+    from saengine.codes.tables import hazard_map
+
+    map_extra: dict[str, Any] = {}
+    map_id = hazard_map(
+        getattr(pack.table("seismic"), "hazardMaps", None), settings.occupancy.category
+    )
+    if map_id is not None:
+        map_extra = {"hazardMap": map_id}
+        own = getattr(location, "mapZones", None) if location else None
+        if own and map_id in own:
+            zone = own[map_id]
+            zone_z = zones.get(zone)
+    z: Any = settings.site.zoneCoefficient or zone_z
+    # C1: a pack whose spectrum comes from mapped values: "Z" is the site's SpectralHazard
+    # (a float SDS with SD1, S1, TL; saengine.fem.spectral_hazard), "zone" its category band.
+    from saengine.fem import spectral_hazard as sh
+
+    if sh.uses_mapped(pack):
+        # Alpha 9 C23: the town's mapped SS, S1, TL where the project enters none; C16: for
+        # ubc97 the Z and its zone (the zone nearest an entered Z).
+        spectral = sh.with_location(settings.site.spectral, location)
+        given = settings.site.zoneCoefficient is not None
+        z = sh.site_hazard(
+            spectral, settings.site.siteClass, pack, z=z, zone=None if given else zone
+        )
+        zone = sh.band(z, pack) if z is not None else None
+    speed = settings.site.windSpeed or (location.windSpeed if location else None)
+    # Alpha 9 C15: a pack's altitude factor on the mapped speed (vb,0 = vb,map × calt).
+    altitude_rule = getattr(pack.table("wind"), "altitude", None) if pack.has("wind") else None
+    extra: dict[str, Any] = {}
+    # Alpha 9 C17: the town's factor on the velocity pressure (CFE MDOC-Viento: the barometric
+    # G of its altitude), on the town's speed only (a project's own V is its design speed).
+    pressure = getattr(location, "pressureFactor", None) if location else None
+    if pressure is not None and speed and not settings.site.windSpeed:
+        extra = {"windSpeedMap": speed, "windPressureFactor": pressure}
+        speed = speed * pressure**0.5
+    if altitude_rule is not None and speed:
+        calt = 1.0 + altitude_rule.factor * float(settings.site.altitude or 0.0)
+        extra = {
+            "windSpeedMap": extra.get("windSpeedMap", speed),
+            **extra,
+            "windAltitudeFactor": calt,
+        }
+        speed = speed * calt
+    return {
+        "zone": zone,
+        "Z": z,
+        "windSpeed": speed,
+        **extra,
+        **map_extra,
+        "seismicImportance": category.seismicImportance,
+        "windImportance": category.windImportance,
+        "R": settings.seismic.r or system.R,
+        "omega": settings.seismic.omega or system.Omega0,
+        "Cd": settings.seismic.cd or system.Cd,
+        **_combined_values(settings, pack),
+    }
+
+
+# ───────────── combinations of seismic systems (the pack's systemCombination) ─────────────
+
+
+def _pick(how: str, values: list[float]) -> float:
+    return min(values) if how == "min" else max(values)
+
+
+def system_values(settings: ProjectSettings, pack: CodePack | None = None) -> dict[str, Any]:
+    """The seismic force-resisting systems along X and Y and their combined values, by the
+    pack's ``seismic.systemCombination`` (different systems in the two directions each keep
+    their own values; several in one direction take the least R, the largest Cd and Ω0 and
+    the most stringent height limit): ``{"X": {...}, "Y": {...}}``, each ``{"primary",
+    "systems", "names", "rows", "R", "Omega0", "Cd", "heightLimits" (by category: None no
+    limit, 0 not permitted), "momentFramesOnly", "masonry", "combined"}``. The overrides of R,
+    Ω0 and Cd apply in both directions."""
+    pack = pack or code_pack(settings)
+    table = pack.table("seismic")
+    rule = table.systemCombination
+    seismic = settings.seismic
+    out: dict[str, Any] = {}
+    for axis in ("X", "Y"):
+        own_y = axis == "Y" and seismic.systemY is not None
+        primary = seismic.systemY if own_y else seismic.system
+        others = seismic.otherSystemsY if own_y else seismic.otherSystems
+        ids = [primary, *dict.fromkeys(o for o in others if o != primary)]
+        ids = [i for i in ids if i in table.systems] or [seismic.system]
+        rows = [table.systems[i] for i in ids]
+        limits: dict[str, float | None] = {}
+        for sdc in dict.fromkeys(k for row in rows for k in row.heightLimits):
+            given = [row.heightLimits.get(sdc) for row in rows]
+            if any(v is not None and v <= 0 for v in given):
+                limits[sdc] = 0.0
+            else:
+                finite = [float(v) for v in given if v is not None]
+                limits[sdc] = _pick(rule.heightLimit, finite) if finite else None
+        out[axis] = {
+            "primary": ids[0],
+            "systems": ids,
+            "names": [row.name for row in rows],
+            "rows": [row.row for row in rows],
+            "R": seismic.r or _pick(rule.R, [row.R for row in rows]),
+            "Omega0": seismic.omega or _pick(rule.Omega0, [row.Omega0 for row in rows]),
+            "Cd": seismic.cd or _pick(rule.Cd, [row.Cd for row in rows]),
+            "heightLimits": limits,
+            "momentFramesOnly": all(row.momentFrame for row in rows),
+            "masonry": any(row.masonry for row in rows),
+            "combined": len(rows) > 1,
+        }
+    return out
+
+
+def _combined_values(settings: ProjectSettings, pack: CodePack) -> dict[str, Any]:
+    """derived()'s values of the systems by direction (RX, RY, CdX, ...) and, when the
+    directions or the systems in one differ, R (the least), Cd and Ω0 (the largest) for the
+    checks that take one value."""
+    by_axis = system_values(settings, pack)
+    rule = pack.table("seismic").systemCombination
+    x, y = by_axis["X"], by_axis["Y"]
+    values: dict[str, Any] = {
+        "RX": x["R"],
+        "RY": y["R"],
+        "CdX": x["Cd"],
+        "CdY": y["Cd"],
+        "omegaX": x["Omega0"],
+        "omegaY": y["Omega0"],
+    }
+    if x["combined"] or y["combined"] or x["primary"] != y["primary"]:
+        values["R"] = _pick(rule.R, [x["R"], y["R"]])
+        values["Cd"] = _pick(rule.Cd, [x["Cd"], y["Cd"]])
+        values["omega"] = _pick(rule.Omega0, [x["Omega0"], y["Omega0"]])
+    return values
+
+
+def site_specific_warning(
+    settings: ProjectSettings, flags: list[str] | None, used: str | None = None
+) -> str | None:
+    """The warning of the pack's ``seismic.siteSpecificStudy`` when the soil report flags a
+    site class the code gives no spectrum for (S1, S2), else None. ``used``: the class the
+    spectrum uses (default the settings')."""
+    pack = code_pack(settings)
+    study = pack.table("seismic").siteSpecificStudy
+    found = [c for c in (flags or []) if c in study.classes]
+    if not found or not study.warning:
+        return None
+    return study.warning.format(
+        classes=" and ".join(found),
+        code=pack.edition or pack.name,
+        clause=study.clause,
+        used=used or settings.site.siteClass,
+        assumed=study.assumedClass or used or settings.site.siteClass,
+    )
+
+
+def soil_flags(settings: ProjectSettings, soil_text: str | None = None) -> list[str]:
+    """The site classes the soil report flags (S1, S2, SE of its boreholes), whatever the
+    site class source: ``soil_text``, else the report of the project in context; [] without
+    one."""
+    if soil_text is None:
+        root = code_context.project_root()
+        if root is None:
+            return []
+        soil_text = read_soil_text(root)
+    try:
+        return list(soil_site_class(soil_text, settings).get("flags") or [])
+    except Exception:  # noqa: BLE001 - a broken soil report is reported by Part 1
+        return []
+
+
+def category_site_class(settings: ProjectSettings, site_class: str, flags: list[str] | None) -> str:
+    """The site class the Seismic Design Category is read with: the pack's assumed class
+    (``siteSpecificStudy.assumedClass``) when the soil report flags a class that needs a
+    site-specific study, else ``site_class``."""
+    study = code_pack(settings).table("seismic").siteSpecificStudy
+    if study.assumedClass and any(c in study.classes for c in flags or []):
+        return study.assumedClass
+    return site_class
+
+
+def check(settings: ProjectSettings) -> list[str]:
+    """Problems the schema cannot express, as "path: message" (see :func:`problems`)."""
+    return [f"{path}: {message}" for path, message in problems(settings)]
+
+
+def design_category(settings: ProjectSettings, site_class: str | None = None) -> dict[str, Any]:
+    """The Seismic Design Category of the site (the default pack's Part 6 Sec 2.5.5.2, Table 6.2.18,
+    p. 617) and what it allows of the structural system (Table 6.2.19, pp. 619-624; Sec 8.3.2,
+    pp. 1088-1089): ``{"sdc", "zone", "siteClass", "permitted", "heightLimit", "detailing",
+    "required", "row"}``. ``sdc`` is None without a zone (a custom location without Z);
+    ``permitted`` False when the system is NP in the category; ``detailing`` the seismic
+    detailing the system gives, ``required`` the least the category needs. ``site_class`` is
+    the class the analysis uses (from the soil report), else the entered one."""
+    pack = code_pack(settings)
+    seismic = pack.table("seismic")
+    values = derived(settings)
+    from saengine.fem.spectral_hazard import SpectralHazard
+
+    mapped = isinstance(values["Z"], SpectralHazard)  # C1: the band of the mapped values
+    zone = values["zone"] if settings.site.zoneCoefficient is None or mapped else None
+    if zone is None and values["Z"] and not mapped:
+        zones = pack.table("zoneCoefficients").zones
+        zone = min(zones, key=lambda k: abs(zones[k] - values["Z"]))
+    site = site_class or settings.site.siteClass
+    result: dict[str, Any] = {"sdc": None, "zone": zone, "siteClass": site}
+    if zone is None:
+        return result
+    system = seismic.systems.get(settings.seismic.system)
+    table = seismic.designCategories
+    rows = table.bySiteClass
+    row = rows.get(table.aliases.get(site, site)) or list(rows.values())[-1]
+    group = table.occupancyGroups.get(settings.occupancy.category) or next(iter(row))
+    from saengine.codes.tables import category_column  # Alpha 9 C15
+
+    sdc = row[group][category_column(table, zone, len(row[group]))]
+    # Every system of both directions: the most stringent limitation (systemCombination).
+    by_axis = system_values(settings, pack) if system else {}
+    limits = [a["heightLimits"].get(sdc) for a in by_axis.values()]
+    limit = (
+        0.0
+        if any(v is not None and v <= 0 for v in limits)
+        else min((v for v in limits if v is not None), default=None)
+    )
+    banned = []
+    for axis in by_axis.values():
+        for key in axis["systems"]:
+            own = seismic.systems[key].heightLimits.get(sdc)
+            if own is not None and own <= 0 and key not in banned:
+                banned.append(key)
+    return {
+        **result,
+        "sdc": sdc,
+        "permitted": not (limit is not None and limit <= 0),
+        "heightLimit": limit if limit else None,
+        "detailing": system.frame if system else None,
+        "required": seismic.requiredDetailing.get(sdc),
+        "row": system.row if system else "",
+        "notPermitted": banned,
+    }
+
+
+#: The levels of seismic detailing, lowest first (the default pack's Part 6 Sec 8.3.2).
+_DETAILING = ("ordinary", "intermediate", "special")
+
+
+def problems(settings: ProjectSettings) -> list[tuple[str, str]]:
+    """Problems the schema cannot express (references, code minimums, site values out of the
+    code's range, the structural system in the Seismic Design Category), each as (dotted path
+    of the field or section, message)."""
+    out: list[tuple[str, str]] = []
+    ids = [a.id for a in settings.areaLoads]
+    for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
+        out.append(("areaLoads", f"two area loads use the id {duplicate}"))
+    for field, value in (("floorLoad", settings.floorLoad), ("roofLoad", settings.roofLoad)):
+        if value not in ids:
+            out.append((field, f"there is no area load '{value}'"))
+    try:
+        pack: CodePack | None = code_pack(settings)
+    except CodePackError as e:
+        pack = None
+        out.append(("codePack", str(e)))
+    if pack is not None:
+        if pack.missing:
+            # Not an error: the project runs on the default pack until its own is installed.
+            out.append(("codePack", pack.warnings[0].message if pack.warnings else pack.missing))
+        # Overrides of the pack's values that it does not accept: reported, not used.
+        out.extend((f"codeOverrides.{path}", message) for path, message in pack.override_problems)
+        out.extend(_pack_problems(settings, pack))
+    mapped = pack is not None and _uses_mapped(pack)
+    # C1: a pack without towns (site values from the code's hazard tool) is a custom location.
+    townless = pack is not None and not (
+        pack.table("locations").locations if pack.has("locations") else {}
+    )
+    if settings.site.location == "custom" or townless:
+        if settings.site.zoneCoefficient is None and not mapped:
+            out.append(
+                (
+                    "site.zoneCoefficient",
+                    f"a custom location needs the {site_input_text(pack, 'zone')}",
+                )
+            )
+        if settings.site.windSpeed is None:
+            out.append(
+                ("site.windSpeed", f"a custom location needs the {site_input_text(pack, 'wind')}")
+            )
+    if not settings.combinations:
+        out.append(("combinations", "there are no load combinations"))
+    return out
+
+
+#: The default pack's words for the site's hazard inputs (``site_input_text``).
+_SITE_INPUTS = {
+    "zone": ("seismic zone coefficient Z", "Table 6.2.14"),
+    "wind": ("basic wind speed V", "Table 6.2.8"),
+}
+
+
+def site_input_text(pack: CodePack | None, what: str, with_table: bool = True) -> str:
+    """Walk 4 (W4-A): how messages name the site's hazard input ``what`` ("zone": the value
+    entered as Z, "wind": the one entered as V) under ``pack``: the pack's own
+    ``designClauses.generator`` ``<what>Name`` and ``<what>Table``; the default pack's words
+    (with its table) for the default pack, and without another code's table for a pack that
+    gives none. ``with_table`` False: the name alone."""
+    name, table = _SITE_INPUTS[what]
+    if pack is None or pack.id == code_context.DEFAULT_PACK:
+        return f"{name} ({table})" if with_table else name
+
+    def own(key: str) -> str:
+        owner = (
+            pack.clause_owner("designClauses", "generator", key)
+            if pack.has("designClauses")
+            else None
+        )
+        return owner[1] if owner and owner[0] != code_context.DEFAULT_PACK else ""
+
+    found = own(f"{what}Table") if with_table else ""
+    named = own(f"{what}Name") or name
+    return f"{named} ({found})" if found else named
+
+
+def _uses_mapped(pack: CodePack) -> bool:
+    """Whether the pack takes the site's mapped values instead of Z (alpha 9 C16: a ubc97
+    pack takes Z)."""
+    from saengine.fem.spectral_hazard import takes_mapped_values
+
+    return takes_mapped_values(pack)
+
+
+def _pack_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The settings against the tables of the code pack."""
+    out: list[tuple[str, str]] = []
+    area_table = pack.table("areaLoads")
+    uses = area_table.uses
+    edition = pack.edition or pack.name
+    partitions = getattr(area_table, "partitions", None)
+    for index, load in enumerate(settings.areaLoads):
+        use = uses.get(load.use)
+        if use and load.live < use.live:
+            out.append(
+                (
+                    f"areaLoads.{index}.live",
+                    (
+                        f"{load.id}: live load {load.live:g} kN/m² is below the {edition} minimum "
+                        f"of {use.live:g} kN/m² for {use.name.lower()} "
+                        f"({use.source or area_table.source})"
+                    ),
+                )
+            )
+        # The allowance for partitions not on the plans: at least the pack's minimum.
+        if partitions is not None and 0 < load.partitions < partitions.minimum - 1e-9:
+            out.append(
+                (
+                    f"areaLoads.{index}.partitions",
+                    (
+                        f"{load.id}: partition allowance {load.partitions:g} kN/m² is below the "
+                        f"{edition} minimum of {partitions.minimum:g} kN/m² "
+                        f"({area_table.sources.get('partitions', area_table.source).split(':')[0]})"
+                    ),
+                )
+            )
+    out += _exception_problems(settings, pack)
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    if locations and settings.site.location != "custom" and settings.site.location not in locations:
+        out.append(
+            (
+                "site.location",
+                f"the code pack '{pack.id}' has no location '{settings.site.location}'",
+            )
+        )
+    for where, key, values in (
+        (
+            "occupancy.category",
+            settings.occupancy.category,
+            pack.table("occupancyCategories").categories,
+        ),
+        ("seismic.system", settings.seismic.system, pack.table("seismic").systems),
+    ):
+        if key not in values:
+            out.append((where, f"the code pack '{pack.id}' has no '{key}'"))
+    zones = pack.table("zoneCoefficients").zones if pack.has("zoneCoefficients") else {}
+    z = settings.site.zoneCoefficient
+    if z is not None and zones and not min(zones.values()) <= z <= max(zones.values()):
+        out.append(
+            (
+                "site.zoneCoefficient",
+                (
+                    f"Z = {z:g} is outside the {edition} zone coefficients "
+                    f"({min(zones.values()):g} to {max(zones.values()):g}, Table 6.2.14, p. 615)"
+                ),
+            )
+        )
+    speeds = [location.windSpeed for location in locations.values()]
+    v = settings.site.windSpeed
+    if v is not None and speeds and not min(speeds) * 0.9 <= v <= max(speeds) * 1.1:
+        out.append(
+            (
+                "site.windSpeed",
+                (
+                    f"V = {v:g} m/s is far from the {edition} basic wind speeds "
+                    f"({min(speeds):g} to {max(speeds):g} m/s, Table 6.2.8, p. 600): check the "
+                    "units (m/s, 3-second gust at 10 m)"
+                ),
+            )
+        )
+    if settings.seismic.system in pack.table("seismic").systems:
+        out.extend(_system_problems(settings, pack))
+    out.extend(_mapped_problems(settings, pack))
+    return out
+
+
+def _mapped_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """C1: a pack whose spectrum comes from mapped values needs the site's SDS and SD1."""
+    from saengine.fem import spectral_hazard as sh
+
+    if not sh.uses_mapped(pack):
+        return []
+    if not sh.takes_mapped_values(pack):  # Alpha 9 C16: ubc97 takes Z
+        return _ubc97_problems(settings, pack)
+    locations = pack.table("locations").locations if pack.has("locations") else {}
+    spectral = sh.with_location(settings.site.spectral, locations.get(settings.site.location))
+    if sh.site_hazard(spectral, settings.site.siteClass, pack) is not None:
+        return []
+    edition = pack.edition or pack.name
+    if getattr(sh.rule(pack), "ordinates", None) is not None:  # Alpha 9 C17
+        return [
+            (
+                "site.spectral",
+                (
+                    f"{edition} takes the seismic hazard from the site's uniform hazard spectrum: "
+                    "enter its Sa(T) points (Site > Mapped spectral values > design spectrum) "
+                    "from the code authority's hazard tool; without them the earthquake cases "
+                    "stay empty"
+                ),
+            )
+        ]
+    return [
+        (
+            "site.spectral",
+            (
+                f"{edition} takes the seismic hazard from the site's mapped spectral values: "
+                "enter SDS and SD1 (or SMS and SM1, or the multi-period MCER spectrum); without "
+                "them the earthquake cases stay empty"
+            ),
+        )
+    ]
+
+
+def _ubc97_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """Alpha 9 C16: a ubc97 pack needs the near-source data where its factors apply and a soil
+    profile it gives Ca and Cv for."""
+    edition = pack.edition or pack.name
+    rule = pack.table("seismic").designSpectrum
+    ubc = rule.ubc97 if rule is not None else None
+    if ubc is None:
+        return []
+    out: list[tuple[str, str]] = []
+    site_class = settings.site.siteClass
+    if site_class not in ubc.ca:
+        assumed = f" (taken as {ubc.assumedClass} meanwhile)" if ubc.assumedClass else ""
+        text = (
+            f"{edition} gives no seismic coefficients Ca, Cv for soil profile {site_class}: "
+            f"a site-specific study is needed{assumed}"
+        )
+        out.append(("site.siteClass", text))
+    try:
+        z = getattr(derived(settings)["Z"], "zValue", None)
+    except (KeyError, ValueError):  # an unknown system or category: reported elsewhere
+        z = None
+    start = ubc.nearSourceFrom
+    if start is not None and z is not None and z >= float(start) - 1e-9:
+        spectral = settings.site.spectral
+        has = spectral is not None and (
+            (spectral.na is not None and spectral.nv is not None)
+            or (spectral.sourceType is not None and spectral.sourceDistance is not None)
+        )
+        if not has:
+            text = (
+                f"{edition}: the site is in the zone of the near-source factors: enter the "
+                "seismic source type and the distance to it (or Na and Nv); until then Na = "
+                "Nv = 1.0"
+            )
+            out.append(("site.spectral", text))
+    return out
+
+
+def _exception_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The reduced live load factor chosen where the pack's conditions do not hold."""
+    from saengine.fem.combinations import exception_applies
+
+    if not getattr(settings.analysis, "reducedLiveFactor", False):
+        return []
+    table = pack.table("combinations")
+    loads = [(a.use, float(a.live)) for a in settings.areaLoads]
+    out = []
+    for exception in (getattr(table, "exceptions", None) or {}).values():
+        if exception.case != "L":
+            continue
+        ok, why = exception_applies(exception, live_loads=loads)
+        if not ok:
+            where = (exception.source or table.source).split(":")[0]
+            message = f"the reduced live load factor does not apply: {why} ({where})"
+            out.append(("analysis.reducedLiveFactor", f"{message}; the full factor is kept"))
+    return out
+
+
+def _system_problems(settings: ProjectSettings, pack: CodePack) -> list[tuple[str, str]]:
+    """The structural system in the Seismic Design Category of the site (with the site class
+    of the soil report when the project is known)."""
+    site_class = None
+    if settings.site.siteClassSource != "entered":
+        root = code_context.project_root()
+        if root is not None:
+            try:
+                site_class = soil_site_class(read_soil_text(root), settings).get("class")
+            except Exception:  # noqa: BLE001 - a broken soil report is reported by Part 1
+                site_class = None
+    site_class = category_site_class(
+        settings, site_class or settings.site.siteClass, soil_flags(settings)
+    )
+    info = design_category(settings, site_class)
+    sdc = info["sdc"]
+    if sdc is None:
+        return []
+    edition = pack.edition or pack.name
+    systems = pack.table("seismic").systems
+    system = systems[settings.seismic.system]
+    if info.get("notPermitted") and settings.seismic.system not in info["notPermitted"]:
+        # Another system of the combination is NP: the more stringent limitation applies.
+        system = systems[info["notPermitted"][0]]
+        info = {**info, "row": system.row}
+    where = f"Table 6.2.19 row {info['row']}" if info["row"] else "Table 6.2.19"
+    basis = (
+        f"zone {info['zone']}, site class {info['siteClass']}, occupancy category "
+        f"{settings.occupancy.category}: Table 6.2.18, p. 617"
+    )
+    if not info["permitted"]:
+        return [
+            (
+                "seismic.system",
+                (
+                    f"{system.name} is not permitted in Seismic Design Category {sdc} ({basis}; "
+                    f"{edition} Part 6 {where}). Category {sdc} needs {info['required']} seismic "
+                    "detailing (Sec 8.3.2): choose a special moment frame or another permitted "
+                    "system"
+                ),
+            )
+        ]
+    detailing, required = info["detailing"], info["required"]
+    if detailing and required and _DETAILING.index(detailing) < _DETAILING.index(required):
+        return [
+            (
+                "seismic.system",
+                (
+                    f"{system.name} has {detailing} detailing; Seismic Design Category {sdc} ({basis}) "
+                    f"needs {required} detailing ({edition} Part 6 Sec 8.3.2, pp. 1088-1089)"
+                ),
+            )
+        ]
+    return []
+
+
+# ─────────────────────────────── values from the soil report ───────────────────────────────
+
+#: Part 1's main file, relative to the project folder.
+SOIL_FILE = "01 Soil Report/soil-report.json"
+
+
+def soil_site_class(
+    soil_text: str | None, settings: ProjectSettings | None = None
+) -> dict[str, Any]:
+    """The project's site class from the boreholes of the soil report (``soil_text``, the text
+    of :data:`SOIL_FILE`): ``{"class", "boreholes", "borehole", "N", "su", "basis", "depth",
+    "extrapolated", "label", "note"}``; ``"class"`` is None when the report has no boreholes
+    that give one (or cannot be read: ``"problems"``).
+
+    ``label`` is the short form the settings editor and the report print, e.g. "SD (N̄ = 12
+    over 30 m, BH-2)" (``detail`` the part in brackets): the governing borehole's harmonic mean
+    over the top 30 m of the default pack's Table 6.2.13 that decides the class (N̄, or s̄u when the
+    cohesive layers govern).
+    """
+    from saengine.soil import site_class
+    from saengine.soil.profile import Profile
+    from saengine.soil.report import parse
+
+    none: dict[str, Any] = {"class": None, "boreholes": 0, "label": "", "note": ""}
+    if not soil_text or not soil_text.strip():
+        return {**none, "note": "There is no soil report."}
+    report = parse(soil_text)
+    if isinstance(report, list):
+        return {**none, "problems": report, "note": "The soil report has errors."}
+    if not report.boreholes:
+        return {**none, "note": "The soil report has no boreholes."}
+    if settings is not None:
+        # With the settings (Z for amax), the liquefaction screening is taken into account:
+        # boreholes with liquefiable layers make the site S2 (the default pack's Table 6.2.13) and use
+        # SD for the design spectrum meanwhile (saengine.soil.report.classify).
+        from saengine.soil.report import classify
+
+        classified = classify(report, settings)
+        sites, project = classified["sites"], classified["project"]
+    else:
+        sites = {b.id: site_class.site_class(Profile(report, b)) for b in report.boreholes}
+        project = site_class.governing(sites)
+    cls = project.get("class")
+    result: dict[str, Any] = {
+        **none,
+        "boreholes": len(report.boreholes),
+        "note": project["note"],
+        # S1, S2 (and SE) of Table 6.2.13 that the boreholes flag: S1 and S2 need a
+        # site-specific study (Sec 2.5.3.1).
+        "flags": sorted({f["class"] for f in project.get("flags", []) if f.get("class")}),
+    }
+    if not cls:
+        return result
+    which = project["governing"]
+    own = sites[which]
+    by_su = own.get("bySu") == cls and own.get("byN") != cls
+    if by_su and own.get("su") is not None:
+        basis = f"s̄u = {own['su']:.0f} kPa"
+    elif own.get("N") is not None:
+        basis = f"N̄ = {own['N']:g}"
+    else:
+        basis = ""
+    over = "over 30 m" + (", extrapolated" if own.get("extrapolated") else "")
+    detail = f"{basis} {over}, {which}" if basis else which
+    label = f"{cls} ({detail})"
+    return {
+        **result,
+        "class": cls,
+        "borehole": which,
+        "N": own.get("N"),
+        "su": own.get("su"),
+        "basis": "su" if by_su else "N",
+        "depth": own.get("depth"),
+        "extrapolated": bool(own.get("extrapolated")),
+        "label": label,
+        "detail": detail,
+        "note": project["note"],
+        "derivation": own.get("note", ""),
+    }
+
+
+def resolve_site_class(
+    settings: ProjectSettings, soil_text: str | None
+) -> tuple[ProjectSettings, dict[str, Any]]:
+    """The settings with the site class the analysis uses, and where it comes from.
+
+    With ``site.siteClassSource`` "soilReport" (the default) and a soil report whose boreholes
+    give a class, that class replaces ``site.siteClass``; otherwise the entered class stays.
+    The returned info is ``{"class", "source", "entered", "label", "note", "soil"}``, ``source``
+    "soilReport" or "entered" (what is actually used), ``soil`` the result of
+    :func:`soil_site_class` (None when the source is Entered).
+    """
+    entered = settings.site.siteClass
+    info: dict[str, Any] = {"class": entered, "source": "entered", "entered": entered, "soil": None}
+    if settings.site.siteClassSource == "entered":
+        info["label"] = f"{entered} (entered)"
+        info["note"] = f"Site class {entered}, entered in the project settings."
+        return settings, info
+    soil = soil_site_class(soil_text, settings)
+    info["soil"] = soil
+    if not soil["class"]:
+        info["label"] = f"{entered} (entered)"
+        info["note"] = (
+            f"Site class {entered}, entered in the project settings: "
+            f"{soil['note'][:1].lower() + soil['note'][1:] if soil['note'] else 'no soil report'}"
+        ).rstrip(".") + "."
+        return settings, info
+    info.update(
+        {
+            "class": soil["class"],
+            "source": "soilReport",
+            "label": f"from 1 Soil Report: {soil['label']}",
+            "note": f"Site class from 1 Soil Report: {soil['label']}; {soil['note']}",
+        }
+    )
+    if soil["class"] == entered:
+        return settings, info
+    site = settings.site.model_copy(update={"siteClass": soil["class"]})
+    return settings.model_copy(update={"site": site}), info
+
+
+def resolve_settings_text(settings_text: str | None, soil_text: str | None) -> str | None:
+    """``settings_text`` with the site class the analysis uses (:func:`resolve_site_class`);
+    the text itself when it is empty, has errors or keeps its class."""
+    import json
+
+    from pydantic import ValidationError
+
+    if not settings_text:
+        return settings_text
+    try:
+        settings = ProjectSettings.model_validate_json(settings_text)
+    except ValidationError:
+        return settings_text
+    resolved, _ = resolve_site_class(settings, soil_text)
+    if resolved is settings:
+        return settings_text
+    return json.dumps(resolved.model_dump(mode="json", by_alias=True, exclude_none=True))
+
+
+def read_soil_text(project_root: Any) -> str | None:
+    """The text of the soil report of the project at ``project_root``, None when it is missing."""
+    from pathlib import Path
+
+    try:
+        return (Path(project_root) / SOIL_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return None

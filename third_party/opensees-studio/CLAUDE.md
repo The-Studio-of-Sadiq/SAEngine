@@ -1,0 +1,211 @@
+# CLAUDE.md — Project context for Claude Code
+
+This file is loaded automatically by Claude Code (and other AI coding
+assistants) when working in this repo. It captures the architectural
+rules, conventions, and gotchas that aren't obvious from reading the
+code. Keep it short — link out instead of duplicating.
+
+## Project: OpenSees Studio
+
+A SAP2000-style desktop GUI for OpenSeesPy. PySide6 + PyVista + pyqtgraph.
+
+See [`README.md`](README.md) for the user-facing overview and
+[`docs/architecture.md`](docs/architecture.md) for the long form
+architecture document.
+
+## Architecture
+
+- **Pattern**: MVVM + service layer.
+- **`core/`** — pure Python, no Qt, no openseespy. Pydantic v2 models for
+  `Project`, `Node`, `Element`, `Material`, `Section`, `Load`, `Analysis`.
+  Safe to import from a script, notebook, or future CLI.
+- **`services/`** — `OpenSeesRunner`, persistence, deformation, spectrum,
+  section_properties, animation_export. May import openseespy. No Qt.
+- **`viewmodels/`** — Qt-aware adapters. `ProjectViewModel`,
+  `AnalysisRunner`, `QUndoStack`.
+- **`views/`** — Qt widgets, dialogs, 3D canvas. Never imports
+  openseespy directly — go through a service.
+- **`commands/`** — `QUndoCommand` subclasses for every model mutation.
+- **Analysis execution** runs in a child process. `AnalysisRunner`
+  (viewmodels) first writes the pre-run snapshot
+  `<stem>.run-snapshot.osmodel` next to the project file (for a never-saved
+  project `untitled.run-snapshot.osmodel` in the app data directory,
+  override with `OPENSEES_STUDIO_DATA_DIR`), then starts
+  `python -u -m opensees_studio.run --project <snapshot> --cases <id> --out <dir>`
+  with `QProcess` (`sys.executable`, unbuffered so the stderr of a hard exit
+  is not lost). The CLI (`opensees_studio/run.py`) prints
+  one JSON object per stdout line (`log`, `progress`, `case_started`,
+  `case_finished`, `error`), flushed per line; fd 1 is redirected to stderr
+  first, so OpenSees native output never touches the protocol. Exit codes:
+  0 every case ran (an early stop is a result), 2 Python-side analysis
+  error with an `error` line, 3 invalid project or reference; anything else
+  means the child died. Results travel through `services/result_store.py`
+  (float64 HDF5 plus `manifest.json`, lossless) and are rebuilt with
+  `load_results`. The snapshot doubles as crash recovery: on open, a
+  snapshot newer than the file prompts to restore or discard; a normal save
+  or close removes it. `OPENSEES_STUDIO_IN_PROCESS=1` runs the previous
+  threaded in-process worker (debugging, no cancel).
+  `OPENSEES_STUDIO_CLI_HARD_EXIT_AFTER=N` is a test-only hook that makes the
+  CLI hard-exit with 255 after N progress lines.
+  `OPENSEES_STUDIO_TEST_SKIP_BEARING_ORIENT=1` is a test-only hook that leaves
+  `-orient` off bearings, so OpenSees itself hard-exits on a zero-length
+  bearing. Solver-speed banners (the fullGenLapack "VERY SLOW" line) are kept
+  out of the run log and stay in the stderr capture. The Material Tester still
+  calls OpenSees in the GUI process.
+
+The dependency direction is strict and one-way: `views → viewmodels →
+services → core`. CI does not enforce this with import-linter yet, but
+PRs that violate it will be rejected on review.
+
+## Tech stack
+
+- **Python 3.12** (`requires-python = ">=3.12"`), PySide6 (Qt 6), PyVista/VTK,
+  pyqtgraph, OpenSeesPy 3.8.0.0, Pydantic v2, h5py, imageio[ffmpeg].
+- Why 3.12: the `openseespywin` and `openseespylinux` 3.8.0.0 wheels both
+  declare `Requires-Python >=3.12`. On Windows the wheel ships a single
+  `opensees.pyd` linked against `python312.dll`, so use 3.12 exactly (3.13
+  cannot load it, even though pip will install it).
+- Windows DLL fix: pin `openseespy==3.8.0.0` *and* `openseespywin==3.8.0.0`.
+
+### Venv layout (Windows dev machine, as of 2026-09-18)
+
+- `.venv/`: the live environment. Python 3.12.10, OpenSeesPy 3.8.0.0,
+  created with `py -3.12 -m venv .venv` then `pip install -e ".[gui,dev]"`.
+- `.venv/` is the only interpreter inside the repo. The py311 rollback
+  environment (`.venv-old-py311/`) and the stale Python 3.9.1 `venv/` were
+  deleted on 2026-09-18 once the lock file below was recorded.
+
+### Reproducing the known-good environment
+
+`requirements-lock.txt` is a `pip freeze --exclude-editable` of the live
+`.venv` (Python 3.12.10 + OpenSeesPy 3.8.0.0), recorded after unit 299,
+integration 55 and GUI 181 passed on it. It is a record, not a constraint
+file: `pyproject.toml` stays the source of truth for dependency ranges. To
+rebuild that exact state: `py -3.12 -m venv .venv`, then
+`pip install -r requirements-lock.txt`, then `pip install -e . --no-deps`.
+Regenerate the file only after all three suites pass on a changed environment.
+
+## Conventions and gotchas
+
+These are non-obvious things that are easy to break if you don't know:
+
+- `ForceComponent` is a plain `Enum`, **not** a `str`-Enum — a `str`
+  mix-in breaks `.value` lookup inside PyVista renderers.
+- `QObject.receivers()` in PySide6 takes a SIGNAL string, not a
+  `SignalInstance` — avoid it.
+- Qt mouse-event positions are LOGICAL pixels; VTK is DEVICE pixels.
+  Scale by `widget.devicePixelRatioF()` when picking.
+- `ModalResults.mode_shapes` is **1-indexed** (mode 1 → key `1`).
+- `PathTimeSeries` field is `dt`, not `time_step`.
+- `DiagramRenderer` must early-return when `abs_max == 0` — avoid
+  divide-by-zero in the colour scale.
+- The end-`j` sign is flipped in `extract_diagram_data` so axial /
+  shear / moment diagrams are continuous across an element.
+- `ProjectCommand` holds its view model by weak reference. Never store a
+  strong reference to the view model (or anything owning its `QUndoStack`)
+  on a command: the cycle through the stack corrupts the heap when the GC
+  frees many of them (`0xC0000374`).
+- Floating-point inputs use `views.float_field.FloatField` (full double,
+  scientific notation, shortest round-trip display); do not add a plain
+  `QDoubleSpinBox`, it rounds to its decimals.
+- An option added to an existing model keeps old files byte-identical by
+  leaving its default out of the dump: `core._base.omit_when_default`
+  (used by the beam integration rule and the numberer).
+- `Entity.id` is `PositiveInt` (>0). The sentinel `999999` is reserved
+  for in-flight / temporary objects that haven't been assigned a real id.
+- Eigen determinism rule. ARPACK keeps its random start vector across
+  `ops.eigen` calls, so only the first ARPACK eigen call of a process is
+  reproducible: a second call flips mode signs and rotates a repeated
+  eigenvalue pair. Never pick an eigen solver by hand: take it from
+  `core.modal.resolve_modal_solver` (dense `fullGenLapack` at or below
+  `DENSE_EIGEN_MAX_FREE_DOF` = 500 free DOF, override with
+  `OPENSEES_STUDIO_DENSE_EIGEN_MAX_DOF`, ARPACK above), and never add a
+  second ARPACK eigen call to a process: the CLI (`run.py`) re-executes
+  such a case in a fresh child, so new eigen-using case types must be
+  listed in its `_uses_eigen` and `_routed_to_arpack`. Every mode shape
+  that reaches display or combination must pass
+  `orthogonalize_degenerate_modes` (repeated eigenvalues: the dense
+  solver returns a mass-oblique pair) and `normalize_mode_sign` (tie
+  tolerance 1e-9, lowest DOF index wins), as `_run_modal` does; record the
+  solver used in the results. Combination rules live in
+  `core.modal_combination`; new response spectrum cases default to CQC.
+
+## Dependency split
+
+`pyproject.toml` separates dependencies into two tiers:
+
+- **Base** (`pip install -e .`): `pydantic`, `numpy`, `h5py`, `openseespy`.
+  Safe to use headlessly — no Qt, no PyVista, no VTK. Scripts, notebooks,
+  and web backends (e.g. opensees-studio-web) install only this tier.
+- **GUI extra** (`pip install -e ".[gui]"`): adds PySide6, pyvista, pyvistaqt,
+  vtk, pyqtgraph, imageio. Required to launch the desktop app.
+
+Desktop dev: `pip install -e ".[gui,dev]"`.
+Web / headless: `pip install -e .` (then verify with
+`python -c "import sys, opensees_studio.core; assert 'PySide6' not in sys.modules"`).
+
+See `docs/adr/ADR-0002-headless-gui-dep-split.md` for the rationale.
+
+## Running
+
+```bash
+# Activate the venv
+.venv\Scripts\activate         # Windows
+source .venv/bin/activate      # Linux/macOS
+
+# Launch the app
+python -m opensees_studio
+
+# Run tests
+pytest tests/unit -v           # pure-logic, no Qt, no openseespy
+pytest tests/gui -v            # pytest-qt, real Qt event loop
+pytest tests/integration -v    # real openseespy runs (slow)
+```
+
+## Test structure
+
+- `tests/unit/` — pure logic, instant. No Qt, no openseespy.
+  It runs without any `QT_QPA_PLATFORM` setting; a test that needs `qtbot`
+  (and with it a QApplication) belongs in `tests/gui/`.
+- `tests/gui/` — `qtbot` fixture, `@pytest.mark.gui`.
+  Run it in one pytest process: `pytest tests/gui` (255 tests in 45 files
+  as of 2026-09-28, about 50 s on Windows). CI does the same in its `gui`
+  job. Check the exit code, not only the pass count: any non-zero code (for
+  example `0xC0000374` after all tests pass) is a teardown bug.
+  `tests/gui/conftest.py` closes plotters and top-level widgets at session
+  end. Fallback for diagnosing a crash: run one process per test file, which
+  names the failing file (about 185 s on Windows):
+  `Get-ChildItem tests\gui\test_*.py | ForEach-Object { python -m pytest $_.FullName }`.
+  The single process used to segfault around test 73 because VTK render
+  windows accumulated (see `reports/STATUS_2026-09-12.md`); since the
+  2026-09-23 teardown fixes it passes.
+- Tests write only under pytest's `tmp_path` / `tmp_path_factory`; a run
+  given no results folder makes one in the system temp directory and
+  removes it when the results are done (`services.result_store.release_results_dir`).
+  When the analysis child dies, `AnalysisRunner` sweeps its staging folder.
+  `tests/integration/test_no_temp_leak.py` and `tests/gui/test_no_temp_leak_gui.py`
+  guard this.
+- `tests/integration/` — real `openseespy` runs that exercise full
+  model → solve → results pipelines on the bundled examples, including the
+  analysis CLI as a subprocess (`test_analysis_cli.py`) and the
+  direct-versus-CLI result parity (`test_cli_result_parity.py`).
+
+## Examples
+
+The `examples/` directory contains both Python scripts and
+pre-generated `.osmodel` files. Each script builds the project, saves
+it, reloads, and round-trips for sanity. See [`examples/README.md`](examples/README.md)
+for the full catalogue.
+
+To regenerate every example after changing the data model:
+
+```bash
+for f in examples/*.py; do python "$f"; done
+```
+
+## Branch strategy
+
+- `develop` — active development.
+- `main` — released versions.
+- Conventional commit style: `feat:`, `fix:`, `refactor:`, `docs:`,
+  `test:`, `chore:`, `ci:`.

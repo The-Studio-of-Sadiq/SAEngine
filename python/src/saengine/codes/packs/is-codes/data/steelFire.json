@@ -1,0 +1,57 @@
+{
+  "$schema": "../../../schemas/steelFire.schema.json",
+  "$sources": [
+    "IS 800:2007 Section 16 (fire resistance)"
+  ],
+  "source": "IS 800:2007 Section 16: the variation of fy and E with temperature (16.2), the limiting steel temperature Tl = 905 - 690 rf (16.3), every member by it; the heating by the lumped heat capacity in the standard fire (SAEngine practice); see VERIFY.md",
+  "retention": {
+    "method": "formula",
+    "yieldFlat": 215.0,
+    "yieldZero": 905.0,
+    "yieldSpan": 690.0,
+    "modulusA": 2000.0,
+    "modulusB": 1100.0,
+    "modulusSplit": 600.0,
+    "modulusC": 690.0,
+    "modulusD": 53.5
+  },
+  "critical": {
+    "method": "linear",
+    "factors": [
+      905.0,
+      690.0
+    ]
+  },
+  "heating": {
+    "method": "lumpedCapacitance",
+    "curve": [
+      345.0,
+      8.0
+    ],
+    "convection": 25.0,
+    "emissivity": 0.7,
+    "fireEmissivity": 1.0,
+    "specificHeat": 600.0,
+    "density": 7850.0,
+    "shadow": false,
+    "shadowFactor": 1.0,
+    "step": 5.0
+  },
+  "protection": {
+    "thickness": 0.0,
+    "conductivity": 0.12,
+    "specificHeat": 1200.0,
+    "density": 300.0,
+    "encasement": "contour"
+  },
+  "loadRatio": 0.6,
+  "compression": "critical",
+  "gammaFire": 1.0,
+  "clauses": {
+    "code": "IS 800:2007 Section 16",
+    "retention": "IS 800:2007 16.2",
+    "heating": "IS 800:2007 16.6 (the lumped heat capacity: SAEngine practice)",
+    "critical": "IS 800:2007 16.3",
+    "compression": "IS 800:2007 16.3"
+  }
+}

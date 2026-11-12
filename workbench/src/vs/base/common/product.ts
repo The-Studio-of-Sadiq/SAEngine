@@ -98,6 +98,9 @@ export interface IDictationRuntimeProductConfig {
 
 export interface IProductConfiguration {
 	readonly version: string;
+	// SAEngine: the Code-OSS version the product is built on. The product has its own version, but
+	// extensions (and the language clients they bundle) check `vscode.version` against VS Code's.
+	readonly vscodeVersion?: string;
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;

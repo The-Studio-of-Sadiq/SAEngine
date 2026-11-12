@@ -1,0 +1,1885 @@
+"""Pile groups and pile caps (Part 9, deep foundations).
+
+A pile cap of plan L × B (local u along its length, v along its width, origin at its centre)
+and thickness h carries one or more columns (:class:`saengine.substructure.shallow.ColumnBase`, in
+the cap's axes) on piles at offsets (u, v) from its centre. The column loads per combination
+are :data:`saengine.substructure.shallow.Loads`: ``[P, Cu, Cv]`` per column, the downward force [N]
+and the moments [N·mm] about u and v at the cap's underside, the column's action on the cap.
+
+Pile loads (rigid cap): ``Ri = P/n + a ui' + b vi'`` with ui', vi' measured from the piles'
+centroid and (a, b) solving ``[Σu'² Σu'v'; Σu'v' Σv'²] [a b] = [Mv Mu]``, Mv and Mu the
+resultant's moments about the centroid (for a doubly symmetric group the familiar
+``P/n ± Mv u/Σu² ± Mu v/Σv²``). A group whose piles lie in one line (or a single pile) takes
+no moment across that line: it is reported and must be restrained by tie beams. The cap's own
+weight and the soil above it (``soil_above``) add to P under the service combinations
+(times the combination's dead-load factor). The soil under the cap carries nothing (the code
+pack's ``pileCap`` rules; the default pack: BNBC 2020 Part 6 Sec 3.10.1.20).
+
+Group checks (service combinations):
+
+- the largest pile load against the single pile's allowable compression and the least against
+  its allowable uplift (:func:`saengine.substructure.piles.single_pile`);
+- group efficiency (the default pack's Sec 3.10.1.19): 1.0, except for friction piles in
+  cohesive soil (here:
+  skin friction above end bearing, most of it in cohesive layers), where the Converse-Labarre
+  formula is used (the code gives no formula): ``Eg = 1 - θ ((n - 1) m + (m - 1) n) / (90 m
+  n)``, θ = atan(D/s) in degrees, m rows of n piles; the group's capacity Eg n Qa against the
+  total load;
+- block failure in clay (Terzaghi & Peck 1967): ``Qblock = 2 (Bg + Lg) Σ cu ΔL + Nc cu,b Bg
+  Lg``, Nc = 5 (1 + 0.2 L/Bg)(1 + 0.2 Bg/Lg) ≤ 9 (Skempton 1951), Bg × Lg the outline of the
+  outer piles' faces (a tip in granular soil: the base at the pile's unit end bearing), divided
+  by the compression factor of safety;
+- the pack's ``foundations.pileCap`` rules (the default pack's Secs 3.10.1.20 and 3.10.1.30):
+  spacing at least ``spacing`` D and ``spacingMin`` (2.5 D and 750 mm), ``frictionSpacing`` D
+  for friction piles (3 D); the cap at least ``edgeDistance`` beyond the piles' faces (100 mm)
+  and a bottom cover of at least the pack's pile cap cover (50 mm); piles embedded at least
+  ``embedment`` (75 mm, noted). A pack without them does not cover these checks;
+- drilled shafts (bored piles wider than the pack's ``drilledShaft.minDiameter``): the group
+  capacity is the lesser of Σ ζ Qult (ζ by spacing, in clay or sand) and the equivalent pier
+  over the group's outline (:mod:`saengine.substructure.pile_static`), a weaker layer below the
+  tips reducing the pier's base; in place of the efficiency above;
+- group settlement (:mod:`saengine.substructure.pile_settlement`): short term from the single
+  pile's settlement (axial shortening, tip and skin friction) by the group's width or number of
+  piles, long term with the group as a solid foundation at the pack's share of the pile length
+  (consolidation of the clay layers with the 2:1 spread, the modulus number method for the
+  others), under the largest gravity service load, shown with the shallow foundations'
+  permissible settlement (the default pack's Sec 3.10.5 refers to them as "Table 6.3.7", an
+  evident misprint for Table 6.3.8, which is used: see the pack's ``piles.settlement.limits``
+  note);
+- the cap's depth above the bottom bars against the pack's least on piles
+  (:func:`saengine.substructure.shallow_rules.thickness_check`).
+
+Cap design (strength combinations, ACI 318-19; the default pack's code, BNBC 2020 Part 6 Ch 6,
+follows an earlier ACI 318 without the size factor λs, so ACI 318-19 is the more conservative),
+with the pile reactions
+of the column loads alone (the cap's own factored weight adds to the reactions and loads the
+cap back in nearly the same places, so both are left out):
+
+- flexure at each column face, beam method: the moment of the pile reactions beyond the face
+  (less the other columns beyond it) over the whole cap width, against φMn of the bottom (or,
+  hogging, top) bars of that direction (rectangular stress block, φ from εt);
+- one-way shear at d from each column face (ACI 13.2.7.2 via 7.4.3.2), φVc = 0.75 · 0.66 λs
+  ρ^(1/3) √f'c b d (Table 22.5.5.1 (c), no shear reinforcement);
+- punching at d/2 round each column (22.6.4.1) and round each pile (as the square of the same
+  area, sections cut by the cap's edges: corner and edge piles), vc of 22.6.5.2 with λs;
+- the pile reactions on a section (13.4.2.5): a pile whose centre is D/2 or more outside the
+  section counts fully, D/2 or more inside not at all, linearly in between;
+- deep caps: when the shear span a (column face to the farthest pile centre beyond it) is less
+  than d in a direction, the cap is a deep member there and the code pack's strut-and-tie method
+  governs (:mod:`saengine.design.stm`, ``foundations.strutAndTie`` with its clauses; the default
+  pack: BNBC 2020 Part 6 Appendix I): the sectional flexure and one-way shear are reported for
+  reference and flagged, and a simple strut-and-tie model is checked in their place: the tie
+  (the bottom bars of that direction over the cap width) for ``T = M / z``, M the moment of the
+  pile reactions beyond the column's quarter point (the column load split in two halves at c/4
+  from its centre, where the struts start), z = ``tieArm`` d (0.9 d), against φ As fy (φ the
+  pack's strut-and-tie φ, 0.75); the node under each column (C-C-C, βn of the pack, 1.0, Anz
+  the column's section) and over the most loaded pile (C-C-T, 0.8, Anz the pile's area)
+  against φ ``effective`` βn f'c Anz (0.85; βc = 1 on the safe side). Punching, minimum steel
+  and the hogging check always count;
+- As,min = 0.0018 Ag (fy 420; Table 7.6.1.1) in each direction with the bottom bars.
+
+Units: mm, N, N·mm and MPa inside; reported in kN, kN·m, kPa, mm.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from typing import Any
+
+import numpy as np
+
+from saengine.codes import context as code_context
+from saengine.design import rc, stm
+from saengine.design.rc_detailing import concrete_modulus, material_modulus
+from saengine.design.slab import NO_DEMAND, critical_section, punching_capacity
+from saengine.library.objects import BarMesh
+from saengine.substructure import (
+    downdrag,
+    load_tests,
+    pile_detailing,
+    pile_lateral,
+    pile_settlement,
+    pile_static,
+    shallow_rules,
+)
+from saengine.substructure.pilehead import METHOD as PILE_HEAD_METHOD
+from saengine.substructure.precast import PRECAST_METHOD
+from saengine.substructure.shallow import (
+    ColumnBase,
+    Loads,
+    mesh_area,
+    min_steel_ratio,
+    one_way_shear_capacity,
+    plain_flexure,
+    strip_flexure,
+)
+
+G = 9.80665
+#: Shear span over effective depth below which a cap is a deep member (strut-and-tie).
+DEEP_RATIO = 1.0
+
+
+def cap_rules() -> Any | None:
+    """The pack's ``foundations.pileCap`` rules (spacing, edge distance, embedment), or None
+    when the pack does not cover them."""
+    return shallow_rules.foundations_value("pileCap")
+
+
+def uplift_skin() -> float | None:
+    """The pack's share of the skin friction resisting uplift (``foundations.upliftSkin``)."""
+    return shallow_rules.foundations_value("upliftSkin")
+
+
+def _uplift_rule() -> str:
+    """How the allowable uplift of a pile is found, with the pack's share and clause."""
+    share = uplift_skin()
+    if share is None:
+        return "Ta = W/FS (" + shallow_rules.not_covered("skin friction in uplift") + ")"
+    clause = shallow_rules.cite("upliftSkin")
+    return f"Ta = ({share:g} Qs + W)/FS" + (f" ({clause})" if clause else "")
+
+
+@dataclass
+class CapSpec:
+    """A pile cap to design: geometry [mm] in its own axes, materials [MPa] and its piles."""
+
+    id: str
+    length: float  # along u
+    width: float  # along v
+    thickness: float
+    cover: float
+    fc: float
+    fy: float
+    columns: list[ColumnBase]
+    piles: list[tuple[float, float]]  # offsets from the cap centre [mm]
+    pile_diameter: float
+    bottom_x: BarMesh | None = None
+    bottom_y: BarMesh | None = None
+    top_x: BarMesh | None = None
+    top_y: BarMesh | None = None
+    es: float = field(default_factory=lambda: rc.value("STEEL_E"))
+    unit_weight: float = 2400 * G * 1e-9  # N/mm³
+    soil_above: float = 0.0  # N/mm², soil and floor over the cap
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def weight(self) -> float:
+        """Weight of the cap and what lies on it [N]."""
+        area = self.length * self.width
+        return self.unit_weight * area * self.thickness + self.soil_above * area
+
+    def depths(self, face: str = "bottom") -> dict[str, float]:
+        """Effective depth [mm] of the X ("u") and Y ("v") bars of a face, X outer."""
+        outer, inner = (
+            (self.bottom_x, self.bottom_y) if face == "bottom" else (self.top_x, self.top_y)
+        )
+        base = self.thickness - self.cover
+        d_outer = base - outer.dia / 2 if outer else None
+        d_inner = base - (outer.dia if outer else 0.0) - inner.dia / 2 if inner else None
+        return {
+            "u": d_outer if d_outer is not None else (d_inner if d_inner is not None else base),
+            "v": d_inner if d_inner is not None else (d_outer if d_outer is not None else base),
+        }
+
+    @property
+    def d(self) -> float:
+        depths = self.depths("bottom")
+        return (depths["u"] + depths["v"]) / 2
+
+    def outline(self) -> list[tuple[float, float]]:
+        a, b = self.length / 2, self.width / 2
+        return [(-a, -b), (a, -b), (a, b), (-a, b)]
+
+
+# ─────────────────────────────────────── pile loads ───────────────────────────────────────
+
+
+def pile_reactions(
+    spec: CapSpec, loads: list[np.ndarray], weight: float = 0.0
+) -> tuple[np.ndarray, list[str]]:
+    """Pile loads [N] (compression positive) of a rigid cap under the column ``loads`` and a
+    ``weight`` [N] at the cap's centre, and notes when the group cannot take a moment."""
+    piles = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
+    n = len(piles)
+    if n == 0:
+        raise ValueError(f"{spec.id}: the pile cap has no piles")
+    total = weight + sum(float(f[0]) for f in loads)
+    centre = piles.mean(axis=0)
+    # Moments about the piles' centroid, in the footing convention (see shallow._eccentricity).
+    mv = -weight * centre[0] + sum(
+        float(f[0]) * (c.u - centre[0]) + float(f[2])
+        for c, f in zip(spec.columns, loads, strict=True)
+    )
+    mu = -weight * centre[1] + sum(
+        float(f[0]) * (c.v - centre[1]) - float(f[1])
+        for c, f in zip(spec.columns, loads, strict=True)
+    )
+    rel = piles - centre
+    matrix = rel.T @ rel
+    notes: list[str] = []
+    coefficients = np.linalg.pinv(matrix, rcond=1e-9) @ np.array([mv, mu])
+    reactions = total / n + rel @ coefficients
+    residual = np.array([mv, mu]) - matrix @ coefficients
+    if float(np.linalg.norm(residual)) > 1e3:  # more than 1 N·m left unresisted
+        notes.append(
+            "the piles lie in one line (or one pile): the group takes no moment across it; the "
+            "column moments that way must go to tie beams"
+        )
+    return reactions, notes
+
+
+def _service_weight(spec: CapSpec, name: str, dead_factor: dict[str, float] | None) -> float:
+    factor = (dead_factor or {}).get(name, 1.0)
+    return factor * spec.weight
+
+
+# ─────────────────────────────────────── group ───────────────────────────────────────
+
+
+def converse_labarre(piles: np.ndarray, diameter: float) -> tuple[float, int, int, float]:
+    """Converse-Labarre efficiency of a group: (Eg, m rows, n per row, spacing [mm])."""
+    if len(piles) < 2:
+        return 1.0, 1, len(piles), 0.0
+    us = np.unique(np.round(piles[:, 0] / 10.0))
+    vs = np.unique(np.round(piles[:, 1] / 10.0))
+    n, m = len(us), len(vs)
+    s = min_spacing(piles)
+    theta = math.degrees(math.atan(diameter / s)) if s > 0 else 90.0
+    eg = 1 - theta * ((n - 1) * m + (m - 1) * n) / (90 * m * n)
+    return max(eg, 0.0), m, n, s
+
+
+def min_spacing(piles: np.ndarray) -> float:
+    best = math.inf
+    for i in range(len(piles)):
+        for j in range(i + 1, len(piles)):
+            best = min(best, float(np.linalg.norm(piles[i] - piles[j])))
+    return best if math.isfinite(best) else 0.0
+
+
+def group_outline(spec: CapSpec) -> tuple[float, float]:
+    """Bg ≤ Lg [mm]: the outline of the outer piles' faces."""
+    piles = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
+    extent = piles.max(axis=0) - piles.min(axis=0) + spec.pile_diameter
+    return float(min(extent)), float(max(extent))
+
+
+def _friction_in_clay(pile: dict[str, Any], profile: Any) -> bool:
+    if pile["Qs"] <= pile["Qb"] or profile is None:
+        return False
+    cohesive = 0.0
+    for row in pile["layers"]:
+        layer = profile.layers[row["layer"]]
+        if layer.behaviour == "cohesive":
+            cohesive += row["Qs"]
+    return cohesive > 0.5 * pile["Qs"]
+
+
+def block_capacity(
+    profile: Any, head: float, length: float, bg: float, lg: float, qb: float = 0.0
+) -> tuple[float | None, str]:
+    """Ultimate block capacity [kN] of a group Bg × Lg [m] of piles ``length`` m long from
+    ``head`` m below the ground, in clay (None when the shaft meets no cohesive soil). Below a
+    tip in granular soil the block's base takes the pile's unit end bearing ``qb`` [kPa]."""
+    slices = max(1, math.ceil(length / 0.1))
+    dz = length / slices
+    side, clay = 0.0, False
+    for k in range(slices):
+        layer = profile.layer_at(head + (k + 0.5) * dz)
+        if layer is not None and layer.behaviour == "cohesive" and layer.cu:
+            side += layer.cu * dz
+            clay = True
+    if not clay:
+        return None, "no cohesive soil along the piles"
+    tip = profile.layer_at(head + length + 1e-6)
+    if tip is not None and tip.behaviour == "cohesive" and tip.cu:
+        nc = min(9.0, 5 * (1 + 0.2 * length / bg) * (1 + 0.2 * bg / lg))
+        base = nc * tip.cu * bg * lg
+        text = f"Nc = {nc:.2f}, cu at the tip {tip.cu:.0f} kPa"
+    else:
+        base = qb * bg * lg
+        text = f"granular soil at the tip: the block's base at the pile's qb = {qb:.0f} kPa"
+    return 2 * (bg + lg) * side + base, text
+
+
+# ─────────────────────────────────────── cap design ───────────────────────────────────────
+
+
+def _share_outside(distance_out: float, diameter: float) -> float:
+    """ACI 318-19 13.4.2.5: the share of a pile's reaction acting on the far side of a
+    section, from the distance [mm] of its centre outside the section (negative inside)."""
+    return min(1.0, max(0.0, (distance_out + diameter / 2) / diameter))
+
+
+def _face_actions(
+    spec: CapSpec,
+    reactions: np.ndarray,
+    loads: list[np.ndarray],
+    axis: int,
+    column: int,
+    side: int,
+    offset: float,
+) -> tuple[float, float]:
+    """Moment [N·mm] (sagging +) and shear [N] on the section ``offset`` beyond a column's face,
+    on its ``side`` (+1 / -1) along ``axis`` (0: u, 1: v): the pile reactions beyond it less
+    the other columns beyond it. The moment takes a pile fully when its centre is beyond the
+    section; the shear by 13.4.2.5."""
+    c = spec.columns[column]
+    centre = (c.u, c.v)[axis]
+    half = (c.cu, c.cv)[axis] / 2
+    section = centre + side * (half + offset)
+    moment = shear = 0.0
+    for (pu, pv), r in zip(spec.piles, reactions, strict=True):
+        beyond = side * ((pu, pv)[axis] - section)
+        if beyond > 0:
+            moment += r * beyond
+        shear += r * _share_outside(beyond, spec.pile_diameter)
+    for k, (other, f) in enumerate(zip(spec.columns, loads, strict=True)):
+        if k == column:
+            continue
+        beyond = side * ((other.u, other.v)[axis] - section)
+        if beyond > 0:
+            moment -= float(f[0]) * beyond
+            shear -= float(f[0])
+    return moment, shear
+
+
+def _shear_span(spec: CapSpec, axis: int, column: int, side: int) -> float | None:
+    c = spec.columns[column]
+    face = (c.u, c.v)[axis] + side * (c.cu, c.cv)[axis] / 2
+    arms = [side * ((pu, pv)[axis] - face) for pu, pv in spec.piles]
+    arms = [a for a in arms if a > 0]
+    return max(arms) if arms else None
+
+
+def _head_moment(
+    spec: CapSpec, head: np.ndarray | None, axis: int, column: int, side: int
+) -> float:
+    """Σ of the fixed pile heads' moments [N·mm] bending along ``axis`` beyond a column's face
+    (:mod:`saengine.substructure.pilehead`); ``head`` one pile's ``[Mu, Mv]``."""
+    if head is None:
+        return 0.0
+    c = spec.columns[column]
+    face = (c.u, c.v)[axis] + side * (c.cu, c.cv)[axis] / 2
+    beyond = sum(1 for pu, pv in spec.piles if side * ((pu, pv)[axis] - face) > 0)
+    return beyond * abs(float(head[axis]))
+
+
+def cap_checks(
+    spec: CapSpec,
+    strength: Loads,
+    piles_by_combination: dict[str, np.ndarray] | None = None,
+    head_moments: dict[str, np.ndarray] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Flexure, one-way shear, punching and minimum steel of the cap (see the module notes),
+    and what the editor shows (``{"deep": {...}, "d": ...}``). ``head_moments``: per strength
+    combination one fixed pile head's moment ``[Mu, Mv]`` [N·mm], added to the face moments in
+    the sense that increases them (the lateral load reverses)."""
+    from saengine.design.check import _check
+
+    reactions_of = piles_by_combination or {
+        name: pile_reactions(spec, loads)[0] for name, loads in strength.items()
+    }
+    depths = spec.depths("bottom")
+    tops = spec.depths("top")
+    meshes = {"u": (spec.bottom_x, spec.top_x), "v": (spec.bottom_y, spec.top_y)}
+    widths = {"u": spec.width, "v": spec.length}  # the section across a direction's bars
+    checks: list[dict[str, Any]] = []
+    deep: dict[str, Any] = {}
+    flags: list[str] = []
+    for axis, name in ((0, "u"), (1, "v")):
+        bars = "X" if name == "u" else "Y"
+        width = widths[name]
+        bottom, top = meshes[name]
+        d, d_top = depths[name], tops[name]
+        as_bottom, as_top = mesh_area(bottom), mesh_area(top)
+        capacity_bottom = strip_flexure(as_bottom, d, spec.fc, spec.fy, spec.es)
+        capacity_top = strip_flexure(as_top, d_top, spec.fc, spec.fy, spec.es)
+        sag = (0.0, None, "")
+        hog = (0.0, None, "")
+        shear_worst = (-1.0, 0.0, 0.0, None, "")
+        rho = as_bottom / (1000 * d) if d > 0 else 0.0
+        phi_vc = one_way_shear_capacity(width, d, rho, spec.fc)
+        spans: list[float] = []
+        for k, column in enumerate(spec.columns):
+            for side in (1, -1):
+                span = _shear_span(spec, axis, k, side)
+                if span is not None:
+                    spans.append(span)
+                where = f"{'+' if side > 0 else '-'}{name} face of {column.id}"
+                edge = (spec.length, spec.width)[axis] / 2
+                for combination, loads in strength.items():
+                    reactions = reactions_of[combination]
+                    moment, _ = _face_actions(spec, reactions, loads, axis, k, side, 0.0)
+                    head = _head_moment(spec, (head_moments or {}).get(combination), axis, k, side)
+                    if moment + head > sag[0]:
+                        sag = (moment + head, combination, where)
+                    if head - moment > hog[0]:
+                        hog = (head - moment, combination, where)
+                    section = (column.u, column.v)[axis] + side * (
+                        (column.cu, column.cv)[axis] / 2 + d
+                    )
+                    if abs(section) >= edge:
+                        continue
+                    _, vu = _face_actions(spec, reactions, loads, axis, k, side, d)
+                    ratio = abs(vu) / phi_vc if phi_vc > 0 else math.inf
+                    if ratio > shear_worst[0]:
+                        shear_worst = (ratio, abs(vu), phi_vc, combination, f"d from the {where}")
+        ratio = (max(spans) / d) if spans and d > 0 else None
+        deep[name] = None if ratio is None else round(ratio, 2)
+        is_deep = ratio is not None and ratio < DEEP_RATIO
+        if is_deep:
+            flags.append(name)
+        suffix = " (deep cap: strut-and-tie governs)" if is_deep else ""
+        phi_mn = capacity_bottom.phi_mn * width / 1000
+        checks.append(
+            _check(
+                f"Flexure bottom {bars} at the column face{suffix}",
+                sag[0] / 1e6,
+                phi_mn / 1e6,
+                "kN·m",
+                sag[1],
+                f"beam method over the cap width {width:.0f} mm, "
+                + (
+                    f"Ø{bottom.dia:g} @ {bottom.spacing:g}: As = {as_bottom * width / 1000:.0f} "
+                    f"mm², d = {d:.0f} mm, φ = {capacity_bottom.phi:.2f}"
+                    if bottom
+                    else f"no bottom {bars} bars"
+                )
+                + (f"; {sag[2]}" if sag[2] else "")
+                + ("; with the fixed pile heads' moments" if head_moments else ""),
+                flag=is_deep,
+            )
+        )
+        if hog[0] > NO_DEMAND * width:  # as slabs: below 50 N·m/m, no bars needed
+            if top:
+                hog_capacity = capacity_top.phi_mn * width / 1000
+                hog_note = f"Ø{top.dia:g} @ {top.spacing:g}, d = {d_top:.0f} mm"
+            else:
+                # Without top bars the top face is plain concrete, as for footings (ACI 318-19
+                # 14.5.2.1, h less 50 mm by 14.5.1.7).
+                hog_capacity = plain_flexure(spec.thickness, spec.fc) * width / 1000
+                hog_note = (
+                    f"no top {bars} bars: plain concrete, φMn = 0.60 × 0.42 √f'c Sm with "
+                    f"h - 50 mm = {spec.thickness - 50:.0f} mm (ACI 14.5.2.1, 14.5.1.7)"
+                )
+                uplift_clause = shallow_rules.cite("pileCap.upliftTopBars")
+                if "E" in (hog[1] or "") and uplift_clause:
+                    hog_note += (
+                        f"; under earthquake uplift {uplift_clause} asks for top flexural "
+                        "reinforcement in the pile cap"
+                    )
+            checks.append(
+                _check(
+                    f"Flexure top {bars} (hogging)",
+                    hog[0] / 1e6,
+                    hog_capacity / 1e6,
+                    "kN·m",
+                    hog[1],
+                    hog_note
+                    + f"; {hog[2]} (piles in tension pull the cap up: counted for deep caps too)",
+                )
+            )
+        if shear_worst[3] is not None:
+            ratio_v, vu, cap_v, combination, where = shear_worst
+            checks.append(
+                _check(
+                    f"One-way shear across {bars}{suffix}",
+                    vu / 1e3,
+                    cap_v / 1e3,
+                    "kN",
+                    combination,
+                    f"φVc = 0.75 · 0.66 λs ρ^(1/3) √f'c b d (ACI 22.5.5.1 (c)), "
+                    f"b = {width:.0f} mm, d = {d:.0f} mm, ρ = {rho:.4f}; pile reactions by ACI "
+                    f"13.4.2.5; {where}",
+                    utilisation=ratio_v,
+                    flag=is_deep,
+                )
+            )
+        if is_deep:
+            checks += _tie_check(spec, strength, reactions_of, axis, bars, width, d, as_bottom)
+        required = min_steel_ratio(spec.fy) * width * spec.thickness
+        checks.append(
+            _check(
+                f"Min. steel bottom {bars}",
+                required,
+                as_bottom * width / 1000,
+                "mm²",
+                None,
+                f"As,min = {min_steel_ratio(spec.fy):.4f} b h (ACI Table 7.6.1.1)",
+            )
+        )
+    if flags:
+        checks += _node_checks(spec, strength, reactions_of)
+    checks += _punching(spec, strength, reactions_of)
+    detail = {"d": round(spec.d), "shearSpanRatio": deep, "deep": flags}
+    if flags:
+        detail["note"] = (
+            f"shear span a < d along {', '.join(flags)}: a deep cap; checked by the strut-and-tie "
+            f"method ({_stm_clause()}: the bottom bars as the tie, the nodes at the "
+            "column and the pile heads; the sectional flexure and one-way shear are for "
+            "reference). Anchor the tie bars beyond the outer piles with hooks or heads "
+            f"({_stm_clause('anchorage')})"
+        )
+    return checks, detail
+
+
+def _stm_clause(key: str | None = None) -> str:
+    """The pack's clause of strut-and-tie ``key`` (:func:`saengine.design.stm.cite`; without a
+    key the method's own clause), else the pack's name."""
+    found = stm.cite(key) if key else shallow_rules.source("strutAndTie").split(" (")[0]
+    return found or f"the strut-and-tie method of {shallow_rules.code_name()}"
+
+
+def _phi_stm() -> float:
+    """φ of strut-and-tie models (:func:`saengine.design.stm.phi`)."""
+    return stm.phi()
+
+
+def _strut_and_tie(name: str) -> float:
+    """The pack's strut-and-tie factor ``name`` (:func:`saengine.design.stm.factor`)."""
+    return stm.factor(name)
+
+
+def _tie_check(
+    spec: CapSpec,
+    strength: Loads,
+    reactions_of: dict[str, np.ndarray],
+    axis: int,
+    bars: str,
+    width: float,
+    d: float,
+    as_bottom: float,
+) -> list[dict[str, Any]]:
+    """The tie of a deep cap along ``axis``: ``T = M / z``, M the moment of the pile reactions
+    beyond the column's quarter point (the struts start from the column's load split in two
+    halves, each at c/4 from its centre), z = ``tieArm`` d; against φ As fy (the pack's
+    strut-and-tie tie strength)."""
+    from saengine.design.check import _check
+
+    tie_arm, phi = _strut_and_tie("tieArm"), _phi_stm()
+    z = tie_arm * d
+    worst: tuple[float, str | None, str] = (0.0, None, "")
+    for k, column in enumerate(spec.columns):
+        quarter = (column.cu, column.cv)[axis] / 4
+        for side in (1, -1):
+            where = f"{'+' if side > 0 else '-'}{'u' if axis == 0 else 'v'} side of {column.id}"
+            for combination, loads in strength.items():
+                moment, _ = _face_actions(
+                    spec, reactions_of[combination], loads, axis, k, side, -quarter
+                )
+                if moment / z > worst[0]:
+                    worst = (moment / z, combination, where)
+    if worst[1] is None:
+        return []
+    tie, combination, where = worst
+    area = as_bottom * width / 1000
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:  # Alpha 9 C5c: the pack's strut-and-tie strengths
+        return [
+            _check(
+                f"Tie (bottom {bars} bars, strut-and-tie)",
+                tie / 1e3,
+                stress_fields.tie_capacity(area, spec.fy) / 1e3,
+                "kN",
+                combination,
+                f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
+                f"{tie_arm:g} d = {z:.0f} mm; As fyd, As = {area:.0f} mm² over {width:.0f} mm "
+                f"({stress_fields.cite()}); {where}",
+            )
+        ]
+    return [
+        _check(
+            f"Tie (bottom {bars} bars, strut-and-tie)",
+            tie / 1e3,
+            stm.tie_capacity(area, spec.fy) / 1e3,
+            "kN",
+            combination,
+            f"T = M / z, M of the pile reactions beyond the column's quarter point, z = "
+            f"{tie_arm:g} d = {z:.0f} mm; φ As fy, φ = {phi:g}, As = {area:.0f} mm² over "
+            f"{width:.0f} mm ({_stm_clause('deltaFpBonded')}); {where}",
+        )
+    ]
+
+
+def _node_checks(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Bearing on the nodes of a deep cap (the pack's nodal zones): the column's C-C-C node
+    and the pile heads' C-C-T nodes, fce = ``effective`` βn f'c (βc = 1, on the safe side)."""
+    from saengine.design.check import _check
+
+    checks: list[dict[str, Any]] = []
+    from saengine.design import stress_fields
+
+    if stress_fields.rules() is not None:  # Alpha 9 C5c: the pack's node strengths
+        return _limit_state_nodes(spec, strength, reactions_of)
+    beta_ccc, beta_cct = _strut_and_tie("betaCCC"), _strut_and_tie("betaCCT")
+    effective = _strut_and_tie("effective")
+    for k, column in enumerate(spec.columns):
+        area = column.cu * column.cv
+        worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
+        if worst is None or area <= 0:
+            continue
+        checks.append(
+            _check(
+                f"Node under {column.id} (strut-and-tie)",
+                worst[0] / 1e3,
+                stm.node_capacity(spec.fc, area, "CCC") / 1e3,
+                "kN",
+                worst[1],
+                f"C-C-C node, φ {effective:g} βn f'c Anz with βn = {beta_ccc:g}, Anz = the "
+                f"column {column.cu:.0f} × {column.cv:.0f} mm ({_stm_clause('betaCCC')})",
+            )
+        )
+    area = math.pi * spec.pile_diameter**2 / 4
+    worst_pile = max(
+        ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
+    )
+    if worst_pile is not None:
+        checks.append(
+            _check(
+                "Node over a pile (strut-and-tie)",
+                max(worst_pile[0], 0.0) / 1e3,
+                stm.node_capacity(spec.fc, area, "CCT") / 1e3,
+                "kN",
+                worst_pile[1],
+                f"C-C-T node at the pile head, φ {effective:g} βn f'c Anz with βn = "
+                f"{beta_cct:g}, Anz = the pile's area (Ø{spec.pile_diameter:.0f}) "
+                f"({_stm_clause('betaCCT')})",
+            )
+        )
+    return checks
+
+
+def _limit_state_punching(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Alpha 9 C5c: punching of the cap by the pack's control perimeters within 2d
+    (:func:`saengine.design.perimeter_punching.footing_punching`): at each column VEd = P less
+    the pile reactions inside each perimeter (by the share of a pile's area inside, the
+    rounded perimeter taken as its bounding rectangle); round each pile its reaction; ρl of
+    the bottom meshes. The column moments are in the pile reactions."""
+    from saengine.design import perimeter_punching as pp
+    from saengine.design.check import _check
+
+    d = spec.d
+    half_l, half_w = spec.length / 2, spec.width / 2
+    ratios = [mesh_area(m) / (1000 * d) for m in (spec.bottom_x, spec.bottom_y) if d > 0]
+    rho = math.sqrt(ratios[0] * ratios[1]) if len(ratios) == 2 else 0.0
+    checks: list[dict[str, Any]] = []
+    for k, column in enumerate(spec.columns):
+        reach = min(
+            column.u - column.cu / 2 + half_l,
+            half_l - column.u - column.cu / 2,
+            column.v - column.cv / 2 + half_w,
+            half_w - column.v - column.cv / 2,
+        )
+        if reach <= 0:
+            continue
+        worst = None
+        for combination, loads in strength.items():
+            reactions = reactions_of[combination]
+
+            def inside(a: float, reactions: np.ndarray = reactions, column: Any = column) -> float:
+                half_u, half_v = column.cu / 2 + a, column.cv / 2 + a
+                total = 0.0
+                for (pu, pv), r in zip(spec.piles, reactions, strict=True):
+                    out = _rectangle_distance(pu - column.u, pv - column.v, half_u, half_v)
+                    total += r * (1 - _share_outside(out, spec.pile_diameter))
+                return total
+
+            found = pp.footing_punching(
+                float(loads[k][0]), d, column.cu, column.cv, spec.fc, rho, inside, reach=reach
+            )
+            if found is not None and (worst is None or found.utilisation > worst[0].utilisation):
+                worst = (found, combination)
+        if worst is None:
+            continue
+        found, combination = worst
+        checks.append(
+            _check(
+                f"Punching at {column.id}",
+                found.v_ed * found.u * d / 1e3,
+                found.v_rd * found.u * d / 1e3,
+                "kN",
+                combination,
+                pp.footing_note(found, d) + f", d = {d:.0f} mm, ρl = {rho:.4f}; VEd less the "
+                "pile reactions inside",
+                utilisation=found.utilisation,
+            )
+        )
+    side = math.sqrt(math.pi) / 2 * spec.pile_diameter  # square of the same area
+    worst_pile = None
+    for i, (pu, pv) in enumerate(spec.piles):
+        reach = min(pu - side / 2 + half_l, half_l - pu - side / 2,
+                    pv - side / 2 + half_w, half_w - pv - side / 2)  # fmt: skip
+        if reach <= d / 16:
+            continue
+        for combination in strength:
+            r = float(reactions_of[combination][i])
+            if r <= 0:
+                continue
+            found = pp.footing_punching(r, d, side, side, spec.fc, rho, lambda a: 0.0, reach=reach)
+            if found is not None and (
+                worst_pile is None or found.utilisation > worst_pile[0].utilisation
+            ):
+                worst_pile = (found, combination, i)
+    if worst_pile is not None:
+        found, combination, i = worst_pile
+        checks.append(
+            _check(
+                "Punching round a pile",
+                found.v_ed * found.u * d / 1e3,
+                found.v_rd * found.u * d / 1e3,
+                "kN",
+                combination,
+                f"pile {i + 1} as a {side:.0f} mm square of the same area, perimeters within the "
+                f"cap's edges; " + pp.footing_note(found, d),
+                utilisation=found.utilisation,
+            )
+        )
+    return checks
+
+
+def _limit_state_nodes(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    """Alpha 9 C5c: the column's C-C-C node and the pile heads' C-C-T nodes of a deep cap at
+    the pack's node strengths (:mod:`saengine.design.stress_fields`)."""
+    from saengine.design import stress_fields as sf
+    from saengine.design.check import _check
+
+    checks: list[dict[str, Any]] = []
+    for k, column in enumerate(spec.columns):
+        area = column.cu * column.cv
+        worst = max(((float(loads[k][0]), name) for name, loads in strength.items()), default=None)
+        if worst is None or area <= 0:
+            continue
+        checks.append(
+            _check(
+                f"Node under {column.id} (strut-and-tie)",
+                worst[0] / 1e3,
+                sf.node_strength(spec.fc, "CCC") * area / 1e3,
+                "kN",
+                worst[1],
+                f"C-C-C node, σRd,max = {sf.strength_text('CCC')} = "
+                f"{sf.node_strength(spec.fc, 'CCC'):.2f} MPa over the column {column.cu:.0f} × "
+                f"{column.cv:.0f} mm ({sf.cite()})",
+            )
+        )
+    area = math.pi * spec.pile_diameter**2 / 4
+    worst_pile = max(
+        ((float(r.max()), name) for name, r in reactions_of.items() if len(r)), default=None
+    )
+    if worst_pile is not None:
+        checks.append(
+            _check(
+                "Node over a pile (strut-and-tie)",
+                max(worst_pile[0], 0.0) / 1e3,
+                sf.node_strength(spec.fc, "CCT") * area / 1e3,
+                "kN",
+                worst_pile[1],
+                f"C-C-T node at the pile head, σRd,max = {sf.strength_text('CCT')} = "
+                f"{sf.node_strength(spec.fc, 'CCT'):.2f} MPa over the pile's area "
+                f"(Ø{spec.pile_diameter:.0f}) ({sf.cite()})",
+            )
+        )
+    return checks
+
+
+def _rectangle_distance(du: float, dv: float, half_u: float, half_v: float) -> float:
+    """Signed distance [mm] of a point outside (+) a rectangle centred at the origin."""
+    return max(abs(du) - half_u, abs(dv) - half_v)
+
+
+def _punching(
+    spec: CapSpec, strength: Loads, reactions_of: dict[str, np.ndarray]
+) -> list[dict[str, Any]]:
+    from saengine.design import perimeter_punching
+    from saengine.design.check import _check
+
+    if perimeter_punching.footing_rules() is not None:  # Alpha 9 C5c
+        return _limit_state_punching(spec, strength, reactions_of)
+    d = spec.d
+    outline = spec.outline()
+    checks: list[dict[str, Any]] = []
+    for k, column in enumerate(spec.columns):
+        section = critical_section((column.u, column.v), column.cu, column.cv, 0.0, d, outline)
+        if not section.sides:
+            continue
+        lo_u, hi_u, lo_v, hi_v = section.extents
+        beta = max(column.cu, column.cv) / min(column.cu, column.cv)
+        capacity = punching_capacity(spec.fc, d, section.b0, beta, section.alpha_s)
+        worst: tuple[float, float, str | None] = (-1.0, 0.0, None)
+        for combination, loads in strength.items():
+            reactions = reactions_of[combination]
+            inside = 0.0
+            for (pu, pv), r in zip(spec.piles, reactions, strict=True):
+                du, dv = pu - column.u - (hi_u - lo_u) / 2, pv - column.v - (hi_v - lo_v) / 2
+                out = _rectangle_distance(du, dv, (lo_u + hi_u) / 2, (lo_v + hi_v) / 2)
+                inside += r * (1 - _share_outside(out, spec.pile_diameter))
+            vu = float(loads[k][0]) - inside
+            if vu > worst[0]:
+                worst = (vu, vu / (section.b0 * d), combination)
+        vu, stress, combination = worst
+        phi_vc = rc.value("PHI_SHEAR") * capacity.vc
+        checks.append(
+            _check(
+                f"Punching at {column.id}",
+                max(vu, 0.0) / 1e3,
+                phi_vc * section.b0 * d / 1e3,
+                "kN",
+                combination,
+                f"{section.location} section at d/2, b0 = {section.b0:.0f} mm, d = {d:.0f} mm, "
+                f"Vu = P less the pile reactions inside (ACI 13.4.2.5), vu = {stress:.3f} MPa, "
+                f"vc = {capacity.vc:.3f} MPa (ACI 22.6.5.2, λs = {capacity.lambda_s:.2f}); "
+                "the column moments are in the pile reactions",
+                utilisation=max(stress, 0.0) / phi_vc,
+            )
+        )
+    side = math.sqrt(math.pi) / 2 * spec.pile_diameter  # square of the same area
+    worst_pile: tuple[float, float, float, str | None, str] = (-1.0, 0.0, 0.0, None, "")
+    for i, (pu, pv) in enumerate(spec.piles):
+        section = critical_section((pu, pv), side, side, 0.0, d, outline)
+        if not section.sides:
+            continue
+        capacity = punching_capacity(spec.fc, d, section.b0, 1.0, section.alpha_s)
+        phi_v = rc.value("PHI_SHEAR") * capacity.vc * section.b0 * d
+        for combination in strength:
+            r = float(reactions_of[combination][i])
+            ratio = r / phi_v if phi_v > 0 else math.inf
+            if ratio > worst_pile[0]:
+                worst_pile = (
+                    ratio,
+                    r,
+                    phi_v,
+                    combination,
+                    (
+                        f"pile {i + 1} ({section.location}), b0 = {section.b0:.0f} mm, "
+                        f"vc = {capacity.vc:.3f} MPa"
+                    ),
+                )
+    if worst_pile[3] is not None:
+        ratio, r, phi_v, combination, where = worst_pile
+        checks.append(
+            _check(
+                "Punching round a pile",
+                r / 1e3,
+                phi_v / 1e3,
+                "kN",
+                combination,
+                f"section at d/2 from the pile (as a {side:.0f} mm square of the same area), cut "
+                f"by the cap's edges; {where}",
+                utilisation=ratio,
+            )
+        )
+    return checks
+
+
+# ─────────────────────────────────────── the cap ───────────────────────────────────────
+
+
+def pile_cap_design(
+    spec: CapSpec,
+    service: Loads,
+    strength: Loads,
+    pile: dict[str, Any],
+    profile: Any = None,
+    pile_section: dict[str, Any] | None = None,
+    dead_factor: dict[str, float] | None = None,
+    strength_dead_factor: dict[str, float] | None = None,
+    kind: str = "bored",
+    lateral: dict[str, Any] | None = None,
+    pile_modulus: float | None = None,
+) -> dict[str, Any]:
+    """All checks of a pile cap and its piles (see the module notes).
+
+    ``pile``: :func:`saengine.substructure.piles.single_pile` of the cap's pile type at the
+    nearest borehole (``profile``, for the group efficiency, block failure and settlement;
+    None leaves those out). ``pile_section``: ``{"fc", "fy", "reinforcement"}`` of the pile
+    (the structural check is left out without it). ``dead_factor`` / ``strength_dead_factor``:
+    the factor on the dead load per service / strength combination, for the cap's weight
+    (default 1.0 and 1.2). ``lateral``: ``{"shears", "fixity", "depth"}``, the cap's horizontal
+    force ``[Hu, Hv]`` [N] per strength combination (:func:`saengine.substructure.pilehead.
+    cap_shears`), the piles' head fixity and depth to fixity [mm]: the pile heads' shear and
+    moment (:mod:`saengine.substructure.pilehead`). ``pile_modulus``: Ep of the pile [MPa] for
+    the settlement of the piles (default: the aggregate's Ec of the pile's f'c, or of 25 MPa).
+
+    Returns ``{"checks", "piles", "group", "cap", "notes"}``: ``piles`` per pile its offsets
+    [mm] and the largest and least service and factored loads [kN]."""
+    from saengine.design.check import _check
+    from saengine.substructure.piles import is_square, structural_checks
+
+    notes = list(spec.notes)
+    shape = pile.get("shape")
+    square = is_square(kind, shape)
+    checks: list[dict[str, Any]] = []
+    piles = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
+    n = len(piles)
+    dia = spec.pile_diameter
+
+    # ── service: pile loads against the single pile ──
+    service_max = np.full(n, -math.inf)
+    service_min = np.full(n, math.inf)
+    worst_c = (-math.inf, None)
+    worst_t = (math.inf, None)
+    total_max = (0.0, None)
+    gravity_max = (0.0, None)
+    gravity_pile = 0.0
+    for name, loads in service.items():
+        weight = _service_weight(spec, name, dead_factor)
+        reactions, found = pile_reactions(spec, loads, weight)
+        for note in found:
+            if note not in notes:
+                notes.append(note)
+        service_max = np.maximum(service_max, reactions)
+        service_min = np.minimum(service_min, reactions)
+        if reactions.max() > worst_c[0]:
+            worst_c = (float(reactions.max()), name)
+        if reactions.min() < worst_t[0]:
+            worst_t = (float(reactions.min()), name)
+        total = float(reactions.sum())
+        if total > total_max[0]:
+            total_max = (total, name)
+        if not any(c in name for c in ("W", "E")):
+            gravity_pile = max(gravity_pile, float(reactions.max()))
+            if total > gravity_max[0]:
+                gravity_max = (total, name)
+    qa, ta = pile["Qa"], pile["Ta"]
+    if worst_c[1] is not None:
+        checks.append(
+            _check(
+                "Pile load, compression",
+                worst_c[0] / 1e3,
+                qa,
+                "kN",
+                worst_c[1],
+                f"rigid cap: P/n ± M u/Σu² ± M v/Σv², cap weight included; Qa of "
+                f"{pile['borehole']} ({pile['method']}, FS {pile['factors']['compression']:g})",
+            )
+        )
+        uplift = max(-worst_t[0], 0.0)
+        checks.append(
+            _check(
+                "Pile load, uplift",
+                uplift / 1e3,
+                ta,
+                "kN",
+                worst_t[1],
+                f"least pile load {worst_t[0] / 1e3:.1f} kN; {_uplift_rule()}",
+            )
+        )
+
+    # ── group ──
+    friction_clay = _friction_in_clay(pile, profile)
+    shaft_group = None
+    if n > 1 and profile is not None and pile_static.is_shaft(kind, dia / 1e3):
+        shaft_group = _shaft_group(spec, pile, profile, piles)
+    if shaft_group is not None:
+        eg = shaft_group["efficiency"]
+        pier = shaft_group["pier"]
+        efficiency_note = (
+            f"{shaft_group['note']}: Σ ζ Qult = {shaft_group['sum']:.0f} kN, pier "
+            f"{'-' if pier is None else pier} kN; {shaft_group['pierNote']} "
+            f"({shaft_group['clause']})"
+        )
+    elif friction_clay and n > 1:
+        eg, m_rows, n_cols, s = converse_labarre(piles, dia)
+        efficiency_note = (
+            f"friction piles in cohesive soil: Converse-Labarre, {m_rows} × {n_cols}, "
+            f"s = {s:.0f} mm, θ = {math.degrees(math.atan(dia / s)):.1f}°"
+        )
+    else:
+        eg = 1.0
+        clause = shallow_rules.cite("pileCap.bracing")
+        efficiency_note = (
+            f"1.0 ({clause}: not friction piles in cohesive soil)"
+            if clause
+            else "1.0 (not friction piles in cohesive soil)"
+        )
+    if total_max[1] is not None:
+        checks.append(
+            _check(
+                "Group capacity",
+                total_max[0] / 1e3,
+                eg * n * qa,
+                "kN",
+                total_max[1],
+                f"Eg n Qa with Eg = {eg:.3f}: {efficiency_note}",
+            )
+        )
+
+    bg, lg = group_outline(spec)
+    block = None
+    if profile is not None and n > 1 and total_max[1] is not None:
+        head, length = pile["head"] / 1e3, pile["length"] / 1e3
+        block, block_note = block_capacity(profile, head, length, bg / 1e3, lg / 1e3, pile["qb"])
+        if block is not None:
+            fs = pile["factors"]["compression"]
+            checks.append(
+                _check(
+                    "Block failure (clay)",
+                    total_max[0] / 1e3,
+                    block / fs,
+                    "kN",
+                    total_max[1],
+                    f"Qblock = 2 (Bg + Lg) Σ cu ΔL + Nc cu Bg Lg = {block:.0f} kN, Bg × Lg = "
+                    f"{bg:.0f} × {lg:.0f} mm, FS {fs:g} (Terzaghi & Peck); {block_note}",
+                )
+            )
+    settlement = None
+    if profile is not None and gravity_max[1] is not None:
+        modulus = pile_modulus or concrete_modulus((pile_section or {}).get("fc", 25.0))[0]
+        settlement = pile_settlement.group_settlement(
+            profile, pile, n, bg / 1e3, lg / 1e3, gravity_max[0] / 1e3, modulus
+        )
+        settlement["combination"] = gravity_max[1]
+        permissible = settlement.get("permissible") or {}
+        limit = permissible.get("value")
+        if limit is not None:
+            checks.append(
+                _check(
+                    "Group settlement",
+                    settlement["total"],
+                    limit,
+                    "mm",
+                    gravity_max[1],
+                    f"short term {settlement.get('shortTerm', 0):.1f} mm + long term "
+                    f"{settlement.get('longTerm', settlement['total']):.1f} mm; block at "
+                    f"{settlement['Df']:.0f} mm below the ground, {bg:.0f} × {lg:.0f} mm, q = "
+                    f"{settlement['q']:.0f} kPa; {permissible.get('source', '')}",
+                )
+            )
+    # Spacing and edges (the pack's pileCap rules).
+    cap = cap_rules()
+    spacing_clause = shallow_rules.cite("pileCap.spacing")
+    cap_clause = shallow_rules.cite("pileCap")
+    if cap is None:
+        notes.append(shallow_rules.not_covered("Pile spacing, cap edges and embedment"))
+    if n > 1 and cap is not None:
+        s = min_spacing(piles)
+        friction = pile["Qs"] > pile["Qb"]
+        need = max(
+            cap.spacing * dia, cap.spacingMin, cap.frictionSpacing * dia if friction else 0.0
+        )
+        rule = (
+            f"{cap.frictionSpacing:g} D for friction piles"
+            if friction
+            else f"{cap.spacing:g} D and {cap.spacingMin:g} mm"
+        ) + (f" ({spacing_clause})" if spacing_clause else "")
+        checks.append(_check("Pile spacing", need, s, "mm", None, f"least c/c; at least {rule}"))
+    edge = min(
+        min(spec.length / 2 - abs(u), spec.width / 2 - abs(v)) - dia / 2 for u, v in spec.piles
+    )
+    if cap is not None:
+        checks.append(
+            _check(
+                "Cap edge beyond the piles",
+                cap.edgeDistance,
+                edge,
+                "mm",
+                None,
+                (f"{cap_clause}: " if cap_clause else "")
+                + f"the cap extends at least {cap.edgeDistance:g} mm beyond the edge of all piles",
+            )
+        )
+    dia_x = spec.bottom_x.dia if spec.bottom_x else 0.0
+    dia_y = spec.bottom_y.dia if spec.bottom_y else 0.0
+    thickness_row = shallow_rules.thickness_check(
+        spec.id, spec.thickness - spec.cover - dia_x - dia_y, on_piles=True
+    )
+    if thickness_row is not None:
+        checks.append(thickness_row)
+    # The least clear cover of the cap's main bars (the pack's pile cap cover), and the bars run
+    # over the pile heads embedded in the cap.
+    cover = float(code_context.table("concrete").cover["pileCap"])
+    if cap is not None:
+        embedment = cap.embedment
+        checks.append(
+            _check(
+                "Cover of the cap's main bars",
+                max(cover, embedment),
+                spec.cover,
+                "mm",
+                None,
+                (f"{cap_clause}: " if cap_clause else "")
+                + f"clear cover at least {cover:g} mm over a 75 mm levelling course, and the pile "
+                f"heads embedded at least {embedment:g} mm: the bars run over the pile heads, so "
+                f"their cover to the cap's underside is at least {max(cover, embedment):g} mm (d "
+                "is taken from this cover)",
+            )
+        )
+        notes.append(
+            f"pile heads: cut back to sound concrete and embedded at least {embedment:g} mm in "
+            f"the cap{f' ({cap_clause})' if cap_clause else ''}; the pile bars run into the cap "
+            "over their development length (ACI 318-19 25.4), in tension when the pile can be "
+            "pulled"
+        )
+    single = None if cap is None else cap.singlePileDiameter
+    if n == 1 and single is not None:
+        clause = shallow_rules.cite("pileCap.singlePileDiameter", shallow_rules.code_name())
+        notes.append(
+            f"a single pile under a column: {clause} does not recommend it unless the diameter "
+            f"is {single:g} mm or more; tie beams must brace it in both directions"
+        )
+    elif n == 2:
+        clause = shallow_rules.cite("pileCap.bracing")
+        notes.append(
+            "two piles are braced along their axis only"
+            + (f" ({clause})" if clause else "")
+            + ": tie beams across"
+        )
+
+    # ── strength: factored pile loads (structure) and the cap ──
+    strength_reactions: dict[str, np.ndarray] = {}
+    factored_max = np.full(n, -math.inf)
+    factored_min = np.full(n, math.inf)
+    pu = (0.0, None)
+    tu = (0.0, None)
+    axial: dict[str, tuple[float, float]] = {}
+    for name, loads in strength.items():
+        strength_reactions[name] = pile_reactions(spec, loads)[0]
+        factor = (strength_dead_factor or {}).get(name, 1.2)
+        with_weight = pile_reactions(spec, loads, factor * spec.weight)[0]
+        factored_max = np.maximum(factored_max, with_weight)
+        factored_min = np.minimum(factored_min, with_weight)
+        axial[name] = (float(with_weight.max()), float(with_weight.min()))
+        if with_weight.max() > pu[0]:
+            pu = (float(with_weight.max()), name)
+        if -with_weight.min() > tu[0]:
+            tu = (float(-with_weight.min()), name)
+    if pile_section is not None and strength:
+        checks += structural_checks(
+            kind,
+            dia,
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            pu[0] / 1e3,
+            tu[0] / 1e3,
+            max(float(service_max.max()), 0.0) / 1e3 if service else 0.0,
+            pu[1],
+            tu[1],
+            shape,
+        )
+    if kind == "driven" and pile_section is not None:
+        from saengine.substructure.precast import handling_checks
+
+        checks += handling_checks(
+            dia,
+            pile["length"],
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            pile_section.get("unitWeight", 2400 * G * 1e-9),
+            square,
+        )
+    head_detail = None
+    head_moments = None
+    if lateral is not None and strength and pile_section is not None:
+        from saengine.substructure.pilehead import head_actions, section_checks
+
+        shears = {k: v for k, v in lateral["shears"].items() if k in strength}
+        section_list, head_detail = section_checks(
+            dia,
+            pile_section["fc"],
+            pile_section["fy"],
+            pile_section.get("reinforcement"),
+            axial,
+            shears,
+            n,
+            lateral["fixity"],
+            lateral.get("depth"),
+            square,
+        )
+        checks += section_list
+        if head_detail.get("note"):
+            notes.append(head_detail["note"])
+        if lateral["fixity"] == "fixed" and lateral.get("depth"):
+            head_moments = {
+                name: head_actions(h, n, "fixed", lateral["depth"])["head"]
+                for name, h in shears.items()
+            }
+    cap: dict[str, Any] = {}
+    if strength:
+        cap_list, cap = cap_checks(spec, strength, strength_reactions, head_moments)
+        checks += cap_list
+        if cap.get("note"):
+            notes.append(cap["note"])
+
+    rows = []
+    for i, (u, v) in enumerate(spec.piles):
+        rows.append(
+            {
+                "index": i + 1,
+                "u": round(u),
+                "v": round(v),
+                "serviceMax": _kn(service_max[i]),
+                "serviceMin": _kn(service_min[i]),
+                "strengthMax": _kn(factored_max[i]),
+                "strengthMin": _kn(factored_min[i]),
+            }
+        )
+    return {
+        "checks": checks,
+        "piles": rows,
+        "group": {
+            "count": n,
+            "efficiency": round(eg, 3),
+            "efficiencyNote": efficiency_note,
+            "Bg": round(bg),
+            "Lg": round(lg),
+            "block": None if block is None else round(block, 1),
+            "settlement": settlement,
+            "minSpacing": round(min_spacing(piles)) if n > 1 else None,
+        },
+        "cap": cap,
+        "pileHead": head_detail,
+        "notes": notes,
+        # per pile [kN]: the largest and least service loads, the largest gravity (sustained)
+        # load and the largest factored load; per strength combination the factored extremes
+        "loads": {
+            "serviceMax": _kn(float(service_max.max())) if service else 0.0,
+            "serviceMin": _kn(float(service_min.min())) if service else 0.0,
+            "gravityMax": _kn(gravity_pile),
+            "factoredMax": _kn(pu[0]),
+            "axial": axial,
+            "groupMax": _kn(total_max[0]),
+            "groupCombination": total_max[1],
+        },
+    }
+
+
+def _shaft_group(
+    spec: CapSpec, pile: dict[str, Any], profile: Any, piles: np.ndarray
+) -> dict[str, Any] | None:
+    """Group capacity [kN] of drilled shafts: the lesser of Σ ζ Qult and the equivalent
+    pier; ``efficiency`` its ratio to n Qult (None when the pack does not cover it)."""
+    n = len(piles)
+    dia = spec.pile_diameter
+    cohesive = _mostly_cohesive(pile, profile)
+    z = pile_static.zeta(min_spacing(piles), dia, cohesive)
+    if z is None:
+        return None
+    bg, lg = group_outline(spec)
+    q_ult = max(pile["Qult"], 0.0)
+    total = n * z * q_ult
+    pier, pier_note = pile_static.equivalent_pier(
+        profile, pile["head"] / 1e3, pile["length"] / 1e3, bg / 1e3, lg / 1e3
+    )
+    governing = total if pier is None else min(total, pier)
+    from saengine.soil.piles import pile_clause
+
+    return {
+        "zeta": round(z, 3),
+        "sum": total,
+        "pier": None if pier is None else round(pier),
+        "pierNote": pier_note,
+        "Qult": governing,
+        "efficiency": governing / (n * q_ult) if q_ult > 0 else 1.0,
+        "clause": pile_clause("drilledShaft.zetaLow").split(":")[0],
+        "note": (
+            f"drilled shafts in {'clay' if cohesive else 'sand'}: ζ = {z:.3f} at s = "
+            f"{min_spacing(piles):.0f} mm, the lesser of Σ ζ Qult and the equivalent pier"
+        ),
+    }
+
+
+def _mostly_cohesive(pile: dict[str, Any], profile: Any) -> bool:
+    """Whether most of the pile's skin friction is in cohesive layers."""
+    by_index = {layer.index: layer for layer in profile.layers}
+    cohesive = sum(
+        r["Qs"]
+        for r in pile["layers"]
+        if getattr(by_index.get(r["layer"]), "behaviour", "") == "cohesive"
+    )
+    return pile["Qs"] > 0 and cohesive > pile["Qs"] / 2
+
+
+def _kn(value: float) -> float | None:
+    return round(float(value) / 1e3, 1) if math.isfinite(value) else None
+
+
+def group_settlement(
+    profile: Any, head: float, length: float, bg: float, lg: float, load: float
+) -> dict[str, Any]:
+    """Settlement [mm] of a pile group as a solid block Bg × Lg [m] at 2/3 of the pile
+    ``length`` below its ``head`` [m] under the total ``load`` [kN] (the default pack's Sec
+    3.10.5), the block
+    alone; the design uses :func:`saengine.substructure.pile_settlement.group_settlement`,
+    which adds the short-term settlement of the piles."""
+    from saengine.soil.settlement import rounded, settlement
+
+    df = head + 2 * length / 3
+    q = load / (bg * lg)
+    result = rounded(settlement(profile, bg, lg, df, q))
+    result["method"] = (
+        "equivalent raft at 2/3 L: immediate (Schmertmann / Steinbrenner) "
+        "and consolidation (2:1 spread) below it; the piles' elastic shortening is not included"
+    )
+    return result
+
+
+# ─────────────────────────────────────── in the report ───────────────────────────────────────
+
+
+def _pile_cap_method() -> list[str]:
+    """The pile caps' method lines, with the pack in force's rules and clauses."""
+    cap = cap_rules()
+    spacing = shallow_rules.cite("pileCap.spacing")
+    cap_clause = shallow_rules.cite("pileCap")
+    bracing = shallow_rules.cite("pileCap.bracing")
+    cover = float(code_context.table("concrete").cover["pileCap"])
+    rules = (
+        f"spacing ≥ {cap.spacing:g} D and {cap.spacingMin:g} mm ({cap.frictionSpacing:g} D for "
+        f"friction piles{f', {spacing}' if spacing else ''}), the cap {cap.edgeDistance:g} mm "
+        f"beyond the piles and {cover:g} mm cover{f' ({cap_clause})' if cap_clause else ''}"
+        if cap is not None
+        else shallow_rules.not_covered("spacing, cap edges and embedment")
+    )
+    phi = _phi_stm()
+    return [
+        (
+            "Pile caps: the columns' support reactions, reversed, in the cap's axes (as "
+            "footings); pile loads of a rigid cap, P/n ± M u'/Σu'² ± M v'/Σv'² about the piles' "
+            "centroid (the cap's weight and the soil on it under the service combinations), "
+            "against the allowable compression and uplift of one pile at the borehole nearest "
+            f"the cap. Group: efficiency 1.0{f' ({bracing})' if bracing else ''} or "
+            "Converse-Labarre for friction piles in clay, block failure in clay (Terzaghi & "
+            f"Peck), {rules}. Drilled shafts (bored piles wider than the code pack's limit): "
+            "the group capacity the lesser of Σ ζ Qult (ζ by spacing) and the equivalent pier, a "
+            "weaker layer below the tips reducing its base. Group settlement: short term from "
+            "the single pile's (axial shortening, tip and skin friction) by the group's width or "
+            "number of piles; long term with the group as a solid block at the pack's share of "
+            "L, consolidation of clay with Cc and e0 and the modulus number method for the other "
+            "layers; against the shallow foundations' permissible settlement."
+        ),
+        (
+            "Pile cap design (ACI 318-19): flexure at the column faces by the beam method, "
+            "one-way shear at d from them, punching at d/2 round the columns and the piles "
+            "(corner and edge sections cut by the cap), the pile reactions on a section by "
+            "13.4.2.5, As,min of Table 7.6.1.1; a cap whose shear span is less than d is deep: "
+            "the sectional flexure and one-way shear are flagged as reference values and the "
+            f"strut-and-tie method of the code pack ({_stm_clause()}) is checked "
+            "instead: the bottom bars as the tie, T = M/z with M beyond the column's quarter "
+            f"point and z = {_strut_and_tie('tieArm'):g} d, against {phi:g} As fy, and the nodes "
+            f"under the column (βn {_strut_and_tie('betaCCC'):g}) and over the piles (βn "
+            f"{_strut_and_tie('betaCCT'):g}) against {phi:g} × "
+            f"{_strut_and_tie('effective'):g} βn f'c."
+        ),
+        PILE_HEAD_METHOD,
+        PRECAST_METHOD,
+        (
+            "Pile rules of the code pack: structural detailing by pile kind (least f'c, "
+            "diameter, longitudinal steel, bars, cover, hoops or ties, cage length, cement "
+            "content; the cover on a corrosive site); lateral load the least of the head "
+            "deflection on the Winkler "
+            "springs (Khh by the head fixity, times the group ratio of in-line piles), the pile "
+            "section and a lateral load test, unbraced piles designed as columns; load tests "
+            "interpreted by the pack's criteria, a compression test giving the factor of safety "
+            "with a test and capping the allowable load; negative skin friction to the neutral "
+            "point and swelling uplift in expansive soil. Lateral soil failure by Broms and the "
+            "pile on nonlinear p-y springs (head deflection, shaft moment) by the pack's "
+            "methods (SAEngine practice where the code gives none)."
+        ),
+    ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "PILE_CAP_METHOD":  # the former constant, with the pack in force
+        return _pile_cap_method()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _apply_tests(pile: dict[str, Any], tests: dict[str, Any]) -> None:
+    """A pile type's load tests on its capacity: the allowable compression at most the safe
+    load of its single-pile compression tests, the allowable uplift at most its uplift tests'."""
+    for kind, key in (("compression", "Qa"), ("uplift", "Ta")):
+        found = tests.get(kind)
+        if found is None:
+            continue
+        pile[f"{key}Analysis"] = pile[key]
+        if found["safe"] < pile[key]:
+            pile[key] = found["safe"]
+            pile["notes"].append(
+                f"{'Qa' if kind == 'compression' else 'Ta'} = {found['safe']:.0f} kN, the safe "
+                f"load of load test {found['id']} ({found['basis']}; {found['source']})"
+            )
+
+
+def _corrosive(report: Any) -> list[str]:
+    """Why the soil report's chemistry makes the site corrosive (empty: it does not)."""
+    from saengine.soil.chemistry import corrosive_site
+
+    reasons: list[str] = []
+    if report is None:
+        return reasons
+    for borehole in report.boreholes:
+        for sample in borehole.samples:
+            if sample.chemistry is None:
+                continue
+            reasons += [f"{borehole.id}: {r}" for r in corrosive_site(sample)]
+    return reasons
+
+
+def _pile_rules_checks(
+    ctx: Any,
+    pile_type: Any,
+    spec: CapSpec,
+    out: dict[str, Any],
+    pile: dict[str, Any],
+    profile: Any,
+    report: Any,
+    tests: dict[str, Any],
+    section: dict[str, Any],
+    lateral: dict[str, Any],
+    construction: Any,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The code pack's pile rules on a cap's piles: detailing, lateral load, unbraced piles,
+    load tests, downdrag and swelling (:mod:`pile_detailing`, :mod:`pile_lateral`,
+    :mod:`load_tests`, :mod:`downdrag`). Sets ``out["pileRules"]``."""
+    from saengine.design.check import _check
+    from saengine.substructure.pilehead import head_actions
+    from saengine.substructure.piles import is_square
+
+    checks: list[dict[str, Any]] = []
+    notes: list[str] = []
+    n = len(spec.piles)
+    kind = pile_type.kind
+    loads = out.get("loads") or {}
+    detail: dict[str, Any] = {}
+
+    found, found_notes = pile_detailing.detailing_checks(
+        pile_type,
+        section["fc"],
+        section["fy"],
+        composition=section.get("composition"),
+        corrosive=_corrosive(report),
+    )
+    checks += found
+    notes += found_notes
+
+    offsets = np.asarray(spec.piles, dtype=float).reshape(-1, 2)
+    ratios = (
+        pile_lateral.group_ratio(offsets, spec.pile_diameter, 0),
+        pile_lateral.group_ratio(offsets, spec.pile_diameter, 1),
+    )
+    if n > 1:
+        notes += [f"lateral load along {axis}: {r[1]}" for axis, r in zip("uv", ratios) if r[1]]
+    found, found_notes = pile_lateral.lateral_checks(
+        lateral["service"],
+        n,
+        lateral["stiffness"],
+        (ratios[0][0], ratios[1][0]),
+        getattr(pile_type, "lateralDeflection", None),
+        tests.get("lateral"),
+    )
+    checks += found
+    notes += found_notes
+    # Alpha 9 P7: soil failure (Broms) and the pile on p-y springs, by the pack's methods.
+    from saengine.substructure import pile_lateral_soil
+
+    square = is_square(kind, getattr(pile_type, "shape", None))
+    dia = float(spec.pile_diameter)
+    found, found_notes, soil_detail = pile_lateral_soil.soil_checks(
+        profile,
+        lateral["head"],
+        dia,
+        float(pile_type.length),
+        section["ec"] * (dia**4 / 12 if square else math.pi * dia**4 / 64),
+        lateral["fixity"],
+        pile_lateral_soil.bending_capacity(
+            dia, section["fc"], section["fy"], section.get("reinforcement"), square
+        ),
+        lateral["service"],
+        lateral["strength"],
+        n,
+        min(ratios[0][0], ratios[1][0]),
+        getattr(pile_type, "lateralDeflection", None),
+    )
+    checks += found
+    notes += found_notes
+    detail.update(soil_detail)
+    detail["groupRatio"] = [round(ratios[0][0], 3), round(ratios[1][0], 3)]
+    stiffness = lateral["stiffness"]
+    if stiffness is not None:
+        detail["headStiffness"] = round(stiffness["K"], 1)  # kN/m == N/mm
+
+    unsupported, why = pile_lateral.unsupported_length(
+        profile, lateral["head"], getattr(pile_type, "unbracedLength", None)
+    )
+    if unsupported > 0:
+        moments = {
+            name: head_actions(h, n, lateral["fixity"], lateral["depth"])["design"]
+            for name, h in lateral["strength"].items()
+        }
+        checks += pile_lateral.unbraced_checks(
+            spec.pile_diameter,
+            is_square(kind, getattr(pile_type, "shape", None)),
+            section["fc"],
+            section["fy"],
+            section["ec"],
+            section.get("reinforcement"),
+            loads.get("axial") or {},
+            moments,
+            unsupported,
+            lateral["depth"],
+            lateral["fixity"],
+            why,
+        )
+        detail["unsupported"] = round(unsupported)
+
+    single = tests.get("compression")
+    group = tests.get("group")
+    if group is not None and loads.get("groupMax"):
+        checks.append(
+            _check(
+                "Group load (load test)",
+                loads["groupMax"],
+                group["safe"],
+                "kN",
+                loads.get("groupCombination"),
+                f"group load test {group['id']}: {group['basis']} ({group['source']})",
+            )
+        )
+    if tests["results"]:
+        h_max = max(
+            (float(np.hypot(*h)) / max(n, 1) / 1e3 for h in lateral["service"].values()),
+            default=0.0,
+        )
+        design_loads = {
+            "compression": loads.get("serviceMax") or 0.0,
+            "group": loads.get("groupMax") or 0.0,
+            "uplift": max(-(loads.get("serviceMin") or 0.0), 0.0),
+            "lateral": h_max,
+        }
+        same = sum(1 for p in ctx.substructure.piles if p.type == pile_type.id)
+        tested = sum(
+            1
+            for t in ctx.substructure.loadTests
+            if t.pileType == pile_type.id and t.kind == "compression" and not t.group
+        )
+        checks += load_tests.adequacy_checks(tests, design_loads, same, tested, kind)
+    notes += tests["notes"]
+    if single is None and load_tests.rules() is not None:
+        rules_ = load_tests.rules().compression
+        notes.append(
+            f"no compression load test of {pile_type.id}: at least {100 * rules_.minShare:g} % "
+            f"of the piles are to be tested (at least {rules_.minBored} for bored piles), and "
+            f"integrity tests on {100 * rules_.integrityShare:g} % of them "
+            f"({load_tests.cite('loadTests.compression')})"
+        )
+
+    if profile is not None:
+        found, found_notes, movement = downdrag.checks(
+            profile,
+            pile,
+            ctx.substructure.design,
+            loads.get("serviceMax") or 0.0,
+            loads.get("serviceMin") or 0.0,
+            loads.get("gravityMax") or 0.0,
+            loads.get("factoredMax") or 0.0,
+            {k: section[k] for k in ("fc", "fy", "reinforcement")},
+            construction,
+        )
+        checks += found
+        notes += found_notes
+        detail.update(movement)
+    out["pileRules"] = detail
+    return checks, notes
+
+
+#: The capacity tables of the pile caps by their inputs (R2-20: every cap of one pile type on
+#: one borehole tabulated the same capacities again, about a seventh of a report of 15 caps).
+_TABLES: dict[tuple[Any, ...], tuple[Any, Any, dict[str, Any]]] = {}
+_TABLES_KEPT = 32
+
+
+def _capacity_table(profile: Any, kind: str, diameters: list[float], lengths: list[float],
+                    head: float, method: Any, factors: Any, construction: Any, shape: Any):  # fmt: skip
+    """:func:`saengine.substructure.piles.capacity_table`, kept for the same profile object
+    (one borehole of the report's context), code pack and inputs (a copy of it each time)."""
+    import copy
+    import json
+
+    from saengine.substructure.piles import capacity_table
+
+    pack = code_context.current()
+    key = (
+        id(profile), kind, tuple(diameters), tuple(lengths), float(head), str(method),
+        json.dumps(factors.model_dump(mode="json") if hasattr(factors, "model_dump") else factors,
+                   sort_keys=True, default=str),
+        json.dumps(construction, default=str), shape,
+    )  # fmt: skip
+    found = _TABLES.get(key)
+    if found is not None and found[0] is profile and found[1] is pack:
+        return copy.deepcopy(found[2])
+    table = capacity_table(
+        profile, kind, diameters, lengths, head, method, factors, construction, shape
+    )
+    while len(_TABLES) >= _TABLES_KEPT:
+        _TABLES.pop(next(iter(_TABLES)))
+    _TABLES[key] = (profile, pack, copy.deepcopy(table))
+    return table
+
+
+def design_pile_cap(ctx: Any, foundation: Any) -> tuple[dict[str, Any], list[str]]:
+    """The checks of a pile cap of the substructure (``ctx``: a
+    :class:`saengine.substructure.context.Context`): ``(result, notes)`` in the report's
+    format, with ``piles`` (per pile its offsets and loads), ``pile`` (the single pile's
+    capacity), ``group``, ``cap`` and ``capacityTable``. Raises
+    :class:`~saengine.substructure.context.Skip` when it cannot be designed."""
+    from saengine.substructure.context import Skip
+    from saengine.substructure.piles import (
+        FactorsOfSafety,
+        nearest_profile,
+        profiles_of,
+        shaft_construction,
+        single_pile,
+        table_sizes,
+    )
+    from saengine.substructure.shallow import footing_loads, place_footing, summary
+
+    pile_type = ctx.substructure.cap_pile_type(foundation)
+    if pile_type is None:
+        raise Skip("its piles have no pile type")
+    placed = place_footing(ctx, foundation)
+    footing = placed.spec
+    pile_concrete = ctx.concrete(pile_type.material, pile_type.id)
+    pile_fy = footing.fy
+    if pile_type.reinforcement is not None:
+        pile_fy = ctx.rebar(pile_type.reinforcement.material).steel.fy
+    profiles, report, problems = profiles_of(ctx.soil_text)
+    if not profiles:
+        reason = "; ".join(problems[:2]) if problems else "1 Soil Report has no boreholes"
+        raise Skip(f"the pile capacity needs the soil: {reason}")
+    centre = placed.center
+    profile, distance = nearest_profile(profiles, float(centre[0]), float(centre[1]))
+    notes = list(placed.notes)
+    head = (report.ground_level(profile.borehole) - placed.founding_level) / 1e3
+    if head < 0:
+        notes.append(
+            f"{foundation.id}: the cap's underside lies above {profile.id}'s ground; the pile "
+            "heads are taken at the ground"
+        )
+        head = 0.0
+    design = ctx.substructure.design
+    fos = design.factorOfSafety
+    pile_ep = material_modulus(pile_concrete)[0]
+    tests = load_tests.pile_type_tests(
+        getattr(ctx.substructure, "loadTests", []), pile_type, pile_ep
+    )
+    factors = FactorsOfSafety(
+        fos.pileCompression,
+        fos.pileUplift,
+        fos.pileSkin,
+        fos.pileEndBearing,
+        # a load test at the site: the design's flag, or a compression test of the pile type
+        bool(getattr(fos, "pileLoadTest", False)) or tests["loadTest"],
+    )
+    kind = pile_type.kind
+    construction = shaft_construction(pile_type)
+    try:
+        pile = single_pile(
+            profile,
+            kind,
+            pile_type.diameter / 1e3,
+            pile_type.length / 1e3,
+            head,
+            design.pileCapacity,
+            factors,
+            (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
+            construction,
+            getattr(pile_type, "shape", None),
+        )
+    except ValueError as error:
+        raise Skip(str(error)) from error
+    pile["distance"] = round(distance)
+    _apply_tests(pile, tests)
+    notes += [f"{foundation.id}, pile {pile_type.id}: {n}" for n in pile["notes"]]
+    foundation_settings = ctx.settings.foundation
+    cover = max(0.0, foundation_settings.groundLevel - footing.elevation)
+    spec = CapSpec(
+        id=foundation.id,
+        length=footing.length,
+        width=footing.width,
+        thickness=footing.thickness,
+        cover=footing.cover,
+        fc=footing.fc,
+        fy=footing.fy,
+        columns=footing.columns,
+        piles=[(float(u), float(v)) for u, v in ctx.substructure.pile_offsets(foundation)],
+        pile_diameter=pile_type.diameter,
+        bottom_x=footing.bottom_x,
+        bottom_y=footing.bottom_y,
+        top_x=footing.top_x,
+        top_y=footing.top_y,
+        es=footing.es,
+        unit_weight=footing.unit_weight,
+        soil_above=foundation_settings.soilUnitWeight * 1e-6 * cover,
+    )
+    marks = [p.id for p in ctx.substructure.cap_piles(foundation)]
+    for mark, (u, v) in zip(marks, spec.piles, strict=True):
+        if abs(u) > spec.length / 2 or abs(v) > spec.width / 2:
+            raise Skip(f"pile {mark} at ({u:.0f}, {v:.0f}) from the centre lies outside the cap")
+    loads = ctx.loads
+    service, strength = footing_loads(loads, placed)
+    service_dead = {
+        name: factors_.get("D", factors_.get("SD", 1.0)) for name, factors_ in loads.service
+    }
+    from saengine.substructure.pilehead import cap_shears
+
+    service_shears, strength_shears = cap_shears(loads, placed)
+    fixity = getattr(pile_type, "headFixity", "fixed")
+    stiffness = pile_lateral.head_stiffness(
+        profile,
+        head,
+        kind,
+        pile_type.diameter,
+        pile_type.length,
+        pile_ep,
+        fixity,
+        pile_lateral.soil_ratio(ctx.settings),
+        getattr(pile_type, "shape", None),
+    )
+    depth = getattr(pile_type, "fixityDepth", None)
+    if not depth and stiffness is not None:
+        depth = pile_lateral.fixity_depth(stiffness)
+        notes.append(
+            f"{foundation.id}, pile {pile_type.id}: depth to fixity {depth:.0f} mm = 1.4 R of "
+            "the Winkler springs (Davisson & Robinson 1965, SAEngine practice); enter the "
+            "geotechnical report's to replace it"
+        )
+    out = pile_cap_design(
+        spec,
+        service,
+        strength,
+        pile,
+        profile,
+        {
+            "fc": pile_concrete.concrete.fc,
+            "fy": pile_fy,
+            "reinforcement": pile_type.reinforcement,
+            "unitWeight": (pile_concrete.mechanical.density or 2400.0) * G * 1e-9,
+        },
+        service_dead,
+        loads.dead,
+        kind,
+        {"shears": strength_shears, "fixity": fixity, "depth": depth},
+        material_modulus(pile_concrete)[0],
+    )
+    extra, extra_notes = _pile_rules_checks(
+        ctx,
+        pile_type,
+        spec,
+        out,
+        pile,
+        profile,
+        report,
+        tests,
+        {
+            "fc": pile_concrete.concrete.fc,
+            "fy": pile_fy,
+            "ec": pile_ep,
+            "reinforcement": pile_type.reinforcement,
+            "composition": getattr(pile_concrete, "composition", None),
+        },
+        {
+            "service": service_shears,
+            "strength": strength_shears,
+            "stiffness": stiffness,
+            "depth": depth,
+            "fixity": fixity,
+            "head": head,
+        },
+        construction,
+    )
+    out["checks"] += extra
+    out["notes"] += extra_notes
+    from saengine.substructure import limit_state_piles
+
+    if limit_state_piles.selected():
+        # Alpha 9 C5b: the piles' design resistance by the pack's correlation factors and
+        # resistance sets decides; the allowable pile load rows stay, reported only.
+        found = limit_state_piles.cap_rows(
+            ctx,
+            placed,
+            spec,
+            pile_type,
+            design.pileCapacity,
+            construction,
+            (pile_concrete.mechanical.density or 2400.0) * G / 1e3,
+            tests,
+        )
+        if found is not None:
+            for c in out["checks"]:
+                if c["name"] in ("Pile load, compression", "Pile load, uplift"):
+                    c["flag"] = True
+                    c["note"] += "; reported only: the limit state rows decide"
+            out["checks"] += found[0]
+            out["notes"] += found[1]
+    available = (profile.bottom - head) * 1e3 - 3 * pile_type.diameter
+    diameters, lengths = table_sizes(pile_type.diameter, pile_type.length, available)
+    table = _capacity_table(
+        profile,
+        kind,
+        diameters,
+        lengths,
+        head,
+        design.pileCapacity,
+        factors,
+        construction,
+        getattr(pile_type, "shape", None),
+    )
+    members = list(dict.fromkeys(c.id for c in spec.columns))
+    # The piles need not be centred on the columns (the cap is formed over piles on their own
+    # grid): the offset of the columns' centroid from the piles' is in the pile loads above
+    # (pile_reactions takes the moments about the piles' centroid).
+    eccentricity = None
+    if spec.columns:
+        centroid = np.asarray(spec.piles, dtype=float).reshape(-1, 2).mean(axis=0)
+        eu = float(np.mean([c.u for c in spec.columns]) - centroid[0])
+        ev = float(np.mean([c.v for c in spec.columns]) - centroid[1])
+        eccentricity = [round(eu), round(ev)]
+        if math.hypot(eu, ev) >= 1:
+            notes.append(
+                f"{foundation.id}: the columns stand {eu:.0f} mm (u) and {ev:.0f} mm (v) off the "
+                "piles' centroid; that eccentricity's moment, P e, is in the pile loads (rigid "
+                "cap) and the cap's design"
+            )
+    out["group"]["eccentricity"] = eccentricity
+    for row, mark in zip(out["piles"], ctx.substructure.cap_piles(foundation), strict=True):
+        row["mark"] = mark.id
+        row["x"] = round(float(mark.position[0]))
+        row["y"] = round(float(mark.position[1]))
+    sizes = {
+        "length": spec.length,
+        "width": spec.width,
+        "thickness": spec.thickness,
+        "foundingLevel": placed.founding_level,
+        "center": [round(float(centre[0]), 1), round(float(centre[1]), 1)],
+        "rotation": round(math.degrees(math.atan2(placed.axis_u[1], placed.axis_u[0])), 3),
+        "pileType": pile_type.id,
+        "piles": [p.id for p in ctx.substructure.cap_piles(foundation)],
+        "pileDiameter": pile_type.diameter,
+        "pileLength": pile_type.length,
+    }
+    result = summary(
+        foundation,
+        out["checks"],
+        members,
+        sizes=sizes,
+        pressure=None,
+        piles=out["piles"],
+        pile=pile,
+        group=out["group"],
+        cap=out["cap"],
+        pileHead=out["pileHead"],
+        loadTests=tests["results"],
+        pileRules=out.get("pileRules"),
+        capacityTable=table,
+    )
+    return result, notes + [f"{foundation.id}: {n}" for n in out["notes"]]

@@ -1,0 +1,108 @@
+{
+  "$schema": "../../../schemas/steel.schema.json",
+  "$sources": [
+    "AS 4100:2020 Chapter 9 (connections: holes, spacing, edges, fillet weld sizes) and 7.2 (the connection elements in tension)"
+  ],
+  "source": "AS 4100:2020: the geometry rules of the shared connection checks (holes, spacing, edge distances, fillet weld sizes) and the clause references of their notes; the bolt, ply, block shear and weld strengths are in steelLimitState.connections (method capacityFactorJoints); the column base bearing φ of AS 3600 12.6. The other entries (HSS joints, the column side under flange forces, ponding, bracing, the anchor rods) are BNBC 2020's, named so in the report.",
+  "phi": {
+    "tensionRupture": 0.765,
+    "concreteBearing": 0.6
+  },
+  "connections": {
+    "holes": {
+      "12": 14,
+      "16": 18,
+      "20": 22,
+      "24": 26,
+      "27": 30,
+      "30": 33,
+      "36": 39
+    },
+    "holeOver": 3.0,
+    "netHoleAllowance": 0.0,
+    "edgeRolled": {
+      "12": 18,
+      "16": 24,
+      "20": 30,
+      "24": 36,
+      "27": 41,
+      "30": 45,
+      "36": 54
+    },
+    "edgeSheared": {
+      "12": 21,
+      "16": 28,
+      "20": 35,
+      "24": 42,
+      "27": 48,
+      "30": 53,
+      "36": 63
+    },
+    "edgeOverRolled": 1.5,
+    "edgeOverSheared": 1.75,
+    "minSpacing": 2.5,
+    "maxEdgeThickness": 12.0,
+    "maxEdge": 150.0,
+    "filletMin": [
+      [
+        7,
+        3
+      ],
+      [
+        10,
+        4
+      ],
+      [
+        15,
+        5
+      ],
+      [
+        null,
+        6
+      ]
+    ],
+    "filletMaxThin": 6.0,
+    "filletMaxReduce": 1.0,
+    "concreteBearingFull": 0.85,
+    "concreteBearingPartial": 0.85,
+    "concreteBearingMax": 2.0,
+    "references": {
+      "Eqs 6.10.169-170a": "AS 4100:2020 9.3.2.3",
+      "Eq 6.10.168": "AS 4100:2020 9.3.2.1, 9.3.2.2",
+      "Eq 6.10.171": "AS 4100:2020 9.3.3.1",
+      "Eq 6.10.172a": "AS 4100:2020 9.3.3.3",
+      "Eq 6.10.173a": "AS 4100:2020 9.2.2.4",
+      "Eq 6.10.178": "AS 4100:2020 9.1.9",
+      "Eqs 6.10.162-163": "AS 4100:2020 9.7.3.10",
+      "Eq 6.10.162-163": "AS 4100:2020 9.7.3.10",
+      "Sec 10.10.3.6": "AS 4100:2020 9.3.2.2",
+      "Sec 10.10.3.7": "AS 4100:2020 9.3.2.3",
+      "Sec 10.10.3.8": "AS 4100:2020 9.3.3",
+      "Sec 10.10.3.9": "AS 4100:2020 9.3.3.3",
+      "Sec 10.10.3.10": "AS 4100:2020 9.2.2.4",
+      "Sec 10.10.3.3": "AS 4100:2020 9.6.1",
+      "Sec 10.10.3.5": "AS 4100:2020 9.6.3",
+      "Table 6.10.11": "AS 4100:2020 14.3.5.2",
+      "Table 6.10.12": "AS 4100:2020 Table 9.6.2",
+      "Table 6.10.7": "AS 4100:2020 Table 9.7.3.2",
+      "Table 6.10.10 [f]": "AS 4100:2020 9.3.2.1 (kr)",
+      "Table 6.10.10 note [f]": "AS 4100:2020 9.3.2.1 (kr)",
+      "Table 6.10.10": "AS 4100:2020 9.3.2",
+      "Sec 10.10.2.2.2": "AS 4100:2020 9.7.3.3",
+      "Sec 10.10.4.2": "AS 4100:2020 5.11",
+      "Sec 10.10.4.3": "AS 4100:2020 9.1.9",
+      "Sec 10.10.4.1": "AS 4100:2020 7.2",
+      "Sec 10.2.3.13.2": "AS 4100:2020 7.3.1",
+      "Sec 10.10.8": "AS 3600:2018 12.6",
+      "Eqs 6.10.183-184": "AS 3600:2018 12.6"
+    }
+  },
+  "sources": {
+    "phiAS": "AS 4100:2020 7.2 and Table 3.4: the net section in tension φ 0.85 kt An fu with φ 0.9 (kt = 1 taken: 0.765 on An fu); AS 3600:2018 12.6 and Table 2.2.2: concrete bearing φ 0.6",
+    "holesAS": "AS 4100:2020 14.3.5.2: standard holes df + 2 mm up to M24, df + 3 mm above",
+    "edgesAS": "AS 4100:2020 9.6.2, Table 9.6.2: least edge distance 1.75 df (sheared or hand flame cut edges), 1.50 df (rolled plate, machine flame cut, sawn or planed edges; SAEngine takes it for the parent's 'rolled' edges, the 1.25 df of a rolled section's edge not used: on the safe side); 9.6.1: least pitch 2.5 df; 9.6.3: largest edge distance 12 tp and 150 mm",
+    "filletAS": "AS 4100:2020 Table 9.7.3.2: least fillet leg 3 mm (t up to 7 mm, the 2.5 mm of thinner parts not taken), 4 mm (7-10), 5 mm (10-15), 6 mm (above 15); 9.7.3.3: along an edge thinner than 6 mm the leg at most t, else t - 1 mm",
+    "concreteBearingAS": "AS 3600:2018 12.6: bearing 0.85 f'c √(A2/A1) at most 2 f'c (φ 0.6)",
+    "referencesAS": "the clause references of the shared connection checks' notes (written with the default pack's numbers) mapped to AS 4100:2020 and AS 3600:2018"
+  }
+}

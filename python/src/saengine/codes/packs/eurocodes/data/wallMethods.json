@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/wallMethods.schema.json",
+  "$sources": [
+    "SAEngine practice: slender walls (EN 1992-1-1 5.8 and 12.6.5 in concreteMethods.wallSlenderness for the EN check)"
+  ],
+  "source": "SAEngine practice: slender walls (EN 1992-1-1 5.8 and 12.6.5 in concreteMethods.wallSlenderness for the EN check)",
+  "sources": {
+    "slender": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "slender.ruptureCoefficient": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "slender.spreadSlope": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "gradeBeam": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "clauses": {
+    "slender": "",
+    "slenderAxial": "",
+    "slenderCracking": "",
+    "slenderStrength": "",
+    "slenderDeflection": "",
+    "slenderTension": "",
+    "gradeBeam": "",
+    "gradeBeamExposed": ""
+  }
+}

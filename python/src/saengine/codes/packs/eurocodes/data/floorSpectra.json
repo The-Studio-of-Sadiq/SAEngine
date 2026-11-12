@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/floorSpectra.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1 4.3.5 designs non-structural elements by Fa = Sa Wa γa / qa with the height formula of 4.3.5.2(3) and gives no floor spectra; SAEngine practice (ASCE 4-16 Ch 6 broadening) where it is silent"
+  ],
+  "source": "SAEngine practice where EN 1998-1 4.3.5 is silent: floor response spectra by time history or the direct method, broadened ±15 %",
+  "methods": ["timeHistory", "spectrumToSpectrum"],
+  "broadening": 0.15,
+  "damping": [0.02, 0.03, 0.05, 0.07],
+  "componentDamping": 0.05,
+  "periods": [0.02, 4.0, 120],
+  "direct": { "duration": 20.0, "iterations": 8 },
+  "components": {
+    "method": "spectralAcceleration",
+    "rigidPeriod": 0.06,
+    "flexibleAlpha": 1.0,
+    "divideByR": true,
+    "bounds": true
+  },
+  "sources": {
+    "broadening": "SAEngine practice: ±15 % (ASCE 4-16 Sec 6.2)",
+    "components": "SAEngine practice: Fa = Sa_floor(Ta) Wa γa / qa (the form of EN 1998-1 Eq 4.24 with the floor spectrum in place of the height formula 4.25)"
+  }
+}

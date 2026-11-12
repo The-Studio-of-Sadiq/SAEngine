@@ -1,0 +1,120 @@
+{
+  "$schema": "../../../schemas/steelFire.schema.json",
+  "$sources": [
+    "EN 1993-1-2:2005 (+AC:2009) Structural fire design (recommended values)",
+    "EN 1991-1-2:2002 3.2.1 (standard temperature-time curve)"
+  ],
+  "source": "EN 1993-1-2: ky,θ and kE,θ (3.2.1, Table 3.1), ca constant 600 J/kgK (3.4.1.2), ηfi 0.65 (2.4.2(3)), buckling at temperature (4.2.3.2), the critical temperature (4.2.4 Eq 4.22), unprotected and protected heating (4.2.5.1 Eqs 4.25-4.26a, 4.2.5.2 Eq 4.27); the ISO 834 curve of EN 1991-1-2 3.2.1; see VERIFY.md",
+  "retention": {
+    "method": "tabulated",
+    "points": [
+      [
+        20,
+        1.0,
+        1.0
+      ],
+      [
+        100,
+        1.0,
+        1.0
+      ],
+      [
+        200,
+        1.0,
+        0.9
+      ],
+      [
+        300,
+        1.0,
+        0.8
+      ],
+      [
+        400,
+        1.0,
+        0.7
+      ],
+      [
+        500,
+        0.78,
+        0.6
+      ],
+      [
+        600,
+        0.47,
+        0.31
+      ],
+      [
+        700,
+        0.23,
+        0.13
+      ],
+      [
+        800,
+        0.11,
+        0.09
+      ],
+      [
+        900,
+        0.06,
+        0.0675
+      ],
+      [
+        1000,
+        0.04,
+        0.045
+      ],
+      [
+        1100,
+        0.02,
+        0.0225
+      ],
+      [
+        1200,
+        0.0,
+        0.0
+      ]
+    ]
+  },
+  "critical": {
+    "method": "eurocode",
+    "factors": [
+      39.19,
+      0.9674,
+      3.833,
+      482.0
+    ]
+  },
+  "heating": {
+    "method": "lumpedCapacitance",
+    "curve": [
+      345.0,
+      8.0
+    ],
+    "convection": 25.0,
+    "emissivity": 0.7,
+    "fireEmissivity": 1.0,
+    "specificHeat": 600.0,
+    "density": 7850.0,
+    "shadow": true,
+    "shadowFactor": 0.9,
+    "step": 5.0
+  },
+  "protection": {
+    "thickness": 0.0,
+    "conductivity": 0.12,
+    "specificHeat": 1200.0,
+    "density": 300.0,
+    "encasement": "contour"
+  },
+  "loadRatio": 0.65,
+  "compression": "eurocode",
+  "alphaFactor": 0.65,
+  "gammaFire": 1.0,
+  "clauses": {
+    "code": "Sections 2-4",
+    "retention": "3.2.1, Table 3.1",
+    "heating": "4.2.5.1 Eqs 4.25-4.26a, 4.2.5.2 Eq 4.27; EN 1991-1-2 3.2.1 Eq 3.4",
+    "critical": "4.2.4 Eq 4.22",
+    "compression": "4.2.3.2 Eqs 4.5-4.7"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/fabrication.schema.json",
+  "$sources": [
+    "BNBC 2020 gives no shop drawing conventions; Part 6 Chapter 10 follows AISC 360-05, whose fabrication practice uses AWS A2.4 weld symbols (the structural sheets' connection details already do); the drilling allowances and the cope clearance are SAEngine practice; see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (AWS A2.4 symbols as the connection details; allowances of steel fabrication practice)",
+  "weldSymbols": "aws",
+  "anchorHoleClearance": 6,
+  "copeClearance": 10,
+  "plateGrades": {
+    "ASTM A992": "ASTM A572 Grade 50",
+    "A992": "ASTM A572 Grade 50"
+  },
+  "sources": {
+    "weldSymbols": "SAEngine practice: AWS A2.4, as the steel connection details of the structural sheets (BNBC 2020 Part 6 Chapter 10 is AISC 360-05 based)",
+    "anchorHoleClearance": "SAEngine practice: rod + 6 mm in the base plate (fabrication tolerance for cast-in rods; the AISC Design Guide 1 holes with plate washers are larger)",
+    "copeClearance": "SAEngine practice: 10 mm clear of the supporting beam's flange and root",
+    "plateGrades": "ASTM A992 is a specification for structural shapes only (no plates); a connection with no plate material takes ASTM A572 Grade 50, the plate specification of the same Fy 345 / Fu 450 MPa the design used (AISC Manual Table 2-4, applicable ASTM specifications for plates and bars)"
+  }
+}

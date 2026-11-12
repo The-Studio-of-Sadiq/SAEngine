@@ -1,0 +1,13 @@
+{
+  "schema": "saengine.codePack/1",
+  "kind": "structureTemplate",
+  "id": "portal-frames",
+  "name": "Portal frames (SDK example)",
+  "version": "1.0.0",
+  "description": "An example of a coded structure template: single-bay portal frames made by the package's own code (hooks.py). Its geometry is made only after the package is trusted.",
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "requires": { "saengine": ">=0.0.40" },
+  "contents": ["templates/*.json"],
+  "hooks": "hooks.py"
+}

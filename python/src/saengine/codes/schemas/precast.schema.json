@@ -1,0 +1,707 @@
+{
+  "$defs": {
+    "ConcreteTension": {
+      "additionalProperties": false,
+      "description": "The tension allowed while a piece is handled: coefficient × f'ci^exponent / safety.",
+      "properties": {
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "exponent": {
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "safety": {
+          "exclusiveMinimum": 0,
+          "title": "Safety",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient",
+        "exponent",
+        "safety"
+      ],
+      "title": "ConcreteTension",
+      "type": "object"
+    },
+    "Connections": {
+      "additionalProperties": false,
+      "description": "The connection methods of the pack (methods of other modules by id).",
+      "properties": {
+        "corbel": {
+          "anyOf": [
+            {
+              "const": "corbel",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "corbel",
+          "description": "Bearing on a corbel: the pack's corbel design.",
+          "title": "Corbel"
+        },
+        "weldedPlate": {
+          "anyOf": [
+            {
+              "const": "filletWeld",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "filletWeld",
+          "description": "Welded plates: the pack's fillet weld strength.",
+          "title": "Weldedplate"
+        },
+        "tensionShare": {
+          "description": "Least horizontal tension on a bearing as a share of its shear (restraint of shrinkage, creep and temperature) when none is entered.",
+          "minimum": 0,
+          "title": "Tensionshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tensionShare"
+      ],
+      "title": "Connections",
+      "type": "object"
+    },
+    "DowelAction": {
+      "additionalProperties": false,
+      "description": "``dowelAction``: F = α0 αe Φ² √(fcd fyd) / γRd per dowel, αe = √(1 + (ε α0 e/Φ)²) − ε\nα0 e/Φ, ε = ``epsilon`` √(fcd/fyd), fcd = f'c / gammaC, fyd = fy / gammaS; at most the\ndowel's shear yield ``shearYield`` × fyd × As.",
+      "properties": {
+        "method": {
+          "const": "dowelAction",
+          "default": "dowelAction",
+          "title": "Method",
+          "type": "string"
+        },
+        "alpha0": {
+          "description": "α0 of the dowel action.",
+          "exclusiveMinimum": 0,
+          "title": "Alpha0",
+          "type": "number"
+        },
+        "epsilon": {
+          "description": "ε = this × √(fcd / fyd) (eccentricity).",
+          "exclusiveMinimum": 0,
+          "title": "Epsilon",
+          "type": "number"
+        },
+        "gammaRd": {
+          "description": "γRd of the dowel action.",
+          "exclusiveMinimum": 0,
+          "title": "Gammard",
+          "type": "number"
+        },
+        "gammaC": {
+          "description": "Partial factor of concrete.",
+          "exclusiveMinimum": 0,
+          "title": "Gammac",
+          "type": "number"
+        },
+        "gammaS": {
+          "description": "Partial factor of steel.",
+          "exclusiveMinimum": 0,
+          "title": "Gammas",
+          "type": "number"
+        },
+        "shearYield": {
+          "description": "Shear yield of the bar = this × fyd × As.",
+          "exclusiveMinimum": 0,
+          "title": "Shearyield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "alpha0",
+        "epsilon",
+        "gammaRd",
+        "gammaC",
+        "gammaS",
+        "shearYield"
+      ],
+      "title": "DowelAction",
+      "type": "object"
+    },
+    "Erection": {
+      "additionalProperties": false,
+      "description": "Pieces standing before their connections are made.",
+      "properties": {
+        "windPressure": {
+          "description": "Wind on a piece while erected [kPa].",
+          "minimum": 0,
+          "title": "Windpressure",
+          "type": "number"
+        },
+        "overturningSafety": {
+          "description": "Least ratio of the temporary base or brace capacity to its demand.",
+          "exclusiveMinimum": 0,
+          "title": "Overturningsafety",
+          "type": "number"
+        },
+        "hanging": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HangingBeam"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "windPressure",
+        "overturningSafety"
+      ],
+      "title": "Erection",
+      "type": "object"
+    },
+    "Handling": {
+      "additionalProperties": false,
+      "description": "Equivalent static multipliers on the piece's weight and the handling rules.",
+      "properties": {
+        "stripping": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Form suction and impact at stripping by mould and finish (flatRemovable, flatFalseJoints, fluted, sculptured).",
+          "minProperties": 1,
+          "title": "Stripping",
+          "type": "object"
+        },
+        "yard": {
+          "description": "Yard handling and storage.",
+          "exclusiveMinimum": 0,
+          "title": "Yard",
+          "type": "number"
+        },
+        "transport": {
+          "description": "Travel on the truck.",
+          "exclusiveMinimum": 0,
+          "title": "Transport",
+          "type": "number"
+        },
+        "erection": {
+          "description": "Erection.",
+          "exclusiveMinimum": 0,
+          "title": "Erection",
+          "type": "number"
+        },
+        "stripShare": {
+          "description": "f'ci at stripping as a share of f'c when the piece gives none.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stripshare",
+          "type": "number"
+        },
+        "tension": {
+          "$ref": "#/$defs/ConcreteTension"
+        },
+        "inserts": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Inserts taken to carry the load by rigging (twoPoint, fourPointEqualised, fourPointRigid).",
+          "title": "Inserts",
+          "type": "object"
+        },
+        "insertSafety": {
+          "description": "Least ratio of an insert's ultimate load to its load (when one is given).",
+          "exclusiveMinimum": 0,
+          "title": "Insertsafety",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stripping",
+        "yard",
+        "transport",
+        "erection",
+        "stripShare",
+        "tension",
+        "inserts",
+        "insertSafety"
+      ],
+      "title": "Handling",
+      "type": "object"
+    },
+    "HangingBeam": {
+      "additionalProperties": false,
+      "description": "``hangingBeam``: lateral stability of a member hanging from its lifting inserts.",
+      "properties": {
+        "method": {
+          "const": "hangingBeam",
+          "default": "hangingBeam",
+          "title": "Method",
+          "type": "string"
+        },
+        "safety": {
+          "description": "Least FS = yr / (zo + ei).",
+          "exclusiveMinimum": 0,
+          "title": "Safety",
+          "type": "number"
+        },
+        "sweepDivisor": {
+          "description": "Sweep tolerance = length / this.",
+          "exclusiveMinimum": 0,
+          "title": "Sweepdivisor",
+          "type": "number"
+        },
+        "insertTolerance": {
+          "description": "Lateral placing tolerance [mm].",
+          "minimum": 0,
+          "title": "Inserttolerance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "safety",
+        "sweepDivisor",
+        "insertTolerance"
+      ],
+      "title": "HangingBeam",
+      "type": "object"
+    },
+    "IntegrityTies": {
+      "additionalProperties": false,
+      "description": "``tieForces``: the least strengths of the ties of a precast structure.",
+      "properties": {
+        "method": {
+          "const": "tieForces",
+          "default": "tieForces",
+          "title": "Method",
+          "type": "string"
+        },
+        "diaphragm": {
+          "description": "Connections of floor diaphragms to the members they brace [kN/m].",
+          "exclusiveMinimum": 0,
+          "title": "Diaphragm",
+          "type": "number"
+        },
+        "columnTension": {
+          "description": "A column's nominal tension at its horizontal joints = this × Ag [N/mm²].",
+          "exclusiveMinimum": 0,
+          "title": "Columntension",
+          "type": "number"
+        },
+        "panelTies": {
+          "description": "Ties per wall panel.",
+          "minimum": 1,
+          "title": "Panelties",
+          "type": "integer"
+        },
+        "panelTieForce": {
+          "description": "Nominal strength of each panel tie [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Paneltieforce",
+          "type": "number"
+        },
+        "bearingWallStoreys": {
+          "description": "Large-panel bearing wall buildings of this many storeys and more.",
+          "minimum": 1,
+          "title": "Bearingwallstoreys",
+          "type": "integer"
+        },
+        "floorTies": {
+          "description": "Their floor ties [kN/m of width or length].",
+          "exclusiveMinimum": 0,
+          "title": "Floorties",
+          "type": "number"
+        },
+        "floorTieSpacing": {
+          "description": "Longitudinal floor ties apart at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Floortiespacing",
+          "type": "number"
+        },
+        "perimeterTie": {
+          "description": "The perimeter tie [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Perimetertie",
+          "type": "number"
+        },
+        "perimeterEdge": {
+          "description": "Within this of the floor's edge [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Perimeteredge",
+          "type": "number"
+        },
+        "verticalTies": {
+          "description": "Vertical ties in the walls [kN/m].",
+          "exclusiveMinimum": 0,
+          "title": "Verticalties",
+          "type": "number"
+        }
+      },
+      "required": [
+        "diaphragm",
+        "columnTension",
+        "panelTies",
+        "panelTieForce",
+        "bearingWallStoreys",
+        "floorTies",
+        "floorTieSpacing",
+        "perimeterTie",
+        "perimeterEdge",
+        "verticalTies"
+      ],
+      "title": "IntegrityTies",
+      "type": "object"
+    },
+    "NetBearing": {
+      "additionalProperties": false,
+      "description": "``netBearing``: a = a1 + a2 + a3 + √(Δa2² + Δa3²) (EN 1992-1-1 10.9.5.2 form).\n\na1 = FEd / (b1 fRd), fRd = ``strength[bedding]`` × fcd, at least ``a1Minimum[support]`` by\nthe relative bearing stress σEd/fcd (three columns: up to ``stressBands[0]``, up to\n``stressBands[1]``, above); a2 the ineffective edge of the support (``a2[material\n+ \".\" + support]``, same three columns); a3 the ineffective end of the piece\n(``a3[endBars + \".\" + support]``, [linear, concentrated]); Δa2 = ``supportTolerance\n[material]`` (l / divisor + add, clamped between min and max), Δa3 = ln / ``memberTolerance``.\n``support``: \"linear\" (floor units on a line support), \"ribbed\" (ribbed floors, purlins),\n\"concentrated\" (beams).",
+      "properties": {
+        "method": {
+          "const": "netBearing",
+          "default": "netBearing",
+          "title": "Method",
+          "type": "string"
+        },
+        "strength": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "fRd / fcd by bedding (dry, bedded).",
+          "title": "Strength",
+          "type": "object"
+        },
+        "stressBands": {
+          "description": "σEd/fcd band limits.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          ],
+          "title": "Stressbands",
+          "type": "array"
+        },
+        "a1Minimum": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Least a1 by support kind (linear, ribbed, concentrated) and band [mm].",
+          "title": "A1Minimum",
+          "type": "object"
+        },
+        "a2": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Ineffective support edge by '<material>.<linear|concentrated>' and band [mm] (materials: steel, concreteHigh (C30 and above), concreteLow, masonry).",
+          "title": "A2",
+          "type": "object"
+        },
+        "highStrength": {
+          "description": "fck at and above which the support is 'concreteHigh' [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Highstrength",
+          "type": "number"
+        },
+        "a3": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Ineffective end of the piece by its bars at the end (continuous, straight, exposed, loops): [linear, concentrated] [mm].",
+          "title": "A3",
+          "type": "object"
+        },
+        "a3CoverAtLeast": {
+          "description": "End details whose a3 is at least the end cover (straight).",
+          "items": {
+            "type": "string"
+          },
+          "title": "A3Coveratleast",
+          "type": "array"
+        },
+        "supportTolerance": {
+          "additionalProperties": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Δa2 by support material (precast or steel, castInSitu or masonry): (span divisor, added, least, largest) [mm].",
+          "title": "Supporttolerance",
+          "type": "object"
+        },
+        "memberTolerance": {
+          "description": "Δa3 = ln / this.",
+          "exclusiveMinimum": 0,
+          "title": "Membertolerance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strength",
+        "stressBands",
+        "a1Minimum",
+        "a2",
+        "highStrength",
+        "a3",
+        "supportTolerance",
+        "memberTolerance"
+      ],
+      "title": "NetBearing",
+      "type": "object"
+    },
+    "ShearFrictionDowels": {
+      "additionalProperties": false,
+      "description": "``shearFriction``: the dowels' area across the joint as shear-friction steel by the\npack's shear transfer (detailing ``shearFriction`` or the concreteMethods interface shear).",
+      "properties": {
+        "method": {
+          "const": "shearFriction",
+          "default": "shearFriction",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "title": "ShearFrictionDowels",
+      "type": "object"
+    },
+    "SpanRatioBearing": {
+      "additionalProperties": false,
+      "description": "``spanRatio``: the seating at least ln / spanDivisor and ``minimum[class]`` (classes\n``slab``: solid or hollow-core slabs; ``stemmed``: beams and stemmed members), the pad set\nback ``padSetback`` from an unarmoured edge; the bearing stress Vu <= φ ``stressFactor``\nf'c A1 (φ: the pack's factors ``phi.bearing``).",
+      "properties": {
+        "method": {
+          "const": "spanRatio",
+          "default": "spanRatio",
+          "title": "Method",
+          "type": "string"
+        },
+        "spanDivisor": {
+          "description": "The seating at least ln / this.",
+          "exclusiveMinimum": 0,
+          "title": "Spandivisor",
+          "type": "number"
+        },
+        "minimum": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least seating by member class (slab, stemmed) [mm].",
+          "minProperties": 1,
+          "title": "Minimum",
+          "type": "object"
+        },
+        "padSetback": {
+          "description": "Bearing pads set back from an unarmoured edge [mm].",
+          "minimum": 0,
+          "title": "Padsetback",
+          "type": "number"
+        },
+        "stressFactor": {
+          "description": "Bearing strength = this × f'c × A1.",
+          "exclusiveMinimum": 0,
+          "title": "Stressfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spanDivisor",
+        "minimum",
+        "padSetback",
+        "stressFactor"
+      ],
+      "title": "SpanRatioBearing",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Precast concrete pieces and their connections (see the module notes). A group left out\nis not covered: its checks say so.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "bearing": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "netBearing": "#/$defs/NetBearing",
+              "spanRatio": "#/$defs/SpanRatioBearing"
+            },
+            "propertyName": "method"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SpanRatioBearing"
+            },
+            {
+              "$ref": "#/$defs/NetBearing"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bearing"
+    },
+    "dowel": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "dowelAction": "#/$defs/DowelAction",
+              "shearFriction": "#/$defs/ShearFrictionDowels"
+            },
+            "propertyName": "method"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ShearFrictionDowels"
+            },
+            {
+              "$ref": "#/$defs/DowelAction"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dowel"
+    },
+    "connections": {
+      "$ref": "#/$defs/Connections"
+    },
+    "integrity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IntegrityTies"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "handling": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Handling"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "erection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Erection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "connections"
+  ],
+  "title": "PrecastTable",
+  "type": "object",
+  "$id": "saengine.codePack.precast/1"
+}

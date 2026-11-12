@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "NZS 3404 Part 1:1997 Sections 5-8 (the member rules of AS 4100, the Australian pack's values)",
+    "NZS 3404 Part 1:1997 Section 12 (seismic: member categories 1-4)"
+  ],
+  "source": "NZS 3404 Part 1:1997: the member design of AS 4100 (φ 0.9, section classification by λe, αc with αb, Mb = αm αs Ms, Vw = 0.6 fy Aw); the values and clause numbers are the Australian pack's (NZS 3404 keeps the AS 4100 numbering of Sections 5-8: uncertain, to be checked); alpha 9 C18c: the seismic member categories of Section 12 (seismic)",
+  "sources": {
+    "partialFactors": "NZS 3404 Table 3.3: φ = 0.9 members, 0.8 bolts and SP welds (the AS 4100 values)",
+    "designStrength": "AS/NZS 3679.1 Grades 300 and 350 (as the Australian pack)",
+    "seismic": "NZS 3404 Part 1:1997 Section 12 (seismic, method prescriptiveFrames): the structural ductility categories 1 (fully ductile, μ up to 6: moment frames steelSmf and eccentrically braced frames steelEbf), 3 (limited ductile, μ up to 3: steelImf, steelScbf), 4 (nominally ductile, μ 1.25: no category rows, R up to rAbove 1.25); the yielding members' sections compact (the Australian pack's AS 4100 5.2 plastic limits as a stand-in for the stricter category limits of NZS 3404 Table 12.5: to verify), the beam-to-column connections designed for φoms Mp with the material overstrength factor φoms = 1.25 (12.2.6, to verify: 1.35 for the lower grades), the columns of category 1 frames ΣMpc >= φoms ΣMpb (12.8.3, the column capacity design reduced to the strong column ratio: SAEngine practice), braces of category 3 braced frames KL/r <= 200 (to verify: 12.12 limits by λn); category 2 is not offered by the systems"
+  },
+  "seismic": {
+    "method": "prescriptiveFrames",
+    "systems": {
+      "steelSmf": "category1",
+      "steelEbf": "category1",
+      "steelImf": "category3",
+      "steelScbf": "category3"
+    },
+    "frames": {
+      "category1": {
+        "plasticMembers": [
+          "beam"
+        ],
+        "connectionMoment": 1.25,
+        "strongColumn": 1.25,
+        "note": "fully ductile (μ up to 6): the yielding members compact, the connections and the columns designed for the overstrength φoms Mp"
+      },
+      "category3": {
+        "plasticMembers": [
+          "beam",
+          "brace"
+        ],
+        "braceSlenderness": 200.0,
+        "connectionMoment": 1.25,
+        "note": "limited ductile (μ up to 3): the yielding members compact, the connections for the overstrength φoms Mp"
+      }
+    },
+    "columnAmplified": false,
+    "rAbove": 1.25
+  },
+  "clauses": {
+    "seismic": "Section 12",
+    "seismic_category1": "12.2, 12.4, 12.8, 12.9",
+    "seismic_category3": "12.2, 12.4, 12.12",
+    "seismicColumns": "12.8.3"
+  }
+}

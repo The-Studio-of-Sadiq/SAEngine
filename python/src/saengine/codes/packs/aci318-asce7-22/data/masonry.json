@@ -1,0 +1,214 @@
+{
+  "$schema": "../../../schemas/masonry.schema.json",
+  "$sources": [
+    "TMS 402-22 Building Code Requirements for Masonry Structures: Chapter 8 (allowable stress design, the default masonry method) and Chapter 9 (strength design, a wall type's masonryMethod 'strength'), Sec 4.2.2 (elastic moduli); the empirical rules, the seismic detailing and the other masonry rules are the default pack's (BNBC 2020 Part 6 Chapter 7), named as BNBC 2020's"
+  ],
+  "source": "TMS 402-22 Chapter 8 (allowable stress design of unreinforced and reinforced masonry) and Chapter 9 (strength design); the rest of the table: BNBC 2020 Part 6 Chapter 7 (the pack it extends)",
+  "strength": {
+    "phi": {
+      "slenderFlexure": 0.9,
+      "axial": 0.9,
+      "axialMax": 0.9,
+      "axialIncreaseFyMax": 410.0,
+      "axialIncreaseArea": 0.1,
+      "axialIncreaseBalanced": 0.25,
+      "shear": 0.8,
+      "shearFlexure": 0.8
+    },
+    "ultimateStrain": 0.0025,
+    "stressBlock": {
+      "stress": 0.8,
+      "depth": 0.8
+    },
+    "axial": {
+      "masonry": 0.8,
+      "reduction": 0.8
+    },
+    "fmRange": {
+      "shearWall": [
+        10.3,
+        27.6
+      ]
+    },
+    "shear": {
+      "masonry": 0.083,
+      "cdLow": 4.0,
+      "cdHigh": 2.25,
+      "ratioLow": 0.0,
+      "ratioHigh": 1.0,
+      "maxRatioLow": 0.25,
+      "maxLow": 0.498,
+      "maxHigh": 0.332,
+      "steelShare": 0.5,
+      "axialShare": 0.25,
+      "flexureMode": false,
+      "note": "TMS 402-22 Sec 9.3.6 (shear of reinforced masonry in plane): Vnm = 0.083 [4.0 - 1.75 Mu/(Vu dv)] Anv sqrt(f'm) + 0.25 Pu with Mu/(Vu dv) taken from 0 to 1.0 (SI form of the psi equation), Vns = 0.5 (Av/s) fy dv (here 0.5 ρn fy Anv), Vn at most 0.083 x 6 Anv sqrt(f'm) up to Mu/(Vu dv) 0.25 and 0.083 x 4 Anv sqrt(f'm) from 1.0, linear between; γg = 1.0 (fully grouted walls) assumed; no flexure mode"
+    }
+  },
+  "clauses": {
+    "strengthMethod": "TMS 402-22 Chapter 9 (strength design), Sec 9.1.4 (φ), 9.3.2 (design assumptions: εmu 0.0025 clay, 0.0035 concrete masonry, 0.80 f'm over 0.80 c)",
+    "shearWallRange": "TMS 402-22 Sec 9.1.9.1 (f'm 10.3-27.6 MPa for concrete masonry in strength design)",
+    "shearWallAxial": "TMS 402-22 Sec 9.3.4.1.1 (Pn = 0.80 [0.80 f'm (An - As) + fy As])",
+    "shearWallFlexure": "TMS 402-22 Sec 9.3.2, 9.3.6",
+    "shearWallShear": "TMS 402-22 Sec 9.3.6.5 (Vnm, Vns, the maximum Vn)",
+    "shearWallReinforcement": "BNBC 2020 Part 6 Sec 7.7.2.6, the default pack's rule",
+    "boundary": "BNBC 2020 Part 6 Sec 7.7.2.7, the default pack's rule",
+    "slenderWall": "BNBC 2020 Part 6 Sec 7.7.1, Eq 6.7.36, the default pack's rule",
+    "slenderReinforcement": "BNBC 2020 Part 6 Sec 7.7.1.1(a), the default pack's rule",
+    "slenderMoment": "BNBC 2020 Part 6 Sec 7.7.1.2, Eqs 6.7.37-6.7.38, the default pack's rule",
+    "slenderDeflection": "BNBC 2020 Part 6 Sec 7.7.1.3, Eqs 6.7.39-6.7.42, Table 6.7.13, the default pack's rule",
+    "chapter": "TMS 402-22 Chapter 8",
+    "quality": "TMS 402-22 Chapter 3 (quality assurance: no reduction of the allowable stresses)",
+    "lateralIncrease": "ASCE 7-22 Sec 2.4 (no increase of the allowable stresses for wind or earthquake)",
+    "axial": "TMS 402-22 Sec 8.2.4.1 (Fa = 0.25 f'm [1 - (h/140r)²], (70r/h)² above h/r 99)",
+    "axialColumn": "TMS 402-22 Sec 8.3.4.2.1 (Pa = (0.25 f'm An + 0.65 Ast Fs) [1 - (h/140r)²])",
+    "flexuralCompression": "TMS 402-22 Sec 8.2.4.2 (1/3 f'm), Sec 8.3.4.2.2 (0.45 f'm)",
+    "flexuralTension": "TMS 402-22 Sec 8.2.4.2, Table 8.2.4.2",
+    "wallShearPlain": "TMS 402-22 Sec 8.2.6.2",
+    "wallShearReinforced": "TMS 402-22 Sec 8.3.5.1 (Fv = Fvm + Fvs)",
+    "reinforcedShear": "TMS 402-22 Sec 8.3.5",
+    "steel": "TMS 402-22 Sec 8.3.3.1 (Fs 20 ksi Grade 40 and 50, 32 ksi Grade 60, 30 ksi joint reinforcement)",
+    "interaction": "TMS 402-22 Sec 8.2.4.1, 8.3.4.2",
+    "elastic": "TMS 402-22 Sec 4.2.2 (Em 700 f'm clay, 900 f'm concrete masonry; Es 200 000 MPa; Ev 0.4 Em)",
+    "slenderness": "SAEngine practice: h'/t at most 30 for walls (TMS 402-22 sets no limit; Fa by h/r), 25 for columns (TMS 402-22 Sec 5.3.1.4)",
+    "reinforcedCombined": "TMS 402-22 Sec 8.3.4.2",
+    "plainStresses": "TMS 402-22 Sec 8.2",
+    "reinforcedWidth": "TMS 402-22 Sec 5.1.2 (effective compressive width per bar)",
+    "details": "TMS 402-22 Chapter 6 (reinforcement details)"
+  },
+  "sources": {
+    "strength": "TMS 402-22 Chapter 9: φ 0.90 axial and flexure of reinforced masonry, 0.80 shear (Sec 9.1.4); εmu 0.0025 (clay masonry; 0.0035 of concrete masonry not used: conservative), stress block 0.80 f'm over 0.80 c (Sec 9.3.2); Pn = 0.80 [0.80 f'm (An - As) + fy As] (Sec 9.3.4.1.1, the slenderness factor not applied to shear walls); shear by Sec 9.3.6.5; the slender wall, reinforcement, boundary and modulus of rupture values are the default pack's",
+    "allowable": "TMS 402-22 Chapter 8 in SI (1 sqrt(psi) = 0.083 sqrt(MPa)): unreinforced Fa = 0.25 f'm [1 - (h/140r)²] up to h/r 99, 0.25 f'm (70r/h)² above (Sec 8.2.4.1; r = t/sqrt(12) of a solid section: h'/t 40.41, 28.58, 20.21), Fb = 1/3 f'm (Sec 8.2.4.2), Ft Table 8.2.4.2, Fv Sec 8.2.6.2; reinforced Pa with 0.65 Ast Fs (Sec 8.3.4.2.1), Fb = 0.45 f'm (Sec 8.3.4.2.2), Fs 138 / 220 / 207 MPa (Sec 8.3.3.1), Fv = Fvm + Fvs, Fvm = 1/2 [(4.0 - 1.75 M/(V dv)) sqrt(f'm)] + 0.25 P/An, Fvs = 0.5 (Av Fs dv)/(An s), at most 3 sqrt(f'm) up to M/(V dv) 0.25 and 2 sqrt(f'm) from 1.0 (Sec 8.3.5.1; γg = 1.0 fully grouted); beams and the out-of-plane shear with M/(V d) = 1.0 (SAEngine practice); compression steel and bond the default pack's"
+  },
+  "quality": {
+    "reducedShare": 1.0,
+    "note": "TMS 402-22 sets quality assurance levels (Chapter 3) but does not reduce the allowable stresses without special inspection: the full values are used"
+  },
+  "lateralIncrease": {
+    "factor": 1.0,
+    "note": "TMS 402-22 has no one-third increase of the allowable stresses for wind or earthquake; the ASD combinations of ASCE 7-22 Sec 2.4 (0.6 W, 0.7 E) apply"
+  },
+  "allowable": {
+    "axial": {
+      "fmShare": 0.25,
+      "slenderness": 40.41,
+      "exponent": 2.0,
+      "columnSteelArea": 1.538,
+      "longAbove": 28.58,
+      "longCoefficient": 20.21
+    },
+    "flexuralCompression": {
+      "fmShare": 0.333,
+      "reinforcedShare": 0.45,
+      "cap": 1000.0
+    },
+    "flexuralTension": {
+      "bedJoints": {
+        "solid": 0.365,
+        "hollow": 0.228
+      },
+      "headJoints": {
+        "solid": 0.731,
+        "hollow": 0.455
+      },
+      "headJointsByUnit": {
+        "clay": {
+          "solid": 0.731,
+          "hollow": 0.455
+        },
+        "concrete": {
+          "solid": 0.731,
+          "hollow": 0.455
+        }
+      },
+      "fullMortars": [
+        "M1",
+        "M2"
+      ],
+      "reducedMortars": [
+        "M3",
+        "M4"
+      ],
+      "reduction": 0.245,
+      "note": "TMS 402-22 Table 8.2.4.2 (portland cement / lime mortar): normal to the bed joints 53 psi (solid units) and 33 psi (hollow units, ungrouted) with Type M or S mortar, 40 and 25 psi with Type N; parallel to the bed joints in running bond 106 and 66 psi, Type N 80 and 50 psi. SAEngine practice: the pack's mortar grades M1, M2 taken as Type M or S, M3, M4 as Type N (about 24.5 % less), none for leaner mortars; hollow units grouted take the ungrouted value (conservative)"
+    },
+    "beamShear": {
+      "unreinforced": {
+        "factor": 0.0934,
+        "cap": 1000.0
+      },
+      "reinforced": {
+        "factor": 0.166,
+        "cap": 1000.0
+      }
+    },
+    "wallShearPlain": {
+      "method": "axialFriction",
+      "axialFriction": {
+        "rootFactor": 0.125,
+        "cap": 0.827,
+        "base": 0.255,
+        "groutedBase": 0.414,
+        "friction": 0.45,
+        "stackBond": 0.103
+      },
+      "note": "TMS 402-22 Sec 8.2.6.2: Fv the least of 1.5 sqrt(f'm) psi, 120 psi and 37 psi + 0.45 Nv/An (running bond not solidly grouted), 60 psi + 0.45 Nv/An (running bond solidly grouted), 15 psi in stack bond (the open end unit case of 37 psi not distinguished: conservative)"
+    },
+    "wallShearReinforced": {
+      "method": "additive",
+      "additive": {
+        "masonryFactor": 0.0415,
+        "first": 4.0,
+        "slope": 1.75,
+        "axialShare": 0.25,
+        "steelShare": 0.5,
+        "ratioLow": 0.25,
+        "maxLow": 0.249,
+        "maxHigh": 0.166
+      }
+    },
+    "steel": {
+      "tensionDeformed": {
+        "fyShare": 0.5,
+        "cap": 220.0,
+        "steps": [
+          {
+            "fyMax": 350.0,
+            "value": 138.0
+          },
+          {
+            "fyMax": null,
+            "value": 220.0
+          }
+        ]
+      },
+      "tensionPlain": {
+        "fyShare": 0.5,
+        "cap": 207.0,
+        "steps": [
+          {
+            "fyMax": null,
+            "value": 207.0
+          }
+        ]
+      }
+    },
+    "interaction": 1.0
+  },
+  "elastic": {
+    "emRatio": 700.0,
+    "emRatioByUnit": {
+      "clay": 700.0,
+      "concrete": 900.0
+    },
+    "emCap": 100000.0,
+    "es": 200000.0,
+    "shearRatio": 0.4
+  },
+  "dimensions": {
+    "slenderness": {
+      "wall": 30.0,
+      "column": 25.0
+    }
+  }
+}

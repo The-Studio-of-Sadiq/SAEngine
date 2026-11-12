@@ -1,0 +1,8 @@
+{
+  "$notes": {
+    "partitions.loadCase": "ASCE 7-22 Sec 4.3.2 (the partition load is a live load), used as a generic default"
+  },
+  "partitions": {
+    "loadCase": "L"
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "NonBuildingType": {
+      "additionalProperties": false,
+      "description": "A kind of non-building structure and its seismic coefficients.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "R": {
+          "description": "Response modification coefficient.",
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "omega0": {
+          "description": "Overstrength factor Ω0.",
+          "exclusiveMinimum": 0,
+          "title": "Omega0",
+          "type": "number"
+        },
+        "Cd": {
+          "description": "Deflection amplification factor.",
+          "exclusiveMinimum": 0,
+          "title": "Cd",
+          "type": "number"
+        },
+        "similar": {
+          "default": false,
+          "description": "Similar to buildings (designed with the building rules).",
+          "title": "Similar",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label",
+        "R",
+        "omega0",
+        "Cd"
+      ],
+      "title": "NonBuildingType",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Non-building structures (method ``responseModification``): a structure supported by\nthe building whose weight is below ``supportedShare`` of the combined weight is a\nnonstructural component (:mod:`saengine.design.nonstructural`); otherwise, and for one on\nthe ground, V = Cs·W with Cs = Sa(T)·I/R of the project's design spectrum, at least\n``minimumCoefficient`` (a·SDS·I, b), and a rigid one (T below ``rigidPeriod``) V =\n``rigidFactor``·SDS·I·W, SDS the spectrum's short-period plateau.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "responseModification",
+      "default": "responseModification",
+      "title": "Method",
+      "type": "string"
+    },
+    "types": {
+      "additionalProperties": {
+        "$ref": "#/$defs/NonBuildingType"
+      },
+      "minProperties": 1,
+      "title": "Types",
+      "type": "object"
+    },
+    "supportedShare": {
+      "description": "Wp / (Wp + Ws) below this: a component.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Supportedshare",
+      "type": "number"
+    },
+    "rigidPeriod": {
+      "description": "T below this [s]: rigid.",
+      "exclusiveMinimum": 0,
+      "title": "Rigidperiod",
+      "type": "number"
+    },
+    "rigidFactor": {
+      "description": "V = this·SDS·I·W of a rigid structure.",
+      "exclusiveMinimum": 0,
+      "title": "Rigidfactor",
+      "type": "number"
+    },
+    "minimumCoefficient": {
+      "description": "Cs ≥ a·SDS·I and ≥ b.",
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Minimumcoefficient",
+      "type": "array"
+    }
+  },
+  "required": [
+    "types",
+    "supportedShare",
+    "rigidPeriod",
+    "rigidFactor",
+    "minimumCoefficient"
+  ],
+  "title": "NonBuildingTable",
+  "type": "object",
+  "$id": "saengine.codePack.nonBuilding/1"
+}

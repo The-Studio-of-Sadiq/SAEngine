@@ -1,0 +1,136 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NCh 433 Of.1996 Mod.2009 with DS 61 (2011): 4.2-4.3 (zones, categories), 5.9 (drift), 6.2 (static method: Cmin, Cmax), 6.3 (modal method: the spectrum Sa = S A0 α / (R*/I), α, R*), Tables 5.1 (R, R0), 6.1 (I), 6.2 (A0), 6.3 (S, T0, T', n, p), 6.4 (Cmax); see VERIFY.md"
+  ],
+  "source": "NCh 433 Mod.2009 + DS 61: Sa = S A0 α(T) / (R*/I), α = (1 + 4.5 (T/T0)^p) / (1 + (T/T0)^3), R* = 1 + T / (0.10 T0 + T/R0), Cmin = A0 S / 6g ≤ C ≤ Cmax S A0 / g; by the generic shapeFactors spectrum method (A0/g, I as Z, I; R0 as μ; α as the shape with its divisor; S as the soil factor; kμ = R* by the periodRatio form, at the period itself). The static method takes the same spectrum at the building's period (NCh 433's static C = 2.75 S A0 (T'/T*)^n / (g R) is not built: SAEngine practice, VERIFY.md C14). Entered from knowledge of the standard, every value to be checked against the printed standard and decree (VERIFY.md).",
+  "defaultSiteClass": "C",
+  "defaultSystem": "rcSpecialWallFrame",
+  "siteClasses": {
+    "A": {
+      "description": "Soil type A: rock, cemented soil (vs30 above 900 m/s; S 0.90, T0 0.15 s, T' 0.20 s, n 1.00, p 2.0)",
+      "vs30": [900, null],
+      "shape": [{ "a": 1.0, "c": 4.5, "n": -2.0, "t0": 0.15, "d": 1.0, "m": -3.0 }]
+    },
+    "B": {
+      "description": "Soil type B: soft or fractured rock, very dense or very firm soil (vs30 500-900 m/s; S 1.00, T0 0.30 s, T' 0.35 s, n 1.33, p 1.5)",
+      "vs30": [500, 900],
+      "shape": [{ "a": 1.0, "c": 4.5, "n": -1.5, "t0": 0.3, "d": 1.0, "m": -3.0 }]
+    },
+    "C": {
+      "description": "Soil type C: dense or firm soil (vs30 350-500 m/s; S 1.05, T0 0.40 s, T' 0.45 s, n 1.40, p 1.6)",
+      "vs30": [350, 500],
+      "shape": [{ "a": 1.0, "c": 4.5, "n": -1.6, "t0": 0.4, "d": 1.0, "m": -3.0 }]
+    },
+    "D": {
+      "description": "Soil type D: medium dense or medium firm soil (vs30 180-350 m/s; S 1.20, T0 0.75 s, T' 0.85 s, n 1.80, p 1.0)",
+      "vs30": [180, 350],
+      "shape": [{ "a": 1.0, "c": 4.5, "n": -1.0, "t0": 0.75, "d": 1.0, "m": -3.0 }]
+    },
+    "E": {
+      "description": "Soil type E: soft soil (vs30 below 180 m/s; S 1.30, T0 1.20 s, T' 1.35 s, n 1.80, p 1.0)",
+      "vs30": [null, 180],
+      "shape": [{ "a": 1.0, "c": 4.5, "n": -1.0, "t0": 1.2, "d": 1.0, "m": -3.0 }]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "clause": "NCh 433 Mod.2009 6.3.5 (Sa = S A0 α / (R*/I)), DS 61",
+    "shapeFactors": {
+      "performance": [[1.0, 1.0], [20.0, 1.0]],
+      "ductilityPeriod": null,
+      "ductilityForm": "periodRatio",
+      "ratioShare": 0.1,
+      "ratioPeriods": { "A": 0.15, "B": 0.3, "C": 0.4, "D": 0.75, "E": 1.2 },
+      "soilFactors": {
+        "A": [[0.0, 0.9]],
+        "B": [[0.0, 1.0]],
+        "C": [[0.0, 1.05]],
+        "D": [[0.0, 1.2]],
+        "E": [[0.0, 1.3]]
+      },
+      "leastSoilShare": 0.166667,
+      "capByDuctility": [[4.0, 0.55], [6.0, 0.4], [11.0, 0.35]],
+      "clauses": {
+        "performance": "NCh 433 6.3.5 (R0 as the system's R; no Sp)",
+        "ductility": "NCh 433 Mod.2009 6.3.5.3, Eq 6-11 (R* = 1 + T* / (0.10 T0 + T*/R0))",
+        "soil": "DS 61 Table 6.3 (S)",
+        "least": "NCh 433 6.2.3.1.1 and 6.3.7.1 (Cmin = A0 S / 6g)",
+        "cap": "NCh 433 6.2.3.1.2, Table 6.4 and 6.3.7.2 (Cmax by R)",
+        "shape": "NCh 433 6.3.5.2, Eq 6-10 (α), DS 61 Table 6.3 (T0, p)"
+      }
+    },
+    "clauses": {
+      "shape": "NCh 433 6.3.5.2, Eq 6-10; DS 61 Table 6.3",
+      "design": "NCh 433 Mod.2009 6.3.5 (Sa = S A0 α / (R*/I))"
+    }
+  },
+  "systems": {
+    "rcSpecialWallFrame": { "name": "Reinforced concrete walls (muros de hormigón armado)", "R": 11.0, "Omega0": 2.5, "Cd": 7.0, "row": "Table 5.1 (hormigón armado: muros y sistemas arriostrados; R 7, R0 11)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "rcSmf": { "name": "Reinforced concrete moment frames (pórticos)", "R": 11.0, "Omega0": 3.0, "Cd": 7.0, "row": "Table 5.1 (hormigón armado: pórticos; R 7, R0 11)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": false, "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame", "dual": false },
+    "rcDualSpecial": { "name": "Reinforced concrete walls and frames (dual)", "R": 11.0, "Omega0": 2.5, "Cd": 7.0, "row": "Table 5.1 (hormigón armado: muros y pórticos; R 7, R0 11)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": "special", "specialWalls": true, "concrete": true, "momentFrame": false, "periodFamily": null, "group": "dualSpecial", "dual": true },
+    "steelSmf": { "name": "Steel special moment frames", "R": 11.0, "Omega0": 3.0, "Cd": 7.0, "row": "Table 5.1 (acero: marcos de momento especiales; R 7, R0 11)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame", "dual": false },
+    "steelScbf": { "name": "Steel concentrically braced frames", "R": 6.0, "Omega0": 2.0, "Cd": 5.5, "row": "Table 5.1 (acero: marcos arriostrados concéntricos; R 5.5, R0 6)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": null, "group": "buildingFrame", "dual": false },
+    "steelEbf": { "name": "Steel eccentrically braced frames", "R": 10.0, "Omega0": 2.0, "Cd": 6.0, "row": "Table 5.1 (acero: marcos arriostrados excéntricos; R 6, R0 10)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "momentFrame": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame", "dual": false },
+    "masonryOrdinaryReinforced": { "name": "Confined masonry (albañilería confinada)", "R": 4.0, "Omega0": 2.5, "Cd": 4.0, "row": "Table 5.1 (albañilería confinada; R 4, R0 4)", "heightLimits": { "B": null, "C": null, "D": null }, "frame": null, "specialWalls": false, "concrete": false, "masonry": true, "momentFrame": false, "periodFamily": null, "group": "bearingWall", "dual": false }
+  },
+  "generatorSystems": {
+    "steelMomentFrame": ["steelSmf"],
+    "steelBracedFrame": ["steelScbf"],
+    "$comment": "SAEngine practice: the New Building generator's steel systems of NCh 433 Table 5.1"
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.0466, "m": 0.9 },
+    "steelMomentFrame": { "Ct": 0.0724, "m": 0.8 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.0731, "m": 0.75 },
+    "other": { "Ct": 0.0488, "m": 0.75 }
+  },
+  "designCategories": {
+    "occupancyGroups": { "I": "all", "II": "all", "III": "all", "IV": "all" },
+    "bySiteClass": { "all": { "all": ["D", "D", "D"] } }
+  },
+  "requiredDetailing": { "B": "special", "C": "special", "D": "special" },
+  "allowableDrift": { "I": 0.002, "II": 0.002, "III": 0.002, "IV": 0.002 },
+  "allowableDriftLabel": "Storey drift at the centre of mass under the design forces (NCh 433 5.9.2)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "designForces",
+  "dampingEta": 1.0,
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 1.0 },
+  "liveShare": 0.25,
+  "minimumScale": 0.0,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.6667,
+  "lateralForce": { "distribution": "heightPower", "clause": "NCh 433 6.2.5 (SAEngine practice: the base pack's distribution k from the period; NCh 433's Ak = √(1 - Zk-1/H) - √(1 - Zk/H) is not built)" },
+  "clauses": {
+    "scale": "NCh 433 6.3.7 (the modal base shear between Cmin and Cmax: applied to every ordinate)",
+    "torsion": "NCh 433 6.3.4 (accidental eccentricity ±0.05 b)",
+    "orthogonal": "SAEngine practice (NCh 433 analyses each direction alone; 100 % + 30 % on the safe side)",
+    "drift": "NCh 433 5.9.2 (0.002 h at the centre of mass under the design forces); 5.9.3 (any point: 0.001 h more, not checked)",
+    "sdc": "SAEngine practice: NCh 430 asks for the earthquake-resistant (special) provisions in every zone",
+    "modes": "NCh 433 6.3.3 (90 % of the mass)",
+    "systems": "NCh 433 Mod.2009 Table 5.1 (R, R0)",
+    "period": "SAEngine practice (NCh 433 takes T* from the analysis; the approximate period is the base pack's ASCE 7 form)",
+    "weight": "NCh 433 5.5.1 (dead load + 25 % of the live load for ordinary buildings, 50 % with many occupants)",
+    "elf": "NCh 433 6.2 (Q0 = C I P, Cmin ≤ C ≤ Cmax)",
+    "spectrum": "NCh 433 6.3.5"
+  },
+  "sources": {
+    "siteClasses": "DS 61 (2011) Table 6.3: S, T0, T', n, p of the soil types A-E (A 0.90 / 0.15 / 0.20 / 1.00 / 2.0, B 1.00 / 0.30 / 0.35 / 1.33 / 1.5, C 1.05 / 0.40 / 0.45 / 1.40 / 1.6, D 1.20 / 0.75 / 0.85 / 1.80 / 1.0, E 1.30 / 1.20 / 1.35 / 1.80 / 1.0); α as one shape branch (1 + 4.5 (T/T0)^p) / (1 + (T/T0)^3); vs30 bands of DS 61 Table 4.2 (check); soil type F (special study) not offered",
+    "systems": "NCh 433 Mod.2009 Table 5.1: R (static) and R0 (modal): R holds R0, the row names R; Cd = R (the separation, NCh 433 5.10; the drift is the design forces' own, driftAmplification designForces); Omega0: SAEngine practice (the ASCE 7 values of the same systems)",
+    "designSpectrum.shapeFactors.capByDuctility": "NCh 433 Table 6.4: Cmax = 0.55 (R 4), 0.40 (R 5.5), 0.35 (R 6, 7) × S A0 / g, written by the R0 of the systems with that R (4, 6, 11), linear between (uncertain: VERIFY.md C10)",
+    "designSpectrum.shapeFactors.leastSoilShare": "NCh 433 6.2.3.1.1: Cmin = A0 S / 6g (1/6)",
+    "periodCoefficients": "SAEngine practice: ASCE 7-22 Table 12.8-2 (NCh 433 gives no approximate period; run the modal analysis)",
+    "designCategories": "SAEngine practice: one category (D) everywhere",
+    "minimumScale": "NCh 433 6.3.7: the modal base shear is held between Cmin and Cmax (the ordinates' least and cap), not scaled to the static one",
+    "verticalFactor": "SAEngine practice: 2/3 of the horizontal (NCh 433 asks for the vertical action only for some elements: check)"
+  }
+}

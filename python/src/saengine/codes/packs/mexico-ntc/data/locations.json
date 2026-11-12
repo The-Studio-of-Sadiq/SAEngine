@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "CFE Manual de Diseño de Obras Civiles, Diseño por Viento (2008): the regional speed VR of Mexico City (50-year return period, Group B) and the barometric factor G = 0.392 Ω / (273 + τ) of its altitude"
+  ],
+  "source": "CFE Viento (VR, G) and NTC-Sismo (the city's zones are the site classes I, II, IIIa-IIId of the seismic table). Other cities: a custom location with the CFE values (VR and G) and the site's spectrum parameters (seismic.designSpectrum.ductility.sites under Code Values).",
+  "default": "cdmx",
+  "locations": {
+    "cdmx": {
+      "name": "Ciudad de México",
+      "zone": 1,
+      "windSpeed": 32.8,
+      "pressureFactor": 0.781
+    }
+  },
+  "sources": {
+    "windSpeed": "CFE Viento 2008: VR of Mexico City for a 50-year return period about 118 km/h (32.8 m/s; SAEngine reading, to be checked: VERIFY.md)",
+    "pressureFactor": "CFE Viento 2008 Sec 4.2.5: qz = 0.0048 G VD² [kgf/m², km/h] = 0.610 G VD² [Pa, m/s]; G = 0.392 Ω / (273 + τ) with Ω = 579 mmHg at 2240 m and τ = 16 °C: G = 0.785; × 0.610 / 0.613 (the program's constant) = 0.781",
+    "zone": "Z is not used by the zone spectra: the location's zone 1 takes Z = 1.0 (zoneCoefficients); the city's zone is the project's site class"
+  }
+}

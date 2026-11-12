@@ -1,0 +1,367 @@
+{
+  "$schema": "../../../schemas/steelSections.schema.json",
+  "$sources": [
+    "IS 808 (ISMB, ISMC, equal angles: the dimensions as BNBC 2020's table lists them)",
+    "IS 808:1989 light beams (ISLB), wide flange beams (ISWB) and column sections (ISHB): nominal D, B, tw, tf (alpha 9 C9b, to verify)",
+    "IS 4923 hollow sections (the sizes of the parent table)"
+  ],
+  "source": "The steel sections of the Indian market: IS 808 medium weight beams (ISMB) and channels (ISMC) and equal angles, and cold-formed hollow sections, by their nominal dimensions; the properties (A, I, S, Z, r, J, Cw) are computed from them by SAEngine, nothing is copied from a proprietary section database. Confirm the mill's catalogue before ordering.",
+  "families": [
+    "ISLB",
+    "ISMB",
+    "ISWB",
+    "ISHB",
+    "ISMC",
+    "L",
+    "SHS",
+    "RHS",
+    "CHS"
+  ],
+  "shapeFamilies": {
+    "I": [
+      "ISLB",
+      "ISMB",
+      "ISWB",
+      "ISHB"
+    ],
+    "U": [
+      "ISMC"
+    ],
+    "L": [
+      "L"
+    ],
+    "rectangleHollow": [
+      "SHS",
+      "RHS"
+    ],
+    "circleHollow": [
+      "CHS"
+    ]
+  },
+  "rolled": {
+    "$remove": [
+      "IPE",
+      "HEA",
+      "HEB"
+    ],
+    "ISLB": {
+      "source": "IS 808:1989: nominal depth D, flange width B, web tw and mean flange thickness tf as recalled (to verify, VERIFY.md); tapered flanges taken parallel at the mean thickness; the root radius derived from the published mass per metre (the area beyond the plates as four fillets), rounded to 0.5 mm",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 75,
+          "h": 75,
+          "b": 50,
+          "tw": 3.7,
+          "tf": 5.0,
+          "r": 6.5
+        },
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 50,
+          "tw": 4.0,
+          "tf": 6.4,
+          "r": 6.0
+        },
+        {
+          "designation": 125,
+          "h": 125,
+          "b": 75,
+          "tw": 4.4,
+          "tf": 6.5,
+          "r": 7.5
+        },
+        {
+          "designation": 150,
+          "h": 150,
+          "b": 80,
+          "tw": 4.8,
+          "tf": 6.8,
+          "r": 9.0
+        },
+        {
+          "designation": 175,
+          "h": 175,
+          "b": 90,
+          "tw": 5.1,
+          "tf": 6.9,
+          "r": 8.5
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 100,
+          "tw": 5.4,
+          "tf": 7.3,
+          "r": 8.5
+        },
+        {
+          "designation": 225,
+          "h": 225,
+          "b": 100,
+          "tw": 5.8,
+          "tf": 8.6,
+          "r": 9.0
+        },
+        {
+          "designation": 250,
+          "h": 250,
+          "b": 125,
+          "tw": 6.1,
+          "tf": 8.2,
+          "r": 9.5
+        },
+        {
+          "designation": 275,
+          "h": 275,
+          "b": 140,
+          "tw": 6.4,
+          "tf": 8.8,
+          "r": 10.5
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 150,
+          "tw": 6.7,
+          "tf": 9.4,
+          "r": 10.5
+        },
+        {
+          "designation": 325,
+          "h": 325,
+          "b": 165,
+          "tw": 7.0,
+          "tf": 9.8,
+          "r": 12.0
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 165,
+          "tw": 7.4,
+          "tf": 11.4,
+          "r": 12.0
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 165,
+          "tw": 8.0,
+          "tf": 12.5,
+          "r": 12.0
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 170,
+          "tw": 8.6,
+          "tf": 13.4,
+          "r": 12.0
+        },
+        {
+          "designation": 500,
+          "h": 500,
+          "b": 180,
+          "tw": 9.2,
+          "tf": 14.1,
+          "r": 12.5
+        },
+        {
+          "designation": 550,
+          "h": 550,
+          "b": 190,
+          "tw": 9.9,
+          "tf": 15.0,
+          "r": 13.0
+        },
+        {
+          "designation": 600,
+          "h": 600,
+          "b": 210,
+          "tw": 10.5,
+          "tf": 15.5,
+          "r": 15.0
+        }
+      ]
+    },
+    "ISWB": {
+      "source": "IS 808:1989: nominal depth D, flange width B, web tw and mean flange thickness tf as recalled (to verify, VERIFY.md); tapered flanges taken parallel at the mean thickness; the root radius derived from the published mass per metre (the area beyond the plates as four fillets), rounded to 0.5 mm",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 150,
+          "h": 150,
+          "b": 100,
+          "tw": 5.4,
+          "tf": 7.0,
+          "r": 6.0
+        },
+        {
+          "designation": 175,
+          "h": 175,
+          "b": 125,
+          "tw": 5.8,
+          "tf": 7.4,
+          "r": 6.5
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 140,
+          "tw": 6.1,
+          "tf": 9.0,
+          "r": 6.5
+        },
+        {
+          "designation": 225,
+          "h": 225,
+          "b": 150,
+          "tw": 6.4,
+          "tf": 9.9,
+          "r": 6.5
+        },
+        {
+          "designation": 250,
+          "h": 250,
+          "b": 200,
+          "tw": 6.7,
+          "tf": 9.0,
+          "r": 8.0
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 200,
+          "tw": 7.4,
+          "tf": 10.0,
+          "r": 8.0
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 200,
+          "tw": 8.0,
+          "tf": 11.4,
+          "r": 9.0
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 200,
+          "tw": 8.6,
+          "tf": 13.0,
+          "r": 9.5
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 200,
+          "tw": 9.2,
+          "tf": 15.4,
+          "r": 10.5
+        },
+        {
+          "designation": 500,
+          "h": 500,
+          "b": 250,
+          "tw": 9.9,
+          "tf": 14.7,
+          "r": 11.5
+        },
+        {
+          "designation": 550,
+          "h": 550,
+          "b": 250,
+          "tw": 10.5,
+          "tf": 17.6,
+          "r": 12.0
+        },
+        {
+          "designation": 600,
+          "h": 600,
+          "b": 250,
+          "tw": 11.2,
+          "tf": 21.3,
+          "r": 12.5
+        }
+      ]
+    },
+    "ISHB": {
+      "source": "IS 808:1989: nominal depth D, flange width B, web tw and mean flange thickness tf as recalled (to verify, VERIFY.md); tapered flanges taken parallel at the mean thickness; the root radius derived from the published mass per metre (the area beyond the plates as four fillets), rounded to 0.5 mm",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 150,
+          "h": 150,
+          "b": 150,
+          "tw": 5.4,
+          "tf": 9.0,
+          "r": 7.0
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 200,
+          "tw": 6.1,
+          "tf": 9.0,
+          "r": 7.0
+        },
+        {
+          "designation": 225,
+          "h": 225,
+          "b": 225,
+          "tw": 6.5,
+          "tf": 9.1,
+          "r": 7.5
+        },
+        {
+          "designation": 250,
+          "h": 250,
+          "b": 250,
+          "tw": 6.9,
+          "tf": 9.7,
+          "r": 8.0
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 250,
+          "tw": 7.6,
+          "tf": 10.6,
+          "r": 9.0
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 250,
+          "tw": 8.3,
+          "tf": 11.6,
+          "r": 9.5
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 250,
+          "tw": 9.1,
+          "tf": 12.7,
+          "r": 11.0
+        },
+        {
+          "designation": 450,
+          "h": 450,
+          "b": 250,
+          "tw": 9.8,
+          "tf": 13.7,
+          "r": 11.5
+        }
+      ]
+    }
+  },
+  "notes": [
+    "Properties computed from the nominal dimensions of IS 808 (ISLB, ISMB, ISWB, ISHB, ISMC, equal angles) and of the hollow sections; confirm against the mill's catalogue.",
+    "ISLB, ISMB, ISWB, ISHB and ISMC tapered flanges taken parallel at the mean thickness.",
+    "ISLB, ISWB and ISHB (alpha 9 C9b): one section per size (the lightest of IS 808 where it lists two); their dimensions are to be verified against IS 808 (VERIFY.md)."
+  ]
+}

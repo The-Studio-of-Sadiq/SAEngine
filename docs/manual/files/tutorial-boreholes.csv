@@ -1,0 +1,18 @@
+Borehole,X,Y,Ground level,Water table,Borehole depth,Record,Top,Bottom,Depth,Description,Soil type,USCS,N
+BH-2,20,12,0,2.5,20,layer,0,1.2,,Brownish grey silty clay with brick chips (fill),fill,,
+BH-2,,,,,,layer,1.2,6.5,,Stiff brown silty clay,clay,CL,
+BH-2,,,,,,layer,6.5,10.5,,Medium dense grey sandy silt,silt,ML,
+BH-2,,,,,,layer,10.5,20,,Dense grey fine sand with mica,sand,SP-SM,
+BH-2,,,,,,spt,,,1.5,,,,5
+BH-2,,,,,,spt,,,3,,,,8
+BH-2,,,,,,spt,,,4.5,,,,10
+BH-2,,,,,,spt,,,6,,,,11
+BH-2,,,,,,spt,,,7.5,,,,13
+BH-2,,,,,,spt,,,9,,,,15
+BH-2,,,,,,spt,,,10.5,,,,21
+BH-2,,,,,,spt,,,12,,,,25
+BH-2,,,,,,spt,,,13.5,,,,28
+BH-2,,,,,,spt,,,15,,,,32
+BH-2,,,,,,spt,,,16.5,,,,35
+BH-2,,,,,,spt,,,18,,,,38
+BH-2,,,,,,spt,,,19.5,,,,42

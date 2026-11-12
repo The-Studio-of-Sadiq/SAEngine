@@ -1,0 +1,290 @@
+{
+  "schema_version": 2,
+  "meta": {
+    "name": "OpenSees Ex 1a - 2D Elastic Cantilever Column",
+    "description": "Original Ex 1a elastic cantilever column with shared gravity preload, static pushover, and BM68elc base-excitation cases.",
+    "author": "OpenSees Wiki / Silvia Mazzoni & Frank McKenna",
+    "units": "US (in, kip, kip·s²/in, s, ksi)"
+  },
+  "ndm": 2,
+  "ndf": 3,
+  "coord_systems": [
+    {
+      "name": "Global",
+      "coord": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "grid": {
+        "x_grid_lines": [],
+        "y_grid_lines": [],
+        "z_grid_lines": [],
+        "visible": true,
+        "is_general": false,
+        "hide_all": false,
+        "glue_to_grid": false,
+        "bubble_size": 20
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": 1,
+      "name": "Base",
+      "coords": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mass": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "restraint": [
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Top",
+      "coords": [
+        0.0,
+        432.0,
+        0.0
+      ],
+      "mass": [
+        5.18,
+        1e-09,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "restraint": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "materials": [],
+  "sections": [
+    {
+      "id": 1,
+      "name": "Column-Elastic",
+      "type": "ElasticSection",
+      "E": 4227.0,
+      "A": 3600000000.0,
+      "Iz": 1080000.0,
+      "Iy": 1080000.0,
+      "G": 1.0,
+      "J": 1.0,
+      "shape": null
+    }
+  ],
+  "friction_models": [],
+  "elements": [
+    {
+      "id": 1,
+      "name": "Column",
+      "type": "ElasticBeamColumn",
+      "nodes": [
+        1,
+        2
+      ],
+      "section_id": 1,
+      "geom_transf": "Linear",
+      "rho": 0.0,
+      "consistent_mass": false
+    }
+  ],
+  "mp_constraints": [],
+  "time_series": [
+    {
+      "id": 1,
+      "name": "Gravity",
+      "type": "Linear",
+      "factor": 1.0
+    },
+    {
+      "id": 2,
+      "name": "Lateral",
+      "type": "Linear",
+      "factor": 1.0
+    },
+    {
+      "id": 3,
+      "name": "BM68elc",
+      "type": "Path",
+      "factor": 386.0886,
+      "dt": 0.01,
+      "times": null,
+      "record_id": 1,
+      "file_path": "BM68elc.acc",
+      "use_last": false,
+      "generator": null
+    }
+  ],
+  "load_patterns": [
+    {
+      "id": 1,
+      "name": "Gravity",
+      "type": "Plain",
+      "time_series_id": 1,
+      "nodal_loads": [
+        {
+          "node_id": 2,
+          "forces": [
+            0.0,
+            -2000.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "element_loads": []
+    },
+    {
+      "id": 2,
+      "name": "Pushover-X",
+      "type": "Plain",
+      "time_series_id": 2,
+      "nodal_loads": [
+        {
+          "node_id": 2,
+          "forces": [
+            2000.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "element_loads": []
+    },
+    {
+      "id": 3,
+      "name": "GroundMotion-X",
+      "type": "UniformExcitation",
+      "direction": 1,
+      "accel_series_id": 3,
+      "vel_series_id": null,
+      "disp_series_id": null,
+      "factor": 1.0
+    }
+  ],
+  "spectra": [],
+  "ground_motions": [
+    {
+      "id": 1,
+      "name": "BM68elc",
+      "source_path": "data/BM68elc.acc",
+      "content_hash": "c9110b43eaec662c255899f2188f3d8d0e6f61c4116c2e18d5b1648b044ce9d0",
+      "format": "single_column",
+      "dt": 0.01,
+      "npts": 4000,
+      "accel_units": "g",
+      "source_note": "Bundled OpenSees example record BM68elc.",
+      "status": "ok",
+      "total_duration": 39.99
+    }
+  ],
+  "target_spectra": [],
+  "analyses": [
+    {
+      "id": 1,
+      "name": "Gravity",
+      "type": "Static",
+      "pattern_ids": [
+        1
+      ],
+      "n_steps": 10,
+      "load_factor_increment": 0.1,
+      "system": "BandGeneral",
+      "constraints": "Plain",
+      "integrator": "LoadControl",
+      "algorithm": "Newton",
+      "test": "NormDispIncr",
+      "tolerance": 1e-08,
+      "max_iter": 6
+    },
+    {
+      "id": 2,
+      "name": "Push",
+      "type": "Pushover",
+      "pattern_ids": [
+        2
+      ],
+      "control_node": 2,
+      "control_dof": 1,
+      "target_disp": 100.0,
+      "step_size": 0.1,
+      "base_nodes": [
+        1
+      ],
+      "system": "BandGeneral",
+      "constraints": "Plain",
+      "algorithm": "Newton",
+      "test": "NormDispIncr",
+      "tolerance": 1e-08,
+      "max_iter": 6,
+      "preload_case_ids": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Earthquake",
+      "type": "Transient",
+      "pattern_ids": [
+        3
+      ],
+      "dt": 0.02,
+      "n_steps": 1000,
+      "system": "BandGeneral",
+      "constraints": "Plain",
+      "integrator": "Newmark",
+      "integrator_params": [
+        0.5,
+        0.25
+      ],
+      "algorithm": "Newton",
+      "test": "NormDispIncr",
+      "tolerance": 1e-08,
+      "max_iter": 10,
+      "rayleigh_alpha_m": 0.0,
+      "rayleigh_beta_k": 0.0,
+      "rayleigh_beta_k_init": 0.0,
+      "rayleigh_beta_k_comm": 0.0,
+      "rayleigh_mode1_damping": 0.02,
+      "preload_case_ids": [
+        1
+      ],
+      "remove_patterns": []
+    }
+  ]
+}

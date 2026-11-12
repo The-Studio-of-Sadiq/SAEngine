@@ -1,0 +1,451 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "aci318-asce7-22",
+  "name": "ACI 318-19 + ASCE 7-22",
+  "edition": "ASCE 7-22",
+  "country": "US",
+  "units": "USCustomary",
+  "sheetSize": "ARCH D",
+  "unitChoices": {"volume": "yd³"},
+  "hiddenSettings": ["site.airRaidShelter", "site.flood.surgeRegion", "site.flood.waterLevelStation", "site.spectral.sourceType", "site.spectral.sourceDistance", "site.spectral.na", "site.spectral.nv"],
+  "estimating": {
+    "cementBag": 42.637683,
+    "mixSource": "a nominal volume mix of common practice by strength with a water/cement ratio of 0.68 to 0.60 (SAEngine practice, not a US standard: ACI 211.1 proportions a mix by mass)",
+    "sampleRates": false
+  },
+  "version": "0.6.0",
+  "extends": "bnbc2020",
+  "notApplicable": [
+    "accessibility",
+    "bamboo",
+    "construction",
+    "electrical",
+    "ferrocement",
+    "fire",
+    "fireResistance",
+    "hvac",
+    "mepFabrication",
+    "nonstructural",
+    "planning",
+    "zoneCoefficients"
+  ],
+  "covers": [
+    "cranes",
+    "deadLoads",
+    "designLimits",
+    "embeddedWalls",
+    "mepOpenings",
+    "siteInvestigation",
+    "slabCoefficients",
+    "stairMethods",
+    "locations",
+    "flood",
+    "plumbing",
+    "transfer",
+    "occupancyCategories",
+    "areaLoads",
+    "liveReduction",
+    "combinations",
+    "seismic",
+    "wind",
+    "snow",
+    "materials",
+    "factors",
+    "concrete",
+    "detailing",
+    "designClauses",
+    "citations",
+    "slabMethods",
+    "wallMethods",
+    "compositeConcrete",
+    "foundations",
+    "steel",
+    "steelStability",
+    "steelSeismic",
+    "composite",
+    "masonry",
+    "timber",
+    "fatigue",
+    "coldFormed",
+    "steelFire",
+    "anchors",
+    "serviceability",
+    "pushover",
+    "nonlinearHistory",
+    "floorVibration",
+    "windComfort",
+    "nonBuilding",
+    "barSchedule",
+    "excavationSupport",
+    "concreteTime",
+    "isolation",
+    "dampers",
+    "existing",
+    "hazardLookup",
+    "steelJoists",
+    "webOpenings",
+    "glass",
+    "membranes",
+    "compositePlateWalls",
+    "nonlinearStability",
+    "connectionFe",
+    "precast",
+    "floorSpectra",
+    "cfdWind",
+    "fabrication",
+    "slopeStability",
+    "movingLoads",
+    "bridgeDesign",
+    "latticeTowers",
+    "offshore",
+    "pipingStress"
+  ],
+  "description": "The US pack: ASCE/SEI 7-22 loads (combinations Sec 2.3-2.4, live loads and reduction Ch 4, seismic Ch 11-12 from the site's mapped spectral values, wind Ch 26-30, roof snow Ch 7) and ACI 318-19 structural concrete: strength reduction by strain (21.2), one-way shear with the size effect (22.5), two-way shear (22.6, with prestress 22.6.5.5), deflection with the 2019 effective inertia (24.2.3.5), crack control (24.3), shrinkage steel 0.0018 (24.4), development with the grade factor, the 2019 hooked and headed bar lengths (25.4), laps (25.5), columns (10), walls (11) and special walls (18.10: boundary elements by 1.5 du/hw, the amplified design shear, wall piers, coupling beams), special moment frame members and joints (18.6-18.8), slabs (8: direct design and equivalent frame), composite members (16.4), strut-and-tie (23). Structural steel by AISC 360-22 (LRFD, ASD selectable): members (Chapters D-H with the 2016+ effective width method for slender elements, Cv1 web shear, tees and HSS lateral-torsional buckling), connections (Chapter J values), stability (Chapter C, Appendix 7), composite members (Chapter I values) and AISC 341-22 seismic provisions (expected strengths, highly and moderately ductile width-thickness limits). Masonry: TMS 402-22 allowable stress design (Chapter 8, the default method) and strength design (Chapter 9, a wall type's masonry method 'strength'). Timber: NDS 2018 reference design values of sawn lumber and glulam with their adjustment factors (CD, CM, Ct, CF, Cfu, Ci, Cr, CV, CL, CP, Cb), ASD or LRFD (KF, φ, λ), bolts and nails by the yield limit equations. Steel also: built-up members (E6), stability bracing (Appendix 6), ponding (Appendix 2), tension field stiffeners (G2.3), HSS connections (Chapter K), fatigue (Appendix 3) and the AISC 341-22 moment frame connections, panel zones, links, BRBF, SPSW and composite rules. Cold-formed lipped C and Z members by AISI S100-16 and steel members in fire by AISC 360-22 Appendix 4 (simple method). Foundations (alpha 9 C12): IBC 2021 presumptive load-bearing values (Table 1806.2), the ASCE 7-22 Sec 2.4 combinations for the soil pressure, IBC depths and factors of safety, ACI 336.2R raft stiffness; anchors by ACI 318-19 Chapter 17; RC water tanks by ACI 350-06 (service steel stress, shrinkage steel, cover); member deflection limits by IBC 2021 Table 1604.3. Where these codes give no value (settlement limits, subgrade moduli, pile static methods, machine foundations) the default pack's value is kept and named SAEngine practice. The masonry empirical and seismic rules fall back to the pack it extends (BNBC 2020), and the report names them. Every value has its clause in VERIFY.md, to be checked against the printed standards. Special members (alpha 9 L7): open-web steel joists and joist girders by SJI 100-2020 / SJI 200 rules on the AISC 360-22 member checks (the catalogue load tables are project data), castellated and cellular beams by AISC Design Guide 31, structural glass by ASTM E1300 (load resistance, approximated), tensile membranes and cable nets (SAEngine practice) and concrete-filled composite plate shear walls by AISC 341-22 H7 / AISC 360-22 Chapter I. Aluminium by the Aluminum Design Manual is not covered. Bridges and special structures (alpha 9 L9): AASHTO LRFD HL-93 traffic loads (design truck, tandem and lane load, multiple presence, IM 33 %), Strength I and Service I/III girder checks with the prestressed stress limits of Art. 5.9.2.3 and the MBE load rating; TIA-222-H lattice tower force coefficients; API RP 2A Morison coefficients; ASME B31.3 piping stress limits.",
+  "sources": [
+    {
+      "id": "ASCE7",
+      "title": "Minimum Design Loads and Associated Criteria for Buildings and Other Structures (ASCE/SEI 7-22)",
+      "edition": "2022",
+      "publisher": "American Society of Civil Engineers"
+    },
+    {
+      "id": "ACI318",
+      "title": "Building Code Requirements for Structural Concrete (ACI 318-19)",
+      "edition": "2019",
+      "publisher": "American Concrete Institute"
+    },
+    {
+      "id": "AISC360",
+      "title": "Specification for Structural Steel Buildings (ANSI/AISC 360-22)",
+      "edition": "2022",
+      "publisher": "American Institute of Steel Construction"
+    },
+    {
+      "id": "AISC341",
+      "title": "Seismic Provisions for Structural Steel Buildings (ANSI/AISC 341-22)",
+      "edition": "2022",
+      "publisher": "American Institute of Steel Construction"
+    },
+    {
+      "id": "TMS402",
+      "title": "Building Code Requirements for Masonry Structures (TMS 402-22)",
+      "edition": "2022",
+      "publisher": "The Masonry Society"
+    },
+    {
+      "id": "NDS",
+      "title": "National Design Specification for Wood Construction (ANSI/AWC NDS-2018) with its Supplement",
+      "edition": "2018",
+      "publisher": "American Wood Council"
+    },
+    {
+      "id": "AISIS100",
+      "title": "North American Specification for the Design of Cold-Formed Steel Structural Members (AISI S100-16)",
+      "edition": "2016",
+      "publisher": "American Iron and Steel Institute"
+    },
+    {
+      "id": "IBC",
+      "title": "International Building Code (IBC 2021), Chapters 16 and 18",
+      "edition": "2021",
+      "publisher": "International Code Council"
+    },
+    {
+      "id": "ACI350",
+      "title": "Code Requirements for Environmental Engineering Concrete Structures (ACI 350-06)",
+      "edition": "2006",
+      "publisher": "American Concrete Institute"
+    },
+    {
+      "id": "ACI336",
+      "title": "Suggested Analysis and Design Procedures for Combined Footings and Mats (ACI 336.2R-88), a report",
+      "edition": "1988",
+      "publisher": "American Concrete Institute"
+    },
+    {
+      "id": "ASCE41",
+      "title": "Seismic Evaluation and Retrofit of Existing Buildings (ASCE/SEI 41-17)",
+      "edition": "2017",
+      "publisher": "American Society of Civil Engineers"
+    },
+    {
+      "id": "FEMA440",
+      "title": "Improvement of Nonlinear Static Seismic Analysis Procedures (FEMA 440)",
+      "edition": "2005",
+      "publisher": "Federal Emergency Management Agency"
+    }
+  ],
+  "clauses": {
+    "cfdWind": [
+      "ASCE/SEI 7-22 Ch 31 (wind tunnel procedure), Sec 31.4.3 (80 % lower limit): the CFD wind tunnel link gives engineer-supplied wind loads to be validated by a wind tunnel test; z0 from Commentary Table C26.7-1"
+    ],
+    "nonlinearStability": [
+      "AISC 360-22 Appendix 1 and Sec C2.2a; plated parts and cables SAEngine practice"
+    ],
+    "connectionFe": [
+      "SAEngine practice with AISC 360-22 Chapter J resistances and Commentary B3.4b"
+    ],
+    "slopeStability": [
+      "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: USACE EM 1110-2-1902 Table 3-1 factors of safety, FHWA-NHI-11-032 pseudo-static kh = 0.5 PGA, FHWA-NHI-14-007 soil nails"
+    ],
+    "floorSpectra": [
+      "ASCE 4-16 Ch 6 in-structure spectra (±15 % broadening); ASCE 7-22 Ch 13 component forces"
+    ],
+    "precast": [
+      "ACI 318-19 16.2: precast connections, integrity ties and bearing; the handling and erection values are SAEngine practice (PCI Design Handbook, Mast)"
+    ],
+    "isolation": [
+      "ASCE 7-22 Chapter 17 (seismically isolated structures: one MCER level with the upper and lower bound properties, ELF, response spectrum and response history criteria, property modification factors, prototype tests)"
+    ],
+    "dampers": [
+      "ASCE 7-22 Chapter 18 (structures with damping systems: effective damping, the damped equivalent lateral force with the fundamental and residual modes, the devices at the MCER)"
+    ],
+    "hazardLookup": [
+      "ASCE/SEI 7-22 Sec 11.4 (mapped values by the USGS Seismic Design Web Services, asce7-22 endpoint; opt-in online lookup, alpha 9 C22)"
+    ],
+    "existing": [
+      "ASCE/SEI 41-17 (assessment, knowledge factor, m-factors, Tier 1 checklist topics) and ACI 440.2R-17 (FRP); jackets by the EN 1998-3 A.4.2.2 factors (SAEngine practice)"
+    ],
+    "excavationSupport": [
+      "PTI DC35.1 and FHWA GEC No. 4 for ground anchors (SAEngine practice; IBC 2021 and ASCE 7-22 give no method for excavation support)"
+    ],
+    "locations": [
+      "ASCE 7-22 Sec 11.4.2, 26.5.1, 7.2: site values from the ASCE Hazard Tool"
+    ],
+    "occupancyCategories": [
+      "ASCE 7-22 Table 1.5-1, Table 1.5-2"
+    ],
+    "areaLoads": [
+      "ASCE 7-22 Table 4.3-1, Sec 4.3.2"
+    ],
+    "liveReduction": [
+      "ASCE 7-22 Sec 4.7, Table 4.7-1, Sec 4.8.2"
+    ],
+    "combinations": [
+      "ASCE 7-22 Sec 2.3, 2.4, 12.4"
+    ],
+    "seismic": [
+      "ASCE 7-22 Chapters 11 and 12"
+    ],
+    "wind": [
+      "ASCE 7-22 Chapters 26-30"
+    ],
+    "snow": [
+      "ASCE 7-22 Chapter 7"
+    ],
+    "flood": [
+      "ASCE 7-22 Chapter 5, Sec 8.2"
+    ],
+    "transfer": [
+      "ASCE 7-22 Sec 12.10.1.1 (diaphragm forces)"
+    ],
+    "materials": [
+      "ACI 318-19 Sec 18.2.5-18.2.6, 19.2, 20.2.2, 22.2.2"
+    ],
+    "factors": [
+      "ACI 318-19 Sec 21.2"
+    ],
+    "concrete": [
+      "ACI 318-19 Chapters 6-11, 19-24"
+    ],
+    "detailing": [
+      "ACI 318-19 Chapters 18, 24.3 and 25"
+    ],
+    "designClauses": [
+      "ACI 318-19, ASCE 7-22 and AISC 360-22: the clause references of the concrete and steel member design checks"
+    ],
+    "citations": [
+      "ACI 318-19: the concrete clause references of the report, worksheets and drawings"
+    ],
+    "slabMethods": [
+      "ACI 318-19 Sec 8.10-8.11"
+    ],
+    "wallMethods": [
+      "ACI 318-19 Sec 11.8"
+    ],
+    "compositeConcrete": [
+      "ACI 318-19 Sec 16.4"
+    ],
+    "foundations": [
+      "IBC 2021 Chapter 18 (presumptive values Table 1806.2, retaining walls 1807.2.3, depths 1809.4, piles 1810.3.3) with the ASCE 7-22 Sec 2.4 combinations; ACI 318-19 Chapter 23 (strut-and-tie); ACI 336.2R rafts; SAEngine practice where these give no value"
+    ],
+    "steel": [
+      "AISC 360-22 Chapters B-K and Appendices 2 and 6: φ and Ω, member methods (built-up members E6), bolts, welds and connection values (HSS connections Chapter K), ponding, stability bracing"
+    ],
+    "steelStability": [
+      "AISC 360-22 Chapter C, Appendices 7-8"
+    ],
+    "steelSeismic": [
+      "AISC 341-22 Chapters A-K: moment frames E1-E4 (with AISC 358 for the prequalified connections), braced frames F1-F4, special plate shear walls F5, composite members and walls"
+    ],
+    "composite": [
+      "AISC 360-22 Chapter I (where revised; the rest BNBC 2020 Part 6 Chapter 13)"
+    ],
+    "masonry": [
+      "TMS 402-22 Chapter 8 (allowable stress design, the default method) and Chapter 9 (strength design); the empirical and seismic rules BNBC 2020 Part 6 Chapter 7"
+    ],
+    "timber": [
+      "NDS 2018 Chapters 2-5, 11-12 and Appendix N: reference design values (Supplement Tables 4A, 4D, 5A) and adjustment factors, ASD and LRFD; dowel-type fasteners"
+    ],
+    "fatigue": [
+      "AISC 360-22 Appendix 3, Table A-3.1"
+    ],
+    "coldFormed": [
+      "AISI S100-16 North American Specification for the Design of Cold-Formed Steel Structural Members"
+    ],
+    "steelFire": [
+      "AISC 360-22 Appendix 4"
+    ],
+    "anchors": [
+      "ACI 318-19 Chapter 17 (Anchoring to Concrete)"
+    ],
+    "serviceability": [
+      "IBC 2021 Table 1604.3 (member deflections); ASCE 7-22 Appendix C commentary (drift and sway, SAEngine practice)"
+    ],
+    "plumbing": [
+      "ACI 350-06 (the RC water tanks only; the building services are the default pack's)"
+    ],
+    "pushover": [
+      "ASCE/SEI 41-17 Ch 7 (nonlinear static procedure, target displacement), Ch 9-10 (hinges and acceptance); FEMA 440 equivalent linearization (selectable)"
+    ],
+    "nonlinearHistory": [
+      "ASCE 7-22 Chapter 16 (nonlinear response history: records, MCER target, maximum-direction scaling or matching, drift 1.5x, ASCE 41 hinges, force-controlled actions)"
+    ],
+    "floorVibration": [
+      "AISC Design Guide 11 (2nd ed.) for floors on steel beams; CCIP-016 / SCI P354 for concrete floors (SAEngine practice where ASCE 7-22 Appendix C gives no method)"
+    ],
+    "windComfort": [
+      "ASCE/SEI 7-22 Appendix C and Commentary C26.11 (along-wind peak acceleration)"
+    ],
+    "nonBuilding": [
+      "ASCE/SEI 7-22 Chapter 15 (Sec 15.3, 15.4, Tables 15.4-1 and 15.4-2)"
+    ],
+    "fabrication": [
+      "AISC 303 practice: AWS A2.4 weld symbols; SAEngine practice drilling allowances for the shop drawings and NC files"
+    ]
+  },
+  "basis": {
+    "general": "ASCE 7-22",
+    "concrete": "ACI 318-19",
+    "steel": "AISC 360-22 (LRFD; ASD selectable; Appendix 4 fire), AISC 341-22, AISI S100-16 (cold-formed)",
+    "method": "Strength design (LRFD); timber NDS 2018 and masonry TMS 402-22 by allowable stresses (ASD) unless chosen otherwise"
+  },
+  "tableCodes": {
+    "citations.soilSprings": "ASCE 7-22",
+    "citations.thermal": "ASCE 7-22",
+    "citations.thermalCombination": "ASCE 7-22",
+    "citations.periodCap": "ASCE 7-22",
+    "citations.accidentalTorsion": "ASCE 7-22",
+    "citations.windTorsion": "ASCE 7-22",
+    "citations.windDesignCases": "ASCE 7-22",
+    "citations.windDesignCasesExempt": "ASCE 7-22",
+    "citations.gustFlexible": "ASCE 7-22",
+    "citations.gustRigid": "ASCE 7-22",
+    "citations.partitionWalls": "ASCE 7-22",
+    "citations.roomLive": "ASCE 7-22",
+    "citations.equivalentStatic": "ASCE 7-22",
+    "citations.pDelta": "ASCE 7-22",
+    "citations.stability": "ASCE 7-22",
+    "citations.impact": "ASCE 7-22",
+    "citations.tankEarth": "ASCE 7-22",
+    "citations.tankRoofLive": "ASCE 7-22",
+    "citations.tankStrength": "ASCE 7-22",
+    "citations.tankService": "ASCE 7-22",
+    "citations.wsTorsionDrift": "ASCE 7-22",
+    "citations.wsBaseShear": "ASCE 7-22",
+    "citations.wsChimneys": "ASCE 7-22",
+    "citations.wsCombinations": "ASCE 7-22",
+    "citations.wsDirectionality": "ASCE 7-22",
+    "citations.wsEarthPressure": "ASCE 7-22",
+    "citations.wsExposure": "ASCE 7-22",
+    "citations.wsImportance": "ASCE 7-22",
+    "citations.wsPeriod": "ASCE 7-22",
+    "citations.wsRetaining": "ASCE 7-22",
+    "citations.wsSeismic": "ASCE 7-22",
+    "citations.wsSigns": "ASCE 7-22",
+    "citations.wsSiteFactors": "ASCE 7-22",
+    "citations.wsSpectrum": "ASCE 7-22",
+    "citations.wsSystem": "ASCE 7-22",
+    "citations.wsTopographic": "ASCE 7-22",
+    "citations.wsVelocityPressure": "ASCE 7-22",
+    "citations.wsWindImportance": "ASCE 7-22",
+    "citations.steel": "AISC 360-22",
+    "citations.drawSteel": "AISC 360-22",
+    "citations.drawBoltHoles": "AISC 360-22",
+    "citations.drawConnections": "AISC 360-22",
+    "citations.lintels": "TMS 402-22",
+    "citations.pileCapacity": "IBC 2021",
+    "citations.wsFoundations": "IBC 2021",
+    "citations.wsTwoWay": "ACI 318-63",
+    "citations.wsTwoWayCase": "ACI 318-63",
+    "citations.wsTwoWayMoments": "ACI 318-63",
+    "citations.wsTwoWayNegative": "ACI 318-63",
+    "wind": "ASCE 7-22",
+    "cranes": "ASCE 7-22",
+    "deadLoads": "ASCE 7-22",
+    "designLimits": "ACI 318-19",
+    "designLimits.erwWallFactor": "AISC 360-22",
+    "mepOpenings": "ACI 318-19",
+    "siteInvestigation": "ASCE 7-22",
+    "slabCoefficients": "ACI 318-19",
+    "embeddedWalls": "IBC 2021",
+    "stairMethods": "ACI 318-19",
+    "isolation": "ASCE 7-22",
+    "dampers": "ASCE 7-22",
+    "materials": "ACI 318-19",
+    "factors": "ACI 318-19",
+    "concrete": "ACI 318-19",
+    "detailing": "ACI 318-19",
+    "citations": "ACI 318-19",
+    "slabMethods": "ACI 318-19",
+    "wallMethods": "ACI 318-19",
+    "compositeConcrete": "ACI 318-19",
+    "foundations": "ACI 318-19",
+    "designClauses": "ACI 318-19",
+    "designClauses.check.windCases": "ASCE 7-22",
+    "designClauses.check.accidentalTorsion": "ASCE 7-22",
+    "designClauses.check.omega": "ASCE 7-22",
+    "designClauses.seismicRules.sdc": "ASCE 7-22",
+    "designClauses.seismicRules.systems": "ASCE 7-22",
+    "designClauses.seismicRules.discontinuous": "ASCE 7-22",
+    "designClauses.seismicRules.irregularForces": "ASCE 7-22",
+    "designClauses.seismicRules.collectors": "ASCE 7-22",
+    "designClauses.seismicRules.omega": "ASCE 7-22",
+    "designClauses.seismicRules.vertical": "ASCE 7-22",
+    "designClauses.overstrength": "ASCE 7-22",
+    "designClauses.takedown": "ASCE 7-22",
+    "designClauses.wallForces": "ASCE 7-22",
+    "designClauses.stairs.liveTable": "ASCE 7-22",
+    "designClauses.lintels.combinations": "ASCE 7-22",
+    "designClauses.check.fireRatings": "BNBC 2020",
+    "designClauses.lintels.wind": "BNBC 2020",
+    "designClauses.slab.twoWay": "ACI 318-63",
+    "designClauses.slab.twoWayMethod": "ACI 318-63",
+    "designClauses.slab.rectangular": "ACI 318-63",
+    "designClauses.slab.supports": "ACI 318-63",
+    "designClauses.slab.scope": "ACI 318-63",
+    "designClauses.slab.aspect": "ACI 318-63",
+    "designClauses.slab.stiffness": "ACI 318-63",
+    "designClauses.stairs.twoRiserTread": "BNBC 2020",
+    "designClauses.stairs.spans": "BNBC 2020",
+    "designClauses.lintels.support": "TMS 402-22",
+    "designClauses.lintelsText": "TMS 402-22",
+    "steel": "AISC 360-22",
+    "steelStability": "AISC 360-22",
+    "steelSeismic": "AISC 341-22",
+    "composite": "AISC 360-22",
+    "designClauses.steelMembers": "AISC 360-22",
+    "timber": "NDS 2018",
+    "fatigue": "AISC 360-22",
+    "coldFormed": "AISI",
+    "steelFire": "AISC 360-22",
+    "anchors": "ACI 318-19",
+    "plumbing": "ACI 350-06",
+    "serviceability": "IBC 2021",
+    "foundations.subgradeModulus": "ACI",
+    "nonlinearHistory": "ASCE 7-22",
+    "pushover": "ASCE 41-17"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

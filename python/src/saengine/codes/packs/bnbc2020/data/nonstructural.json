@@ -1,0 +1,144 @@
+{
+  "$schema": "../../../schemas/nonstructural.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.15-2.5.15.4, Eqs 6.2.57-6.2.61 (pp. 649-652)",
+    "BNBC 2020 Part 6 Table 6.2.22 (pp. 654-655), Table 6.2.23 and its notes a, b (pp. 656-657)",
+    "BNBC 2020 Part 6 Sec 1.7.3.2(b) (pp. 503-504), Sec 1.7.3.6 (p. 504)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5.15 (pp. 649-652): seismic design of nonstructural components permanently attached to structures, their supports and attachments",
+  "name": "Seismic design of nonstructural components",
+  "force": {
+    "method": "amplifiedHeight",
+    "groundFactor": 0.67,
+    "heightFactor": 2.0,
+    "minFactor": 0.75,
+    "maxFactor": 1.5,
+    "verticalFactor": 0.5,
+    "zOverHMax": 1.0,
+    "symbols": {"force": "Fc", "amplification": "αc", "reduction": "Rc", "importance": "Ic", "weight": "Wc", "ground": "ah"},
+    "equation": "Eq 6.2.57",
+    "note": "Eq 6.2.57 prints ah = 0.67 Z S; Sec 2.5.13.2 has (2/3) Z S. The printed 0.67 is used (owner rule: the more conservative of the two, 0.5 % higher).",
+    "source": "BNBC 2020 Part 6 Sec 2.5.15.3, Eq 6.2.57 (p. 651): Fc = αc ah Wc Ic / Rc × (1 + 2 z/h), 0.75 ah Wc Ic ≤ Fc ≤ 1.5 ah Wc Ic, ah = 0.67 Z S, z/h ≤ 1, z ≥ 0; applied in two orthogonal horizontal directions with a concurrent vertical ± 0.5 ah Wc"
+  },
+  "importance": {
+    "essential": 1.5,
+    "default": 1.0,
+    "source": "BNBC 2020 Part 6 Sec 2.5.15.1 (p. 650): Ic = 1.5 for a component required to function after an earthquake, containing hazardous materials, or in or attached to an occupancy category IV building and needed for its continued operation; else 1.0"
+  },
+  "groups": {
+    "architectural": "Architectural components (Table 6.2.22)",
+    "mechanical": "Mechanical and electrical components (Table 6.2.23)"
+  },
+  "components": {
+    "interiorWallPlainMasonry": {"group": "architectural", "heading": "Interior nonstructural walls and partitions", "label": "Plain (unreinforced) masonry walls", "alpha": 1.0, "R": 1.5},
+    "interiorWallOther": {"group": "architectural", "heading": "Interior nonstructural walls and partitions", "label": "All other walls and partitions", "alpha": 1.0, "R": 2.5},
+    "parapetCantilever": {"group": "architectural", "heading": "Cantilever elements (unbraced or braced to the structural frame below their centre of mass)", "label": "Parapets and cantilever interior nonstructural walls", "alpha": 2.5, "R": 2.5, "parapet": true},
+    "chimneyBracedFrame": {"group": "architectural", "heading": "Cantilever elements (unbraced or braced to the structural frame below their centre of mass)", "label": "Chimneys and stacks laterally braced or supported by the structural frame", "alpha": 2.5, "R": 2.5},
+    "parapetBracedAbove": {"group": "architectural", "heading": "Cantilever elements (braced to the structural frame above their centre of mass)", "label": "Parapets", "alpha": 1.0, "R": 2.5, "parapet": true},
+    "chimneyBracedAbove": {"group": "architectural", "heading": "Cantilever elements (braced to the structural frame above their centre of mass)", "label": "Chimneys and stacks", "alpha": 1.0, "R": 2.5},
+    "exteriorWall": {"group": "architectural", "heading": "Cantilever elements (braced to the structural frame above their centre of mass)", "label": "Exterior nonstructural walls", "alpha": 1.0, "R": 2.5, "exterior": true},
+    "exteriorWallElement": {"group": "architectural", "heading": "Exterior nonstructural wall elements and connections", "label": "Wall element", "alpha": 1.0, "R": 2.5, "exterior": true},
+    "exteriorPanelConnection": {"group": "architectural", "heading": "Exterior nonstructural wall elements and connections", "label": "Body of wall panel connections", "alpha": 1.0, "R": 2.5},
+    "exteriorFasteners": {"group": "architectural", "heading": "Exterior nonstructural wall elements and connections", "label": "Fasteners of the connecting system", "alpha": 1.25, "R": 1.0},
+    "veneerLimited": {"group": "architectural", "heading": "Veneer", "label": "Limited deformability elements and attachments", "alpha": 1.0, "R": 2.5},
+    "veneerLow": {"group": "architectural", "heading": "Veneer", "label": "Low deformability elements and attachments", "alpha": 1.0, "R": 1.5},
+    "penthouse": {"group": "architectural", "heading": "Penthouses", "label": "Penthouses (except where framed by an extension of the building frame)", "alpha": 2.5, "R": 3.5},
+    "ceiling": {"group": "architectural", "heading": "Ceilings", "label": "All", "alpha": 1.0, "R": 2.5},
+    "cabinet": {"group": "architectural", "heading": "Cabinets", "label": "Storage cabinets and laboratory equipment", "alpha": 1.0, "R": 2.5},
+    "accessFloorSpecial": {"group": "architectural", "heading": "Access floors", "label": "Special access floors", "alpha": 1.0, "R": 2.5},
+    "accessFloorOther": {"group": "architectural", "heading": "Access floors", "label": "All other", "alpha": 1.0, "R": 1.5},
+    "appendage": {"group": "architectural", "heading": "Appendages and ornamentations", "label": "Appendages and ornamentations", "alpha": 2.5, "R": 2.5},
+    "sign": {"group": "architectural", "heading": "Signs and billboards", "label": "Signs and billboards", "alpha": 2.5, "R": 2.5},
+    "otherRigidHigh": {"group": "architectural", "heading": "Other rigid components", "label": "High deformability elements and attachments", "alpha": 1.0, "R": 3.5},
+    "otherRigidLimited": {"group": "architectural", "heading": "Other rigid components", "label": "Limited deformability elements and attachments", "alpha": 1.0, "R": 2.5},
+    "otherRigidLow": {"group": "architectural", "heading": "Other rigid components", "label": "Low deformability materials and attachments", "alpha": 1.0, "R": 1.5},
+    "otherFlexibleHigh": {"group": "architectural", "heading": "Other flexible components", "label": "High deformability elements and attachments", "alpha": 2.5, "R": 3.5},
+    "otherFlexibleLimited": {"group": "architectural", "heading": "Other flexible components", "label": "Limited deformability elements and attachments", "alpha": 2.5, "R": 2.5},
+    "otherFlexibleLow": {"group": "architectural", "heading": "Other flexible components", "label": "Low deformability materials and attachments", "alpha": 2.5, "R": 1.5},
+
+    "hvacAirSide": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Air-side HVAC, fans, air handlers, air conditioning units, cabinet heaters, air distribution boxes and other sheet-metal-framed mechanical components", "alpha": 2.5, "R": 6.0},
+    "hvacWetSide": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Wet-side HVAC, boilers, furnaces, atmospheric tanks and bins, chillers, water heaters, heat exchangers, evaporators, air separators, process equipment and other high-deformability mechanical components", "alpha": 1.0, "R": 2.5},
+    "enginesPumps": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Engines, turbines, pumps, compressors and pressure vessels not supported on skirts", "alpha": 1.0, "R": 2.5},
+    "skirtVessel": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Skirt-supported pressure vessels", "alpha": 2.5, "R": 2.5},
+    "elevator": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Elevator and escalator components", "alpha": 1.0, "R": 2.5},
+    "electricalHigh": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Generators, batteries, inverters, motors, transformers and other high-deformability electrical components", "alpha": 1.0, "R": 2.5},
+    "electricalSheetMetal": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Motor control centres, panel boards, switch gear, instrumentation cabinets and other sheet-metal-framed components", "alpha": 2.5, "R": 6.0},
+    "communication": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Communication equipment, computers, instrumentation and controls", "alpha": 1.0, "R": 2.5},
+    "roofTowerBracedBelow": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Roof-mounted chimneys, stacks, cooling and electrical towers laterally braced below their centre of mass", "alpha": 2.5, "R": 3.0},
+    "roofTowerBracedAbove": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Roof-mounted chimneys, stacks, cooling and electrical towers laterally braced above their centre of mass", "alpha": 1.0, "R": 2.5},
+    "lighting": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Lighting fixtures", "alpha": 1.0, "R": 1.5},
+    "otherMechanical": {"group": "mechanical", "heading": "Mechanical and electrical components", "label": "Other mechanical or electrical components", "alpha": 1.0, "R": 1.5},
+    "isolatedNeoprene": {"group": "mechanical", "heading": "Vibration isolated components and systems", "label": "Neoprene isolated components and floors with elastomeric snubbing or resilient perimeter stops", "alpha": 2.5, "R": 2.5, "isolated": true},
+    "isolatedSpring": {"group": "mechanical", "heading": "Vibration isolated components and systems", "label": "Spring isolated components and closely restrained vibration isolated floors with elastomeric snubbing or resilient perimeter stops", "alpha": 2.5, "R": 2.0, "isolated": true},
+    "isolatedInternal": {"group": "mechanical", "heading": "Vibration isolated components and systems", "label": "Internally isolated components and systems", "alpha": 2.5, "R": 2.0, "isolated": true},
+    "isolatedSuspended": {"group": "mechanical", "heading": "Vibration isolated components and systems", "label": "Suspended vibration isolated equipment, in-line duct devices and suspended internally isolated components", "alpha": 2.5, "R": 2.5, "isolated": true},
+    "pipingStandardWelded": {"group": "mechanical", "heading": "Distribution systems", "label": "Piping to ASME B31 with welded or brazed joints", "alpha": 2.5, "R": 12.0, "distribution": true},
+    "pipingStandardThreaded": {"group": "mechanical", "heading": "Distribution systems", "label": "Piping to ASME B31, high or limited deformability, threaded, bonded, compression or grooved couplings", "alpha": 2.5, "R": 6.0, "distribution": true},
+    "pipingOtherWelded": {"group": "mechanical", "heading": "Distribution systems", "label": "Other piping and tubing, high deformability, welded or brazed joints", "alpha": 2.5, "R": 9.0, "distribution": true},
+    "pipingOtherThreaded": {"group": "mechanical", "heading": "Distribution systems", "label": "Other piping and tubing, high or limited deformability, threaded, bonded, compression or grooved couplings", "alpha": 2.5, "R": 4.5, "distribution": true},
+    "pipingLowDeformability": {"group": "mechanical", "heading": "Distribution systems", "label": "Piping and tubing of low-deformability materials (cast iron, glass, non-ductile plastics)", "alpha": 2.5, "R": 3.0, "distribution": true},
+    "ductWelded": {"group": "mechanical", "heading": "Distribution systems", "label": "Ductwork of high-deformability materials with welded or brazed joints", "alpha": 2.5, "R": 9.0, "distribution": true},
+    "ductOther": {"group": "mechanical", "heading": "Distribution systems", "label": "Ductwork of high or limited deformability with other joints", "alpha": 2.5, "R": 6.0, "distribution": true},
+    "ductLowDeformability": {"group": "mechanical", "heading": "Distribution systems", "label": "Ductwork of low-deformability materials (cast iron, glass, non-ductile plastics)", "alpha": 2.5, "R": 3.0, "distribution": true},
+    "conduitPlumbing": {"group": "mechanical", "heading": "Distribution systems", "label": "Electrical conduit, bus ducts, rigidly mounted cable trays and plumbing", "alpha": 1.0, "R": 2.5, "distribution": true},
+    "conveyor": {"group": "mechanical", "heading": "Distribution systems", "label": "Manufacturing or process conveyors (non-personnel)", "alpha": 2.5, "R": 3.0, "distribution": true},
+    "cableTraySuspended": {"group": "mechanical", "heading": "Distribution systems", "label": "Suspended cable trays", "alpha": 2.5, "R": 6.0, "distribution": true}
+  },
+  "defaults": {
+    "interiorWall": "interiorWallPlainMasonry",
+    "parapet": "parapetCantilever",
+    "curtainWall": "exteriorWallElement",
+    "structuralWall": "exteriorWall",
+    "equipment": "otherMechanical",
+    "equipmentKinds": {
+      "tank": "hvacWetSide",
+      "chiller": "hvacWetSide",
+      "ahu": "hvacAirSide",
+      "pump": "enginesPumps",
+      "generator": "electricalHigh",
+      "transformer": "electricalHigh",
+      "lift": "elevator",
+      "other": "otherMechanical"
+    },
+    "note": "SAEngine practice, not BNBC: how a drawn item maps to a table row when none is chosen. An interior wall defaults to plain (unreinforced) masonry, the lowest Rc of the interior walls (conservative); a wall on the top story with no story above is a cantilever parapet; a structural wall's out-of-plane anchorage force uses the exterior nonstructural wall row; an overhead water tank is an atmospheric tank (wet-side row)."
+  },
+  "exemptions": [
+    {"id": "1", "label": "Architectural components in Category B with Ic = 1.0, other than parapets supported by bearing or shear walls", "groups": ["architectural"], "categories": ["B"], "importance": 1.0, "exceptParapetsOnStructuralWalls": true},
+    {"id": "2", "label": "Mechanical and electrical components in Category B", "groups": ["mechanical"], "categories": ["B"]},
+    {"id": "3", "label": "Mechanical and electrical components in Category C with Ic = 1.0", "groups": ["mechanical"], "categories": ["C"], "importance": 1.0},
+    {"id": "4", "label": "Mechanical and electrical components in Category D with Ic = 1.0 and either flexible connections, or mounted at most 1.2 m above the floor and weighing at most 1780 N", "groups": ["mechanical"], "categories": ["D"], "importance": 1.0, "alternatives": [{"flexibleConnections": true}, {"maxMountHeight": 1200, "maxWeight": 1780}]},
+    {"id": "5", "label": "Mechanical and electrical components in Category C or D with Ic = 1.0, flexible connections, and weighing at most 89 N (distribution systems at most 73 N/m)", "groups": ["mechanical"], "categories": ["C", "D"], "importance": 1.0, "flexibleConnections": true, "alternatives": [{"distribution": false, "maxWeight": 89}, {"distribution": true, "maxWeightPerLength": 73}]}
+  ],
+  "interaction": {
+    "share": 0.25,
+    "period": 0.06,
+    "source": "BNBC 2020 Part 6 Sec 2.5.15 (p. 650): where supported components with periods over 0.06 s weigh more than 25 % of the total seismic weight W, the structure is designed with the interaction between the structure and the components"
+  },
+  "isolation": {
+    "factor": 2.0,
+    "clearance": 6.0,
+    "source": "BNBC 2020 Part 6 Table 6.2.23 note b (p. 657): components on vibration isolators have a bumper restraint or snubber in each horizontal direction; the design force is 2 Fc where the nominal clearance (air gap) exceeds 6 mm, else Fc"
+  },
+  "connections": {
+    "bodyFactor": 1.33,
+    "fastenerFactor": 4.0,
+    "jointDriftFactor": 2.0,
+    "jointMinimum": 12.0,
+    "source": "BNBC 2020 Part 6 Sec 1.7.3.2(b) (pp. 503-504): exterior nonbearing panels; joints and connections allow a relative storey movement of at least 2 × the storey drift under wind or design seismic forces, or 12 mm; bodies of connections for 1.33 × the force of Sec 2.5.15, fasteners for 4 ×"
+  },
+  "anchorage": {
+    "minimum": 4.09,
+    "maxSpacing": 1200.0,
+    "source": "BNBC 2020 Part 6 Sec 1.7.3.6 (p. 504): concrete and masonry structural walls anchored to the floors and roof for the horizontal forces of Sec 2.4.11 and 2.5.15, at least 4.09 kN/m of wall; the wall is designed for bending between anchors spaced more than 1.2 m"
+  },
+  "relativeDisplacement": {
+    "method": "allowableDrift",
+    "source": "BNBC 2020 Part 6 Sec 2.5.15.4, Eqs 6.2.58-6.2.61 (pp. 651-652): Dc = δxA − δyA ≤ (hx − hy) ΔaA / hsx on one structure; Dc = |δxA| + |δyB| ≤ hx ΔaA / hsx + hy ΔaB / hsx between two structures; Δa/hsx the allowable storey drift ratio (Table 6.2.21)"
+  },
+  "sources": {
+    "exemptions": "BNBC 2020 Part 6 Sec 2.5.15 items (1)-(5) (pp. 649-650)",
+    "components": "BNBC 2020 Part 6 Table 6.2.22 (pp. 654-655) and Table 6.2.23 (pp. 656-657); note a: αc = 1.0 for rigid and rigidly attached components, 2.5 for flexible and flexibly attached ones, a lower αc (≥ 1.0) only by detailed dynamic analysis",
+    "forceTransfer": "BNBC 2020 Part 6 Sec 2.5.15.2 (p. 650): positively fastened attachments, no friction from gravity, a continuous load path",
+    "nonSeismic": "BNBC 2020 Part 6 Sec 2.5.15.3 (p. 651): where non-seismic loads on a component exceed Fc they govern the strength design; the seismic detailing still applies"
+  }
+}

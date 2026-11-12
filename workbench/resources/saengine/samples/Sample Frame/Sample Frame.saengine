@@ -1,0 +1,18 @@
+{
+	"schema": 1,
+	"name": "Sample Frame",
+	"created": "2026-10-14T19:35:14.672Z",
+	"parts": [
+		"soil",
+		"settings",
+		"materials",
+		"objects",
+		"floorPlan",
+		"bim",
+		"mep",
+		"fem",
+		"substructure",
+		"boq",
+		"exports"
+	]
+}

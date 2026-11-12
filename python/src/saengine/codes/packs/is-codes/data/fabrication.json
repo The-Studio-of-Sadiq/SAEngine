@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/fabrication.schema.json",
+  "$replace": true,
+  "$sources": [
+    "IS 813 (scheme of symbols for welding) follows the ISO 2553 arrow-side convention; the drilling allowances and the cope clearance are SAEngine practice; see VERIFY.md"
+  ],
+  "source": "IS 813 weld symbols drawn as ISO 2553 system A; SAEngine practice for the allowances",
+  "weldSymbols": "isoA",
+  "anchorHoleClearance": 6,
+  "copeClearance": 10,
+  "sources": {
+    "weldSymbols": "IS 813:1986 drawn as ISO 2553 system A (to be checked: the Indian practice may use system B)",
+    "anchorHoleClearance": "SAEngine practice: rod + 6 mm in the base plate",
+    "copeClearance": "SAEngine practice: 10 mm clear of the supporting beam's flange and root"
+  }
+}

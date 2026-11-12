@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$sources": [
+    "NSCP 2015 Table 103-1 and Table 208-1 (seismic importance factor I)"
+  ],
+  "categories": {
+    "I": {
+      "seismicImportance": 1.0,
+      "description": "NSCP Category V: miscellaneous structures"
+    },
+    "II": {
+      "seismicImportance": 1.0,
+      "description": "NSCP Category IV: standard occupancy structures"
+    },
+    "III": {
+      "seismicImportance": 1.25,
+      "description": "NSCP Categories II and III: hazardous facilities (I = 1.25) and special occupancies (I = 1.0 in the code: SAEngine takes 1.25)"
+    },
+    "IV": {
+      "seismicImportance": 1.5,
+      "description": "NSCP Category I: essential facilities"
+    }
+  },
+  "sources": {
+    "categories": "NSCP 2015 Table 208-1: I = 1.5 essential, 1.25 hazardous, 1.0 special, standard and miscellaneous; the wind importance stays 1.0 (the wind speed of the category's map)"
+  }
+}

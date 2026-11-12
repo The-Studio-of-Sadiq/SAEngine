@@ -1,0 +1,216 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The start page: the mark and the ways in on the left (New Project opens the New Project
+ * wizard), the recent projects on the right. Calm, one accent, everything else from the theme's tokens.
+ */
+
+.saengine-start {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden; /* scrolled by the workbench's scrollbar (DomScrollableElement) */
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.saengine-start .shell {
+	box-sizing: border-box;
+	flex: none;
+	width: 100%;
+	display: grid;
+	grid-template-columns: 264px minmax(0, 1fr);
+	gap: 56px;
+	max-width: 920px;
+	margin: 0 auto;
+	padding: 12vh var(--sa-space-6, 24px) var(--sa-space-6, 24px);
+}
+
+@media (max-width: 720px) {
+	.saengine-start .shell {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--sa-space-6, 24px);
+		padding-top: var(--sa-space-6, 24px);
+	}
+}
+
+/* --- left: the mark and the actions --- */
+
+.saengine-start .brand {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-3, 12px);
+	margin-bottom: 32px;
+}
+
+/* The lockup of the brand (mark, divider, wordmark) at the logo's proportions. */
+.saengine-start .brand .mark {
+	width: 64px;
+	height: 44px;
+	flex: none;
+}
+
+.saengine-start .brand .divider {
+	align-self: center;
+	width: 1px;
+	height: 30px;
+	background: var(--sa-brand-grey);
+	flex: none;
+}
+
+.saengine-start .brand h1 {
+	margin: 0;
+	line-height: 0;
+}
+
+.saengine-start .brand h1 .wordmark {
+	width: 117px;
+	height: 24px;
+}
+
+.saengine-start .brand .subtitle {
+	margin: 4px 0 0;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-family: var(--sa-font-brand);
+	font-size: var(--sa-font-s, 12px);
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+}
+
+.saengine-start .actions {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.saengine-start .action {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	width: 100%;
+	padding: 6px var(--sa-space-2, 8px);
+	margin-left: calc(-1 * var(--sa-space-2, 8px));
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.saengine-start .action:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-start .action:focus-visible,
+.saengine-start .recent-project:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.saengine-start .action .codicon {
+	font-size: 16px;
+}
+
+/* --- right: recent projects --- */
+
+.saengine-start h2 {
+	margin: 0 0 var(--sa-space-3, 12px);
+	font-family: var(--sa-font-brand);
+	font-size: var(--sa-font-s, 12px);
+	font-weight: var(--sa-font-brand-heading-weight, 600);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-start .recent {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.saengine-start .recent .empty {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	padding: 6px 0;
+}
+
+.saengine-start .recent-project {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	width: calc(100% + 2 * var(--sa-space-2, 8px));
+	margin-left: calc(-1 * var(--sa-space-2, 8px));
+	padding: 5px var(--sa-space-2, 8px);
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: none;
+	color: var(--vscode-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.saengine-start .recent-project:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.saengine-start .recent-project .top {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-3, 12px);
+}
+
+.saengine-start .recent-project .name {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-textLink-foreground);
+}
+
+.saengine-start .recent-project .parent,
+.saengine-start .recent-project .date {
+	flex: none;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-start .recent-project .path {
+	/* cut in the middle (.sa-path): the folders that tell projects apart stay visible */
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+/* --- foot: developer, source and licence, at the bottom of the window --- */
+
+.saengine-start .credits {
+	flex: none;
+	margin-top: auto;
+	padding: var(--sa-space-6, 24px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	text-align: center;
+}
+
+.saengine-start .credits p {
+	margin: 2px 0;
+}
+
+.saengine-start .credits .see-more {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-start .credits .see-more:hover {
+	text-decoration: underline;
+}
+
+.saengine-start .credits .see-more:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}

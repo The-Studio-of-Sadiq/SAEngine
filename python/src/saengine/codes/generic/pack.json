@@ -1,0 +1,19 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "saengine-defaults",
+  "name": "SAEngine generic defaults",
+  "version": "1.0.0",
+  "extends": null,
+  "covers": [
+    "factors",
+    "detailing",
+    "combinations",
+    "seismic",
+    "areaLoads",
+    "flood",
+    "steelSeismic",
+    "concrete",
+    "transfer"
+  ],
+  "description": "Generic defaults (SAEngine practice): single values a code pack does not give. They are not part of any code: each file's $notes says where a value comes from, and results and the report name them as generic defaults. A value is used only when the code pack in force has the table but not the value; a pack that gives the value always wins, and a project override wins over both. Not a code pack: never listed, chosen or extended."
+}

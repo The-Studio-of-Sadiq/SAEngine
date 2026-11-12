@@ -1,0 +1,12 @@
+{
+  "name": "Schwedler dome 30 m",
+  "description": "Schwedler dome (ribs, rings and diagonals), base radius 15 m, rise 5 m.",
+  "shape": {
+    "kind": "dome",
+    "radius": 15000.0,
+    "rise": 5000.0,
+    "rings": 5,
+    "segments": 20,
+    "memberType": "MEMBER"
+  }
+}

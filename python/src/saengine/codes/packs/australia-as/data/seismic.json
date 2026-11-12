@@ -1,0 +1,771 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "AS 1170.4-2007 (Amdt 2, 2018) Sections 2-7"
+  ],
+  "source": "AS 1170.4-2007 (Amdt 2): site sub-soil classes Ae-Ee (4.2), spectral shape factor Ch(T) (6.4, Table 6.4), the equivalent static method V = kp Z Ch(T1) Sp/μ W (6.2), T1 = 1.25 kt hn^0.75 (6.2.3), Fi by Wi hi^k (6.3), μ and Sp of the systems (Table 6.5), the earthquake design categories (2.2, Table 2.1), drift (5.4.4)",
+  "defaultSiteClass": "Ce",
+  "defaultSystem": "rcOmf",
+  "siteClasses": {
+    "$replace": true,
+    "Ae": {
+      "description": "Class Ae: strong rock (UCS > 50 MPa, Vs > 1500 m/s)",
+      "S": 0.8,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 0.8,
+          "b": 15.5
+        },
+        {
+          "upTo": 1.5,
+          "c": 0.704,
+          "n": 1.0,
+          "most": 2.35
+        },
+        {
+          "c": 1.056,
+          "n": 2.0
+        }
+      ]
+    },
+    "Be": {
+      "description": "Class Be: rock (UCS 1-50 MPa, Vs > 360 m/s)",
+      "S": 1.0,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.0,
+          "b": 19.4
+        },
+        {
+          "upTo": 1.5,
+          "c": 0.88,
+          "n": 1.0,
+          "most": 2.94
+        },
+        {
+          "c": 1.32,
+          "n": 2.0
+        }
+      ]
+    },
+    "Ce": {
+      "description": "Class Ce: shallow soil (period up to 0.6 s)",
+      "S": 1.3,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.3,
+          "b": 23.8
+        },
+        {
+          "upTo": 1.5,
+          "c": 1.25,
+          "n": 1.0,
+          "most": 3.68
+        },
+        {
+          "c": 1.874,
+          "n": 2.0
+        }
+      ]
+    },
+    "De": {
+      "description": "Class De: deep or soft soil (period above 0.6 s)",
+      "S": 1.1,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.1,
+          "b": 25.8
+        },
+        {
+          "upTo": 1.5,
+          "c": 1.98,
+          "n": 1.0,
+          "most": 3.68
+        },
+        {
+          "c": 2.97,
+          "n": 2.0
+        }
+      ]
+    },
+    "Ee": {
+      "description": "Class Ee: very soft soil (more than 10 m with Vs below 150 m/s)",
+      "S": 1.1,
+      "shape": [
+        {
+          "upTo": 0.1,
+          "a": 1.1,
+          "b": 25.8
+        },
+        {
+          "upTo": 1.5,
+          "c": 3.08,
+          "n": 1.0,
+          "most": 3.68
+        },
+        {
+          "c": 4.62,
+          "n": 2.0
+        }
+      ]
+    }
+  },
+  "designSpectrum": {
+    "method": "shapeFactors",
+    "staticPlateau": true,
+    "clause": "AS 1170.4 6.2, 6.4, 7.2",
+    "shapeFactors": {
+      "performance": [
+        [
+          1.25,
+          0.77
+        ],
+        [
+          2.0,
+          0.77
+        ],
+        [
+          3.0,
+          0.67
+        ]
+      ],
+      "ductilityPeriod": null,
+      "hazardMin": 0.08,
+      "clauses": {
+        "performance": "Table 6.5(A), 6.5(B)",
+        "hazardMin": "Table 3.1 note (kp Z >= 0.08)"
+      }
+    },
+    "clauses": {
+      "shape": "Table 6.4",
+      "static": "6.2.2"
+    }
+  },
+  "periodCoefficients": {
+    "$replace": true,
+    "concreteMomentFrame": {
+      "Ct": 0.09375,
+      "m": 0.75
+    },
+    "steelMomentFrame": {
+      "Ct": 0.1375,
+      "m": 0.75
+    },
+    "eccentricallyBracedSteelFrame": {
+      "Ct": 0.075,
+      "m": 0.75
+    },
+    "other": {
+      "Ct": 0.0625,
+      "m": 0.75
+    }
+  },
+  "systems": {
+    "$replace": true,
+    "rcOmf": {
+      "name": "Ordinary moment-resisting frame (concrete)",
+      "R": 2.0,
+      "Omega0": 1.0,
+      "Cd": 2.597,
+      "row": "Table 6.5(A): ordinary moment-resisting frames, μ 2",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 2, Sp = 0.77 (Sp/μ = 0.385); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "rcImf": {
+      "name": "Intermediate moment-resisting frame (concrete)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 4.478,
+      "row": "Table 6.5(A): intermediate moment-resisting frames, μ 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 3, Sp = 0.67 (Sp/μ = 0.223); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "rcSmf": {
+      "name": "Special moment-resisting frame (concrete, NZS 3101 detailing)",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 5.97,
+      "row": "Table 6.5(A): special moment-resisting frames, μ 4",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "note": "μ = 4, Sp = 0.67 (Sp/μ = 0.168); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "rcOrdinaryWallFrame": {
+      "name": "Limited ductile shear walls",
+      "R": 2.0,
+      "Omega0": 1.0,
+      "Cd": 2.597,
+      "row": "Table 6.5(A): limited ductile shear walls, μ 2",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 2, Sp = 0.77 (Sp/μ = 0.385); R holds μ, Cd = μ/Sp",
+      "group": "buildingFrame"
+    },
+    "rcSpecialWallFrame": {
+      "name": "Ductile shear walls",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 4.478,
+      "row": "Table 6.5(A): ductile shear walls, μ 3",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 3, Sp = 0.67 (Sp/μ = 0.223); R holds μ, Cd = μ/Sp",
+      "group": "buildingFrame"
+    },
+    "rcDualSpecial": {
+      "name": "Ductile coupled walls with moment frames",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 5.97,
+      "row": "Table 6.5(A): ductile coupled walls (fully ductile), μ 4",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 4, Sp = 0.67 (Sp/μ = 0.168); R holds μ, Cd = μ/Sp",
+      "group": "dualSpecial"
+    },
+    "steelOmf": {
+      "name": "Limited ductile moment-resisting frame (steel)",
+      "R": 2.0,
+      "Omega0": 1.0,
+      "Cd": 2.597,
+      "row": "Table 6.5(B): limited ductile moment-resisting frames, μ 2",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 2, Sp = 0.77 (Sp/μ = 0.385); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "steelImf": {
+      "name": "Intermediate moment-resisting frame (steel)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 4.478,
+      "row": "Table 6.5(B): moderately ductile moment-resisting frames, μ 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 3, Sp = 0.67 (Sp/μ = 0.223); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "steelSmf": {
+      "name": "Special moment-resisting frame (steel)",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 5.97,
+      "row": "Table 6.5(B): fully ductile moment-resisting frames, μ 4",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "note": "μ = 4, Sp = 0.67 (Sp/μ = 0.168); R holds μ, Cd = μ/Sp",
+      "group": "momentFrame"
+    },
+    "steelOcbf": {
+      "name": "Limited ductile concentrically braced frame (steel)",
+      "R": 2.0,
+      "Omega0": 1.0,
+      "Cd": 2.597,
+      "row": "Table 6.5(B): limited ductile concentrically braced frames, μ 2",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 2, Sp = 0.77 (Sp/μ = 0.385); R holds μ, Cd = μ/Sp",
+      "group": "buildingFrame"
+    },
+    "steelScbf": {
+      "name": "Moderately ductile concentrically braced frame (steel)",
+      "R": 3.0,
+      "Omega0": 1.0,
+      "Cd": 4.478,
+      "row": "Table 6.5(B): moderately ductile concentrically braced frames, μ 3",
+      "heightLimits": {},
+      "frame": "intermediate",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 3, Sp = 0.67 (Sp/μ = 0.223); R holds μ, Cd = μ/Sp",
+      "group": "buildingFrame"
+    },
+    "steelEbf": {
+      "name": "Fully ductile eccentrically braced frame (steel)",
+      "R": 4.0,
+      "Omega0": 1.0,
+      "Cd": 5.97,
+      "row": "Table 6.5(B): eccentrically braced frames, μ 4",
+      "heightLimits": {},
+      "frame": "special",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "eccentricallyBracedSteelFrame",
+      "note": "μ = 4, Sp = 0.67 (Sp/μ = 0.168); R holds μ, Cd = μ/Sp",
+      "group": "buildingFrame"
+    },
+    "masonryOrdinaryPlain": {
+      "name": "Unreinforced masonry",
+      "R": 1.25,
+      "Omega0": 1.0,
+      "Cd": 1.623,
+      "row": "Table 6.5(A): unreinforced masonry, μ 1.25",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 1.25, Sp = 0.77 (Sp/μ = 0.616); R holds μ, Cd = μ/Sp",
+      "group": "bearingWall"
+    },
+    "masonryOrdinaryReinforced": {
+      "name": "Limited ductile reinforced masonry",
+      "R": 1.5,
+      "Omega0": 1.0,
+      "Cd": 1.948,
+      "row": "Table 6.5(A): reinforced masonry, μ 1.5",
+      "heightLimits": {},
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": true,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "note": "μ = 1.5, Sp = 0.77 (Sp/μ = 0.513); R holds μ, Cd = μ/Sp",
+      "group": "bearingWall"
+    }
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "$replace": true,
+      "I": "I",
+      "II": "II",
+      "III": "III",
+      "IV": "IV"
+    },
+    "bySiteClass": {
+      "$replace": true,
+      "Ae": {
+        "I": [
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "Be": {
+        "I": [
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "Ce": {
+        "I": [
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "De": {
+        "I": [
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "Ee": {
+        "I": [
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B",
+          "B"
+        ],
+        "II": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "III": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C"
+        ],
+        "IV": [
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {
+      "$replace": true
+    },
+    "byHeight": {
+      "I": [
+        [
+          null,
+          "B"
+        ]
+      ],
+      "II": [
+        [
+          12.0,
+          "B"
+        ],
+        [
+          50.0,
+          "C"
+        ],
+        [
+          null,
+          "D"
+        ]
+      ],
+      "III": [
+        [
+          50.0,
+          "C"
+        ],
+        [
+          null,
+          "D"
+        ]
+      ],
+      "IV": [
+        [
+          12.0,
+          "C"
+        ],
+        [
+          null,
+          "D"
+        ]
+      ]
+    },
+    "simpleStatic": {
+      "B": 0.1
+    },
+    "dynamicRequired": [
+      "D"
+    ]
+  },
+  "requiredDetailing": {
+    "$replace": true,
+    "B": "ordinary",
+    "C": "ordinary",
+    "D": "ordinary"
+  },
+  "allowableDrift": {
+    "$replace": true,
+    "I": 0.015,
+    "II": 0.015,
+    "III": 0.015,
+    "IV": 0.015
+  },
+  "allowableDriftLabel": "All structures (AS 1170.4 5.4.4: design storey drift at most 1.5 % of the storey height)",
+  "driftLimits": [],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "displacementFactor",
+  "siteSpecificStudy": {
+    "$replace": true,
+    "classes": [],
+    "assumedClass": null,
+    "clause": "",
+    "warning": ""
+  },
+  "dampingEta": 1.0,
+  "dampingCorrection": {
+    "$replace": true,
+    "method": "none"
+  },
+  "minimumScale": 0.9,
+  "accidentalEccentricity": 0.1,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.0,
+  "liveShare": 0.3,
+  "heavyLiveLimit": null,
+  "heavyLiveShare": null,
+  "clauses": {
+    "systems": "Table 6.5(A)-(B)",
+    "drift": "5.4.4",
+    "elf": "6.2",
+    "period": "6.2.3",
+    "distribution": "6.3",
+    "torsion": "6.6",
+    "designCategories": "2.2, Table 2.1"
+  },
+  "sources": {
+    "siteClasses": "AS 1170.4 4.2 (site sub-soil classes Ae-Ee) and Table 6.4: Ch(T) = Ch(0) + slope T to 0.1 s (modal analysis; the equivalent static method takes the plateau, staticPlateau), min(c/T, plateau) to 1.5 s, c'/T² beyond: Ae 0.8 + 15.5T, 0.704/T <= 2.35, 1.056/T²; Be 1.0 + 19.4T, 0.88/T <= 2.94, 1.32/T²; Ce 1.3 + 23.8T, 1.25/T <= 3.68, 1.874/T²; De 1.1 + 25.8T, 1.98/T <= 3.68, 2.97/T²; Ee 1.1 + 25.8T, 3.08/T <= 3.68, 4.62/T²; S = Ch(0) for the peak ground acceleration a_h = Z S",
+    "designSpectrum": "AS 1170.4 6.2.2: V = [kp Z Ch(T1) Sp/μ] Wt (the method shapeFactors with R standing for μ, kμ = μ); 7.2: the modal design spectrum Cd(T) = kp Z Ch(T) Sp/μ; Table 3.1 note: kp Z at least 0.08",
+    "designSpectrum.shapeFactors.performance": "AS 1170.4 Table 6.5(A)-(B): Sp = 0.77 for μ up to 2 (1.25, 1.5, 2), 0.67 for μ 3 and 4 (linear between 2 and 3: no system has such μ)",
+    "periodCoefficients": "AS 1170.4 6.2.3: T1 = 1.25 kt hn^0.75, kt 0.11 steel moment frames (Ct 0.1375), 0.075 concrete moment frames (0.09375), 0.06 eccentrically braced steel frames (0.075), 0.05 other structures (0.0625)",
+    "systems": "AS 1170.4 Table 6.5(A) (concrete, masonry) and 6.5(B) (steel): the structural ductility factor μ (in R) and the structural performance factor Sp; Cd = μ/Sp the drift amplification of 5.4.4 (displacementFactor); Ω0 1.0: no overstrength factor in AS 1170.4 (SAEngine practice). The μ of the walls, dual and masonry rows are uncertain: to be checked against Table 6.5",
+    "designCategories": "AS 1170.4 2.2, Table 2.1: earthquake design categories in SAEngine's slots B = EDC I, C = EDC II, D = EDC III; SAEngine takes the row of buildings 12-50 m high (IL1 EDC I, IL2 and IL3 EDC II, IL4 EDC III) for every height and Z: EDC I of low buildings at low kp Z (simple static method, Section 5) and EDC III of buildings over 50 m are not chosen automatically (the equivalent static method of Section 6 is used for all)",
+    "requiredDetailing": "AS 1170.4 has no detailing level by category: the system's own detailing (μ) applies (ordinary in every category)",
+    "allowableDrift": "AS 1170.4 5.4.4: interstorey drift at the ultimate limit state (elastic × μ/Sp) at most 1.5 % of the storey height",
+    "minimumScale": "AS 1170.4 Section 7: modal base shear scaled to at least 90 % of the static (clause and value uncertain: to be checked)",
+    "accidentalEccentricity": "AS 1170.4 6.6: the earthquake actions applied at ±0.1 b from the centre of mass",
+    "pgaFactor": "AS 1170.4: Z is the peak ground acceleration on rock for 1/500 (a_h = Z Ch(0))",
+    "verticalFactor": "AS 1170.4: no general vertical component (cantilevers and long spans of EDC III only, not covered): 0",
+    "liveShare": "AS 1170.4 6.2.2 seismic weight Wt = G + ψE Q, ψE = 0.3 (AS/NZS 1170.0 Table 4.1)",
+    "dampingCorrection": "AS 1170.4 gives Ch(T) for 5 % damping only: no damping correction",
+    "designCategories.byHeight": "AS 1170.4-2007 2.2, Table 2.1: the earthquake design category by importance level and the structure's height hn (slots B = EDC I, C = EDC II, D = EDC III): IL1 EDC I; IL2 hn <= 12 m EDC I, to 50 m EDC II, above EDC III; IL3 to 50 m EDC II, above EDC III; IL4 to 12 m EDC II, above EDC III. The table's dependence on kp Z and the site class is not entered (to verify); where the analysis does not know hn (the design checks, Project Settings) the zone rows (the 12-50 m row) apply",
+    "designCategories.simpleStatic": "AS 1170.4-2007 Section 5 (5.3): EDC I structures designed for the horizontal static force Fi = 0.1 Wi at each level (in place of the equivalent static method of Section 6)",
+    "designCategories.dynamicRequired": "AS 1170.4-2007 2.2, 5.5, Section 7: EDC III structures (hn above 50 m) designed by the dynamic analysis; the run notes it where only the static cases were used"
+  }
+}

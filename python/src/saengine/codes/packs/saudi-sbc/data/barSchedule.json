@@ -1,0 +1,8 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "BS 8666 (the bar scheduling practice common in the Gulf; SAEngine practice)"
+  ],
+  "standard": "bs8666",
+  "shapeKey": false
+}

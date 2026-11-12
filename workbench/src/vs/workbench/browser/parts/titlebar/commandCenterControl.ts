@@ -215,11 +215,11 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 						private _getLabel(): string {
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							let label = that._windowTitle.workspaceName;
+							// SAEngine: the command center reads as a search field, also without tabs; the
+							// project name is in the side bar. Was: the workspace name, or the file name without tabs.
+							let label = localize('saengine.commandCenter', "Search or run a command");
 							if (that._windowTitle.isCustomTitleFormat()) {
 								label = that._windowTitle.getWindowTitle();
-							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
-								label = that._windowTitle.fileName ?? label;
 							}
 							if (!label) {
 								label = localize('label.dfl', "Search");

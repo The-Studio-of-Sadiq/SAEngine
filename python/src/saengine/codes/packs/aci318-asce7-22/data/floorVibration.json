@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/floorVibration.schema.json",
+  "$sources": [
+    "AISC Design Guide 11 (2nd ed., 2016) Chapters 3-4: walking excitation of steel and composite floors; ASCE/SEI 7-22 Appendix C (C.3: floor vibration) leaves the criteria to the designer; concrete floors by the CCIP-016 / SCI P354 response factor (SAEngine practice); see VERIFY.md"
+  ],
+  "source": "AISC Design Guide 11 2nd ed. for floors on steel beams, CCIP-016 / SCI P354 response factor for concrete floors (SAEngine practice where ASCE 7-22 Appendix C gives no method)",
+  "compositeDynamicModulus": 1.35,
+  "clauses": {
+    "required": "ASCE/SEI 7-22 Appendix C, Sec C.3 (floor vibration, criteria left to the designer)",
+    "walkingAcceleration": "AISC Design Guide 11 2nd ed. Eq 4-1 (ap/g = P0 exp(-0.35 fn)/(β W), P0 0.29 kN), Table 4-1 (ao/g), Table 4-2 (β), Eq 3-3 (fn = 0.18 √(g/Δ))",
+    "responseFactor": "SAEngine practice where ASCE 7-22 is silent: CCIP-016 / SCI P354 response factor, ISO 10137:2007 Annex C"
+  }
+}

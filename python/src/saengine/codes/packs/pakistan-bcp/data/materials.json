@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "Building Code of Pakistan (ACI 318 adopted) (verify)"
+  ],
+  "structuralFcMin": 17.0,
+  "rebarFyMax": 690.0,
+  "sources": {
+    "structuralFcMin": "Not checked (verify): the ACI 318 edition the Building Code of Pakistan adopts; the parent's ACI 318-19 Table 19.2.1.1 value (17 MPa) kept until checked",
+    "rebarFyMax": "Not checked (verify): the ACI 318 edition the Building Code of Pakistan adopts (an edition before 318-19 permits at most 550 MPa); the parent's ACI 318-19 Table 20.2.2.4(a) value (690 MPa) kept until checked"
+  }
+}

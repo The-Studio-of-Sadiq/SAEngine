@@ -1,0 +1,12 @@
+{
+  "name": "Howe truss 12 m",
+  "description": "Howe truss of 6 panels, 1.5 m deep.",
+  "shape": {
+    "kind": "planeTruss",
+    "span": 12000.0,
+    "depth": 1500.0,
+    "panels": 6,
+    "pattern": "howe",
+    "memberType": "MEMBER"
+  }
+}

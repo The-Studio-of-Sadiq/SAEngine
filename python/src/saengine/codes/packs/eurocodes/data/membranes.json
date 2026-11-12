@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/membranes.schema.json",
+  "$sources": [
+    "SAEngine practice after the TensiNet European Design Guide for Tensile Surface Structures (2004); EN 17117-1 (biaxial tests of the fabric); CEN/TS 19102 (design of tensioned membrane structures) not entered"
+  ],
+  "source": "Tensile membranes and cable nets (SAEngine practice): form finding by force density, the load cases on the found form at characteristic loads, the fabric's strip strength reduced by an overall factor by duration, the cables' breaking force by a factor; see VERIFY.md",
+  "method": "forceDensity",
+  "cases": [
+    {"name": "Prestress", "prestress": 1.0, "duration": "long"},
+    {"name": "Prestress + snow", "prestress": 1.0, "snow": 1.0, "duration": "long"},
+    {"name": "Prestress + wind pressure", "prestress": 1.0, "wind": 1.0, "windSign": 1, "duration": "short"},
+    {"name": "Prestress + wind suction", "prestress": 1.0, "wind": 1.0, "windSign": -1, "duration": "short"}
+  ],
+  "fabricFactors": {"short": 4.0, "long": 6.0},
+  "cableFactor": 2.2,
+  "wrinkleShare": 0.05,
+  "deflectionLimit": 0,
+  "clauses": {
+    "code": "SAEngine practice (TensiNet guide)",
+    "formFinding": "force density method (Schek 1974)",
+    "fabric": "TensiNet guide Ch 7 (stress factors), SAEngine practice",
+    "cables": "SAEngine practice (minimum breaking force / 2.2)",
+    "wrinkling": "SAEngine practice"
+  }
+}

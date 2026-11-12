@@ -1,0 +1,364 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Chapter 6"
+  ],
+  "source": "BNBC 2020 Part 6 Chapter 6 and SAEngine practice (see sources)",
+  "barDiameters": {
+    "all": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "main": [
+      12.0,
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "column": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "slab": [
+      10.0,
+      12.0,
+      16.0
+    ],
+    "stirrup": [
+      8.0,
+      10.0,
+      12.0
+    ],
+    "wall": [
+      10.0,
+      12.0,
+      16.0,
+      20.0
+    ],
+    "boundary": [
+      16.0,
+      20.0,
+      25.0,
+      32.0
+    ],
+    "hoop": [
+      10.0,
+      12.0
+    ],
+    "lintel": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ],
+    "tank": [
+      10.0,
+      12.0,
+      16.0,
+      20.0,
+      25.0
+    ],
+    "foundation": [
+      12,
+      16,
+      20,
+      25
+    ]
+  },
+  "spacingStep": 25.0,
+  "minSlabSpacing": 100.0,
+  "minStirrupSpacing": 75.0,
+  "columnRho": [
+    0.01,
+    0.08
+  ],
+  "beamRatioMax": 0.04,
+  "slabStrainMin": 0.004,
+  "fytShearMax": 420.0,
+  "slendernessLimit": 22.0,
+  "twoWayThickness": {
+    "280.0": [
+      33.0,
+      36.0,
+      36.0
+    ],
+    "420.0": [
+      30.0,
+      33.0,
+      33.0
+    ],
+    "520.0": [
+      28.0,
+      31.0,
+      31.0
+    ]
+  },
+  "twoWayThicknessDrop": {
+    "280.0": [
+      36.0,
+      40.0,
+      40.0
+    ],
+    "420.0": [
+      33.0,
+      36.0,
+      36.0
+    ],
+    "520.0": [
+      31.0,
+      34.0,
+      34.0
+    ]
+  },
+  "oneWaySlabThickness": [
+    20.0,
+    24.0,
+    28.0
+  ],
+  "beamThickness": [
+    16.0,
+    18.5,
+    21.0
+  ],
+  "cover": {
+    "lintel": 25.0,
+    "stair": 20.0,
+    "pileCap": 50.0
+  },
+  "crackedStiffness": {
+    "column": 0.7,
+    "beam": 0.35,
+    "plate": 0.25,
+    "wall": 0.35,
+    "wallUncracked": 0.7
+  },
+  "slender": {
+    "nonswayQ": 0.05,
+    "swayLimit": 22.0,
+    "nonswayCap": 40.0,
+    "kluRMax": 100.0,
+    "deltaSMax": 1.5,
+    "momentRatioMax": 1.4
+  },
+  "walls": {
+    "rhoSmallBars": [
+      0.0012,
+      0.002
+    ],
+    "rhoOtherBars": [
+      0.0015,
+      0.0025
+    ],
+    "smallBarMax": 16.0,
+    "smallBarFy": 420.0,
+    "rhoShear": 0.0025,
+    "twoLayerThickness": 250.0,
+    "spacingMax": 450.0
+  },
+  "torsion": {
+    "theta": 45.0,
+    "aoShare": 0.85,
+    "spacingMax": 300.0,
+    "perimeterDivisor": 8.0,
+    "longitudinalSpacingMax": 300.0,
+    "longitudinalDiaRatio": 0.042,
+    "longitudinalDiaMin": 10.0,
+    "fyMax": 420.0
+  },
+  "prestress": {
+    "jackingFpu": 0.80,
+    "jackingFpy": 0.94,
+    "anchorFpu": 0.70,
+    "transferCompression": 0.60,
+    "transferTension": 0.25,
+    "transferTensionEnds": 0.50,
+    "sustainedCompression": 0.45,
+    "totalCompression": 0.60,
+    "tensionTwoWay": 0.50,
+    "tensionClassU": 0.62,
+    "unbondedAdd": 70.0,
+    "unbondedSpanDepth": 35.0,
+    "unbondedK": [100.0, 300.0],
+    "unbondedCap": [420.0, 210.0],
+    "gammaP": 0.28,
+    "bondedNegative": 0.00075,
+    "bondedPositiveTension": 0.17,
+    "bondedPositiveStress": 0.5,
+    "bondedOneWay": 0.004,
+    "minPrecompression": 0.9,
+    "spacingThickness": 8.0,
+    "spacingMax": 1500.0,
+    "punchingBetaMax": 0.29,
+    "punchingBetaA": 0.083,
+    "punchingFpc": 0.3,
+    "punchingFpcRange": [0.9, 3.5],
+    "punchingRootMax": 5.8,
+    "punchingMethod": "reinforced",
+    "transferSteelFpy": 0.82,
+    "transferSteelFpu": 0.74,
+    "transferCompressionEnds": 0.70,
+    "tensionClassT": 1.0,
+    "gammaPByRatio": [[0.80, 0.55], [0.85, 0.40], [0.90, 0.28]],
+    "fpsMinFse": 0.5,
+    "bondedFyMax": 420.0,
+    "rupture": 0.62,
+    "cracking": { "factor": 1.2, "waiver": 2.0 },
+    "bondedTop": {
+      "minBars": 4,
+      "maxSpacing": 300.0,
+      "beyondFace": 1.5,
+      "negativeLength": 0.166667,
+      "positiveLength": 0.333333
+    },
+    "transferBonded": { "stressShare": 0.5, "endRegion": 1.0 },
+    "relaxation": { "stressRatios": [0.5, 0.6, 0.7, 0.8], "losses": [0.0, 35.0, 70.0, 90.0] },
+    "integrity": {
+      "strands": 2,
+      "strandArea": 98.7,
+      "coreInset": 40.0,
+      "bottomFactor": 1.5,
+      "bottomRoot": 0.25,
+      "bottomMin": 2.1
+    },
+    "anchorage": {
+      "loadFactor": 1.2,
+      "phi": 0.85,
+      "spalling": 0.02,
+      "transferMulti": 28.0,
+      "transferSingle": 17.0,
+      "monostrandArea": 98.7,
+      "edgeBars": 2,
+      "edgeBarDia": 12.0,
+      "edgeBarAhead": 0.5,
+      "edgeBarExtension": 150.0,
+      "groupSpacing": 300.0,
+      "groupMin": 6,
+      "hairpinDia": 10.0,
+      "hairpinFrom": 0.375,
+      "hairpinTo": 0.5,
+      "bursting": { "method": "simplified", "share": 0.25, "depthShare": 0.5 }
+    },
+    "compression": {
+      "threshold": 1.6,
+      "tieMinDia": 10.0,
+      "tieSpacingDiameters": 48.0,
+      "spiralCoefficient": 0.45,
+      "spiralFytMax": 700.0
+    },
+    "note": "Owner decisions 2026-11-01. Sec 9.12.2 sends the punching shear of prestressed slabs to Chapter 6, which has no prestress term: punchingMethod 'reinforced' (the Chapter 6 vc, no precompression benefit; the punching* numbers stay for packs that choose 'precompression'). Sec 9.5.1 (c) asks for bonded bars to carry the whole tension at transfer above 0.25/0.50 √f'ci but prints no stress for them: transferBonded.stressShare 0.5 fy (the Eq 6.9.9 stress) and the ends of a simply supported strip taken as within endRegion × h of its anchors are SAEngine practice, not BNBC. Sec 9.12.7 prints As >= 1.5 × Eq 6.9.12 and >= 2.1 bw d / fy: both are applied as printed. The 12.7 mm integrity strand of Sec 9.12.6 is stored as its area 98.7 mm² (the model keeps the strand area), and the region bounded by the column bars as the column section less coreInset 40 mm each side: SAEngine practice. Bursting: BNBC Sec 9.13.4.1 (c) permits simplified equations and Sec 9.15.1 adopts AASHTO LRFD (SI) 2007 Art. 5.10.9.6 for them without printing them: T = share × Ppu (1 - a/h), d = depthShare × (h - 2e) (Art. 5.10.9.6.3), adopted by reference."
+  },
+  "deflection": {
+    "liveFloor": 360.0,
+    "liveRoof": 180.0,
+    "attachedSensitive": 480.0,
+    "attachedInsensitive": 240.0,
+    "xi": {
+      "3": 1.0,
+      "6": 1.2,
+      "12": 1.4,
+      "60": 2.0
+    },
+    "cantileverBeam": 8.0,
+    "cantileverSlab": 10.0
+  },
+  "aggregates": {
+    "siliceous": { "modulus": "normal", "lambda": 1.0 },
+    "carbonate": { "modulus": "normal", "lambda": 1.0 },
+    "sandLightweight": { "modulus": "density", "lambda": 0.85 },
+    "lightweight": { "modulus": "density", "lambda": 0.75 },
+    "brick": { "modulus": "brick", "lambda": 1.0, "shrinkageFactor": 1.5 }
+  },
+  "modulus": {
+    "normal": 4700.0,
+    "brick": 3750.0,
+    "densityCoefficient": 0.043,
+    "densityExponent": 1.5,
+    "densityRange": [1440.0, 2560.0]
+  },
+  "shrinkage": {
+    "ratioLow": 0.002,
+    "referenceFy": 420.0,
+    "ratioReference": 0.0018,
+    "ratioMin": 0.0014
+  },
+  "clauses": {
+    "modulus": "Part 6 Sec 6.1.7.1",
+    "modulusBrick": "Part 6 Sec 5.13.2.2",
+    "modulusDensity": "Part 6 Sec 6.1.7.1, 5.13.2.1",
+    "lambda": "Part 6 Sec 6.1.8.1",
+    "shrinkage": "Part 6 Sec 8.1.11.2 (a)",
+    "shrinkageBrick": "Part 6 Sec 8.1.11.2 (b)",
+    "shrinkageSpacing": "Part 6 Sec 8.1.6.7, 8.1.11.2 (c)",
+    "prestressClass": "Part 6 Sec 9.4.3",
+    "prestressModulus": "Part 6 Sec 9.4.5.3",
+    "prestressRupture": "Part 6 Sec 9.4.5.4",
+    "prestressTransfer": "Part 6 Sec 9.5.1 (a)-(c)",
+    "prestressService": "Part 6 Sec 9.5.1 (allowable stresses)",
+    "prestressSpacingClassC": "Part 6 Sec 9.5.3, Eq 6.9.1",
+    "prestressJacking": "Part 6 Sec 9.5.4 (a)",
+    "prestressSteelTransfer": "Part 6 Sec 9.5.4 (b)",
+    "prestressAnchors": "Part 6 Sec 9.5.4 (c)",
+    "prestressElastic": "Part 6 Sec 9.6.3 (b)",
+    "prestressSet": "Part 6 Sec 9.6.4, 9.6.10",
+    "prestressRelaxation": "Part 6 Sec 9.6.5, Table 6.9.2",
+    "prestressCreep": "Part 6 Sec 9.6.6, Table 6.9.3",
+    "prestressShrinkage": "Part 6 Sec 9.6.7",
+    "prestressFriction": "Part 6 Sec 9.6.8, Eq 6.9.2",
+    "prestressDeflection": "Part 6 Sec 9.7.1-9.7.2, Eq 6.9.4, Table 6.6.2",
+    "prestressLongDeflection": "Part 6 Sec 9.7.3",
+    "prestressFps": "Part 6 Sec 9.8.2, Eqs 6.9.5-6.9.7",
+    "prestressPhi": "Part 6 Sec 9.9.1-9.9.2",
+    "prestressCracking": "Part 6 Sec 9.9.3",
+    "prestressBondedOneWay": "Part 6 Sec 9.9.4.2, Eq 6.9.8",
+    "prestressBondedPositive": "Part 6 Sec 9.9.4.3 (a)-(b), Eq 6.9.9",
+    "prestressBondedNegative": "Part 6 Sec 9.9.4.3 (c), Eq 6.9.10, 9.9.4.4",
+    "prestressBondedLength": "Part 6 Sec 9.9.4.5",
+    "prestressHyperstatic": "Part 6 Sec 9.10.3",
+    "prestressCompression": "Part 6 Sec 9.11.2-9.11.3, Eq 6.9.11",
+    "prestressPunching": "Part 6 Sec 9.12.2 (Chapter 6 punching)",
+    "prestressSlab": "Part 6 Sec 9.12.4",
+    "prestressIntegrity": "Part 6 Sec 9.12.6",
+    "prestressIntegrityBars": "Part 6 Sec 9.12.7, Eq 6.9.12",
+    "prestressAnchorage": "Part 6 Sec 9.13.2.2, 9.9.2 (d)",
+    "prestressSpalling": "Part 6 Sec 9.13.4.7",
+    "prestressTransferStrength": "Part 6 Sec 9.13.5.3",
+    "prestressSlabAnchorage": "Part 6 Sec 9.14.2",
+    "prestressBursting": "Part 6 Sec 9.13.4.1 (c), 9.15.1 (AASHTO LRFD 2007 Art. 5.10.9.6.3)",
+    "crackedStiffness": "Part 6 Sec 6.3.10.4.1",
+    "patternLive": "Part 6 Sec 6.1.12.2",
+    "patternAdjacent": "Part 6 Sec 6.1.12.2 (a)",
+    "patternAdjacentFloor": "Part 6 Sec 6.1.12.2 (a) with 6.1.12.1 (a)",
+    "patternAlternate": "Part 6 Sec 6.1.12.2 (b)"
+  },
+  "sources": {
+    "aggregates": "BNBC 2020 Part 6 Sec 5.13.2.1-5.13.2.2 (p. 856): Ec of stone and brick aggregate concrete; Sec 6.1.8.1 (p. 893): λ = 0.85 sand-lightweight, 0.75 all-lightweight, 1.0 normal weight (brick aggregate concrete is normal weight); Sec 8.1.11.2 (b) (p. 1075): shrinkage and temperature steel of brick aggregate concrete × 1.5",
+    "modulus": "BNBC 2020 Part 6 Sec 6.1.7.1 (p. 892) and 5.13.2.1 (p. 856): Ec = 0.043 wc^1.5 √f'c for wc 1440-2560 kg/m³ (5.13.2.1 prints the same as 44 wc^1.5 √f'c, wc 15-25 kN/m³), 4700 √f'c for normal weight; Sec 5.13.2.2 (p. 856): 3750 √f'c for brick aggregate",
+    "shrinkage": "BNBC 2020 Part 6 Sec 8.1.11.2 (a), (c) (p. 1075): 0.0020 for fy 275 and 350 MPa, 0.0018 for 420 MPa, 0.0018 × 420 / fy above 420, never below 0.0014 (the spacing of 8.1.11.2 (c), 5h and 450 mm, is slabCoefficients.maxSpacing.temperature). The clause prints no ratio between 350 and 420 MPa: 0.0020 is kept up to 420 (the more conservative of the two neighbours, owner decision 2026-11-01)",
+    "barDiameters": "BDS ISO 6935-2 sizes in common use (SAEngine practice); tank: the water and septic tanks' proposal; foundation: 9 Substructure's minimum mesh and sizing assistant",
+    "spacingStep": "SAEngine practice",
+    "minSlabSpacing": "SAEngine practice (site), not a code limit",
+    "columnRho": "ACI 318 10.6.1.1 (as the code's Chapter 6; page not checked)",
+    "beamRatioMax": "SAEngine practice (congestion), not a code clause",
+    "slabStrainMin": "ACI 318 7.3.3.1, 8.3.3.1 (page not checked)",
+    "fytShearMax": "BNBC 2020 Part 6 Sec 6.4.3.2 (p. 924)",
+    "twoWayThickness": "BNBC 2020 Part 6 Table 6.6.3 (p. 902), no drop panels",
+    "twoWayThicknessDrop": "BNBC 2020 Part 6 Table 6.6.3 (p. 902), with drop panels (ACI 318-19 Table 8.3.1.1; drop panels per 8.2.4)",
+    "oneWaySlabThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
+    "beamThickness": "BNBC 2020 Part 6 Table 6.6.1 (p. 900), by continuous ends 0, 1, 2",
+    "cover": "SAEngine assumptions when no reinforcement is entered",
+    "crackedStiffness": "BNBC 2020 Part 6 Sec 6.3.10.4.1",
+    "slender": "BNBC 2020 Part 6 Sec 6.3.10 (Eqs. 6.6.13, 6.6.14, 6.6.17)",
+    "walls": "BNBC 2020 Part 6 Sec 6.6.3.2-6.6.3.4, 6.4.8.9 and 8.3.6.2(a)",
+    "torsion": "BNBC 2020 Part 6 Sec 6.4.4.3 (θ, Ao = 0.85 Aoh, fy and fyt <= 420 MPa: pp. 928-929) and Sec 6.4.4.6 (spacing ph/8 and 300 mm, longitudinal bars 300 mm apart, diameter >= 0.042 s and 10 mm: p. 931)",
+    "prestress": "BNBC 2020 Part 6 Chapter 9 (part 1 pp. 1139-1159): Sec 9.4.3 (p. 1139) classes U, T, C (0.62 and 1.0 √f'c; two-way slabs Class U, 0.50 √f'c); Sec 9.4.5.4 (p. 1140) fr = 0.62 λ √f'c; Sec 9.5.1 (p. 1141) transfer 0.60 f'ci, 0.70 f'ci at the ends of simply supported members, bonded bars above 0.50 √f'ci at those ends and 0.25 √f'ci elsewhere; service 0.45 f'c sustained, 0.60 f'c total; Sec 9.5.4 (p. 1142) jacking 0.94 fpy and 0.80 fpu, after transfer 0.82 fpy and 0.74 fpu, at the anchors 0.70 fpu; Sec 9.6.5 Table 6.9.2 (p. 1144) relaxation 0, 35, 70, 90 MPa at 0.5-0.8 fpu; Sec 9.8.2 (p. 1148) Eqs 6.9.5-6.9.7, γp 0.55, 0.40, 0.28 for fpy/fpu >= 0.80, 0.85, 0.90, fse >= 0.5 fpu, unbonded fse + 70 + f'c/(100 ρp) <= fpy, fse + 420 up to span/depth 35, else f'c/(300 ρp), fse + 210; Sec 9.9.3 (p. 1150) 1.2 × the cracking load, waived at twice the required strength; Sec 9.9.4 (pp. 1150-1151) Eq 6.9.8 0.004 Act, Eq 6.9.9 Nc / (0.5 fy) above 0.17 √f'c with fy <= 420 MPa, Eq 6.9.10 0.00075 Acf within 1.5h of the column faces, at least four bars at most 300 mm apart, lengths ln/3 and ln/6; Sec 9.11.2-9.11.3 (pp. 1152-1153) 1.6 MPa, ties >= No. 10 at <= 48 tie diameters, Eq 6.9.11 ρs = 0.45 (Ag/Ach - 1) f'c/fyt, fyt <= 700 MPa; Sec 9.12.4 (p. 1154) 0.9 MPa, 8h and 1.5 m; Sec 9.12.6-9.12.7 (p. 1155) two 12.7 mm strands each way at the columns, else 1.5 × Eq 6.9.12 (0.25 √f'c bw d / fy) and 2.1 bw d / fy of bottom bars; Sec 9.13.2.2 (p. 1156) Ppu = 1.2 × the jacking force, Sec 9.9.2 (d) φ 0.85; Sec 9.13.4.7 (p. 1158) 2 % of Ppu against spalling (not for monostrand slab tendons); Sec 9.13.5.3 (p. 1158) f'ci >= 28 MPa multi-strand, 17 MPa single strand; Sec 9.14.2 (pp. 1159-1160) two 12 mm edge bars within h/2 ahead of the anchors, 150 mm beyond the outer ones, groups of six or more at <= 300 mm: n + 1 No. 10 hairpins 3h/8 to h/2 ahead. Punching with prestress (punching*) is not BNBC (Sec 9.12.2 uses Chapter 6) and is kept for other packs only",
+    "deflection": "BNBC 2020 Part 6 Table 6.6.2 (p. 902): l/180, l/360, l/480, l/240; Sec 6.2.5.2.5 (p. 901): ξ; Table 6.6.1 (p. 900): cantilevers l/8 (beams), l/10 (one-way slabs)"
+  }
+}

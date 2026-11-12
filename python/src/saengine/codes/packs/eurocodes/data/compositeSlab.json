@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../schemas/compositeSlab.schema.json",
+  "$sources": [
+    "EN 1994-1-1:2004 (+AC:2009) Section 9 (composite slabs with profiled steel sheeting), recommended values; EN 1991-1-6:2005 4.11.1 (construction loads); EN 1990 Annex A1 (partial factors)"
+  ],
+  "source": "EN 1994-1-1 Section 9 (alpha 9 P8); the service deflection limit L/250 is SAEngine practice (EN 1990 A1.4, EN 1992-1-1 7.4.1(4))",
+  "longitudinalShear": ["mk", "partialConnection"],
+  "gammaC": 1.5,
+  "gammaAp": 1.0,
+  "gammaVs": 1.25,
+  "gammaG": 1.35,
+  "gammaQ": 1.5,
+  "concreteShare": 0.85,
+  "plasticReduction": 1.25,
+  "shearSpanShare": 0.25,
+  "wetIncrement": 1.0,
+  "constructionLoad": {
+    "workingShare": 0.1,
+    "workingMin": 0.75,
+    "workingMax": 1.5,
+    "workingLength": 3000,
+    "outside": 0.75
+  },
+  "ponding": {"threshold": 0.1, "share": 0.7},
+  "thickness": {"overall": 80, "aboveRibs": 40, "beamFlangeOverall": 90, "beamFlangeAboveRibs": 50},
+  "deflection": {"construction": 180, "service": 250},
+  "modularFactor": 2.0,
+  "antiCrack": [0.002, 0.004],
+  "meshMinimum": 80,
+  "sources": {
+    "construction": "EN 1994-1-1 9.3.2(1), 9.5 (the sheeting as shuttering, its resistance to EN 1993-1-3); EN 1991-1-6 4.11.1 (construction loads)",
+    "ponding": "EN 1994-1-1 9.3.2(2) (δ > h/10: the concrete 0.7 δ deeper)",
+    "constructionDeflection": "EN 1994-1-1 9.6(2) (δs,max = L/180, recommended)",
+    "bending": "EN 1994-1-1 9.7.2(5)-(6) (plastic sagging resistance, Eqs 9.5-9.6)",
+    "mk": "EN 1994-1-1 9.7.3(4)-(5) (m-k method, Eq 9.7, Ls = L/4)",
+    "partial": "EN 1994-1-1 9.7.3(7)-(8) (partial connection, τu,Rd = τu,Rk / γVs)",
+    "verticalShear": "EN 1994-1-1 9.7.5 (EN 1992-1-1 6.2.2)",
+    "deflection": "EN 1994-1-1 9.8.2 (the mean of the cracked and uncracked sections, n of 5.4.2.2(11)); the limit L/250 SAEngine practice",
+    "thickness": "EN 1994-1-1 9.2.1(2)-(3)",
+    "antiCrack": "EN 1994-1-1 9.8.1(2) (0.2 % unpropped, 0.4 % propped of the concrete above the ribs)",
+    "mesh": "EN 1994-1-1 9.2.1(4)-(5) (bars in both directions above the ribs, at least 80 mm²/m)"
+  }
+}

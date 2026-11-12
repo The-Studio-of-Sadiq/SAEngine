@@ -1,0 +1,1782 @@
+{
+  "$defs": {
+    "AggregateRules": {
+      "additionalProperties": false,
+      "description": "What an aggregate type (Project Settings > Construction) changes in the concrete.",
+      "properties": {
+        "modulus": {
+          "description": "Ec rule: normal weight, the density form (lightweight), brick aggregate.",
+          "enum": [
+            "normal",
+            "density",
+            "brick"
+          ],
+          "title": "Modulus",
+          "type": "string"
+        },
+        "lambda": {
+          "description": "Lightweight modification factor λ on √f'c.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lambda",
+          "type": "number"
+        },
+        "shrinkageFactor": {
+          "default": 1.0,
+          "description": "Shrinkage and temperature steel × this.",
+          "minimum": 1,
+          "title": "Shrinkagefactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "modulus",
+        "lambda"
+      ],
+      "title": "AggregateRules",
+      "type": "object"
+    },
+    "BarDiameters": {
+      "additionalProperties": {
+        "items": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "type": "array"
+      },
+      "description": "Bar size sets [mm] by use (extra sets allowed; an extra set keeps its sizes as printed,\nintegers or decimals: 9 Substructure's minimum mesh is written as given).",
+      "properties": {
+        "all": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "All",
+          "type": "array"
+        },
+        "main": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Main",
+          "type": "array"
+        },
+        "column": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Column",
+          "type": "array"
+        },
+        "slab": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Slab",
+          "type": "array"
+        },
+        "stirrup": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Stirrup",
+          "type": "array"
+        },
+        "wall": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Wall",
+          "type": "array"
+        },
+        "boundary": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Boundary",
+          "type": "array"
+        },
+        "hoop": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Hoop",
+          "type": "array"
+        },
+        "lintel": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Lintel",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all",
+        "main",
+        "column",
+        "slab",
+        "stirrup",
+        "wall",
+        "boundary",
+        "hoop",
+        "lintel"
+      ],
+      "title": "BarDiameters",
+      "type": "object"
+    },
+    "Covers": {
+      "additionalProperties": false,
+      "description": "Assumed clear covers [mm] by element.",
+      "properties": {
+        "lintel": {
+          "exclusiveMinimum": 0,
+          "title": "Lintel",
+          "type": "number"
+        },
+        "stair": {
+          "exclusiveMinimum": 0,
+          "title": "Stair",
+          "type": "number"
+        },
+        "pileCap": {
+          "exclusiveMinimum": 0,
+          "title": "Pilecap",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lintel",
+        "stair",
+        "pileCap"
+      ],
+      "title": "Covers",
+      "type": "object"
+    },
+    "CrackedStiffness": {
+      "additionalProperties": false,
+      "description": "Cracked-section stiffness factors (share of the gross moment of inertia).",
+      "properties": {
+        "column": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Column",
+          "type": "number"
+        },
+        "beam": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beam",
+          "type": "number"
+        },
+        "plate": {
+          "description": "Flat plates and flat slabs.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Plate",
+          "type": "number"
+        },
+        "wall": {
+          "description": "Cracked walls.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wall",
+          "type": "number"
+        },
+        "wallUncracked": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Walls taken as uncracked (Project Settings > Analysis > Walls cracked off); the column factor when not given.",
+          "title": "Walluncracked"
+        }
+      },
+      "required": [
+        "column",
+        "beam",
+        "plate",
+        "wall"
+      ],
+      "title": "CrackedStiffness",
+      "type": "object"
+    },
+    "DeflectionLimitsGroup": {
+      "additionalProperties": false,
+      "description": "Span divisors of the computed deflection limits, ξ and the cantilever thickness divisors\n(the default pack's Part 6 Sec 6.2.5).",
+      "properties": {
+        "liveFloor": {
+          "description": "Floors: immediate live-load deflection <= l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Livefloor",
+          "type": "number"
+        },
+        "liveRoof": {
+          "description": "Flat roofs: immediate live-load deflection.",
+          "exclusiveMinimum": 0,
+          "title": "Liveroof",
+          "type": "number"
+        },
+        "attachedSensitive": {
+          "description": "After attachment, elements likely to be damaged: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Attachedsensitive",
+          "type": "number"
+        },
+        "attachedInsensitive": {
+          "description": "After attachment, elements not likely to be damaged: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Attachedinsensitive",
+          "type": "number"
+        },
+        "xi": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Months -> ξ.",
+          "minProperties": 1,
+          "title": "Xi",
+          "type": "object"
+        },
+        "cantileverBeam": {
+          "description": "Least beam depth of a cantilever: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Cantileverbeam",
+          "type": "number"
+        },
+        "cantileverSlab": {
+          "description": "Least slab thickness of a cantilever: l/this.",
+          "exclusiveMinimum": 0,
+          "title": "Cantileverslab",
+          "type": "number"
+        },
+        "effectiveInertia": {
+          "default": "cubic",
+          "description": "Ie: 'cubic' (Ie = (Mcr/Ma)³ Ig + (1 - (Mcr/Ma)³) Icr <= Ig, Ig up to Mcr) or 'bischoff' (Ie = Icr / (1 - ((2/3) Mcr/Ma)² (1 - Icr/Ig)), Ig up to (2/3) Mcr).",
+          "enum": [
+            "cubic",
+            "bischoff"
+          ],
+          "title": "Effectiveinertia",
+          "type": "string"
+        }
+      },
+      "required": [
+        "liveFloor",
+        "liveRoof",
+        "attachedSensitive",
+        "attachedInsensitive",
+        "xi",
+        "cantileverBeam",
+        "cantileverSlab"
+      ],
+      "title": "DeflectionLimitsGroup",
+      "type": "object"
+    },
+    "ModulusRules": {
+      "additionalProperties": false,
+      "description": "Modulus of elasticity Ec of concrete [MPa] (f'c in MPa, wc in kg/m³).",
+      "properties": {
+        "normal": {
+          "description": "Normal weight: Ec = this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Normal",
+          "type": "number"
+        },
+        "brick": {
+          "description": "Brick aggregate: Ec = this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Brick",
+          "type": "number"
+        },
+        "densityCoefficient": {
+          "description": "Ec = this wc^exponent √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Densitycoefficient",
+          "type": "number"
+        },
+        "densityExponent": {
+          "exclusiveMinimum": 0,
+          "title": "Densityexponent",
+          "type": "number"
+        },
+        "densityRange": {
+          "description": "wc [kg/m³] within which the density form applies.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Densityrange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "normal",
+        "brick",
+        "densityCoefficient",
+        "densityExponent",
+        "densityRange"
+      ],
+      "title": "ModulusRules",
+      "type": "object"
+    },
+    "PrestressAnchorage": {
+      "additionalProperties": false,
+      "description": "Post-tensioned anchorage zones: Ppu = loadFactor × the jacking force, φ; spalling steel\n``spalling`` × Ppu (not for monostrand slab tendons); f'ci at stressing; the slab edge bars\nand hairpins of monostrand slab anchors; bursting.",
+      "properties": {
+        "loadFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Loadfactor",
+          "type": "number"
+        },
+        "phi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "spalling": {
+          "exclusiveMinimum": 0,
+          "title": "Spalling",
+          "type": "number"
+        },
+        "transferMulti": {
+          "exclusiveMinimum": 0,
+          "title": "Transfermulti",
+          "type": "number"
+        },
+        "transferSingle": {
+          "exclusiveMinimum": 0,
+          "title": "Transfersingle",
+          "type": "number"
+        },
+        "monostrandArea": {
+          "exclusiveMinimum": 0,
+          "title": "Monostrandarea",
+          "type": "number"
+        },
+        "edgeBars": {
+          "minimum": 1,
+          "title": "Edgebars",
+          "type": "integer"
+        },
+        "edgeBarDia": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebardia",
+          "type": "number"
+        },
+        "edgeBarAhead": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebarahead",
+          "type": "number"
+        },
+        "edgeBarExtension": {
+          "exclusiveMinimum": 0,
+          "title": "Edgebarextension",
+          "type": "number"
+        },
+        "groupSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Groupspacing",
+          "type": "number"
+        },
+        "groupMin": {
+          "minimum": 1,
+          "title": "Groupmin",
+          "type": "integer"
+        },
+        "hairpinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpindia",
+          "type": "number"
+        },
+        "hairpinFrom": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpinfrom",
+          "type": "number"
+        },
+        "hairpinTo": {
+          "exclusiveMinimum": 0,
+          "title": "Hairpinto",
+          "type": "number"
+        },
+        "bursting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressBursting"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "loadFactor",
+        "phi",
+        "spalling",
+        "transferMulti",
+        "transferSingle",
+        "monostrandArea",
+        "edgeBars",
+        "edgeBarDia",
+        "edgeBarAhead",
+        "edgeBarExtension",
+        "groupSpacing",
+        "groupMin",
+        "hairpinDia",
+        "hairpinFrom",
+        "hairpinTo"
+      ],
+      "title": "PrestressAnchorage",
+      "type": "object"
+    },
+    "PrestressBondedTop": {
+      "additionalProperties": false,
+      "description": "Bonded top bars over the columns of two-way slabs: at least ``minBars`` bars at most\n``maxSpacing`` [mm] apart between lines ``beyondFace`` × h outside the column faces; bars\n``negativeLength`` × ln each side of the support, bottom bars ``positiveLength`` × ln.",
+      "properties": {
+        "minBars": {
+          "minimum": 1,
+          "title": "Minbars",
+          "type": "integer"
+        },
+        "maxSpacing": {
+          "exclusiveMinimum": 0,
+          "title": "Maxspacing",
+          "type": "number"
+        },
+        "beyondFace": {
+          "exclusiveMinimum": 0,
+          "title": "Beyondface",
+          "type": "number"
+        },
+        "negativeLength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Negativelength",
+          "type": "number"
+        },
+        "positiveLength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Positivelength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minBars",
+        "maxSpacing",
+        "beyondFace",
+        "negativeLength",
+        "positiveLength"
+      ],
+      "title": "PrestressBondedTop",
+      "type": "object"
+    },
+    "PrestressBursting": {
+      "additionalProperties": false,
+      "description": "General zone bursting by simplified equations: T = share Ppu (1 - a/h), d = depthShare\n(h - 2e).",
+      "properties": {
+        "method": {
+          "const": "simplified",
+          "title": "Method",
+          "type": "string"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "depthShare": {
+          "exclusiveMinimum": 0,
+          "title": "Depthshare",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "share",
+        "depthShare"
+      ],
+      "title": "PrestressBursting",
+      "type": "object"
+    },
+    "PrestressCompression": {
+      "additionalProperties": false,
+      "description": "Prestressed compression members: above ``threshold`` [MPa] of effective prestress, ties\nof at least ``tieMinDia`` at most ``tieSpacingDiameters`` tie diameters (and the least\ndimension) apart, or spirals ρs >= spiralCoefficient (Ag/Ach - 1) f'c / fyt, fyt <=\nspiralFytMax.",
+      "properties": {
+        "threshold": {
+          "exclusiveMinimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "tieMinDia": {
+          "exclusiveMinimum": 0,
+          "title": "Tiemindia",
+          "type": "number"
+        },
+        "tieSpacingDiameters": {
+          "exclusiveMinimum": 0,
+          "title": "Tiespacingdiameters",
+          "type": "number"
+        },
+        "spiralCoefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Spiralcoefficient",
+          "type": "number"
+        },
+        "spiralFytMax": {
+          "exclusiveMinimum": 0,
+          "title": "Spiralfytmax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "threshold",
+        "tieMinDia",
+        "tieSpacingDiameters",
+        "spiralCoefficient",
+        "spiralFytMax"
+      ],
+      "title": "PrestressCompression",
+      "type": "object"
+    },
+    "PrestressCracking": {
+      "additionalProperties": false,
+      "description": "Members with bonded tendons: φMn >= factor × Mcr, waived where the strength is at least\nwaiver × the required strength.",
+      "properties": {
+        "factor": {
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "waiver": {
+          "exclusiveMinimum": 0,
+          "title": "Waiver",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor",
+        "waiver"
+      ],
+      "title": "PrestressCracking",
+      "type": "object"
+    },
+    "PrestressIntegrity": {
+      "additionalProperties": false,
+      "description": "Slabs with unbonded tendons: at least ``strands`` strands of ``strandArea`` [mm²] or more\neach way through the column (its section less ``coreInset`` [mm] each side), else bottom\nbars through it of at least bottomFactor × bottomRoot √f'c bw d / fy and bottomMin bw d /\nfy.",
+      "properties": {
+        "strands": {
+          "minimum": 1,
+          "title": "Strands",
+          "type": "integer"
+        },
+        "strandArea": {
+          "exclusiveMinimum": 0,
+          "title": "Strandarea",
+          "type": "number"
+        },
+        "coreInset": {
+          "minimum": 0,
+          "title": "Coreinset",
+          "type": "number"
+        },
+        "bottomFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Bottomfactor",
+          "type": "number"
+        },
+        "bottomRoot": {
+          "exclusiveMinimum": 0,
+          "title": "Bottomroot",
+          "type": "number"
+        },
+        "bottomMin": {
+          "exclusiveMinimum": 0,
+          "title": "Bottommin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strands",
+        "strandArea",
+        "coreInset",
+        "bottomFactor",
+        "bottomRoot",
+        "bottomMin"
+      ],
+      "title": "PrestressIntegrity",
+      "type": "object"
+    },
+    "PrestressLimits": {
+      "additionalProperties": false,
+      "description": "Prestressed concrete (the pack's prestressed chapter; the default pack's clauses are in\n``concrete.sources.prestress``): stress limits as\nmultiples of f'ci, f'c or √f'c [MPa], the stress in unbonded tendons at nominal strength,\nthe bonded reinforcement, precompression and tendon spacing, and punching with\nprestress.",
+      "properties": {
+        "jackingFpu": {
+          "description": "Jacking stress <= this × fpu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Jackingfpu",
+          "type": "number"
+        },
+        "jackingFpy": {
+          "description": "Jacking stress <= this × fpy.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Jackingfpy",
+          "type": "number"
+        },
+        "anchorFpu": {
+          "description": "At the anchors immediately after transfer: stress <= this × fpu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Anchorfpu",
+          "type": "number"
+        },
+        "transferCompression": {
+          "description": "At transfer: compression <= this f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfercompression",
+          "type": "number"
+        },
+        "transferTension": {
+          "description": "At transfer: tension <= this √f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfertension",
+          "type": "number"
+        },
+        "transferTensionEnds": {
+          "description": "At transfer, at the ends of simply supported members: this √f'ci.",
+          "exclusiveMinimum": 0,
+          "title": "Transfertensionends",
+          "type": "number"
+        },
+        "sustainedCompression": {
+          "description": "Service, sustained load: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Sustainedcompression",
+          "type": "number"
+        },
+        "totalCompression": {
+          "description": "Service, total load: compression <= this f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Totalcompression",
+          "type": "number"
+        },
+        "tensionTwoWay": {
+          "description": "Two-way slabs, service tension <= this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Tensiontwoway",
+          "type": "number"
+        },
+        "tensionClassU": {
+          "description": "Class U (uncracked) tension <= this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Tensionclassu",
+          "type": "number"
+        },
+        "unbondedAdd": {
+          "description": "Unbonded fps = fse + this + f'c / (k ρp) [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Unbondedadd",
+          "type": "number"
+        },
+        "unbondedSpanDepth": {
+          "description": "Span / depth dividing the two expressions.",
+          "exclusiveMinimum": 0,
+          "title": "Unbondedspandepth",
+          "type": "number"
+        },
+        "unbondedK": {
+          "description": "k up to and above the span/depth.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Unbondedk",
+          "type": "array"
+        },
+        "unbondedCap": {
+          "description": "fps <= fse + this [MPa], up to and above the span/depth.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Unbondedcap",
+          "type": "array"
+        },
+        "gammaP": {
+          "description": "γp of bonded fps (fpy / fpu >= 0.9).",
+          "exclusiveMinimum": 0,
+          "title": "Gammap",
+          "type": "number"
+        },
+        "bondedNegative": {
+          "description": "Two-way slabs: bonded top bars over the columns As >= this Acf.",
+          "exclusiveMinimum": 0,
+          "title": "Bondednegative",
+          "type": "number"
+        },
+        "bondedPositiveTension": {
+          "description": "Two-way slabs: bonded bottom bars needed when tension > this √f'c.",
+          "exclusiveMinimum": 0,
+          "title": "Bondedpositivetension",
+          "type": "number"
+        },
+        "bondedPositiveStress": {
+          "description": "As = Nc / (this × fy).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bondedpositivestress",
+          "type": "number"
+        },
+        "bondedOneWay": {
+          "description": "Unbonded one-way: As >= this × Act.",
+          "exclusiveMinimum": 0,
+          "title": "Bondedoneway",
+          "type": "number"
+        },
+        "minPrecompression": {
+          "description": "Average precompression >= this [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Minprecompression",
+          "type": "number"
+        },
+        "spacingThickness": {
+          "description": "Distributed tendons apart <= this × h.",
+          "exclusiveMinimum": 0,
+          "title": "Spacingthickness",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "... and <= this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "punchingBetaMax": {
+          "description": "βp <= this.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingbetamax",
+          "type": "number"
+        },
+        "punchingBetaA": {
+          "description": "βp = this (1.5 + αs d / b0).",
+          "exclusiveMinimum": 0,
+          "title": "Punchingbetaa",
+          "type": "number"
+        },
+        "punchingFpc": {
+          "description": "vc adds this × fpc.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingfpc",
+          "type": "number"
+        },
+        "punchingFpcRange": {
+          "description": "fpc each way within this range [MPa] for the expression to apply.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Punchingfpcrange",
+          "type": "array"
+        },
+        "punchingRootMax": {
+          "description": "√f'c <= this [MPa] in the expression.",
+          "exclusiveMinimum": 0,
+          "title": "Punchingrootmax",
+          "type": "number"
+        },
+        "punchingMethod": {
+          "default": "precompression",
+          "description": "Punching at the columns of prestressed slabs: 'precompression' (βp √f'c + fpc term above) or 'reinforced' (the nonprestressed vc, no prestress term).",
+          "enum": [
+            "precompression",
+            "reinforced"
+          ],
+          "title": "Punchingmethod",
+          "type": "string"
+        },
+        "transferSteelFpy": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tendon stress immediately after transfer <= this × fpy.",
+          "title": "Transfersteelfpy"
+        },
+        "transferSteelFpu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "... and <= this × fpu.",
+          "title": "Transfersteelfpu"
+        },
+        "transferCompressionEnds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "At transfer, at the ends of simply supported members: compression <= this f'ci.",
+          "title": "Transfercompressionends"
+        },
+        "tensionClassT": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Class T up to this √f'c; Class C above (one-way members).",
+          "title": "Tensionclasst"
+        },
+        "gammaPByRatio": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "exclusiveMinimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(least fpy / fpu, γp) rows of bonded fps; the largest ratio met applies.",
+          "title": "Gammapbyratio"
+        },
+        "fpsMinFse": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The approximate fps needs fse >= this × fpu.",
+          "title": "Fpsminfse"
+        },
+        "bondedFyMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fy of the bonded bars of Nc / (k fy) at most this [MPa].",
+          "title": "Bondedfymax"
+        },
+        "rupture": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fr = this λ √f'c [MPa].",
+          "title": "Rupture"
+        },
+        "cracking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressCracking"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bondedTop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressBondedTop"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "transferBonded": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressTransferBonded"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relaxation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressRelaxation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "integrity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressIntegrity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "anchorage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressAnchorage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "compression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrestressCompression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tensionForm": {
+          "default": "root",
+          "description": "'root': the tension limits (transferTension, transferTensionEnds, tensionClassU, tensionClassT, tensionTwoWay, bondedPositiveTension) are k √f'ci or k √f'c; 'absolute': they are stresses [MPa].",
+          "enum": [
+            "root",
+            "absolute"
+          ],
+          "title": "Tensionform",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jackingFpu",
+        "jackingFpy",
+        "anchorFpu",
+        "transferCompression",
+        "transferTension",
+        "transferTensionEnds",
+        "sustainedCompression",
+        "totalCompression",
+        "tensionTwoWay",
+        "tensionClassU",
+        "unbondedAdd",
+        "unbondedSpanDepth",
+        "unbondedK",
+        "unbondedCap",
+        "gammaP",
+        "bondedNegative",
+        "bondedPositiveTension",
+        "bondedPositiveStress",
+        "bondedOneWay",
+        "minPrecompression",
+        "spacingThickness",
+        "spacingMax",
+        "punchingBetaMax",
+        "punchingBetaA",
+        "punchingFpc",
+        "punchingFpcRange",
+        "punchingRootMax"
+      ],
+      "title": "PrestressLimits",
+      "type": "object"
+    },
+    "PrestressRelaxation": {
+      "additionalProperties": false,
+      "description": "Relaxation loss [MPa] by the initial stress / fpu (linear between, zero below the\nfirst, the last value above).",
+      "properties": {
+        "stressRatios": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Stressratios",
+          "type": "array"
+        },
+        "losses": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Losses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "stressRatios",
+        "losses"
+      ],
+      "title": "PrestressRelaxation",
+      "type": "object"
+    },
+    "PrestressTransferBonded": {
+      "additionalProperties": false,
+      "description": "Bonded bars for the tension at transfer above the limits: As = T / (stressShare fy); the\nends of a simply supported member within endRegion × h of its anchors.",
+      "properties": {
+        "stressShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressshare",
+          "type": "number"
+        },
+        "endRegion": {
+          "exclusiveMinimum": 0,
+          "title": "Endregion",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stressShare",
+        "endRegion"
+      ],
+      "title": "PrestressTransferBonded",
+      "type": "object"
+    },
+    "ShearStressRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the concrete's shear stress of beams by the tension steel ratio (NZS 3101\n9.3.9.3.4 type): vc = min(max(base + ratioFactor ρw, least), most) λ √f'c, with or without\nthe least links. A pack without it keeps ACI 318 Table 22.5.5.1.",
+      "properties": {
+        "base": {
+          "minimum": 0,
+          "title": "Base",
+          "type": "number"
+        },
+        "ratioFactor": {
+          "minimum": 0,
+          "title": "Ratiofactor",
+          "type": "number"
+        },
+        "least": {
+          "exclusiveMinimum": 0,
+          "title": "Least",
+          "type": "number"
+        },
+        "most": {
+          "exclusiveMinimum": 0,
+          "title": "Most",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "base",
+        "ratioFactor",
+        "least",
+        "most"
+      ],
+      "title": "ShearStressRule",
+      "type": "object"
+    },
+    "ShrinkageSteel": {
+      "additionalProperties": false,
+      "description": "Shrinkage and temperature steel of slabs (ratios of the gross area).",
+      "properties": {
+        "ratioLow": {
+          "description": "Below referenceFy.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratiolow",
+          "type": "number"
+        },
+        "referenceFy": {
+          "description": "[MPa]",
+          "exclusiveMinimum": 0,
+          "title": "Referencefy",
+          "type": "number"
+        },
+        "ratioReference": {
+          "description": "At referenceFy and above: this × referenceFy / fy.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratioreference",
+          "type": "number"
+        },
+        "ratioMin": {
+          "description": "Never less than this.",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratiomin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratioLow",
+        "referenceFy",
+        "ratioReference",
+        "ratioMin"
+      ],
+      "title": "ShrinkageSteel",
+      "type": "object"
+    },
+    "SlenderLimits": {
+      "additionalProperties": false,
+      "description": "Slender column limits (moment magnifier method).",
+      "properties": {
+        "nonswayQ": {
+          "description": "Stability index Q at or below which a storey is nonsway.",
+          "exclusiveMinimum": 0,
+          "title": "Nonswayq",
+          "type": "number"
+        },
+        "swayLimit": {
+          "description": "k·lu/r below which a sway column is short.",
+          "exclusiveMinimum": 0,
+          "title": "Swaylimit",
+          "type": "number"
+        },
+        "nonswayCap": {
+          "description": "Upper cap of the nonsway k·lu/r limit.",
+          "exclusiveMinimum": 0,
+          "title": "Nonswaycap",
+          "type": "number"
+        },
+        "kluRMax": {
+          "description": "k·lu/r above which second-order analysis is required.",
+          "exclusiveMinimum": 0,
+          "title": "Klurmax",
+          "type": "number"
+        },
+        "deltaSMax": {
+          "description": "δs above which second-order analysis is required.",
+          "minimum": 1,
+          "title": "Deltasmax",
+          "type": "number"
+        },
+        "momentRatioMax": {
+          "description": "M2 (2nd order)/M2 (1st order) limit.",
+          "minimum": 1,
+          "title": "Momentratiomax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "nonswayQ",
+        "swayLimit",
+        "nonswayCap",
+        "kluRMax",
+        "deltaSMax",
+        "momentRatioMax"
+      ],
+      "title": "SlenderLimits",
+      "type": "object"
+    },
+    "TorsionLimits": {
+      "additionalProperties": false,
+      "description": "Limits and choices of the torsion design of beams (the default pack's Part 6 Sec 6.4.4).",
+      "properties": {
+        "theta": {
+          "description": "Angle θ of the compression diagonals [°].",
+          "maximum": 60,
+          "minimum": 30,
+          "title": "Theta",
+          "type": "number"
+        },
+        "aoShare": {
+          "description": "Ao / Aoh.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Aoshare",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Largest spacing of closed stirrups [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "perimeterDivisor": {
+          "description": "s <= ph / this.",
+          "exclusiveMinimum": 0,
+          "title": "Perimeterdivisor",
+          "type": "number"
+        },
+        "longitudinalSpacingMax": {
+          "description": "Longitudinal bars apart at most [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinalspacingmax",
+          "type": "number"
+        },
+        "longitudinalDiaRatio": {
+          "description": "Longitudinal bar diameter >= this × s.",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinaldiaratio",
+          "type": "number"
+        },
+        "longitudinalDiaMin": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Longitudinaldiamin",
+          "type": "number"
+        },
+        "fyMax": {
+          "description": "Largest fy, fyt of torsion steel [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fymax",
+          "type": "number"
+        }
+      },
+      "required": [
+        "theta",
+        "aoShare",
+        "spacingMax",
+        "perimeterDivisor",
+        "longitudinalSpacingMax",
+        "longitudinalDiaRatio",
+        "longitudinalDiaMin",
+        "fyMax"
+      ],
+      "title": "TorsionLimits",
+      "type": "object"
+    },
+    "WallSteel": {
+      "additionalProperties": false,
+      "description": "Minimum steel and spacing of structural walls.",
+      "properties": {
+        "rhoSmallBars": {
+          "description": "(vertical, horizontal) ρ, small bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Rhosmallbars",
+          "type": "array"
+        },
+        "rhoOtherBars": {
+          "description": "(vertical, horizontal) ρ, other bars.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Rhootherbars",
+          "type": "array"
+        },
+        "smallBarMax": {
+          "description": "Largest bar [mm] counted as a small bar.",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarmax",
+          "type": "number"
+        },
+        "smallBarFy": {
+          "description": "Least fy [MPa] of the small-bar ratios.",
+          "exclusiveMinimum": 0,
+          "title": "Smallbarfy",
+          "type": "number"
+        },
+        "rhoShear": {
+          "description": "Least ρ of special walls (both ways).",
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Rhoshear",
+          "type": "number"
+        },
+        "twoLayerThickness": {
+          "description": "Thickness [mm] from which two layers apply.",
+          "exclusiveMinimum": 0,
+          "title": "Twolayerthickness",
+          "type": "number"
+        },
+        "spacingMax": {
+          "description": "Largest bar spacing [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Spacingmax",
+          "type": "number"
+        },
+        "spacingThickness": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bars at most this × t apart (none: 3 t).",
+          "title": "Spacingthickness"
+        }
+      },
+      "required": [
+        "rhoSmallBars",
+        "rhoOtherBars",
+        "smallBarMax",
+        "smallBarFy",
+        "rhoShear",
+        "twoLayerThickness",
+        "spacingMax"
+      ],
+      "title": "WallSteel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "B21: clause references of the results, by key (after the pack's edition).",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "barDiameters": {
+      "$ref": "#/$defs/BarDiameters",
+      "description": "Bar size sets [mm] by use."
+    },
+    "shearStress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShearStressRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "barNames": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C13: the bar designations of the code's bar standard by diameter [mm] as written in barDiameters ('16' -> '#5'), printed in US customary display units; None: 'Ø' and the diameter.",
+      "title": "Barnames"
+    },
+    "barMasses": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Nominal mass [kg/m] of each bar size by its key in barDiameters ('10' -> 0.560), for the bill of quantities and the bar schedules; a size without an entry: d²/162 of its diameter (7850 kg/m³).",
+      "title": "Barmasses"
+    },
+    "spacingStep": {
+      "title": "Spacingstep",
+      "type": "number"
+    },
+    "minSlabSpacing": {
+      "title": "Minslabspacing",
+      "type": "number"
+    },
+    "minStirrupSpacing": {
+      "title": "Minstirrupspacing",
+      "type": "number"
+    },
+    "columnRho": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Columnrho",
+      "type": "array"
+    },
+    "beamRatioMax": {
+      "title": "Beamratiomax",
+      "type": "number"
+    },
+    "slabStrainMin": {
+      "title": "Slabstrainmin",
+      "type": "number"
+    },
+    "fytShearMax": {
+      "title": "Fytshearmax",
+      "type": "number"
+    },
+    "slendernessLimit": {
+      "title": "Slendernesslimit",
+      "type": "number"
+    },
+    "twoWayThickness": {
+      "additionalProperties": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Twowaythickness",
+      "type": "object"
+    },
+    "twoWayThicknessDrop": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Twowaythicknessdrop"
+    },
+    "oneWaySlabThickness": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Onewayslabthickness",
+      "type": "array"
+    },
+    "beamThickness": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Beamthickness",
+      "type": "array"
+    },
+    "cover": {
+      "$ref": "#/$defs/Covers",
+      "description": "Assumed covers [mm] by element."
+    },
+    "crackedStiffness": {
+      "$ref": "#/$defs/CrackedStiffness"
+    },
+    "slender": {
+      "$ref": "#/$defs/SlenderLimits"
+    },
+    "walls": {
+      "$ref": "#/$defs/WallSteel"
+    },
+    "torsion": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TorsionLimits"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Torsion design of beams (saengine.design.torsion)."
+    },
+    "deflection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeflectionLimitsGroup"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Deflection limits (saengine.design.deflection)."
+    },
+    "prestress": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PrestressLimits"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Prestressed slabs (saengine.design.prestress)."
+    },
+    "aggregates": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/AggregateRules"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: per aggregate type, its Ec rule, λ and shrinkage steel factor (saengine.design.rc_detailing); None: normal weight for every type.",
+      "title": "Aggregates"
+    },
+    "modulus": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModulusRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: Ec of concrete (None: the material's E only)."
+    },
+    "shrinkage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShrinkageSteel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "B21: shrinkage and temperature steel of slabs."
+    }
+  },
+  "required": [
+    "barDiameters",
+    "spacingStep",
+    "minSlabSpacing",
+    "minStirrupSpacing",
+    "columnRho",
+    "beamRatioMax",
+    "slabStrainMin",
+    "fytShearMax",
+    "slendernessLimit",
+    "twoWayThickness",
+    "oneWaySlabThickness",
+    "beamThickness",
+    "cover",
+    "crackedStiffness",
+    "slender",
+    "walls"
+  ],
+  "title": "ConcreteTable",
+  "type": "object",
+  "$id": "saengine.codePack.concrete/1"
+}

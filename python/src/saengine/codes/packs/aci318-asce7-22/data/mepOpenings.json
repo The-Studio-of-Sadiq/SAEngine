@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/mepOpenings.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ACI 318-19 Sec 8.4.1.5 (column strip), 8.5.4 (openings in slab systems), 22.6.4.3 (openings near a column or concentrated load) and 11.7.5.1 (bars around openings in walls)"
+  ],
+  "source": "ACI 318-19: the openings and sleeves MEP cuts through beams, slabs and walls. The slab strip shares are slabMethods.openings, the wall layers concrete.walls.",
+  "columnStripShare": 0.25,
+  "punchingDistance": 4,
+  "trimBar": 16,
+  "trimBars": [2, 1],
+  "clauses": {
+    "beam": "ACI 318-19 (openings through beams: by analysis)",
+    "sleeves": "ACI 318-19 (embedments and sleeves)",
+    "embedded": "ACI 318-19 (embedments)",
+    "columnStrip": "ACI 8.4.1.5",
+    "slabOpenings": "ACI 8.5.4.2",
+    "middleStrips": "ACI 8.5.4.2(a)",
+    "crossStrips": "ACI 8.5.4.2(b)",
+    "columnMiddle": "ACI 8.5.4.2(c)",
+    "byAnalysis": "ACI 8.5.4.1",
+    "punching": "ACI 22.6.4.3",
+    "punchingPerimeter": "ACI 22.6.4.3",
+    "wallShear": "ACI 318-19 (walls with openings: by analysis)",
+    "wallLayers": "ACI 11.7.2.3",
+    "trimBars": "ACI 11.7.5.1"
+  },
+  "sources": {
+    "columnStripShare": "ACI 318-19 Sec 8.4.1.5: the column strip extends on each side of the column centreline 0.25 l2 or 0.25 l1, whichever is less",
+    "punchingDistance": "ACI 318-19 Sec 22.6.4.3: openings in a column strip or closer than 4h to the periphery of a column, concentrated load or reaction area reduce the critical section",
+    "trimBar": "ACI 318-19 Sec 11.7.5.1: around window, door and similar openings at least two No. 5 bars (16 mm) in walls with two layers and one No. 5 bar in walls with one layer",
+    "trimBars": "ACI 318-19 Sec 11.7.5.1",
+    "clauses": "As the checks cite them (short form)"
+  }
+}

@@ -1,17 +1,43 @@
 #define RootLicenseFileName FileExists(RepoDir + '\LICENSE.rtf') ? 'LICENSE.rtf' : 'LICENSE.txt'
+// SAEngine: the licence page shows the AGPL-3.0 LICENSE of the repository root (RepoDir is the
+// workbench folder), not the MIT licence of Code - OSS.
+#define RootLicenseFile FileExists(RepoDir + '\..\LICENSE') ? RepoDir + '\..\LICENSE' : RepoDir + '\' + RootLicenseFileName
 #define LocalizedLanguageFile(Language = "") \
     DirExists(RepoDir + "\licenses") && Language != "" \
       ? ('; LicenseFile: "' + RepoDir + '\licenses\LICENSE-' + Language + '.rtf"') \
-      : '; LicenseFile: "' + RepoDir + '\' + RootLicenseFileName + '"'
+      : '; LicenseFile: "' + RootLicenseFile + '"'
+// SAEngine: the optional components of the setup (docs/marketplace-plan.md §6). Each separate
+// program build-installer.ps1 bundled into resources\ becomes a component; a build without it has
+// no such component. Inno Setup computes the sizes shown on the Select Components page.
+#define SAEngineResources (VersionedResourcesFolder == "" ? "resources" : VersionedResourcesFolder + "\resources")
+#define HasEnergyPlus DirExists(SourceDir + "\" + SAEngineResources + "\energyplus")
+#define HasLibreCAD DirExists(SourceDir + "\" + SAEngineResources + "\librecad")
+#define HasLibreDWG DirExists(SourceDir + "\" + SAEngineResources + "\libredwg")
+// The built-in SAEngine Assistant view (contrib/saengineAi) is shown only with the ai component;
+// the workbench reads the component's state from the Copilot folder (saengineUpdate/common/components.ts).
+// Optional built-in extensions: the AI assistant is the Copilot extension (about 280 MB, most of it
+// the Copilot runtime); Git is the Git, GitHub and merge-conflict extensions; collaboration is
+// port forwarding and Microsoft sign-in (live collaboration joins it later). GitHub sign-in serves both AI and Git.
+#define SAEngineExtensions SAEngineResources + "\app\extensions"
+#define SAEngineCopilot SAEngineExtensions + "\copilot"
+#define HasCopilot DirExists(SourceDir + "\" + SAEngineCopilot)
+#define HasGit DirExists(SourceDir + "\" + SAEngineExtensions + "\git")
+#define HasCollaboration DirExists(SourceDir + "\" + SAEngineExtensions + "\tunnel-forwarding")
+#define HasComponents HasEnergyPlus || HasLibreCAD || HasLibreDWG || HasCopilot || HasGit || HasCollaboration
+#if HasComponents
+#define CoreComponent "; Components: core"
+#else
+#define CoreComponent ""
+#endif
 
 [Setup]
 AppId={#AppId}
 AppName={#NameLong}
 AppVerName={#NameVersion}
-AppPublisher=Microsoft Corporation
-AppPublisherURL=https://code.visualstudio.com/
-AppSupportURL=https://code.visualstudio.com/
-AppUpdatesURL=https://code.visualstudio.com/
+AppPublisher=SAEngine contributors
+AppPublisherURL=https://github.com/The-Studio-of-Sadiq/SAEngine
+AppSupportURL=https://github.com/The-Studio-of-Sadiq/SAEngine/issues
+AppUpdatesURL=https://github.com/The-Studio-of-Sadiq/SAEngine/releases
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
@@ -74,28 +100,120 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
+// SAEngine: an upgrade replaces the bundled Python whole, so no package of an older version stays.
+Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\python"; Check: IsNotBackgroundUpdate
+// SAEngine: a component left out (Custom, or /COMPONENTS= without it) is removed, so re-running
+// the setup adds and removes components (disablenouninstallwarning below).
+#if HasEnergyPlus
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\energyplus"; Components: not energyplus; Check: IsNotBackgroundUpdate
+#endif
+#if HasLibreCAD
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\librecad"; Components: not librecad; Check: IsNotBackgroundUpdate
+#endif
+#if HasLibreDWG
+Type: filesandordirs; Name: "{app}\{#SAEngineResources}\libredwg"; Components: not libredwg; Check: IsNotBackgroundUpdate
+#endif
+#if HasCopilot
+Type: filesandordirs; Name: "{app}\{#SAEngineCopilot}"; Components: not ai; Check: IsNotBackgroundUpdate
+#endif
+#if HasGit
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\git"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\git-base"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\github"; Components: not git; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\merge-conflict"; Components: not git; Check: IsNotBackgroundUpdate
+#endif
+#if HasCopilot || HasGit
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\github-authentication"; Components: not ai and not git; Check: IsNotBackgroundUpdate
+#endif
+#if HasCollaboration
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\tunnel-forwarding"; Components: not collaboration; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\{#SAEngineExtensions}\microsoft-authentication"; Components: not collaboration; Check: IsNotBackgroundUpdate
+#endif
 
 [UninstallDelete]
+// SAEngine: the bundled Python (resources\python) may gain files at runtime (bytecode caches).
+Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\python"
 Type: filesandordirs; Name: "{app}\_"
 Type: filesandordirs; Name: "{app}\bin"
 Type: files; Name: "{app}\old_*"
 Type: files; Name: "{app}\new_*"
 Type: files; Name: "{app}\updating_version"
 
+#if HasComponents
+// SAEngine: Full is the first type, so a new install (also a silent one) gets everything; an
+// update keeps the components chosen before (UsePreviousSetupType, UsePreviousComponents).
+[Types]
+Name: "full"; Description: "{cm:SAEngineTypeFull}"
+Name: "compact"; Description: "{cm:SAEngineTypeCompact}"
+Name: "custom"; Description: "{cm:SAEngineTypeCustom}"; Flags: iscustom
+
+// The names are what /COMPONENTS= takes (SETUP_COMPONENTS in the workbench's femSolver.ts).
+[Components]
+Name: "core"; Description: "{cm:SAEngineComponentCore}"; Types: full compact custom; Flags: fixed
+#if HasEnergyPlus
+Name: "energyplus"; Description: "{cm:SAEngineComponentEnergyPlus}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasLibreCAD
+Name: "librecad"; Description: "{cm:SAEngineComponentLibreCAD}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasLibreDWG
+Name: "libredwg"; Description: "{cm:SAEngineComponentLibreDWG}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasCopilot
+Name: "ai"; Description: "{cm:SAEngineComponentAI}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasGit
+Name: "git"; Description: "{cm:SAEngineComponentGit}"; Types: full; Flags: disablenouninstallwarning
+#endif
+#if HasCollaboration
+Name: "collaboration"; Description: "{cm:SAEngineComponentCollaboration}"; Types: full; Flags: disablenouninstallwarning
+#endif
+
+#endif
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"
-Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
+// SAEngine: {app}\bin holds the saengine command line (bin\saengine.cmd, python -m saengine.cli)
+// and the window launcher bin\saengine-app.cmd. Adding it to PATH is opt-in.
+Name: "addtopath"; Description: "{cm:SAEngineAddToPath}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
 [Dirs]
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+// SAEngine: the optional programs are left out here and installed by their components below.
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*,\{#SAEngineResources}\energyplus,\{#SAEngineResources}\energyplus\*,\{#SAEngineResources}\librecad,\{#SAEngineResources}\librecad\*,\{#SAEngineResources}\libredwg,\{#SAEngineResources}\libredwg\*,\{#SAEngineCopilot},\{#SAEngineCopilot}\*,\{#SAEngineExtensions}\git,\{#SAEngineExtensions}\git\*,\{#SAEngineExtensions}\git-base,\{#SAEngineExtensions}\git-base\*,\{#SAEngineExtensions}\github,\{#SAEngineExtensions}\github\*,\{#SAEngineExtensions}\merge-conflict,\{#SAEngineExtensions}\merge-conflict\*,\{#SAEngineExtensions}\github-authentication,\{#SAEngineExtensions}\github-authentication\*,\{#SAEngineExtensions}\tunnel-forwarding,\{#SAEngineExtensions}\tunnel-forwarding\*,\{#SAEngineExtensions}\microsoft-authentication,\{#SAEngineExtensions}\microsoft-authentication\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs{#CoreComponent}
+#if HasEnergyPlus
+Source: "{#SAEngineResources}\energyplus\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\energyplus"; Components: energyplus; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+// LibreCAD (GPL-2.0-only) is a separate program with its own licence texts: shipped alongside,
+// never linked.
+#if HasLibreCAD
+Source: "{#SAEngineResources}\librecad\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\librecad"; Components: librecad; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasLibreDWG
+Source: "{#SAEngineResources}\libredwg\*"; DestDir: "{code:GetDestDir}\{#SAEngineResources}\libredwg"; Components: libredwg; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCopilot
+Source: "{#SAEngineCopilot}\*"; DestDir: "{code:GetDestDir}\{#SAEngineCopilot}"; Components: ai; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasGit
+Source: "{#SAEngineExtensions}\git\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\git"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\git-base\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\git-base"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\github\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\github"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\merge-conflict\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\merge-conflict"; Components: git; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCopilot || HasGit
+Source: "{#SAEngineExtensions}\github-authentication\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\github-authentication"; Components: ai or git; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#if HasCollaboration
+Source: "{#SAEngineExtensions}\tunnel-forwarding\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\tunnel-forwarding"; Components: collaboration; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SAEngineExtensions}\microsoft-authentication\*"; DestDir: "{code:GetDestDir}\{#SAEngineExtensions}\microsoft-authentication"; Components: collaboration; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
 Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
@@ -103,6 +221,10 @@ Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\po
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion
 Source: "bin\{#ApplicationName}"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationFilename}"; Flags: ignoreversion
+// SAEngine: scripts\build-installer.ps1 moves Code - OSS's launcher to bin\saengine-app(.cmd) and puts
+// the command line shims in its place.
+Source: "bin\{#ApplicationName}-app.cmd"; DestDir: "{code:GetDestDir}\bin"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "bin\{#ApplicationName}-app"; DestDir: "{code:GetDestDir}\bin"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageName
 Source: "appx\{#AppxPackage}"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\appx"; BeforeInstall: RemoveAppxPackage; Flags: ignoreversion; Check: ShouldUseWindows11ContextMenu
@@ -283,6 +405,18 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls";
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#VersionedResourcesFolder}\resources\app\resources\win32\default.ico"; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.cls\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
+
+// SAEngine: .civil, the SAEngine project archive. Opening one starts SAEngine with its path as
+// the argument (the workbench imports it).
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.civil"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil"; ValueType: string; ValueName: ""; ValueData: "{#RegValueName}.civil"; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.civil"; ValueType: string; ValueName: "Content Type"; ValueData: "application/x-saengine-civil"; Flags: uninsdeletevalue; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil"; ValueType: string; ValueName: ""; ValueData: "{cm:SAEngineCivilFile}"; Flags: uninsdeletekey; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#AppUserId}"; Flags: uninsdeletekey; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#VersionedResourcesFolder}\resources\app\resources\win32\code.ico"; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\shell\open"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#ExeBasename}.exe"""; Tasks: associatewithfiles
+Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\{#RegValueName}.civil\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ExeBasename}.exe"" ""%1"""; Tasks: associatewithfiles
 
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: none; ValueName: "{#RegValueName}"; Flags: deletevalue uninsdeletevalue; Tasks: associatewithfiles
 Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\.code-workspace\OpenWithProgids"; ValueType: string; ValueName: "{#RegValueName}.code-workspace"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatewithfiles
@@ -1305,6 +1439,21 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
 ; Remove the "Path" value previously written here; ShellExecute appends it to the launched process PATH, polluting the env. Default value above is enough to resolve `code` from Explorer/Run.
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
+
+// SAEngine: messages of the SAEngine tasks and file types (all languages).
+[CustomMessages]
+SAEngineAddToPath=Add the saengine command to PATH (requires shell restart)
+SAEngineTypeFull=Full installation (all programs)
+SAEngineTypeCompact=Compact installation (SAEngine only)
+SAEngineTypeCustom=Custom installation
+SAEngineComponentCore=SAEngine (design, analysis, MEP, BNBC 2020, Python)
+SAEngineComponentEnergyPlus=Energy simulation: EnergyPlus (HVAC design-day loads)
+SAEngineComponentLibreCAD=CAD editor: LibreCAD, a separate GPL-2.0 program (edits the DXF drawings)
+SAEngineComponentLibreDWG=DWG import and export: GNU LibreDWG, a separate GPL-3.0 program (reads DWG drawings, writes the sheets as DWG)
+SAEngineComponentAI=AI assistant: SAEngine Assistant (your Anthropic or OpenAI-compatible key) and GitHub Copilot chat
+SAEngineComponentGit=Git: project history and GitHub (Git, GitHub and merge-conflict tools)
+SAEngineComponentCollaboration=Collaboration: port forwarding and Microsoft sign-in for remote access (live collaboration later)
+SAEngineCivilFile=SAEngine Project Archive
 
 [Code]
 // Imports MultiByteToWideChar to decode UTF-8 bytes (LoadStringFromFile returns raw bytes) into a Unicode string.

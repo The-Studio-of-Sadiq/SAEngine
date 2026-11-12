@@ -1,0 +1,1139 @@
+{
+  "$defs": {
+    "IsolationDampingFormula": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P6: the damping coefficient by a formula in place of the table: B = 1/η,\nη = √(reference / (offset + ξ)) not below etaMin (ξ in %).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "const": "eta",
+          "title": "Method",
+          "type": "string"
+        },
+        "reference": {
+          "default": 10.0,
+          "exclusiveMinimum": 0,
+          "title": "Reference",
+          "type": "number"
+        },
+        "offset": {
+          "default": 5.0,
+          "exclusiveMinimum": 0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "etaMin": {
+          "default": 0.55,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Etamin",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "IsolationDampingFormula",
+      "type": "object"
+    },
+    "IsolationDampingPoint": {
+      "additionalProperties": false,
+      "description": "A row of the damping coefficient table: effective damping [% of critical] -> B.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "damping": {
+          "description": "Effective damping βD or βM [%].",
+          "minimum": 0,
+          "title": "Damping",
+          "type": "number"
+        },
+        "B": {
+          "description": "Damping coefficient BD or BM.",
+          "exclusiveMinimum": 0,
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": [
+        "damping",
+        "B"
+      ],
+      "title": "IsolationDampingPoint",
+      "type": "object"
+    },
+    "IsolationDistribution": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "exponent": {
+          "description": "Fx = Vs·wx·hx^k / Σ wi·hi^k with this k.",
+          "minimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        }
+      },
+      "required": [
+        "exponent"
+      ],
+      "title": "IsolationDistribution",
+      "type": "object"
+    },
+    "IsolationDrift": {
+      "additionalProperties": false,
+      "description": "Storey drift limits above the isolation system, as a share of the storey height.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "static": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Static",
+          "type": "number"
+        },
+        "spectrum": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spectrum",
+          "type": "number"
+        },
+        "history": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "History",
+          "type": "number"
+        }
+      },
+      "required": [
+        "static",
+        "spectrum",
+        "history"
+      ],
+      "title": "IsolationDrift",
+      "type": "object"
+    },
+    "IsolationForces": {
+      "additionalProperties": false,
+      "description": "The forces above (Vs) and below (Vb) the isolation system.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "importance": {
+          "description": "Importance factor of isolated buildings.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "reductionShare": {
+          "description": "RI = reductionShare × R, ...",
+          "exclusiveMinimum": 0,
+          "title": "Reductionshare",
+          "type": "number"
+        },
+        "reductionMax": {
+          "description": "... at most this ...",
+          "exclusiveMinimum": 0,
+          "title": "Reductionmax",
+          "type": "number"
+        },
+        "reductionMin": {
+          "description": "... and need not be less than this.",
+          "exclusiveMinimum": 0,
+          "title": "Reductionmin",
+          "type": "number"
+        },
+        "activationFactor": {
+          "description": "Vs at least this × the force that fully activates the isolation system.",
+          "exclusiveMinimum": 0,
+          "title": "Activationfactor",
+          "type": "number"
+        },
+        "fixedBaseR": {
+          "description": "R of the fixed-base minimum force at TD: RI ('isolated') or the system's R.",
+          "enum": [
+            "isolated",
+            "system"
+          ],
+          "title": "Fixedbaser",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "importance",
+        "reductionShare",
+        "reductionMax",
+        "reductionMin",
+        "activationFactor",
+        "fixedBaseR"
+      ],
+      "title": "IsolationForces",
+      "type": "object"
+    },
+    "IsolationHistory": {
+      "additionalProperties": false,
+      "description": "Ground motions of the time-history option (Sec 2.5.16.3.2).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minRecords": {
+          "description": "Pairs of records, at least.",
+          "exclusiveMinimum": 0,
+          "title": "Minrecords",
+          "type": "integer"
+        },
+        "averageFrom": {
+          "description": "With this many or more, the average is used.",
+          "exclusiveMinimum": 0,
+          "title": "Averagefrom",
+          "type": "integer"
+        },
+        "periodFromShare": {
+          "description": "Scaling range from this × TD ...",
+          "exclusiveMinimum": 0,
+          "title": "Periodfromshare",
+          "type": "number"
+        },
+        "periodToShare": {
+          "description": "... to this × TM.",
+          "exclusiveMinimum": 0,
+          "title": "Periodtoshare",
+          "type": "number"
+        },
+        "spectrumFactor": {
+          "description": "Average SRSS spectrum at least this × design.",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumfactor",
+          "type": "number"
+        },
+        "tolerance": {
+          "description": "By more than this share it may not fall below.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "recordDamping": {
+          "description": "Damping of the record spectra.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Recorddamping",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minRecords",
+        "averageFrom",
+        "periodFromShare",
+        "periodToShare",
+        "spectrumFactor",
+        "tolerance",
+        "recordDamping"
+      ],
+      "title": "IsolationHistory",
+      "type": "object"
+    },
+    "IsolationOverturning": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "minimumFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Minimumfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimumFactor"
+      ],
+      "title": "IsolationOverturning",
+      "type": "object"
+    },
+    "IsolationProcedure": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P6: the procedure of the isolation design, by method id.\n\n- ``twoLevel``: the design and the maximum considered earthquake, each with its\n  displacement, forces from the design one (the form of the default pack);\n- ``singleLevel``: one earthquake level (the spectrum × ``spectrum.mceFactor``): the\n  displacement with the lower- and upper-bound properties, Vb = k·D of the governing bound,\n  the unreduced force above Vst = Vb (Ws/W)^(1 − shearExponent·β), Vs = Vst / RI, the\n  vertical distribution with k = distributionFactor·β·Tfb (``dampingPeriod``) or the\n  distribution exponent (``fixed``), the base level's (Vb − Vst)/RI, the device\n  displacements × ``displacementFactor``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "enum": [
+            "twoLevel",
+            "singleLevel"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "displacementFactor": {
+          "default": 1.0,
+          "description": "Factor on the units' displacements for their capacity (γx).",
+          "exclusiveMinimum": 0,
+          "title": "Displacementfactor",
+          "type": "number"
+        },
+        "shearExponent": {
+          "default": 0.0,
+          "description": "c of Vst = Vb (Ws/W)^(1 − c·β) (β the effective damping as a fraction).",
+          "minimum": 0,
+          "title": "Shearexponent",
+          "type": "number"
+        },
+        "distribution": {
+          "default": "fixed",
+          "description": "Vertical distribution exponent: the table's distribution exponent, or k = distributionFactor·β·Tfb.",
+          "enum": [
+            "fixed",
+            "dampingPeriod"
+          ],
+          "title": "Distribution",
+          "type": "string"
+        },
+        "distributionFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distributionfactor"
+        },
+        "baseLevelForce": {
+          "default": false,
+          "description": "A force (Vb − Vst)/RI at the level just above the isolators.",
+          "title": "Baselevelforce",
+          "type": "boolean"
+        },
+        "activationUpperBound": {
+          "default": false,
+          "description": "The activation force: the greater of the upper-bound value and forces.activationFactor × the nominal one (else the factor × the upper bound), through Vst's formula.",
+          "title": "Activationupperbound",
+          "type": "boolean"
+        },
+        "minima": {
+          "description": "The lower limits of Vs the pack applies.",
+          "items": {
+            "enum": [
+              "fixedBase",
+              "wind",
+              "activation"
+            ],
+            "type": "string"
+          },
+          "title": "Minima",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "IsolationProcedure",
+      "type": "object"
+    },
+    "IsolationPropertyModification": {
+      "additionalProperties": false,
+      "description": "Alpha 9 P6: how an isolator type's λ factors combine into its bounds:\nλmax = (1 + aeShare (λae,max − 1)) λtest,max λspec,max, λmin = (1 − aeShare (1 − λae,min))\nλtest,min λspec,min, with the optional limits.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "aeShare": {
+          "description": "Share of the ageing and environment factors.",
+          "exclusiveMinimum": 0,
+          "title": "Aeshare",
+          "type": "number"
+        },
+        "maxAtLeast": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "λmax at least this.",
+          "title": "Maxatleast"
+        },
+        "minAtMost": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "λmin at most this.",
+          "title": "Minatmost"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "aeShare"
+      ],
+      "title": "IsolationPropertyModification",
+      "type": "object"
+    },
+    "IsolationRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "check": {
+          "description": "How SAEngine treats it: computed, from the property bounds, by the prototype tests, or a manual item for the engineer.",
+          "enum": [
+            "computed",
+            "bounds",
+            "tests",
+            "manual"
+          ],
+          "title": "Check",
+          "type": "string"
+        },
+        "computes": {
+          "anyOf": [
+            {
+              "enum": [
+                "restoring",
+                "restraint",
+                "overturning",
+                "stability"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Alpha 9 P6: which computed check answers a 'computed' item (none: by the item's id, as the default pack numbers them).",
+          "title": "Computes"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "check"
+      ],
+      "title": "IsolationRequirement",
+      "type": "object"
+    },
+    "IsolationRestoring": {
+      "additionalProperties": false,
+      "description": "The lateral restoring force: F(DTD) - F(atShare·DTD) at least forceShare·W.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "forceShare": {
+          "exclusiveMinimum": 0,
+          "title": "Forceshare",
+          "type": "number"
+        },
+        "atShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Atshare",
+          "type": "number"
+        },
+        "at": {
+          "default": "total",
+          "description": "Displacement of the check: the total displacement (DTD, or DTM in the single-level procedure) or the maximum displacement DM (alpha 9 P6).",
+          "enum": [
+            "total",
+            "maximum"
+          ],
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "forceShare",
+        "atShare"
+      ],
+      "title": "IsolationRestoring",
+      "type": "object"
+    },
+    "IsolationSpectrum": {
+      "additionalProperties": false,
+      "description": "How the isolation displacements read the design spectrum.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "R": {
+          "description": "R of the spectrum the displacements are read from.",
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "importance": {
+          "description": "I of that spectrum.",
+          "exclusiveMinimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "mceFactor": {
+          "description": "The maximum considered earthquake spectrum: this × the design spectrum.",
+          "exclusiveMinimum": 0,
+          "title": "Mcefactor",
+          "type": "number"
+        },
+        "mcePeriod": {
+          "description": "Period SaM is read at: TD, TM or whichever gives the larger SaM.",
+          "enum": [
+            "design",
+            "maximum",
+            "larger"
+          ],
+          "title": "Mceperiod",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "R",
+        "importance",
+        "mceFactor",
+        "mcePeriod"
+      ],
+      "title": "IsolationSpectrum",
+      "type": "object"
+    },
+    "IsolationSpectrumAnalysis": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxModalDamping": {
+          "description": "Fundamental modal damping at most [%].",
+          "exclusiveMinimum": 0,
+          "title": "Maxmodaldamping",
+          "type": "number"
+        },
+        "orthogonalShare": {
+          "description": "Share of the perpendicular ground motion.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Orthogonalshare",
+          "type": "number"
+        },
+        "dampedFromShare": {
+          "description": "The damped spectrum applies from this × TD up (practice, see note).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Dampedfromshare",
+          "type": "number"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "maxModalDamping",
+        "orthogonalShare",
+        "dampedFromShare"
+      ],
+      "title": "IsolationSpectrumAnalysis",
+      "type": "object"
+    },
+    "IsolationStaticLimits": {
+      "additionalProperties": false,
+      "description": "Where the equivalent static analysis of an isolated building is permitted.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "siteClasses": {
+          "description": "Site classes it is permitted on.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Siteclasses",
+          "type": "array"
+        },
+        "maxStoreys": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Storeys above the isolation interface, at most.",
+          "title": "Maxstoreys"
+        },
+        "maxHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Height above the isolation interface, at most [m].",
+          "title": "Maxheight"
+        },
+        "maxPeriodM": {
+          "description": "TM at most [s].",
+          "exclusiveMinimum": 0,
+          "title": "Maxperiodm",
+          "type": "number"
+        },
+        "periodRatio": {
+          "description": "TD greater than this × the fixed-base period.",
+          "exclusiveMinimum": 0,
+          "title": "Periodratio",
+          "type": "number"
+        },
+        "stiffnessRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Effective stiffness at DD greater than this × that at stiffnessAtShare·DD (none: no such condition).",
+          "title": "Stiffnessratio"
+        },
+        "stiffnessAtShare": {
+          "description": "Share of DD of the stiffness comparison.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stiffnessatshare",
+          "type": "number"
+        },
+        "maxPlanDimension": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Largest plan dimension of the isolated structure, at most [m].",
+          "title": "Maxplandimension"
+        },
+        "minVerticalRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vertical stiffness of the isolation system at least this × its effective horizontal stiffness.",
+          "title": "Minverticalratio"
+        },
+        "maxDamping": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Effective damping of the isolation system at most [%].",
+          "title": "Maxdamping"
+        }
+      },
+      "required": [
+        "siteClasses",
+        "maxPeriodM",
+        "periodRatio",
+        "stiffnessAtShare"
+      ],
+      "title": "IsolationStaticLimits",
+      "type": "object"
+    },
+    "IsolationTestStep": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "share": {
+          "exclusiveMinimum": 0,
+          "title": "Share",
+          "type": "number"
+        },
+        "of": {
+          "enum": [
+            "DD",
+            "DM",
+            "DTD",
+            "DTM"
+          ],
+          "title": "Of",
+          "type": "string"
+        },
+        "cycles": {
+          "exclusiveMinimum": 0,
+          "title": "Cycles",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "share",
+        "of",
+        "cycles"
+      ],
+      "title": "IsolationTestStep",
+      "type": "object"
+    },
+    "IsolationTesting": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "liveShare": {
+          "description": "Test vertical load: dead load + this × live load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Liveshare",
+          "type": "number"
+        },
+        "windCycles": {
+          "description": "Cycles at the wind design force.",
+          "exclusiveMinimum": 0,
+          "title": "Windcycles",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/IsolationTestStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "liveShare",
+        "windCycles",
+        "steps"
+      ],
+      "title": "IsolationTesting",
+      "type": "object"
+    },
+    "IsolationTorsion": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "Method id of the total displacements: the rigid deck turning about the isolators' centre of rigidity, or (alpha 9 P6) the closed form with the ratio PT of the translational to the torsional period, D (1 + y·12e / (PT² (b² + d²))).",
+          "enum": [
+            "rigidDeck",
+            "periodRatio"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "minimumFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The total displacement at least this × the displacement (none: no floor).",
+          "title": "Minimumfactor"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "IsolationTorsion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Seismically isolated buildings: damping coefficients, the static analysis limits, the\nforces, the drift limits, the dynamic analysis rules, the tests and the review.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "dampingCoefficients": {
+      "items": {
+        "$ref": "#/$defs/IsolationDampingPoint"
+      },
+      "minItems": 2,
+      "title": "Dampingcoefficients",
+      "type": "array"
+    },
+    "spectrum": {
+      "$ref": "#/$defs/IsolationSpectrum"
+    },
+    "staticLimits": {
+      "$ref": "#/$defs/IsolationStaticLimits"
+    },
+    "restoring": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IsolationRestoring"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "forces": {
+      "$ref": "#/$defs/IsolationForces"
+    },
+    "distribution": {
+      "$ref": "#/$defs/IsolationDistribution"
+    },
+    "drift": {
+      "$ref": "#/$defs/IsolationDrift"
+    },
+    "spectrumAnalysis": {
+      "$ref": "#/$defs/IsolationSpectrumAnalysis"
+    },
+    "history": {
+      "$ref": "#/$defs/IsolationHistory"
+    },
+    "overturning": {
+      "$ref": "#/$defs/IsolationOverturning"
+    },
+    "torsion": {
+      "$ref": "#/$defs/IsolationTorsion"
+    },
+    "testing": {
+      "$ref": "#/$defs/IsolationTesting"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/IsolationRequirement"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "review": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review",
+      "type": "array"
+    },
+    "procedure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IsolationProcedure"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "propertyModification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IsolationPropertyModification"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dampingFormula": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IsolationDampingFormula"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "dampingCoefficients",
+    "spectrum",
+    "staticLimits",
+    "forces",
+    "distribution",
+    "drift",
+    "spectrumAnalysis",
+    "history",
+    "overturning",
+    "torsion",
+    "testing",
+    "requirements",
+    "review"
+  ],
+  "title": "IsolationTable",
+  "type": "object",
+  "$id": "saengine.codePack.isolation/1"
+}

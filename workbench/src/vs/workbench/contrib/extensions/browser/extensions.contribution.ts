@@ -127,6 +127,7 @@ export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainer
 		order: 4,
 		rejectAddedViews: true,
 		alwaysUseContainerInfo: true,
+		hideIfEmpty: true, // SAEngine: leaves the activity bar when all its views are hidden (developer mode off)
 	}, ViewContainerLocation.Sidebar);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)

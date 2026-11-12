@@ -1,0 +1,304 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { ISaengineProject, ISaengineProjectService, partById, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
+
+/** Characters Windows does not allow in a folder name (the strictest platform). */
+const INVALID_NAME = /[\\/:*?"<>|]/;
+
+/** The folder a project named `name` is created in: the name with "-" for what a folder name cannot hold (N8). */
+export function projectFolderName(name: string): string {
+	return name.trim().replace(new RegExp(INVALID_NAME.source, 'g'), '-').replace(/[. ]+$/, '');
+}
+
+/** What the new-project form fills into the settings besides the name: the code pack, the site's location and the building's use. */
+export interface INewProjectChoices {
+	/** The id of the code pack the project follows (Project Settings > `codePack`). */
+	readonly codePack?: string;
+	readonly location?: string;
+	readonly use?: string;
+}
+
+/**
+ * When each project was last opened, by the URI of its folder (application storage, so each
+ * user-data folder keeps its own). It is also the recent projects list: the workbench's own
+ * recently opened list is shared by every user-data folder (N9).
+ */
+const OPENED_STORAGE_KEY = 'saengine.project.lastOpened';
+
+/** The sample project shipped with the app: `<app root>/resources/saengine/samples/<name>`. */
+const SAMPLE_NAME = 'Sample Frame';
+
+export interface IRecentProject {
+	readonly project: ISaengineProject;
+	readonly label: string;
+	/** The project's parent folder name, when another recent project has the same name. */
+	readonly parent?: string;
+	/** When the project was last opened in SAEngine [ms since the epoch]. */
+	readonly opened: number;
+}
+
+/**
+ * Creating, picking and opening SAEngine projects, shared by the start window and the commands.
+ */
+export class ProjectOpener {
+
+	constructor(
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@IFileService private readonly fileService: IFileService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
+		@IPathService private readonly pathService: IPathService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
+	) { }
+
+	async defaultLocation(): Promise<URI> {
+		return joinPath(await this.pathService.userHome(), 'Documents', 'SAEngine Projects');
+	}
+
+	/** Error message for an invalid project name, or undefined when it can be used. */
+	validateName(name: string): string | undefined {
+		const trimmed = name.trim();
+		if (!trimmed) {
+			return localize('projectName.empty', "Enter a project name.");
+		}
+		if (INVALID_NAME.test(trimmed) || trimmed.endsWith('.') || trimmed.endsWith(' ')) {
+			return localize('projectName.invalid', "A project name cannot contain \\ / : * ? \" < > | or end with a dot or space.");
+		}
+		return undefined;
+	}
+
+	/**
+	 * Error message for a project's display name, or undefined. Any name with a letter or digit
+	 * works ("Plot 12/A"): its folder is {@link projectFolderName}.
+	 */
+	validateDisplayName(name: string): string | undefined {
+		if (!name.trim()) {
+			return localize('projectName.empty', "Enter a project name.");
+		}
+		if (!/[\p{L}\p{N}]/u.test(projectFolderName(name))) {
+			return localize('projectName.noLetters', "Use at least one letter or digit in the name.");
+		}
+		return undefined;
+	}
+
+	async browseForLocation(current: URI | undefined, title = localize('projectLocation.title', "Choose Where to Create the Project")): Promise<URI | undefined> {
+		const picked = await this.fileDialogService.showOpenDialog({
+			title,
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			defaultUri: await this.existingFolder(current),
+		});
+		return picked?.[0];
+	}
+
+	/** `folder` if it exists, else its parent if that exists, else the home folder. */
+	private async existingFolder(folder: URI | undefined): Promise<URI> {
+		for (const candidate of folder ? [folder, dirname(folder)] : []) {
+			if (await this.fileService.exists(candidate)) {
+				return candidate;
+			}
+		}
+		return this.pathService.userHome();
+	}
+
+	/**
+	 * Creates `<location>/<folder name of name>` as a new project named `name`, with `choices` in
+	 * its settings, and opens it in this window.
+	 */
+	async createAndOpen(location: URI, name: string, type: ProjectType = 'building', choices: INewProjectChoices = {}): Promise<void> {
+		const folder = joinPath(location, projectFolderName(name));
+		let existing: ISaengineProject | undefined;
+		if (await this.fileService.exists(folder)) {
+			existing = await this.projectService.findProject(folder);
+			const { confirmed } = await this.dialogService.confirm({
+				message: existing
+					? localize('projectExists.project', "A SAEngine project already exists at {0}.", folder.fsPath)
+					: localize('projectExists.folder', "The folder {0} already exists.", folder.fsPath),
+				detail: existing ? undefined : localize('projectExists.detail', "The project structure will be added to it. Existing files are kept."),
+				primaryButton: existing ? localize('projectExists.open', "&&Open Project") : localize('projectExists.create', "&&Create Project Here"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
+		const project = await this.projectService.createProject(folder, name.trim(), type);
+		if (!existing) {
+			await this.setInitialSettings(project, choices);
+		}
+		await this.open(folder);
+	}
+
+	/** Writes the code pack, the site's location and the building's use into the settings of a new project. */
+	private async setInitialSettings(project: ISaengineProject, choices: INewProjectChoices): Promise<void> {
+		const part = partById('settings');
+		if ((!choices.codePack && !choices.location && !choices.use) || !part?.mainFile) {
+			return;
+		}
+		const file = joinPath(project.root, part.folder, part.mainFile);
+		const settings = JSON.parse((await this.fileService.readFile(file)).value.toString());
+		if (choices.codePack) {
+			settings.codePack = choices.codePack;
+		}
+		if (choices.location) {
+			settings.site = { ...settings.site, location: choices.location };
+		}
+		if (choices.use) {
+			settings.occupancy = { ...settings.occupancy, use: choices.use };
+		}
+		const adapted = choices.codePack && choices.codePack !== DEFAULT_CODE_PACK_ID ? await this.settingsForPack(settings, choices.codePack, project.root.fsPath) : undefined;
+		await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(adapted ?? settings, undefined, '\t') + '\n'));
+	}
+
+	/**
+	 * The settings switched to another code pack by the backend (`saengine.codes.settingsForPack`:
+	 * the town, site class, systems and exposure the pack lists, its area loads and combinations);
+	 * undefined without the backend or when it refuses (the settings then name the pack only, and
+	 * Project Settings shows what to choose).
+	 */
+	private async settingsForPack(settings: object, codePack: string, root: string): Promise<object | undefined> {
+		if (!CommandsRegistry.getCommand('saengine.codes.settingsForPack')) {
+			return undefined;
+		}
+		try {
+			const result = await this.commandService.executeCommand<{ readonly settings?: object }>('saengine.codes.settingsForPack', { settings: JSON.stringify(settings), id: codePack, root });
+			return result?.settings;
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Asks for a folder and opens it, offering to add the project structure if it has none. */
+	async pickAndOpen(): Promise<void> {
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('openProject.title', "Open SAEngine Project"),
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			defaultUri: await this.existingFolder(await this.defaultLocation()),
+		});
+		const folder = picked?.[0];
+		if (!folder) {
+			return;
+		}
+		if (!await this.projectService.findProject(folder)) {
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('openProject.notProject', "{0} is not a SAEngine project.", basename(folder)),
+				detail: localize('openProject.notProjectDetail', "Create the SAEngine project structure in this folder? Existing files are kept."),
+				primaryButton: localize('openProject.create', "&&Create Project Structure"),
+			});
+			if (!confirmed) {
+				return;
+			}
+			await this.projectService.createProject(folder, basename(folder));
+		}
+		await this.open(folder);
+	}
+
+	/** The sample project shipped with the app; the same layout in a build and from sources. */
+	sampleFolder(): URI {
+		// The app root holds `out/` (FileAccess's root) and `resources/`.
+		return joinPath(dirname(FileAccess.asFileUri('')), 'resources', 'saengine', 'samples', SAMPLE_NAME);
+	}
+
+	/**
+	 * Copies the sample project into a folder the user picks (by default
+	 * `Documents/SAEngine Projects`) and opens the copy. An existing copy is opened as it is.
+	 */
+	async openSample(): Promise<void> {
+		// Nothing is created before the user picks a folder (the dialog falls back to the home folder).
+		const parent = await this.browseForLocation(await this.defaultLocation(),localize('sample.location', "Choose Where to Put the Sample Project"));
+		if (!parent) {
+			return;
+		}
+		const target = joinPath(parent, SAMPLE_NAME);
+		if (await this.fileService.exists(target)) {
+			const existing = await this.projectService.findProject(target);
+			const { confirmed } = await this.dialogService.confirm({
+				message: existing
+					? localize('sample.exists', "The sample project is already in {0}.", parent.fsPath)
+					: localize('sample.folderExists', "The folder {0} already exists.", target.fsPath),
+				detail: existing ? localize('sample.existsDetail', "Open that copy? Your changes to it are kept.") : localize('sample.folderExistsDetail', "Choose another location for the sample project."),
+				primaryButton: existing ? localize('sample.openExisting', "&&Open Sample Project") : localize('sample.ok', "&&OK"),
+			});
+			if (confirmed && existing) {
+				await this.open(target);
+			}
+			return;
+		}
+		await this.fileService.copy(this.sampleFolder(), target, false);
+		// The parts the sample leaves empty (analysis model, exports) are created quietly.
+		const project = await this.projectService.findProject(target);
+		await this.projectService.createProject(target, project?.name ?? SAMPLE_NAME, project?.type);
+		await this.open(target);
+	}
+
+	async open(folder: URI): Promise<void> {
+		await this.hostService.openWindow([{ folderUri: folder }], { forceReuseWindow: true });
+	}
+
+	/** Remembers that the project at `folder` was opened now, for the recent projects list. */
+	recordOpened(folder: URI): void {
+		const opened = this.openedTimes();
+		opened[folder.toString()] = Date.now();
+		// Only the most recent entries are kept.
+		const entries = Object.entries(opened).sort((a, b) => b[1] - a[1]).slice(0, 50);
+		this.storageService.store(OPENED_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private openedTimes(): { [folder: string]: number } {
+		try {
+			const value = JSON.parse(this.storageService.get(OPENED_STORAGE_KEY, StorageScope.APPLICATION, '{}'));
+			return typeof value === 'object' && value !== null ? value : {};
+		} catch {
+			return {};
+		}
+	}
+
+	/**
+	 * The projects opened in SAEngine with this user-data folder that still exist, most recent
+	 * first; projects of the same name carry their parent folder's name.
+	 */
+	async recentProjects(limit = 8): Promise<IRecentProject[]> {
+		const opened = Object.entries(this.openedTimes())
+			.filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+			.sort((a, b) => b[1] - a[1]);
+		const projects: IRecentProject[] = [];
+		for (const [folder, time] of opened) {
+			if (projects.length >= limit) {
+				break;
+			}
+			let project: ISaengineProject | undefined;
+			try {
+				project = await this.projectService.findProject(URI.parse(folder));
+			} catch {
+				project = undefined; // moved or deleted: left out
+			}
+			if (project) {
+				projects.push({ project, label: project.name, opened: time });
+			}
+		}
+		const counts = new Map<string, number>();
+		for (const { label } of projects) {
+			counts.set(label, (counts.get(label) ?? 0) + 1);
+		}
+		return projects.map(p => (counts.get(p.label) ?? 0) > 1 ? { ...p, parent: basename(dirname(p.project.root)) } : p);
+	}
+}

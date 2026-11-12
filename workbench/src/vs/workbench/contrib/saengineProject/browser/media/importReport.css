@@ -1,0 +1,179 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The import report: counts by kind, then what was approximated, skipped and warned about. */
+
+.saengine-import-report {
+	box-sizing: border-box;
+	overflow: hidden; /* scrolled by the workbench's scrollbar (DomScrollableElement) */
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+}
+
+.monaco-workbench .saengine-import-report[tabindex="-1"]:focus {
+	outline: none;
+}
+
+.saengine-import-report .page {
+	box-sizing: border-box;
+	max-width: 760px;
+	margin: 0 auto;
+	padding: var(--sa-space-6, 24px) var(--sa-space-6, 24px) var(--sa-space-4, 16px);
+}
+
+.saengine-import-report h1 {
+	margin: 0;
+	font-size: var(--sa-font-xl, 20px);
+	font-weight: 600;
+}
+
+.saengine-import-report .header p,
+.saengine-import-report .muted,
+.saengine-import-report .hint {
+	margin: 4px 0 0;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-import-report .header .path {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-import-report .summary {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	margin: var(--sa-space-4, 16px) 0 var(--sa-space-1, 4px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-2, 8px) var(--sa-space-2, 8px) var(--sa-space-4, 16px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-left-width: 3px;
+	border-radius: var(--sa-radius, 4px);
+	background-color: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.saengine-import-report .summary.clean {
+	border-left-color: var(--sa-ok);
+}
+
+.saengine-import-report .summary.review {
+	border-left-color: var(--sa-warn);
+}
+
+.saengine-import-report .summary.clean .summary-icon {
+	color: var(--sa-ok);
+}
+
+.saengine-import-report .summary.review .summary-icon {
+	color: var(--sa-warn);
+}
+
+.saengine-import-report .summary-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.saengine-import-report .summary .monaco-button {
+	flex: none;
+	width: auto;
+	padding: 2px var(--sa-space-4, 16px);
+}
+
+.saengine-import-report h2 {
+	margin: var(--sa-space-6, 24px) 0 var(--sa-space-1, 4px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.saengine-import-report .count-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: var(--sa-space-2, 8px);
+}
+
+.saengine-import-report .count {
+	display: flex;
+	flex-direction: column;
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-import-report .count-value {
+	font-size: var(--sa-font-l, 16px);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-import-report .count-label {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-import-report .count.zero .count-value {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-weight: normal;
+}
+
+.saengine-import-report .items ul {
+	list-style: none;
+	margin: var(--sa-space-2, 8px) 0 0;
+	padding: 0;
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
+}
+
+.saengine-import-report .items li {
+	display: flex;
+	align-items: baseline;
+	gap: var(--sa-space-2, 8px);
+	padding: 6px var(--sa-space-2, 8px);
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-left: 3px solid transparent;
+}
+
+.saengine-import-report .items.approximated li {
+	border-left-color: var(--sa-warn);
+}
+
+.saengine-import-report .items.skipped li {
+	border-left-color: var(--sa-fail);
+}
+
+.saengine-import-report .items.warnings li {
+	border-left-color: var(--sa-idle);
+}
+
+.saengine-import-report .items .kind {
+	flex: none;
+	padding: 0 6px;
+	border-radius: var(--sa-radius, 4px);
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 11px;
+}
+
+.saengine-import-report .items .text {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.saengine-import-report .next-steps {
+	margin-top: var(--sa-space-6, 24px);
+}
+
+/* Loads not carried over: the engineer must add them back or confirm SAEngine covers them. */
+.saengine-import-report .loads.lost .not-carried,
+.saengine-import-report .unread {
+	margin: 4px 0;
+	padding: 6px 10px;
+	border-left: 3px solid var(--sa-fail);
+	background-color: var(--vscode-inputValidation-errorBackground, transparent);
+}

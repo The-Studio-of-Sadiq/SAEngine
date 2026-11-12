@@ -1,0 +1,454 @@
+{
+  "$defs": {
+    "NonlinearHistoryAcceptance": {
+      "additionalProperties": false,
+      "description": "Acceptance of the members over the records (``fem.acceptance``). Method\n``fibreStrain``: each fibre's peak strain at the member's end sections against a share of\nthe strain at which its material fails. P5: method ``hingeRotation``: the hinges of the\npack's ``pushover.hinges`` (``fem.hinges``) at the member ends, their peak deformation over\neach record against the limit of ``performanceLevel``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "Method id (the engine's generic implementation).",
+          "enum": [
+            "fibreStrain",
+            "hingeRotation"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "deformationShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A member's deformation may reach at most this × the deformation at which it fails (fibreStrain).",
+          "title": "Deformationshare"
+        },
+        "residualStrengthShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Strength (share of the peak) below which the component has failed (fibreStrain).",
+          "title": "Residualstrengthshare"
+        },
+        "gravityLossAllMembers": {
+          "default": true,
+          "description": "The smaller of the gravity-loss and the strength-loss deformation for every member (false: the gravity loss only for members carrying gravity loads).",
+          "title": "Gravitylossallmembers",
+          "type": "boolean"
+        },
+        "reinforcementFractureStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Strain at which a reinforcing bar is taken as lost (fracture or buckling; fibreStrain).",
+          "title": "Reinforcementfracturestrain"
+        },
+        "steelFractureStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Strain at which a structural steel fibre is taken as lost (fibreStrain).",
+          "title": "Steelfracturestrain"
+        },
+        "performanceLevel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "hingeRotation: the level of ``pushover.hinges.levels`` the hinges are checked against (empty: the last, the most lenient).",
+          "title": "Performancelevel"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "NonlinearHistoryAcceptance",
+      "type": "object"
+    },
+    "NonlinearHistoryDamping": {
+      "additionalProperties": false,
+      "description": "P5: the damping of the nonlinear time histories, by method id: ``mode1Stiffness`` (the\nratio on the first mode, in proportion to the committed stiffness) or ``rayleigh`` (mass and\ncommitted stiffness proportional, the ratio at the first mode's period and at\n``secondPeriodShare`` times it).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "default": "mode1Stiffness",
+          "enum": [
+            "mode1Stiffness",
+            "rayleigh"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ratio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Damping ratio (empty: each time history's own).",
+          "title": "Ratio"
+        },
+        "secondPeriodShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "rayleigh: the second period as a share of the first.",
+          "title": "Secondperiodshare"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "NonlinearHistoryDamping",
+      "type": "object"
+    },
+    "NonlinearHistoryDrift": {
+      "additionalProperties": false,
+      "description": "The storey drift of the nonlinear time histories against the allowable drift of the\nlinear procedures (the pack's ``seismic`` drift table, with its redundancy rule).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "limitFactor": {
+          "description": "The drift may reach this × the allowable storey drift of the linear procedures.",
+          "exclusiveMinimum": 0,
+          "title": "Limitfactor",
+          "type": "number"
+        },
+        "amplify": {
+          "default": false,
+          "description": "Whether the drifts are multiplied by Cd/I (false: the nonlinear drifts are the real ones).",
+          "title": "Amplify",
+          "type": "boolean"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "limitFactor"
+      ],
+      "title": "NonlinearHistoryDrift",
+      "type": "object"
+    },
+    "NonlinearHistoryForceAction": {
+      "additionalProperties": false,
+      "description": "P5: a force-controlled action of the members checked over the records: ``action``\n(``columnAxial``: the compression of the columns, ``shear``: the shear of the beams and\ncolumns), its class and the factor on its earthquake part, γ·(Fu − Fg) + Fg ≤ the design\nstrength of the member design (Fu the design value over the suite, Fg the force under\ngravity alone).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "action": {
+          "enum": [
+            "columnAxial",
+            "shear"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "category": {
+          "description": "The code's class of the action (e.g. critical).",
+          "title": "Category",
+          "type": "string"
+        },
+        "factor": {
+          "description": "γ on the earthquake part of the demand.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "action",
+        "category",
+        "factor"
+      ],
+      "title": "NonlinearHistoryForceAction",
+      "type": "object"
+    },
+    "NonlinearHistoryForceControlled": {
+      "additionalProperties": false,
+      "description": "P5: force-controlled actions (``actions``), the importance factor on their earthquake part\nwhen ``importance``, and how the strength is read (``strength``: the member design's design\nstrength, the safe side of an expected strength).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/NonlinearHistoryForceAction"
+          },
+          "minItems": 1,
+          "title": "Actions",
+          "type": "array"
+        },
+        "importance": {
+          "default": false,
+          "title": "Importance",
+          "type": "boolean"
+        },
+        "strength": {
+          "const": "designStrength",
+          "default": "designStrength",
+          "title": "Strength",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions"
+      ],
+      "title": "NonlinearHistoryForceControlled",
+      "type": "object"
+    },
+    "NonlinearHistoryProcedure": {
+      "additionalProperties": false,
+      "description": "How the nonlinear time histories are run and read (``fem.nonlinear_history``).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "target": {
+          "default": "nonlinear",
+          "description": "The ``seismic.timeHistory.targets`` entry the records are scaled to (its R and I; the period range, ratios and least number of records of that table apply).",
+          "title": "Target",
+          "type": "string"
+        },
+        "meanFrom": {
+          "description": "From this many records (or pairs) the design value is the mean of their peak responses, with fewer the largest.",
+          "minimum": 1,
+          "title": "Meanfrom",
+          "type": "integer"
+        },
+        "scaleToStaticShear": {
+          "default": false,
+          "description": "Whether the responses are scaled up to the equivalent static base shear (the nonlinear results are used as they come when false).",
+          "title": "Scaletostaticshear",
+          "type": "boolean"
+        },
+        "pDelta": {
+          "default": true,
+          "description": "P-Delta effects in the columns and walls.",
+          "title": "Pdelta",
+          "type": "boolean"
+        },
+        "designReview": {
+          "default": false,
+          "description": "The code asks for an independent design review.",
+          "title": "Designreview",
+          "type": "boolean"
+        },
+        "unacceptableResponses": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "P5: by occupancy (risk) category, how many records of a suite may stop early (an unacceptable response) and the suite still be accepted (absent: none).",
+          "title": "Unacceptableresponses",
+          "type": "object"
+        },
+        "damping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonlinearHistoryDamping"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "P5: the damping of the runs (empty: the first-mode, committed-stiffness ratio of each time history)."
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "meanFrom"
+      ],
+      "title": "NonlinearHistoryProcedure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Nonlinear time history analysis: the procedure, the drift limit and the acceptance of\nthe members.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "procedure": {
+      "$ref": "#/$defs/NonlinearHistoryProcedure"
+    },
+    "drift": {
+      "$ref": "#/$defs/NonlinearHistoryDrift"
+    },
+    "acceptance": {
+      "$ref": "#/$defs/NonlinearHistoryAcceptance"
+    },
+    "forceControlled": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonlinearHistoryForceControlled"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "procedure",
+    "drift",
+    "acceptance"
+  ],
+  "title": "NonlinearHistoryTable",
+  "type": "object",
+  "$id": "saengine.codePack.nonlinearHistory/1"
+}

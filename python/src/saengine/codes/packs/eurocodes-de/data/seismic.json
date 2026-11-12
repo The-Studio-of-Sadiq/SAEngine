@@ -1,0 +1,232 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "DIN EN 1998-1/NA:2021-07, NDP zu 3.2.2.2 (combined subsoil classes, Table NA.4: S, TB, TC, TD) and 3.2.1 (low seismicity)"
+  ],
+  "spectrumType": "1",
+  "spectra": {
+    "1": {
+      "AR": {
+        "description": "Untergrund A-R: rock under unweathered hard rock (subsoil class A, geological class R)",
+        "S": 1.0,
+        "TB": 0.05,
+        "TC": 0.2,
+        "TD": 2.0
+      },
+      "BR": {
+        "description": "Untergrund B-R: weathered rock or firm ground over rock (B, R)",
+        "S": 1.25,
+        "TB": 0.05,
+        "TC": 0.25,
+        "TD": 2.0
+      },
+      "CR": {
+        "description": "Untergrund C-R: loose ground over rock (C, R)",
+        "S": 1.5,
+        "TB": 0.05,
+        "TC": 0.3,
+        "TD": 2.0
+      },
+      "BT": {
+        "description": "Untergrund B-T: firm ground over a transition zone (B, T)",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.3,
+        "TD": 2.0
+      },
+      "CT": {
+        "description": "Untergrund C-T: loose ground over a transition zone (C, T)",
+        "S": 1.25,
+        "TB": 0.1,
+        "TC": 0.4,
+        "TD": 2.0
+      },
+      "CS": {
+        "description": "Untergrund C-S: loose ground over deep sediment basins (C, S)",
+        "S": 0.75,
+        "TB": 0.1,
+        "TC": 0.5,
+        "TD": 2.0
+      }
+    }
+  },
+  "designCategories": {
+    "$replace": true,
+    "occupancyGroups": {
+      "I": "I-III",
+      "II": "I-III",
+      "III": "I-III",
+      "IV": "IV"
+    },
+    "bySiteClass": {
+      "SA": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "SB": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "SC": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "SD": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "SE": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "AR": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "BR": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "CR": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "BT": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "CT": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      },
+      "CS": {
+        "I-III": [
+          "B",
+          "B",
+          "B",
+          "C"
+        ],
+        "IV": [
+          "B",
+          "B",
+          "C",
+          "C"
+        ]
+      }
+    },
+    "aliases": {
+      "S1": "SE",
+      "S2": "SE"
+    },
+    "zoneColumns": {
+      "0": 0,
+      "1": 1,
+      "2": 2,
+      "3": 3
+    }
+  },
+  "sources": {
+    "spectra": "DIN EN 1998-1/NA Table NA.4: the combinations of subsoil class (A, B, C) and geological class (R, T, S) with S, TB, TC, TD (TD = 2.0 s); one spectrum (the EN ground types SA-SE of the base pack stay for the soil report: choose the DIN class as Entered)",
+    "designCategories": "SAEngine practice: Germany's zones are of low seismicity (agR ≤ 0.08 g, EN 1998-1 3.2.1(4)): zones 0-2 ordinary detailing (B), zone 3 and importance class IV from zone 2 intermediate (C); the columns are zones 0-3 (zoneColumns)"
+  }
+}

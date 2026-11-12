@@ -1,0 +1,181 @@
+{
+  "$schema": "../../../schemas/combinations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BS 8110-1:1997 2.4.3, Table 2.1",
+    "BS 8110-2:1985 2.2, 3.3",
+    "BS 5950-1:2000 2.4.1, Table 2"
+  ],
+  "source": "BS 8110-1:1997 Table 2.1 (and BS 5950-1:2000 Table 2, the same factors): ultimate load combinations of dead G, imposed Q and wind W; the serviceability combinations of BS 8110-2. No earthquake: not covered by the pack.",
+  "loadCases": {
+    "D": "Dead (self-weight)",
+    "SD": "Superimposed dead (finishes)",
+    "L": "Imposed",
+    "Lr": "Roof imposed",
+    "WX": "Wind in X",
+    "WY": "Wind in Y",
+    "EX": "Earthquake in X",
+    "EY": "Earthquake in Y",
+    "F": "Fluids (equipment contents)",
+    "H": "Earth and water pressure (basement walls)",
+    "T": "Temperature"
+  },
+  "strength": [
+    {
+      "id": "1",
+      "name": "1.4G + 1.6Q",
+      "factors": {
+        "D": 1.4,
+        "F": 1.4,
+        "L": 1.6,
+        "Lr": 1.6,
+        "H": 1.4
+      },
+      "source": "BS 8110-1:1997 Table 2.1 dead and imposed: 1.4 G + 1.6 Q (earth and water pressure 1.4)"
+    },
+    {
+      "id": "2",
+      "name": "1.0G + 1.6Q",
+      "factors": {
+        "D": 1.0,
+        "L": 1.6,
+        "Lr": 1.6
+      },
+      "source": "BS 8110-1:1997 Table 2.1 dead and imposed, dead load beneficial: 1.0 G + 1.6 Q (SAEngine applies it to the whole structure, not span by span)"
+    },
+    {
+      "id": "3W",
+      "name": "1.4G + 1.4W",
+      "factors": {
+        "D": 1.4,
+        "F": 1.4,
+        "W": 1.4
+      },
+      "source": "BS 8110-1:1997 Table 2.1 dead and wind, dead adverse: 1.4 G + 1.4 W"
+    },
+    {
+      "id": "4W",
+      "name": "1.0G + 1.4W",
+      "factors": {
+        "D": 1.0,
+        "W": 1.4
+      },
+      "source": "BS 8110-1:1997 Table 2.1 dead and wind, dead beneficial: 1.0 G + 1.4 W"
+    },
+    {
+      "id": "5W",
+      "name": "1.2(G + Q + W)",
+      "factors": {
+        "D": 1.2,
+        "F": 1.2,
+        "L": 1.2,
+        "Lr": 1.2,
+        "W": 1.2
+      },
+      "source": "BS 8110-1:1997 Table 2.1 dead, imposed and wind: 1.2 (G + Q + W)"
+    }
+  ],
+  "service": [
+    {
+      "id": "1",
+      "name": "G + Q",
+      "factors": {
+        "D": 1.0,
+        "L": 1.0,
+        "Lr": 1.0
+      },
+      "source": "BS 8110-2:1985 3.3.3: serviceability, 1.0 G + 1.0 Q"
+    },
+    {
+      "id": "2",
+      "name": "G + W",
+      "factors": {
+        "D": 1.0,
+        "W": 1.0
+      },
+      "source": "BS 8110-2:1985 3.3.3: 1.0 G + 1.0 W"
+    },
+    {
+      "id": "3",
+      "name": "G + 0.8Q + 0.8W",
+      "factors": {
+        "D": 1.0,
+        "L": 0.8,
+        "W": 0.8
+      },
+      "source": "BS 8110-2:1985 3.3.3: 1.0 G + 0.8 Q + 0.8 W (the wind service combination the storey drift and sway checks name)"
+    }
+  ],
+  "gravity": [
+    {
+      "name": "1.4G + 1.6Q",
+      "factors": {
+        "D": 1.4,
+        "L": 1.6
+      }
+    }
+  ],
+  "allowable": [
+    {
+      "id": "1",
+      "name": "G",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0
+      },
+      "source": "Permissible stress design (masonry and timber of the parent pack): characteristic loads"
+    },
+    {
+      "id": "2",
+      "name": "G + Q",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "L": 1.0,
+        "Lr": 1.0
+      },
+      "source": "Characteristic dead and imposed loads"
+    },
+    {
+      "id": "3W",
+      "name": "G + W",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "W": 1.0
+      },
+      "source": "Characteristic dead and wind loads"
+    },
+    {
+      "id": "4W",
+      "name": "G + Q + W",
+      "factors": {
+        "D": 1.0,
+        "F": 1.0,
+        "H": 1.0,
+        "L": 1.0,
+        "Lr": 1.0,
+        "W": 1.0
+      },
+      "source": "Characteristic dead, imposed and wind loads"
+    }
+  ],
+  "temperature": [],
+  "seismicDeadUpper": 1.0,
+  "seismicDeadLower": 1.0,
+  "overstrength": "BS 8110 and BS 5950 give no earthquake combinations or system overstrength factor (not covered); Ω0 is SAEngine's for the elements the design names, used only where a Z is entered",
+  "optionalCases": [
+    "F",
+    "H",
+    "T"
+  ],
+  "sources": {
+    "seismicDeadUpper": "Not covered: no earthquake combinations (1.0, unused while Z = 0)",
+    "seismicDeadLower": "Not covered: no earthquake combinations (1.0, unused while Z = 0)"
+  },
+  "clauses": {
+    "strength": "BS 8110-1:1997 Table 2.1; BS 5950-1:2000 Table 2"
+  }
+}

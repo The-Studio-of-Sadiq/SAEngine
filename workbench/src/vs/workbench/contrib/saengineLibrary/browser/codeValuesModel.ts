@@ -1,0 +1,238 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from '../../../../nls.js';
+import { activeDisplayUnits, displayUnit, fromDisplay, IDisplayUnits, inputText, isConverted, parseQuantity } from '../../../services/saengineProject/common/displayUnits.js';
+import { JsonObject, JsonValue } from './schemaForm.js';
+
+/*
+ * Project Settings > Code Values: the values of the project's code pack, each of which the
+ * project may override (the setting `codeOverrides`: a value's path → the project's value). The
+ * backend (`saengine.codes.overrides`) merges the overrides over the pack for every run and
+ * checks them against the pack's tables; this module reads its answer tolerantly and edits the
+ * overrides in the settings document.
+ */
+
+/** `{ settingsText, root?, table? }` → the pack with the overrides, and the values of `table`. */
+export const CODES_VALUES_COMMAND = 'saengine.codes.values';
+
+/** The settings key of the overrides. */
+export const CODE_OVERRIDES_KEY = 'codeOverrides';
+
+/** One value of the pack as the page lists it. */
+export interface ICodeValueRow {
+	/** The value's path, table first ("factors.phi.shear"). */
+	readonly path: string;
+	readonly table: string;
+	/** The value in force (the project's when overridden). */
+	readonly value: JsonValue;
+	/** The code pack's own value. */
+	readonly packValue: JsonValue;
+	readonly overridden: boolean;
+	/** The pack does not give it: a generic default (SAEngine practice). */
+	readonly generic: boolean;
+	/** Where a generic default comes from. */
+	readonly note: string;
+	/** The value's name in words ("Compression tied"), its description, unit and clause (SL-1). */
+	readonly label: string;
+	readonly description: string;
+	readonly unit: string;
+	readonly clause: string;
+	/** The group it is in within the table ("Phi"), '' at the table's top. */
+	readonly group: string;
+}
+
+/** A table of the pack as the page offers it: its name in words and its section (SL-1). */
+export interface ICodeValuesTable {
+	readonly name: string;
+	readonly title: string;
+	readonly section: string;
+	readonly overridden: boolean;
+	readonly generic: boolean;
+}
+
+export interface ICodeValues {
+	readonly id: string;
+	/** The pack's display name ("BNBC 2020"). */
+	readonly name: string;
+	/** The pack the project asked for when it is not installed (the default pack stands in). */
+	readonly missing: string | undefined;
+	readonly tables: readonly ICodeValuesTable[];
+	/** With their names in words (`saengine.codes.overrides.words_of`, R1-16): `title` "Factors › Phi › Shear". */
+	readonly overrides: readonly { readonly path: string; readonly packValue: JsonValue; readonly value: JsonValue; readonly title?: string; readonly label?: string; readonly description?: string; readonly unit?: string; readonly clause?: string }[];
+	/** Overrides refused (not applied), with why and the pack's value that applies instead. */
+	readonly problems: readonly { readonly path: string; readonly message: string; readonly packValue: JsonValue }[];
+	readonly fallbacks: readonly { readonly path: string; readonly value: JsonValue; readonly note: string }[];
+	readonly rows: readonly ICodeValueRow[];
+}
+
+type Raw = { readonly [key: string]: unknown };
+
+function isRaw(value: unknown): value is Raw {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function list(value: unknown): Raw[] {
+	return Array.isArray(value) ? value.filter(isRaw) : [];
+}
+
+function str(value: unknown, fallback = ''): string {
+	return typeof value === 'string' ? value : fallback;
+}
+
+/** `saengine.codes.values`'s answer; undefined for a refusal or no answer. */
+export function readCodeValues(value: unknown): ICodeValues | undefined {
+	if (!isRaw(value) || value.ok === false || typeof value.id !== 'string') {
+		return undefined;
+	}
+	return {
+		id: value.id,
+		name: str(value.name, value.id),
+		missing: typeof value.missing === 'string' && value.missing ? value.missing : undefined,
+		tables: list(value.tables).filter(t => typeof t.name === 'string').map(t => ({ name: String(t.name), title: str(t.title, String(t.name)), section: str(t.section), overridden: t.overridden === true, generic: t.generic === true })),
+		overrides: list(value.overrides).filter(o => typeof o.path === 'string').map(o => ({ path: String(o.path), packValue: o.packValue as JsonValue, value: o.value as JsonValue, ...wordsOf(o) })),
+		problems: list(value.problems).filter(p => typeof p.path === 'string').map(p => ({ path: String(p.path), message: str(p.message), packValue: (p.packValue ?? null) as JsonValue })),
+		fallbacks: list(value.fallbacks).filter(f => typeof f.path === 'string').map(f => ({ path: String(f.path), value: f.value as JsonValue, note: str(f.note) })),
+		rows: list(value.rows).filter(r => typeof r.path === 'string').map(r => ({
+			path: String(r.path),
+			table: str(r.table),
+			value: r.value as JsonValue,
+			packValue: r.packValue as JsonValue,
+			overridden: r.overridden === true,
+			generic: r.generic === true,
+			note: str(r.note),
+			label: str(r.label),
+			description: str(r.description),
+			unit: str(r.unit),
+			clause: str(r.clause),
+			group: str(r.group),
+		})),
+	};
+}
+
+/**
+ * A value as the page shows it: numbers as given, lists and groups as JSON. C13b: with the value's
+ * SI `unit` (the row's), its numbers (a number, or a list of numbers) in the display units; as
+ * given in SI and for a unit SAEngine does not convert.
+ */
+export function formatCodeValue(value: JsonValue | undefined, unit?: string, units: IDisplayUnits = activeDisplayUnits()): string {
+	if (value === undefined || value === null) {
+		return '–';
+	}
+	if (unit && isConverted(unit, units)) {
+		if (typeof value === 'number') {
+			return inputText(value, unit, units);
+		}
+		if (Array.isArray(value) && value.every(v => typeof v === 'number')) {
+			return JSON.stringify(value.map(v => Number(inputText(v as number, unit, units))));
+		}
+	}
+	return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
+/** The unit a row's values are shown in (C13b): the display unit of its SI `unit`, the unit itself otherwise. */
+export function codeValueUnit(unit: string, units: IDisplayUnits = activeDisplayUnits()): string {
+	return unit ? displayUnit(unit, units) : unit;
+}
+
+/**
+ * The project's value typed for a pack value of `like`'s type: a number, true or false, text, or
+ * JSON for a list or group. `{ value: undefined }` for an empty field (the pack's value again).
+ * C13b: with the value's SI `unit`, a number (or a list of numbers) is typed in the display units
+ * (a number may carry a unit of its own: "300 mm", `12'-6"`) and stored in SI.
+ */
+export function parseCodeValue(text: string, like: JsonValue, unit?: string, units: IDisplayUnits = activeDisplayUnits()): { readonly value?: JsonValue; readonly error?: string } {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return { value: undefined };
+	}
+	const converted = !!unit && isConverted(unit, units);
+	if (typeof like === 'number') {
+		const n = converted ? parseQuantity(trimmed, unit, units) ?? NaN : Number(trimmed);
+		return isFinite(n) ? { value: n } : { error: localize('codeValues.number', "Enter a number.") };
+	}
+	if (converted && Array.isArray(like) && like.every(v => typeof v === 'number')) {
+		try {
+			const typed = JSON.parse(trimmed) as JsonValue;
+			if (Array.isArray(typed) && typed.every(v => typeof v === 'number')) {
+				return { value: typed.map(v => fromDisplay(v as number, unit!, units)) };
+			}
+		} catch {
+			// not JSON: the message below
+		}
+		return { error: localize('codeValues.list', "Enter a list, as [1, 2].") };
+	}
+	if (typeof like === 'boolean') {
+		return trimmed === 'true' || trimmed === 'false' ? { value: trimmed === 'true' } : { error: localize('codeValues.boolean', "Enter true or false.") };
+	}
+	if (typeof like === 'string') {
+		return { value: trimmed };
+	}
+	if (like === null) {
+		// No value to follow (the pack's is empty): a number, true or false, JSON, else text.
+		try {
+			return { value: JSON.parse(trimmed) as JsonValue };
+		} catch {
+			return { value: trimmed };
+		}
+	}
+	try {
+		const value = JSON.parse(trimmed) as JsonValue;
+		if (Array.isArray(like) !== Array.isArray(value) || typeof value !== typeof like) {
+			return { error: Array.isArray(like) ? localize('codeValues.list', "Enter a list, as [1, 2].") : localize('codeValues.group', "Enter a group of values, as {\"a\": 1}.") };
+		}
+		return { value };
+	} catch {
+		return { error: localize('codeValues.json', "Enter the value as the pack writes it (JSON).") };
+	}
+}
+
+/** The overrides of the settings `document` (empty when it has none). */
+export function codeOverrides(document: JsonObject | undefined): JsonObject {
+	const value = document?.[CODE_OVERRIDES_KEY];
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+/** Sets (or, with `undefined`, removes) the override of `path` in the settings `document`; the key goes when none is left. Returns whether anything changed. */
+export function setCodeOverride(document: JsonObject, path: string, value: JsonValue | undefined): boolean {
+	const overrides = { ...codeOverrides(document) };
+	if (value === undefined) {
+		if (overrides[path] === undefined) {
+			return false;
+		}
+		delete overrides[path];
+	} else {
+		if (JSON.stringify(overrides[path]) === JSON.stringify(value)) {
+			return false;
+		}
+		overrides[path] = value;
+	}
+	if (Object.keys(overrides).length) {
+		document[CODE_OVERRIDES_KEY] = overrides;
+	} else {
+		delete document[CODE_OVERRIDES_KEY];
+	}
+	return true;
+}
+
+/** The rows `filter` keeps (words in the path, the name or the description, any order, any case). */
+export function filterCodeValues(rows: readonly ICodeValueRow[], filter: string): ICodeValueRow[] {
+	const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+	return rows.filter(r => {
+		const text = `${r.path} ${r.label} ${r.description}`.toLowerCase();
+		return words.every(w => text.includes(w));
+	});
+}
+
+/** The words of an override the backend gives (strings only). */
+function wordsOf(o: { readonly [key: string]: unknown }): { title?: string; label?: string; description?: string; unit?: string; clause?: string } {
+	const words: { [key: string]: string } = {};
+	for (const key of ['title', 'label', 'description', 'unit', 'clause']) {
+		if (typeof o[key] === 'string' && o[key]) {
+			words[key] = o[key] as string;
+		}
+	}
+	return words;
+}

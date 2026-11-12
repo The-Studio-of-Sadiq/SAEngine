@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "JIS G 3112: deformed bars D10-D41 by their nominal diameters (9.53, 12.7, 15.9, 19.1, 22.2, 25.4, 28.6, 31.8, 34.9, 38.1, 41.3 mm)"
+  ],
+  "barDiameters": {
+    "$replace": true,
+    "all": [9.53, 12.7, 15.9, 19.1, 22.2, 25.4, 28.6, 31.8, 34.9, 38.1, 41.3],
+    "main": [15.9, 19.1, 22.2, 25.4, 28.6, 31.8],
+    "column": [19.1, 22.2, 25.4, 28.6, 31.8, 34.9, 38.1, 41.3],
+    "slab": [9.53, 12.7, 15.9],
+    "stirrup": [9.53, 12.7, 15.9],
+    "wall": [9.53, 12.7, 15.9],
+    "boundary": [15.9, 19.1, 22.2, 25.4],
+    "hoop": [9.53, 12.7, 15.9],
+    "lintel": [12.7, 15.9, 19.1, 22.2],
+    "tank": [12.7, 15.9, 19.1, 22.2],
+    "foundation": [15.9, 19.1, 22.2, 25.4, 28.6]
+  },
+  "barMasses": {"$replace": true},
+  "barNames": {
+    "$replace": true,
+    "9.53": "D10", "12.7": "D13", "15.9": "D16", "19.1": "D19", "22.2": "D22",
+    "25.4": "D25", "28.6": "D29", "31.8": "D32", "34.9": "D35", "38.1": "D38", "41.3": "D41"
+  },
+  "sources": {
+    "barDiameters": "JIS G 3112: the nominal diameters of the deformed bars D10-D41 (their nominal areas 71.33 ... 1340 mm² follow from them); SAEngine's sets by use are SAEngine practice",
+    "barNames": "JIS G 3112 designations D10-D41 (the program prints the pack's bar names in US customary display units; in SI it prints Ø and the nominal diameter)"
+  }
+}

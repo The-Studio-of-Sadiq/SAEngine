@@ -1,0 +1,79 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "NBR 6118:2014 8.2.5 (fctm = 0.3 fck^(2/3)), 8.2.8 (Eci), 12.4.1 (γc 1.4, γs 1.15), 17.2.2 (the rectangular block αc fcd over λ x: αc 0.85, λ 0.8 up to C50; εcu 3.5 ‰, εc2 2.0 ‰), 14.6.4.3 (x/d ≤ 0.45 up to C50), 17.4.2.2 (shear model I: VRd2 = 0.27 αv2 fcd bw d, Vc = 0.6 fctd bw d, Vsw = (Asw/s) 0.9 d fywd), 17.4.1.1.1 (ρsw,min = 0.2 fctm / fywk), 18.3.3.2 (stirrup spacing)"
+  ],
+  "source": "NBR 6118:2014: the ultimate section strength by design strengths fcd = fck/1.4, fyd = fyk/1.15 with the rectangular block 0.85 fcd over 0.8 x; one-way shear by model I (θ = 45°: Vc0 = 0.6 fctd bw d = 0.09 fck^(2/3) bw d, VRd2 = 0.27 (1 - fck/250) fcd bw d, the stirrups on 0.9 d with fywd ≤ 435 MPa) by the generic tabulatedStress method. The project's concrete fc is read as fck. Torsion, punching, deflection, cracking, cover, anchorage, columns' second order, slabs, walls and footings take the base pack's ACI 318-19 methods (VERIFY.md B22). Model II (variable θ 30°-45°) is not set.",
+  "ultimate": {
+    "method": "partialFactors",
+    "stressBlock": "rectangular",
+    "gammaC": 1.4,
+    "gammaS": 1.15,
+    "alphaCC": 0.85,
+    "alphaCT": 1.0,
+    "steelE": 210000.0,
+    "strengthClasses": [[20, 25], [25, 30], [30, 37], [35, 45], [40, 50], [45, 55], [50, 60]],
+    "relations": {
+      "highFrom": 50,
+      "fcmIncrement": 0,
+      "fctmCoefficient": 0.3,
+      "fctmExponent": 0.666667,
+      "fctmHighCoefficient": 2.12,
+      "fctmHighDivisor": 9.0909,
+      "fctkShares": [0.7, 1.3],
+      "ecmCoefficient": 4760,
+      "ecmDivisor": 1,
+      "ecmExponent": 0.5,
+      "epsC2": { "base": 2.0 },
+      "epsCu2": { "base": 3.5 },
+      "n": { "base": 2.0 },
+      "epsC3": { "base": 2.0 },
+      "epsCu3": { "base": 3.5 },
+      "eta": { "base": 1.0 },
+      "lambda": { "base": 0.8 }
+    },
+    "eccentricityDivisor": 20,
+    "eccentricityMin": 24,
+    "pureCompressionStrain": "epsC2",
+    "gradePrefix": "C",
+    "neutralAxisLimit": [0.44, 1.25]
+  },
+  "shear": {
+    "method": "tabulatedStress",
+    "grades": [20, 25, 30, 35, 40, 45, 50],
+    "steelRatios": [0.15, 3.0],
+    "tauC": [
+      [0.6631, 0.7695, 0.8689, 0.963, 1.0526, 1.1386, 1.2215],
+      [0.6631, 0.7695, 0.8689, 0.963, 1.0526, 1.1386, 1.2215]
+    ],
+    "maxStress": [3.5486, 4.3393, 5.0914, 5.805, 6.48, 7.1164, 7.7143],
+    "minStirrupStress": 0.5,
+    "fyMax": 450,
+    "spacing": [0.6, 300],
+    "slabDepths": [],
+    "enhancement": 1.0
+  },
+  "clauses": {
+    "designStrength": "NBR 6118 12.3, 12.4.1 (γc 1.4, γs 1.15)",
+    "ultimate": "NBR 6118 17.2.2 (the block 0.85 fcd over 0.8 x, εcu 3.5 ‰)",
+    "minimumEccentricity": "NBR 6118 11.3.3.4.3 (M1d,min = Nd (0.015 + 0.03 h))",
+    "shear": "NBR 6118 17.4.2.2 (model I)",
+    "shearMinimum": "NBR 6118 17.4.1.1.1",
+    "shearSpacing": "NBR 6118 18.3.3.2"
+  },
+  "sources": {
+    "ultimate.gammaC": "NBR 6118 12.4.1, Table 12.1: γc = 1.4 (normal combinations)",
+    "ultimate.gammaS": "NBR 6118 12.4.1, Table 12.1: γs = 1.15",
+    "ultimate.alphaCC": "NBR 6118 17.2.2: σcd = αc fcd with αc = 0.85 up to C50",
+    "ultimate.relations": "NBR 6118 8.2.5: fctm = 0.3 fck^(2/3) up to C50 (fctm = 2.12 ln(1 + 0.11 fck) above: the high form with the divisor 1/0.11), fctk,inf = 0.7 fctm, fctk,sup = 1.3 fctm; 8.2.8: Ecs = 4760 √fck (see concrete.modulus); 8.2.10.1: εc2 2.0 ‰, εcu 3.5 ‰, n 2 up to C50; 17.2.2: λ = 0.8, ηc (eta) 1.0 up to C50; C55-C90 not set (highFrom 50)",
+    "ultimate.strengthClasses": "NBR 8953 classes C20-C50 by fck (the cube values are EN 206's, unused by NBR 6118)",
+    "ultimate.eccentricity": "NBR 6118 11.3.3.4.3: the least first order moment Nd (0.015 + 0.03 h) [m]: e0 = 15 mm + 0.03 h; the method's e0 = h/20 at least 24 mm is within 5 mm of it for h = 300-800 mm (equal at 300 mm, 5 mm low at 500 mm; SAEngine practice, VERIFY.md B21)",
+    "ultimate.neutralAxisLimit": "NBR 6118 14.6.4.3: x/d ≤ 0.45 up to C50; with the redistribution δ ≥ 0.44 + 1.25 x/d (k1 0.44, k2 1.25)",
+    "shear.tauC": "NBR 6118 17.4.2.2: Vc0 = 0.6 fctd bw d, fctd = 0.7 × 0.3 fck^(2/3) / 1.4 = 0.15 fck^(2/3): τc = 0.09 fck^(2/3) (flexure members without axial force; independent of ρ)",
+    "shear.maxStress": "NBR 6118 17.4.2.2: VRd2 = 0.27 αv2 fcd bw d, αv2 = 1 - fck/250",
+    "shear.fyMax": "NBR 6118 17.4.2.2: Vsw = (Asw/s) 0.9 d fywd with fywd ≤ 435 MPa; the method's Vus = (fy/γs) Asv d/sv with fy at most 450 MPa gives 391 MPa on d = 435 MPa on 0.9 d (CA-50 and CA-60 stirrups; SAEngine form)",
+    "shear.minStirrupStress": "NBR 6118 17.4.1.1.1: ρsw ≥ 0.2 fctm / fywk, i.e. Asw fywd / (bw s) ≥ 0.2 fctm / 1.15 = 0.50 MPa at C30 (taken for all grades: on the safe side below C30, 10 % low at C40: VERIFY.md B20)",
+    "shear.spacing": "NBR 6118 18.3.3.2: s ≤ 0.6 d ≤ 300 mm (VSd ≤ 0.67 VRd2; 0.3 d ≤ 200 mm above: not set)",
+    "shear.enhancement": "NBR 6118 17.4.1.2.1 reduces the load near supports rather than raising Vc: 1.0"
+  }
+}

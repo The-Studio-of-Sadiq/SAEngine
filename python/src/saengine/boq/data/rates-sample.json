@@ -1,0 +1,57 @@
+{
+  "schema": "saengine.rates/1",
+  "name": "Sample schedule of rates (made-up example rates)",
+  "currency": "BDT",
+  "edition": "Example only",
+  "notes": [
+    "EXAMPLE ONLY. Every rate in this file is made up to show the layout; none is a published rate. Replace them with the rates of the schedule you work to (for example your edition of the PWD schedule of rates, Bangladesh) or with your own market rates.",
+    "Laid out as a schedule of rates: chapters, item numbers, the description of the item, its unit and its rate. Each item names the bill items it prices in 'match' (group, element kind, material, bar diameter, a description pattern); the first item that matches a bill item prices it.",
+    "Units: m3 (cum), cft, m2 (sqm), sft, m (rm), rft, kg, t, quintal, nr (each), bag, l. A rate in cft prices a bill item in m3 by 1 m3 = 35.3147 cft, and so on.",
+    "The work items are composite (materials, labour and plant). The materials items (cement, sand, stone) are left without a rate so that they are not counted twice; give them rates only when your work rates are labour-only."
+  ],
+  "chapters": [
+    { "code": "02", "title": "Earthwork" },
+    { "code": "03", "title": "Concrete work" },
+    { "code": "04", "title": "Formwork and shuttering" },
+    { "code": "05", "title": "Reinforcement" },
+    { "code": "06", "title": "Brick work" },
+    { "code": "07", "title": "Plaster and finishes" },
+    { "code": "08", "title": "Structural steel work" },
+    { "code": "09", "title": "Plumbing and MEP" },
+    { "code": "10", "title": "Materials (labour-only work rates)" }
+  ],
+  "items": [
+    { "code": "02.01", "description": "Earthwork in excavation for foundations in all kinds of soil, including dressing and removal of spoil (example).", "unit": "m3", "rate": 250, "match": { "group": "earthwork", "kind": ["excavation"] } },
+    { "code": "02.02", "description": "Backfilling foundation trenches with excavated earth in layers, watered and compacted (example).", "unit": "m3", "rate": 120, "match": { "group": "earthwork", "kind": ["backfill"] } },
+    { "code": "02.99", "description": "Other earthwork (example).", "unit": "m3", "rate": 200, "match": { "group": "earthwork" } },
+
+    { "code": "03.01", "description": "Lean concrete 1:3:6 in blinding under foundations, including curing (example).", "unit": "m3", "rate": 7500, "match": { "group": "concrete", "kind": ["blinding"] } },
+    { "code": "03.02", "description": "Reinforced cement concrete in footings, pile caps, rafts and tie beams, excluding reinforcement and formwork (example).", "unit": "m3", "rate": 12000, "match": { "group": "concrete", "kind": ["footing", "pileCap", "raft", "tieBeam"] } },
+    { "code": "03.03", "description": "Reinforced cement concrete in cast-in-situ bored piles, including boring and bentonite, excluding reinforcement (example).", "unit": "m3", "rate": 15000, "match": { "group": "concrete", "kind": ["pile"] } },
+    { "code": "03.04", "description": "Reinforced cement concrete in columns and walls, excluding reinforcement and formwork (example).", "unit": "m3", "rate": 13500, "match": { "group": "concrete", "kind": ["column", "wall"] } },
+    { "code": "03.05", "description": "Reinforced cement concrete in beams, slabs, stairs and lintels, excluding reinforcement and formwork (example).", "unit": "m3", "rate": 13000, "match": { "group": "concrete", "kind": ["beam", "slab", "staircase", "lintel", "brace"] } },
+    { "code": "03.99", "description": "Other reinforced cement concrete (example).", "unit": "m3", "rate": 13000, "match": { "group": "concrete" } },
+
+    { "code": "04.01", "description": "Formwork to concrete surfaces, including props, staging and stripping (example).", "unit": "m2", "rate": 600, "match": { "group": "formwork" } },
+
+    { "code": "05.01", "description": "Deformed bar reinforcement up to 12 mm diameter, cut, bent and placed, including binding wire (example).", "unit": "kg", "rate": 105, "match": { "group": "reinforcement", "diameter": [0, 12] } },
+    { "code": "05.02", "description": "Deformed bar reinforcement above 12 mm diameter, cut, bent and placed, including binding wire (example).", "unit": "kg", "rate": 102, "match": { "group": "reinforcement", "diameter": [12.01, 100] } },
+
+    { "code": "06.01", "description": "Brick work with first-class bricks in cement mortar (example).", "unit": "m3", "rate": 9000, "match": { "group": "masonry" } },
+
+    { "code": "07.01", "description": "Cement sand plaster to walls and ceilings (example).", "unit": "m2", "rate": 350, "match": { "group": "finishes", "kind": ["plaster"] } },
+    { "code": "07.02", "description": "Floor and wall finishes (example).", "unit": "m2", "rate": 1200, "match": { "group": "finishes", "unit": "m2" } },
+    { "code": "07.03", "description": "Doors and windows, supplied and fixed (example).", "unit": "nr", "rate": 15000, "match": { "group": "finishes", "kind": ["door", "window"] } },
+
+    { "code": "08.01", "description": "Structural steel work in sections, fabricated, erected and painted (example).", "unit": "kg", "rate": 180, "match": { "group": "steel" } },
+
+    { "code": "09.01", "description": "Plumbing and MEP items by number (fixtures, equipment): enter your own rates (no example rate).", "unit": "nr", "rate": null, "match": { "group": "mep", "unit": "nr" } },
+    { "code": "09.02", "description": "Pipes, ducts and trays by length: enter your own rates (no example rate).", "unit": "m", "rate": null, "match": { "group": "mep", "unit": "m" } },
+
+    { "code": "10.01", "description": "Portland composite cement in 50 kg bags (labour-only work rates only).", "unit": "bag", "rate": null, "match": { "group": "materials", "kind": ["bags"] } },
+    { "code": "10.02", "description": "Cement by weight (priced by the bag item above).", "unit": "kg", "rate": null, "match": { "group": "materials", "kind": ["cement"] } },
+    { "code": "10.03", "description": "Sand, fine aggregate (labour-only work rates only).", "unit": "cft", "rate": null, "match": { "group": "materials", "kind": ["sand"] } },
+    { "code": "10.04", "description": "Stone chips, coarse aggregate (labour-only work rates only).", "unit": "cft", "rate": null, "match": { "group": "materials", "kind": ["stone"] } },
+    { "code": "10.05", "description": "Water (labour-only work rates only).", "unit": "l", "rate": null, "match": { "group": "materials", "kind": ["water"] } }
+  ]
+}

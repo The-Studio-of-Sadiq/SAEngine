@@ -1,0 +1,111 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "canada-nbcc",
+  "name": "NBCC 2020 + CSA A23.3-19 + CSA S16-19 (Canada)",
+  "edition": "NBCC 2020",
+  "country": "CA",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "occupancyCategories",
+    "areaLoads",
+    "combinations",
+    "seismic",
+    "wind",
+    "snow",
+    "materials",
+    "concrete",
+    "concreteMethods",
+    "steel",
+    "designClauses"
+  ],
+  "description": "The Canadian pack (alpha 9 track C17). National Building Code of Canada 2020 Part 4: the limit states load combinations with principal and companion loads (Table 4.1.3.2-A, 1.25D/0.9D, 1.5L, 1.5S, 1.4W, 1.0E), the importance categories with IE, IS and IW (Tables 4.1.2.1, 4.1.6.2, 4.1.7.3, 4.1.8.5), the roof snow S = Is [Ss (Cb Cw Cs Ca) + Sr] with the towns' Ss and Sr (4.1.6.2), the static wind procedure p = Iw q Ce Cg Cp with the towns' q50, Ce of open and rough terrain and Cg = 2.0 (4.1.7.3), and the equivalent static earthquake force V = S(Ta) Mv IE W / (Rd Ro) from the site's uniform hazard spectrum Sa(T) at 0.2, 0.5, 1, 2, 5 and 10 s (4.1.8.4, the 2020 site-class values entered from the hazard tool, a few towns' class C values given), S(0.2) the larger of Sa(0.2) and Sa(0.5), the lower bound at S(2.0) for frames and S(4.0) for walls, the upper bound max(2/3 S(0.2), S(0.5)) for Rd >= 1.5, Ft = 0.07 Ta V, Ta of 4.1.8.11(3), the systems' Rd and Ro (Table 4.1.8.9), accidental torsion 0.10 Dn, the drift limits (4.1.8.13). Concrete by CSA A23.3-19: material resistance factors φc 0.65 and φs 0.85 (8.4), the stress block α1 = 0.85 - 0.0015 f'c and β1 = 0.97 - 0.0025 f'c (10.1.7), εcu 0.0035, the axial limit 0.80 Pro (10.10.4), beam shear by the simplified method of 11.3.6.3 (β 0.18 with the least links, else 230/(1000 + dv), θ 35°, Vr <= 0.25 φc f'c bw dv) with the general method's β and θ available; Canadian bars 10M-55M. Steel by CSA S16-19: φ 0.90, the column curve Cr = φ A Fy (1 + λ^2n)^(-1/n) with n = 1.34 (13.3.1), lateral-torsional buckling by Mu with ω2 (13.6), Rd/Ro of the Type D, MD and LD systems. What this version does not set (Mv and J tables, CSA A23.3 column and wall shear, CSA 21 detailing values, CSA S16 connections and Clause 27, CSA O86 timber, the live load reduction of 4.1.5.8) is the parent pack's (ACI 318-19, AISC 360-22/341-22, NDS 2018, ASCE 7-22), and the report names it. Every value is listed in VERIFY.md, to be checked against the printed codes.",
+  "sources": [
+    {
+      "id": "NBCC2020",
+      "title": "National Building Code of Canada 2020, Part 4 Structural Design",
+      "edition": "2020",
+      "publisher": "National Research Council of Canada"
+    },
+    {
+      "id": "CSAA23.3",
+      "title": "CSA A23.3:19 Design of concrete structures",
+      "edition": "2019",
+      "publisher": "CSA Group"
+    },
+    {
+      "id": "CSAS16",
+      "title": "CSA S16:19 Design of steel structures",
+      "edition": "2019",
+      "publisher": "CSA Group"
+    },
+    {
+      "id": "CSAG30.18",
+      "title": "CSA G30.18 Carbon steel bars for concrete reinforcement",
+      "edition": "2021",
+      "publisher": "CSA Group"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "NBCC 2020 Appendix C, Table C-2 (Ss, Sr, q50) and the seismic hazard values (Sa(T) of site class C)"
+    ],
+    "occupancyCategories": [
+      "NBCC 2020 Table 4.1.2.1 (importance categories), Tables 4.1.6.2-A, 4.1.7.3, 4.1.8.5 (IS, IW, IE)"
+    ],
+    "areaLoads": [
+      "NBCC 2020 Table 4.1.5.3 (specified uniformly distributed live loads)"
+    ],
+    "combinations": [
+      "NBCC 2020 4.1.3.2 and Table 4.1.3.2-A (ULS), 4.1.3.4 (SLS)"
+    ],
+    "seismic": [
+      "NBCC 2020 4.1.8"
+    ],
+    "wind": [
+      "NBCC 2020 4.1.7 (static procedure)"
+    ],
+    "snow": [
+      "NBCC 2020 4.1.6"
+    ],
+    "materials": [
+      "CSA A23.3-19 10.1.3"
+    ],
+    "concrete": [
+      "CSA G30.18 bar sizes 10M-55M"
+    ],
+    "concreteMethods": [
+      "CSA A23.3-19 8.4, 10.1, 10.10, 11.2-11.3"
+    ],
+    "steel": [
+      "CSA S16-19 13.3, 13.6"
+    ],
+    "designClauses": [
+      "CSA S16-19 13.3.1 and 13.6 (the member checks it sets; the rest the parent's AISC 360-22)"
+    ]
+  },
+  "basis": {
+    "general": "NBCC 2020 Part 4",
+    "concrete": "CSA A23.3-19",
+    "steel": "CSA S16-19 (members; connections and seismic provisions the parent's AISC 360-22 and AISC 341-22)",
+    "method": "Limit states design (material resistance factors φc, φs; φ = 0.90 for steel)"
+  },
+  "tableCodes": {
+    "locations": "NBCC 2020",
+    "occupancyCategories": "NBCC 2020",
+    "areaLoads": "NBCC 2020",
+    "combinations": "NBCC 2020",
+    "seismic": "NBCC 2020",
+    "wind": "NBCC 2020",
+    "snow": "NBCC 2020",
+    "concreteMethods": "CSA A23.3-19",
+    "designClauses.steelMembers": "AISC 360-22",
+    "designClauses.steelMembers.compressionFlexural": "CSA S16-19",
+    "designClauses.steelMembers.flexureLtb": "CSA S16-19"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only",
+  "hooks": null
+}

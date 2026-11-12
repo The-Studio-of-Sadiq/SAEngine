@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/connectionFe.schema.json",
+  "$sources": [
+    "EN 1993-1-5:2006 Annex C Sec C.8 Note 1 (5 % principal strain), EN 1993-1-8:2005 Table 6.11 (stiffness coefficients of bolts) and Sec 5.2.2 (classification by stiffness); recommended values; see VERIFY.md"
+  ],
+  "source": "EN 1993-1-5 Annex C, EN 1993-1-8 Sec 5.2.2 and Table 6.11 (recommended values)",
+  "plasticStrainLimit": 0.05,
+  "yieldFactor": 1.0,
+  "hardeningRatio": 0.001,
+  "boltStiffness": "componentTable",
+  "classification": {
+    "method": "stiffnessRatio",
+    "pinned": 0.5,
+    "rigidBraced": 8.0,
+    "rigidUnbraced": 25.0,
+    "source": "EN 1993-1-8 Sec 5.2.2.5"
+  },
+  "elementSize": 10.0,
+  "elementsAcross": 8,
+  "loadSteps": 10,
+  "clauses": {
+    "basis": "EN 1993-1-5 Annex C",
+    "strain": "EN 1993-1-5 C.8 Note 1",
+    "bolts": "EN 1993-1-8 Table 3.4",
+    "welds": "EN 1993-1-8 4.5.3",
+    "stiffness": "EN 1993-1-8 Table 6.11",
+    "classification": "EN 1993-1-8 5.2.2"
+  },
+  "sources": {
+    "yieldFactor": "fy / γM0, γM0 = 1.0 recommended (EN 1993-1-1 6.1)",
+    "hardeningRatio": "SAEngine practice (E/1000; EN 1993-1-5 C.6 allows a hardening slope)"
+  },
+  "note": ""
+}

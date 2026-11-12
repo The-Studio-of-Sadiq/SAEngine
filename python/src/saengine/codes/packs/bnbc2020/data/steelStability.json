@@ -1,0 +1,54 @@
+{
+  "$schema": "../../../schemas/steelStability.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 10.3.2.2, 10.3.2.2.1, 10.3.2.2.2, Eqs 6.10.9-6.10.10 (part 2 pp. 52-53, gazette pp. 3833-3834)",
+    "BNBC 2020 Part 6 Sec 10.14.1-10.14.3, Eqs 6.10.262-6.10.264 (part 2 pp. 187-189, gazette pp. 3968-3970)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 10.3.2.2 (design for stability) and Sec 10.14 (Direct Analysis Method)",
+  "sources": {
+    "method": "BNBC 2020 Part 6 Sec 10.14 (Direct Analysis Method)",
+    "required": "BNBC 2020 Part 6 Sec 10.3.2.2",
+    "secondOrderUnitK": "BNBC 2020 Part 6 Sec 10.3.2.2.1(d)",
+    "firstOrderUnitK": "BNBC 2020 Part 6 Sec 10.3.2.2.2(a), Eq 6.10.9",
+    "unitK": "BNBC 2020 Part 6 Sec 10.14.1",
+    "pSmallDelta": "BNBC 2020 Part 6 Sec 10.14.3(1), Eq 6.10.262",
+    "notional": "BNBC 2020 Part 6 Sec 10.14.3(2)",
+    "secondOrderNotional": "BNBC 2020 Part 6 Sec 10.3.2.2.1(c)",
+    "firstOrderNotional": "BNBC 2020 Part 6 Sec 10.3.2.2.2(b), Eq 6.10.10",
+    "gravityOnly": "BNBC 2020 Part 6 Sec 10.14.3(2)",
+    "tau": "BNBC 2020 Part 6 Sec 10.14.3(3), Eq 6.10.263",
+    "stiffness": "BNBC 2020 Part 6 Sec 10.14.3(3)-(4), Eqs 6.10.263-6.10.264",
+    "amplifier": "BNBC 2020 Part 6 Sec 10.14.3(1), Sec 10.3.2.1"
+  },
+  "alpha": {
+    "lrfd": 1.0,
+    "asd": 1.6,
+    "source": "BNBC 2020 Part 6 Eq 6.10.9, 6.10.262, 6.10.263: α = 1.0 (LRFD), 1.6 (ASD) (part 2 pp. 53, 188-189)"
+  },
+  "notional": {
+    "secondOrder": 0.002,
+    "firstOrderDriftFactor": 2.1,
+    "firstOrderMinimum": 0.0042,
+    "source": "BNBC 2020 Part 6 Sec 10.3.2.2.1(c): Ni = 0.002 Yi in all gravity-only combinations (part 2 p. 52); Sec 10.3.2.2.2(b), Eq 6.10.10: Ni = 2.1 (Δ/L) Yi ≥ 0.0042 Yi in all combinations (part 2 p. 53); both independently in two orthogonal directions"
+  },
+  "limits": {
+    "directAnalysisRequiredAbove": 1.5,
+    "secondOrderUnitKMax": 1.1,
+    "firstOrderAxialMax": 0.5,
+    "source": "BNBC 2020 Part 6 Sec 10.3.2.2: the Direct Analysis Method of Sec 10.14 is required where Δ2nd/Δ1st > 1.5 (part 2 p. 52); Sec 10.3.2.2.1(d): K = 1.0 where Δ2nd/Δ1st ≤ 1.1 (p. 52); Sec 10.3.2.2.2(a), Eq 6.10.9: αPr ≤ 0.5 Py (p. 53)"
+  },
+  "directAnalysis": {
+    "method": "directAnalysis",
+    "effectiveLengthFactor": 1.0,
+    "notionalCoefficient": 0.002,
+    "additiveNotionalCoefficient": 0.001,
+    "gravityOnlyDriftRatioMax": 1.5,
+    "flexuralStiffnessFactor": 0.8,
+    "axialStiffnessFactor": 0.8,
+    "tauLimit": 0.5,
+    "tauFactor": 4.0,
+    "pSmallDeltaLimit": 0.15,
+    "asdAnalysisFactor": 1.6,
+    "source": "BNBC 2020 Part 6 Sec 10.14.1 (K = 1.0, part 2 p. 187); Sec 10.14.3 (1) P-δ and P-Δ, Eq 6.10.262 αPr < 0.15 PeL, ASD under 1.6 × the combinations (p. 188); (2) Ni = 0.002 Yi in all combinations, gravity-only where Δ2nd/Δ1st ≤ 1.5 (p. 188); (3) Eq 6.10.263 EI* = 0.8 τb EI, τb = 1.0 for αPr/Py ≤ 0.5, else 4 (αPr/Py)(1 - αPr/Py), or τb = 1.0 with an additive 0.001 Yi (p. 189); (4) Eq 6.10.264 EA* = 0.8 EA (p. 189)"
+  }
+}

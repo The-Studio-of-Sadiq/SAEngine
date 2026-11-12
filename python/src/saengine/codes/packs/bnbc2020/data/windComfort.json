@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schemas/windComfort.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 10.12.6 (p. 1376): the comfort of occupants under wind-induced motion of flexible buildings (Sec 2.4.2) shown by a rational dynamic analysis; no method or limit",
+    "SAEngine practice where BNBC 2020 is silent: the along-wind peak acceleration of the ASCE 7-05 Commentary C6.5.8 (the method behind BNBC 2020 Sec 2.4.8.2, the gust-effect factor of flexible buildings), the return period conversion of ASCE 7-05 Commentary C6.5.5, and the 10-year peak acceleration criteria of tall-building practice (Isyumov 1993; CTBUH); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where BNBC 2020 is silent (Part 6 Sec 10.12.6, p. 1376: a rational dynamic analysis, none given): along-wind peak acceleration of the ASCE 7-05 Commentary C6.5.8 with the terrain constants of BNBC Table 6.2.10, the 10-year wind, and the 10-year peak acceleration criteria of tall-building practice",
+  "response": "alongWindGust",
+  "returnPeriod": 10,
+  "referencePeriod": 50,
+  "speedRatio": "logarithmicMri",
+  "mriTerms": [0.36, 0.1],
+  "referenceToFifty": 1.0,
+  "airDensity": 1.25,
+  "duration": 3600,
+  "peakConstant": 0.5772,
+  "damping": { "concrete": 0.015, "steel": 0.01 },
+  "acceptance": "occupancyLimits",
+  "limits": { "residential": 15, "hotel": 18, "office": 25 },
+  "areaUses": {
+    "residential": "residential",
+    "dwelling": "residential",
+    "residentialPublic": "hotel",
+    "office": "office",
+    "officeLobby": "office",
+    "officeCorridor": "office",
+    "accessFloorOffice": "office",
+    "accessFloorComputer": "office",
+    "classroom": "office",
+    "retailGround": "office",
+    "retailUpper": "office"
+  },
+  "defaultOccupancy": "residential",
+  "clauses": {
+    "required": "Part 6 Sec 10.12.6 (p. 1376): wind-induced motion of flexible buildings, a rational dynamic analysis (none given)",
+    "response": "SAEngine practice where BNBC 2020 is silent: ASCE 7-05 Commentary C6.5.8 along-wind peak acceleration (σ = 0.85 φ ρ B h Cfx V̄z̄² Iz̄ K R / m1, g = √(2 ln n1T) + 0.5772/√(2 ln n1T), T 3600 s)",
+    "speed": "SAEngine practice where BNBC 2020 is silent: ASCE 7-05 Commentary C6.5.5 (V_T / V_50 = 0.36 + 0.10 ln(12 T)); BNBC 2020 Part 6 Sec 2.4.2 (p. 516): V the 50-year 3-s gust",
+    "limits": "SAEngine practice where BNBC 2020 is silent: 10-year peak acceleration 15 milli-g residential, 18 hotels, 25 offices (Isyumov 1993; CTBUH practice)"
+  }
+}

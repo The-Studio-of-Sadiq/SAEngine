@@ -1,0 +1,227 @@
+{
+  "$schema": "../../../schemas/steelSeismic.schema.json",
+  "$sources": [
+    "AISC 341-22 Seismic Provisions for Structural Steel Buildings: Chapters A-K (systems E1-E4, F1-F5, composite members D1.4b, composite plate shear walls H6), with AISC 358 for the prequalified moment connections"
+  ],
+  "source": "AISC 341-22: expected strengths, width-thickness limits, moment frames (E1-E4: connections, panel zones, bracing), braced frames (F1-F4: SCBF, OCBF, EBF links, BRBF), special plate shear walls (F5), composite members and walls; the numbers 341-22 keeps from 341-05 are the default pack's, cited as AISC 341-22's",
+  "expected": {
+    "rows": {
+      "hss": {
+        "application": "hss",
+        "match": [
+          "A500.*(Gr|Grade)\\.?\\s*C\\b"
+        ],
+        "Ry": 1.3,
+        "Rt": 1.2,
+        "label": "Hollow structural sections, ASTM A500 Grade C"
+      },
+      "hssOther": {
+        "application": "hss",
+        "match": [
+          "A500",
+          "A501"
+        ],
+        "Ry": 1.4,
+        "Rt": 1.3,
+        "label": "Hollow structural sections, ASTM A500 Grade B, A501"
+      },
+      "hssA1085": {
+        "application": "hss",
+        "match": [
+          "A1085"
+        ],
+        "Ry": 1.25,
+        "Rt": 1.15,
+        "label": "Hollow structural sections, ASTM A1085"
+      }
+    },
+    "note": "AISC 341-22 Sec A3.2 (Ry, Rt by ASTM specification). A steel no row names takes the table's largest Ry and Rt: SAEngine practice"
+  },
+  "widthThickness": {
+    "iFlange": 0.32,
+    "iFlangeRelaxed": 0.4,
+    "channelFlange": 0.32,
+    "angleLeg": 0.32,
+    "teeStem": 0.32,
+    "smfBeamWeb": 2.57,
+    "web": {
+      "split": 0.114,
+      "linearA": 2.57,
+      "linearB": 1.04,
+      "offsetA": 0.88,
+      "offsetB": 2.68,
+      "floor": 1.57,
+      "linearAbove": false,
+      "leastOfBoth": false,
+      "note": "AISC 341-22 Table D1.1, webs of I-shapes in flexure or combined flexure and compression: Ca <= 0.114: 2.57 sqrt(E/(Ry Fy)) (1 - 1.04 Ca); above: 0.88 sqrt(E/(Ry Fy)) (2.68 - Ca) >= 1.57 sqrt(E/(Ry Fy))"
+    },
+    "roundHss": 0.053,
+    "rectHss": 0.65,
+    "phiB": 0.9,
+    "expectedYield": true,
+    "note": "AISC 341-22 Table D1.1 (highly ductile, λhd): coefficients of sqrt(E/(Ry Fy)), round HSS of E/(Ry Fy); Ca = Pu / (φc Py), φc 0.90. H-pile flanges and webs, flat bars and the relaxed ratio of SMF columns are the default pack's values"
+  },
+  "widthThicknessModerate": {
+    "iFlange": 0.4,
+    "iFlangeRelaxed": 0.4,
+    "channelFlange": 0.4,
+    "hPileFlange": 0.45,
+    "flatBar": 2.5,
+    "angleLeg": 0.4,
+    "teeStem": 0.4,
+    "smfBeamWeb": 3.96,
+    "web": {
+      "split": 0.114,
+      "linearA": 3.96,
+      "linearB": 3.04,
+      "offsetA": 1.29,
+      "offsetB": 2.12,
+      "floor": 1.57,
+      "linearAbove": false,
+      "leastOfBoth": false,
+      "note": "AISC 341-22 Table D1.1, webs of I-shapes: Ca <= 0.114: 3.96 sqrt(E/(Ry Fy)) (1 - 3.04 Ca); above: 1.29 sqrt(E/(Ry Fy)) (2.12 - Ca) >= 1.57 sqrt(E/(Ry Fy))"
+    },
+    "roundHss": 0.062,
+    "rectHss": 0.76,
+    "hPileWeb": 0.94,
+    "phiB": 0.9,
+    "relaxedRatio": 2.0,
+    "expectedYield": true,
+    "note": "AISC 341-22 Table D1.1 (moderately ductile, λmd), coefficients of sqrt(E/(Ry Fy)); rectangular HSS walls 0.76 (SAEngine's reading, to verify); H-pile and flat bar values the default pack's"
+  },
+  "frames": {
+    "imf": {
+      "compactness": "moderate",
+      "note": "AISC 341-22 Sec E2: beams and columns moderately ductile (E2.5a); drift angle 0.02 rad (E2.6b); required shear by Mpr = Cpr Ry Fy Z (E2.6d, AISC 358 Sec 2.4.3); beams braced at Lb <= 0.19 ry E / (Ry Fy), braces 0.06 Ry Fy Z / ho (E2.4a, D1.2a)",
+      "beamBracing": 0.19,
+      "beamBracingExpected": true,
+      "braceStrength": 0.06,
+      "hingeFactorMethod": "cpr",
+      "cprMax": 1.2
+    },
+    "smf": {
+      "note": "AISC 341-22 Sec E3: beams and columns highly ductile (E3.5a); drift angle 0.04 rad, 0.80 Mp at the column face (E3.6b); required shear by Mpr = Cpr Ry Fy Z, Cpr = (Fy + Fu) / (2 Fy) <= 1.2 (E3.6d, AISC 358 Sec 2.4.3); panel zone φv 1.00 (E3.6e.1), t >= (dz + wz) / 90 (E3.6e.2); ΣM*pc / ΣM*pb > 1.0 (E3.4a, exempt below 0.3 Pc); beams braced at Lb <= 0.095 ry E / (Ry Fy), braces 0.06 Ry Fy Z / ho (E3.4b, D1.2b)",
+      "beamBracing": 0.095,
+      "beamBracingExpected": true,
+      "braceStrength": 0.06,
+      "hingeFactorMethod": "cpr",
+      "cprMax": 1.2,
+      "panelZonePhi": 1.0,
+      "panelThicknessDivisor": 90,
+      "momentRatio": 1.0,
+      "axialExemption": 0.3
+    },
+    "omf": {
+      "note": "AISC 341-22 Sec E1: FR connections for 1.1 Ry Mp or the largest moment the system can deliver (E1.6b(a)), PR connections at least 0.5 Mp of the weaker member (E1.6b(c)), continuity plates (E1.6c); the default pack's numbers, the same"
+    },
+    "stmf": {
+      "note": "AISC 341-22 Sec E4 (special truss moment frames): the default pack's numbers (span <= 20 m, depth <= 1.8 m, the special segment 0.1-0.5 of the span, Vne = 3.75 Mnc / Ls + 0.075 E I Ls / L³ + ...), cited as E4; ASCE 7-22 Table 12.2-1 has no STMF row in the pack's systems, so no structural system selects it"
+    }
+  },
+  "concentric": {
+    "scbf": {
+      "moderateMembers": [
+        "beam"
+      ]
+    },
+    "ocbf": {
+      "compactMembers": [],
+      "moderateMembers": [
+        "brace"
+      ]
+    }
+  },
+  "sources": {
+    "trigger": "AISC 341-22 Sec A1; ASCE 7-22 Table 12.2-1: the provisions apply to steel systems with R above 3",
+    "omega": "AISC 341-22 Sec B2: the overstrength seismic load with Ω0 of ASCE 7-22",
+    "materials": "AISC 341-22 Sec A3.1: Fy of members expected to yield",
+    "expected": "AISC 341-22 Sec A3.2: expected yield and tensile strengths Ry Fy, Rt Fu",
+    "toughness": "AISC 341-22 Sec A3.3 (heavy shapes and plates: Charpy 27 J at 21 °C), A3.4b (demand critical welds: 27 J at -18 °C)",
+    "bolts": "AISC 341-22 Sec D2.2: pretensioned high-strength bolts, Class A faying surfaces, nominal bearing at most 2.4 d t Fu",
+    "protected": "AISC 341-22 Sec D1.3, E3.5c",
+    "clips": "AISC 341-22 Sec I2.4: corner clips of continuity plates and stiffeners 38 mm along the web, 12 mm along the flange",
+    "compact": "AISC 341-22 Sec D1.1, Table D1.1: highly and moderately ductile members",
+    "columnStrength": "AISC 341-22 Sec D1.4a",
+    "splices": "AISC 341-22 Sec D2.5: column splices (PJP groove welds 2.0 × the required strength, 1.2 m from the beam-to-column connections)",
+    "bases": "AISC 341-22 Sec D2.6: column bases (shear 2.0 × ..., flexure 1.1 Ry Fy Z of the column)",
+    "smfConnection": "AISC 341-22 Sec E3.6b: interstorey drift angle 0.04 rad, 0.80 Mp",
+    "conformance": "AISC 341-22 Sec E3.6c, E2.6c and Chapter K: prequalified connections (AISC 358) or connections qualified by cyclic tests",
+    "panelZone": "AISC 341-22 Sec E3.6e.1",
+    "panelThickness": "AISC 341-22 Sec E3.6e.2",
+    "doubler": "AISC 341-22 Sec E3.6e.3: doubler plates",
+    "smfMembers": "AISC 341-22 Sec E3.5a",
+    "momentRatio": "AISC 341-22 Sec E3.4a",
+    "connectionBracing": "AISC 341-22 Sec E3.4c: bracing at beam-to-column connections",
+    "smfBeamBracing": "AISC 341-22 Sec E3.4b, D1.2b: beams of SMF braced as highly ductile members",
+    "smfSplices": "AISC 341-22 Sec E3.6g: column splices of SMF",
+    "imfConnection": "AISC 341-22 Sec E2.6b: interstorey drift angle 0.02 rad",
+    "imfMembers": "AISC 341-22 Sec E2.5a: moderately ductile members",
+    "imfBeamBracing": "AISC 341-22 Sec E2.4a, D1.2a: beams of IMF braced as moderately ductile members",
+    "omfConnection": "AISC 341-22 Sec E1.6b(a): FR moment connections of OMF, 1.1 Ry Mp",
+    "omfPartial": "AISC 341-22 Sec E1.6b(c): PR moment connections of OMF",
+    "omfContinuity": "AISC 341-22 Sec E1.6c: continuity plates of OMF",
+    "stmf": "AISC 341-22 Sec E4: special truss moment frames",
+    "panelZoneDrift": "ASCE 7-22 Sec 12.7.3: the panel zone deformations in the model (centreline model of the frame)",
+    "scbfSlenderness": "AISC 341-22 Sec F2.5b(a): brace Lc/r at most 200",
+    "scbfBrace": "AISC 341-22 Sec F2.5b(b): the effective net area of the braces",
+    "scbfDistribution": "AISC 341-22 Sec F2.4a: lateral force distribution, 30-70 % in tension braces",
+    "scbfCompact": "AISC 341-22 Sec F2.5a: braces and columns highly ductile, beams moderately ductile",
+    "scbfStitches": "AISC 341-22 Sec F2.5b(c): stitches of built-up braces",
+    "scbfConnection": "AISC 341-22 Sec F2.6c: brace connections (Ry Fy Ag in tension, 1.1 Ry Pn in compression, flexure 1.1 Ry Mp)",
+    "scbfChevron": "AISC 341-22 Sec F2.4b: V- and inverted V-braced frames",
+    "scbfKBracing": "AISC 341-22 Sec F2.4c: K-braced frames not permitted",
+    "scbfSplices": "AISC 341-22 Sec F2.6d: column splices of SCBF",
+    "scbfProtected": "AISC 341-22 Sec F2.5c: protected zones",
+    "ocbfBrace": "AISC 341-22 Sec F1.5a: braces moderately ductile",
+    "ocbfChevron": "AISC 341-22 Sec F1.4a: beams of V- and inverted V-braced OCBF",
+    "ocbfConnection": "AISC 341-22 Sec F1.6: brace connections of OCBF",
+    "linkScope": "AISC 341-22 Sec F3.5b: links highly ductile",
+    "linkShear": "AISC 341-22 Sec F3.5b.2: link shear strength Vn = Vp, Vp = 0.6 Fy Alw (Pr/Pc <= 0.15), reduced above it; φv 0.90",
+    "linkRotation": "AISC 341-22 Sec F3.4a: link rotation angle 0.08 rad (e <= 1.6 Mp / Vp) to 0.02 rad (e >= 2.6 Mp / Vp)",
+    "linkStiffeners": "AISC 341-22 Sec F3.5b.4: link stiffeners",
+    "linkColumn": "AISC 341-22 Sec F3.6e: link-to-column connections",
+    "linkBracing": "AISC 341-22 Sec F3.4b: bracing of links, 0.06 Ry Fy Z / ho",
+    "ebfBrace": "AISC 341-22 Sec F3.3, F3.6c: diagonal braces and their connections (adjusted link strength)",
+    "ebfBeam": "AISC 341-22 Sec F3.3: beams outside the link",
+    "ebfBeamColumn": "AISC 341-22 Sec F3.6a, F3.6b: beam-to-column connections of EBF",
+    "ebfColumns": "AISC 341-22 Sec F3.5a",
+    "ebfProtected": "AISC 341-22 Sec F3.5c: protected zones",
+    "brbfCore": "AISC 341-22 Sec F4.5b.2: the steel core",
+    "brbfRestraint": "AISC 341-22 Sec F4.5b.3 and Sec K3: the buckling-restraining system, qualified by cyclic tests",
+    "brbfAdjusted": "AISC 341-22 Sec F4.2a: adjusted brace strength β ω Ry Fysc Asc in compression, ω Ry Fysc Asc in tension",
+    "brbfConnection": "AISC 341-22 Sec F4.6c: diagonal brace connections, 1.1 × the adjusted brace strength",
+    "brbfChevron": "AISC 341-22 Sec F4.4a: V- and inverted V-braced frames",
+    "brbfMembers": "AISC 341-22 Sec F4.5a",
+    "brbfProtected": "AISC 341-22 Sec F4.5c: protected zones",
+    "spswWeb": "AISC 341-22 Sec F5.5b: webs, Vn = 0.42 Fy tw Lcf sin 2α, φ 0.90",
+    "spswAspect": "AISC 341-22 Sec F5.2-F5.4: panels 0.8 < L/h <= 2.5",
+    "spswOpenings": "AISC 341-22 Sec F5.7: perforated webs and corner cut-outs",
+    "spswConnections": "AISC 341-22 Sec F5.6: connections of the webs and the boundary elements",
+    "spswBoundary": "AISC 341-22 Sec F5.4a: stiffness of the boundary elements",
+    "spswHbeConnection": "AISC 341-22 Sec F5.6b: HBE-to-VBE connections",
+    "spswCompact": "AISC 341-22 Sec F5.5a",
+    "spswBracing": "AISC 341-22 Sec F5.4c: bracing of the HBE",
+    "spswStiffness": "AISC 341-22 Sec F5.4a: VBE Ic >= 0.0031 tw h⁴ / L",
+    "spswCoefficients": "AISC 341-22 Sec F5.5b: the angle of the tension field α",
+    "compositeMaterials": "AISC 341-22 Sec A3.5: concrete and steel reinforcement of composite members",
+    "compositeBeam": "AISC 341-22 Sec G3.5a: composite beams of C-SMF",
+    "encasedScope": "AISC 341-22 Sec D1.4b.1: encased composite columns",
+    "encasedOrdinary": "AISC 341-22 Sec D1.4b.1(a): basic requirements",
+    "encasedIntermediate": "AISC 341-22 Sec D1.4b.1(b): moderately ductile members",
+    "encasedSpecial": "AISC 341-22 Sec D1.4b.1(c): highly ductile members",
+    "filledSeismic": "AISC 341-22 Sec D1.4b.2: filled composite columns",
+    "compositeWall": "AISC 341-22 Sec H6: composite plate shear walls (concrete encased)",
+    "widthThicknessTable": "AISC 360-22 Table B4.1",
+    "braceStiffness": "AISC 360-22 Eq A-6-8",
+    "spswAngle": "AISC 341-22 Eq F5-2"
+  },
+  "plateWalls": {
+    "inertiaCoefficient": 0.0031,
+    "note": "AISC 341-22 Sec F5: web shear Vn = 0.42 Fy tw Lcf sin 2α, φ 0.90 (F5.5b); 0.8 < L/h <= 2.5; VBE Ic >= 0.0031 tw h⁴ / L (F5.4a); HBE bracing and the connections the default pack's numbers"
+  },
+  "compositeSeismic": {
+    "concreteMin": 21,
+    "concreteMaxLight": 41,
+    "note": "AISC 341-22 Sec A3.5 (concrete of composite members: f'c 21-69 MPa normal weight, at most 41 MPa lightweight), Sec D1.4b (composite columns of ordinary, moderately and highly ductile systems), Chapters G and H (composite systems); the other numbers the default pack's (AISC 341-05 Part II based), cited as AISC 341-22's"
+  }
+}

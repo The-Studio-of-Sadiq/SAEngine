@@ -1,0 +1,277 @@
+{
+  "$defs": {
+    "ColdFormedDistortional": {
+      "additionalProperties": false,
+      "description": "Distortional buckling of the lipped flanges. The critical stress of every method: the\nedge stiffener (flange share and lip) as a strut on the elastic spring K of the web and\nflange plates, σcr,d = 2 √(K E Is) / As.\n\n``reductionCurve``: χd = 1 for λd <= a, b - c λd up to λd < d, else e / λd (``factors``).\n``directStrength``: compression Pn = Py for λd <= a, else (1 - b (Pcr/Py)^c)(Pcr/Py)^c Py;\nflexure Mn = My for λd <= d, else (1 - e (Mcr/My)^f)(Mcr/My)^f My (``factors`` [a..f]).\n``lipAdequacy``: the lip at least dmin = a t ⁶√((w/t)² - b / fy) and at least c t (f in\n``stressUnit``); a lip shorter than that leaves the flange unstiffened.",
+      "properties": {
+        "method": {
+          "enum": [
+            "reductionCurve",
+            "directStrength",
+            "lipAdequacy"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "title": "Factors",
+          "type": "array"
+        },
+        "poisson": {
+          "default": 0.3,
+          "exclusiveMinimum": 0,
+          "title": "Poisson",
+          "type": "number"
+        },
+        "stressUnit": {
+          "default": 1.0,
+          "description": "MPa per unit (lipAdequacy).",
+          "exclusiveMinimum": 0,
+          "title": "Stressunit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors"
+      ],
+      "title": "ColdFormedDistortional",
+      "type": "object"
+    },
+    "ColdFormedEffectiveWidth": {
+      "additionalProperties": false,
+      "description": "Effective widths of the plate elements.\n\n``winter``: ρ = (1 - a/λ)/λ for λ > b, λ = c / √k (w/t) √(f/E) (``factors`` [a, b, c]).\n``plateSlenderness``: λp = (b/t) / (c ε √kσ), internal ρ = (λp - a (3 + ψ)) / λp²,\noutstand ρ = (λp - b) / λp² (``factors`` [a, b, c, εref]).\n``limitingWidth``: (w/t)lim = a / √f; above it be/t = b / √f (1 - c / ((w/t) √f)), f in\nthe unit of ``stressUnit`` [MPa per unit] (``factors`` [a, b, c]).",
+      "properties": {
+        "method": {
+          "enum": [
+            "winter",
+            "plateSlenderness",
+            "limitingWidth"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "factors": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "title": "Factors",
+          "type": "array"
+        },
+        "kInternal": {
+          "description": "k (kσ) of a stiffened element in compression.",
+          "exclusiveMinimum": 0,
+          "title": "Kinternal",
+          "type": "number"
+        },
+        "kOutstand": {
+          "description": "k of an unstiffened (outstand) element.",
+          "exclusiveMinimum": 0,
+          "title": "Koutstand",
+          "type": "number"
+        },
+        "stressUnit": {
+          "default": 1.0,
+          "description": "MPa per unit of f (limitingWidth).",
+          "exclusiveMinimum": 0,
+          "title": "Stressunit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "method",
+        "factors",
+        "kInternal",
+        "kOutstand"
+      ],
+      "title": "ColdFormedEffectiveWidth",
+      "type": "object"
+    },
+    "ColdFormedResistance": {
+      "additionalProperties": false,
+      "description": "Member resistances. ``format``: ``lrfd`` (φ Rn), ``partialFactors`` (R / γ) or\n``allowableStress`` (permissible stresses against the working forces, the factored ones over\n``loadFactor``). ``factors``: φ (lrfd) or γ (partialFactors) by ``tension``,\n``compression``, ``flexure``, ``shear``; ``allowableStress``: the safety factors' inverse\nshares ``tension``, ``flexure``, ``shear`` (× fy) and ``compression`` (12/23).",
+      "properties": {
+        "format": {
+          "enum": [
+            "lrfd",
+            "partialFactors",
+            "allowableStress"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "loadFactor": {
+          "default": 1.0,
+          "description": "allowableStress: factored / working.",
+          "exclusiveMinimum": 0,
+          "title": "Loadfactor",
+          "type": "number"
+        },
+        "bucklingCurve": {
+          "description": "Flexural buckling: the 0.658^λ² / 0.877 curve (aisc), an imperfection curve (a-d) or the parabola of the permissible stress (allowable).",
+          "enum": [
+            "aisc",
+            "a",
+            "b",
+            "c",
+            "d",
+            "allowable"
+          ],
+          "title": "Bucklingcurve",
+          "type": "string"
+        },
+        "alpha": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Alpha",
+          "type": "object"
+        },
+        "interaction": {
+          "description": "linear: P/Pa + Mx/Max + My/May <= 1; power: (N/Nb)^e + (M/Mb)^e <= 1; amplified: fa/Fa + Cm fb / ((1 - fa/F'e) Fb) <= 1.",
+          "enum": [
+            "linear",
+            "power",
+            "amplified"
+          ],
+          "title": "Interaction",
+          "type": "string"
+        },
+        "exponent": {
+          "default": 1.0,
+          "description": "power: the exponent.",
+          "exclusiveMinimum": 0,
+          "title": "Exponent",
+          "type": "number"
+        },
+        "shearLimits": {
+          "description": "Web shear: yielding while h/t <= a √(E kv / fy), inelastic up to b √(...).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shearlimits",
+          "type": "array"
+        },
+        "shearYield": {
+          "description": "Fv = this fy while yielding.",
+          "exclusiveMinimum": 0,
+          "title": "Shearyield",
+          "type": "number"
+        }
+      },
+      "required": [
+        "format",
+        "factors",
+        "bucklingCurve",
+        "interaction",
+        "shearLimits",
+        "shearYield"
+      ],
+      "title": "ColdFormedResistance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Cold-formed steel members of lipped channels and lipped Z sections (module\n:mod:`saengine.design.steel.cold_formed`): the effective widths of their plates,\ndistortional buckling, the member resistances in tension, compression, flexure, shear and\ncombined, every value the pack's.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "effectiveSection",
+      "default": "effectiveSection",
+      "title": "Method",
+      "type": "string"
+    },
+    "E": {
+      "description": "Modulus of elasticity [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "E",
+      "type": "number"
+    },
+    "G": {
+      "description": "Shear modulus [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "G",
+      "type": "number"
+    },
+    "effectiveWidth": {
+      "$ref": "#/$defs/ColdFormedEffectiveWidth"
+    },
+    "distortional": {
+      "$ref": "#/$defs/ColdFormedDistortional"
+    },
+    "resistance": {
+      "$ref": "#/$defs/ColdFormedResistance"
+    },
+    "thicknessMax": {
+      "description": "Largest wall thickness covered [mm].",
+      "exclusiveMinimum": 0,
+      "title": "Thicknessmax",
+      "type": "number"
+    },
+    "widthRatioMax": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Largest w/t of the web, flange and lip ('web', 'flange', 'lip').",
+      "title": "Widthratiomax",
+      "type": "object"
+    }
+  },
+  "required": [
+    "E",
+    "G",
+    "effectiveWidth",
+    "distortional",
+    "resistance",
+    "thicknessMax",
+    "widthRatioMax"
+  ],
+  "title": "ColdFormedTable",
+  "type": "object",
+  "$id": "saengine.codePack.coldFormed/1"
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/anchors.schema.json",
+  "$sources": [
+    "ACI 318-19 Chapter 17 (Anchoring to Concrete), Sec 17.1-17.10 (alpha 9 track C12); the values the 2019 edition keeps from the default pack's Appendix K are the parent's, cited here by their Chapter 17 sections"
+  ],
+  "source": "ACI 318-19 Chapter 17 (Anchoring to Concrete)",
+  "breakoutShear": {
+    "capCoefficient": 3.7
+  },
+  "applicability": {
+    "diameterMax": 100,
+    "embedmentMax": 635
+  },
+  "seismic": {
+    "categories": ["C", "D", "E", "F"]
+  },
+  "sources": {
+    "scope": "ACI 318-19 Sec 17.1: cast-in and post-installed (expansion, screw, undercut, adhesive) anchors in concrete; shear lugs (Sec 17.11) are not covered",
+    "general": "ACI 318-19 Sec 17.2.1-17.2.3 and 17.4: elastic analysis of the group; required strength from the factored load combinations of Chapter 5",
+    "seismic": "ACI 318-19 Sec 17.10: Seismic Design Categories C to F; the concrete-governed strengths × 0.75 (Sec 17.10.5.4) unless the ductile steel, yielding attachment or Ωo route of Sec 17.10.5.3 applies; the default pack's 0.4 reduced-strength and 0.5 stud-wall options kept as SAEngine practice (not ACI 318-19 options)",
+    "concreteStrengthMax": "ACI 318-19 Sec 17.3.1: f'c at most 69 MPa (10 000 psi) cast-in and 55 MPa (8 000 psi) post-installed in the calculations",
+    "lightweight": "ACI 318-19 Sec 17.2.4: λa = 1.0 λ cast-in and concrete failure of undercut anchors, 0.8 λ expansion and adhesive, 0.6 λ adhesive bond failure",
+    "design": "ACI 318-19 Sec 17.5.1-17.5.2, Tables 17.5.2: φNn >= Nua, φVn >= Vua for every failure mode",
+    "applicability": "ACI 318-19 Sec 17.3.2-17.3.3 and 17.6.2.2: the breakout method holds for da up to 100 mm (4 in) and hef up to 635 mm (25 in)",
+    "phi": "ACI 318-19 Sec 17.5.3, Tables 17.5.3(a)-(b): ductile steel 0.75 tension, 0.65 shear; brittle 0.65, 0.60; concrete Condition A / B cast-in 0.75 / 0.70, post-installed by category 0.75-0.45; anchor reinforcement 0.75",
+    "steelTension": "ACI 318-19 Sec 17.6.1.2, Eq 17.6.1.2: Nsa = Ase,N futa, futa <= 1.9 fya and 860 MPa (125 000 psi)",
+    "breakoutTension": "ACI 318-19 Sec 17.6.2.1-17.6.2.2, Eqs 17.6.2.1a-b, 17.6.2.2.1 and 17.6.2.2.3: Nb = kc λa √f'c hef^1.5, kc 10 cast-in, 7 post-installed (SI); 3.9 λa √f'c hef^(5/3) for 280 <= hef <= 635 mm",
+    "narrowTension": "ACI 318-19 Sec 17.6.2.1.2: within 1.5 hef of three or more edges, hef taken as the larger of ca,max/1.5 and s/3",
+    "eccentricityTension": "ACI 318-19 Sec 17.6.2.3, Eq 17.6.2.3.1: ψec,N = 1 / (1 + e'N / (1.5 hef)) <= 1",
+    "edgeTension": "ACI 318-19 Sec 17.6.2.4, Eqs 17.6.2.4.1a-b: ψed,N = 1.0 or 0.7 + 0.3 ca,min / (1.5 hef)",
+    "crackingTension": "ACI 318-19 Sec 17.6.2.5: uncracked ψc,N 1.25 cast-in, 1.4 post-installed (kc 7)",
+    "splitting": "ACI 318-19 Sec 17.6.2.6, Eqs 17.6.2.6.1a-b: ψcp,N of post-installed anchors in uncracked concrete without supplementary reinforcement",
+    "anchorReinforcement": "ACI 318-19 Sec 17.5.2.1 (a)-(b): anchor reinforcement developed on both sides of the breakout surface, φ 0.75",
+    "pullout": "ACI 318-19 Sec 17.6.3, Eqs 17.6.3.1, 17.6.3.2.2a-b: Np = 8 Abrg f'c headed, 0.9 f'c eh da hooked (3 da <= eh <= 4.5 da), ψc,P 1.4 uncracked",
+    "sideFace": "ACI 318-19 Sec 17.6.4, Eqs 17.6.4.1, 17.6.4.2: Nsb = 13 ca1 √Abrg λa √f'c where hef > 2.5 ca1",
+    "steelShear": "ACI 318-19 Sec 17.7.1, Eqs 17.7.1.2a-b: Vsa = Ase,V futa (studs), 0.6 Ase,V futa (bolts); × 0.8 with a grout pad (Sec 17.7.1.2.1)",
+    "breakoutShear": "ACI 318-19 Sec 17.7.2.1-17.7.2.2, Eqs 17.7.2.1a-b, 17.7.2.2.1a-b: Vb the lesser of 0.6 (le/da)^0.2 √da λa √f'c ca1^1.5 and 3.7 λa √f'c ca1^1.5 (SI)",
+    "weldedShear": "ACI 318-19 Sec 17.7.2.2.2, Eq 17.7.2.2.2: 0.66 for cast-in anchors welded to a steel attachment, with the bound 3.7 of Eq 17.7.2.2.1b",
+    "narrowShear": "ACI 318-19 Sec 17.7.2.1.2: with three or more edges, ca1 taken as the largest of ca2/1.5, ha/1.5 and s/3",
+    "eccentricityShear": "ACI 318-19 Sec 17.7.2.3, Eq 17.7.2.3.1: ψec,V = 1 / (1 + e'V / (1.5 ca1)) <= 1",
+    "edgeShear": "ACI 318-19 Sec 17.7.2.4, Eqs 17.7.2.4.1a-b: ψed,V = 1.0 or 0.7 + 0.3 ca2 / (1.5 ca1)",
+    "crackingShear": "ACI 318-19 Sec 17.7.2.5: ψc,V 1.4 uncracked; cracked 1.0 without, 1.2 with an edge bar No. 13 or larger, 1.4 with the edge bar enclosed by stirrups at 100 mm or less",
+    "thickness": "ACI 318-19 Sec 17.7.2.6, Eq 17.7.2.6.1: ψh,V = √(1.5 ca1 / ha) >= 1",
+    "pryout": "ACI 318-19 Sec 17.7.3, Eqs 17.7.3.1a-b: Vcp = kcp Ncp, kcp 1.0 for hef < 65 mm, 2.0 otherwise",
+    "interaction": "ACI 318-19 Sec 17.8: full strength in one direction where the other ratio is at most 0.2; otherwise Nua/φNn + Vua/φVn <= 1.2",
+    "spacing": "ACI 318-19 Sec 17.9.2: spacing at least 4 da untorqued cast-in, 6 da torqued and post-installed; edge distances as cover (cast-in untorqued), 6 da torqued, 6, 8, 10 da post-installed (undercut, torque-controlled, displacement-controlled)",
+    "postInstalledDepth": "ACI 318-19 Sec 17.9.3: hef of expansion, screw and undercut anchors at most 2/3 of the member thickness and the thickness less 100 mm",
+    "criticalEdge": "ACI 318-19 Sec 17.9.5: cac 2.5 hef undercut, 4 hef torque-controlled and displacement-controlled (without product tests)",
+    "anchorRods": "AISC 360-22 Sec J9 and ACI 318-19 Chapter 17: anchor rods resist the net tension of the column base",
+    "momentBase": "SAEngine practice (ACI 318-19 Chapter 17 asks the rod tension from the base moment but gives no method): the rod tension by the plate's lever arm",
+    "estimates": "SAEngine practice, not a code value: the nut bearing area and thread pitch used when the anchor's own is not entered"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SP 14.13330.2018 Table 3 (K0, the purpose and responsibility of the building), 4.3 (maps A, B, C); GOST 27751-2014 (responsibility classes)"
+  ],
+  "source": "SP 14.13330.2018: K0 by the building's purpose and responsibility in SAEngine's slots I-IV (I reduced responsibility, II normal, III increased: schools, hospitals, assembly; IV essential: emergency, life support), held as the seismic importance (U, VERIFY.md); the wind importance 1.0 (the reliability factor γn of GOST 27751 is not applied: a project override).",
+  "categories": {
+    "I": {
+      "description": "Reduced responsibility (temporary and minor buildings), K0 0.8",
+      "seismicImportance": 0.8,
+      "windImportance": 1.0
+    },
+    "II": {
+      "description": "Normal responsibility (mass construction: dwellings, offices), K0 1.0",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Increased responsibility (schools, hospitals, assembly), K0 1.2",
+      "seismicImportance": 1.2,
+      "windImportance": 1.0
+    },
+    "IV": {
+      "description": "Essential (emergency services, life support), K0 1.5",
+      "seismicImportance": 1.5,
+      "windImportance": 1.0
+    }
+  }
+}

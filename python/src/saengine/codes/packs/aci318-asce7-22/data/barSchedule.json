@@ -1,0 +1,592 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "ACI 315 (ACI SP-66) / CRSI Manual of Standard Practice bar types and bar list, see VERIFY.md"
+  ],
+  "source": "ACI 315 (ACI SP-66) / CRSI Manual of Standard Practice bar types and bar list, see VERIFY.md",
+  "standard": "aci315",
+  "shapeKey": true,
+  "standards": {
+    "aci315": {
+      "name": "ACI 315 / CRSI",
+      "edition": "ACI 315 (ACI SP-66) / CRSI Manual of Standard Practice",
+      "title": "Bar list",
+      "shapeTerm": "Bar types",
+      "roundTo": 25.4,
+      "rounding": "up",
+      "stockLength": 18288.0,
+      "linkHook": "ext + r + d",
+      "linkHookRound": 5.0,
+      "sizeLabel": "No. {d}",
+      "special": "99",
+      "shapes": {
+        "STR": {
+          "name": "straight",
+          "letters": "A",
+          "length": "A",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0.5
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                0.62
+              ]
+            }
+          },
+          "kind": "straight",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
+        },
+        "1": {
+          "name": "one 90° bend",
+          "letters": "AB",
+          "length": "A + B",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                -0.14
+              ],
+              "B": [
+                -0.14,
+                0.5
+              ]
+            }
+          },
+          "bends": 1,
+          "formula": "L = A + B",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
+        },
+        "2": {
+          "name": "two 90° bends (U)",
+          "letters": "ABC",
+          "length": "A + B + C",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ],
+                [
+                  1.6,
+                  1
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                -0.14,
+                0.5
+              ],
+              "B": [
+                0.8,
+                -0.14
+              ],
+              "C": [
+                1.74,
+                0.5
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
+        },
+        "3": {
+          "name": "offset (two 90° bends, opposite)",
+          "letters": "ABC",
+          "length": "A + B + C",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0.5
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                -0.14,
+                0.75
+              ],
+              "B": [
+                0.8,
+                0.62
+              ],
+              "C": [
+                1.74,
+                0.25
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C",
+          "bvbs": [
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "-90"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
+        },
+        "4": {
+          "name": "truss bar (two inclined bends)",
+          "letters": "ABC",
+          "length": "A + B + C",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.5,
+                  0
+                ],
+                [
+                  1.1,
+                  0.7
+                ],
+                [
+                  1.6,
+                  0.7
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.25,
+                -0.14
+              ],
+              "B": [
+                0.68,
+                0.45
+              ],
+              "C": [
+                1.35,
+                0.82
+              ]
+            }
+          },
+          "bends": 2,
+          "formula": "L = A + B + C"
+        },
+        "T1": {
+          "name": "closed tie or stirrup, 135° hooks",
+          "letters": "ABC",
+          "length": "2 * (A + B) + 2 * C",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  1.6,
+                  0
+                ],
+                [
+                  1.6,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0
+                ]
+              ],
+              [
+                [
+                  0,
+                  1
+                ],
+                [
+                  0.3,
+                  0.7
+                ]
+              ],
+              [
+                [
+                  0.0,
+                  0.92
+                ],
+                [
+                  0.3,
+                  0.62
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                -0.14
+              ],
+              "B": [
+                1.74,
+                0.5
+              ],
+              "C": [
+                0.46,
+                0.62
+              ]
+            }
+          },
+          "transverse": true,
+          "bends": 5,
+          "hook": "C",
+          "formula": "L = 2(A + B) + 2C",
+          "bvbs": [
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "135"
+            ],
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "A"
+            ],
+            [
+              "w",
+              "90"
+            ],
+            [
+              "l",
+              "B"
+            ],
+            [
+              "w",
+              "135"
+            ],
+            [
+              "l",
+              "C"
+            ],
+            [
+              "w",
+              "0"
+            ]
+          ]
+        },
+        "SP": {
+          "name": "spiral",
+          "letters": "ABC",
+          "length": "C * sqrt((pi * (A - d)) ** 2 + B ** 2)",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.27,
+                  1
+                ],
+                [
+                  0.53,
+                  0
+                ],
+                [
+                  0.8,
+                  1
+                ],
+                [
+                  1.07,
+                  0
+                ],
+                [
+                  1.33,
+                  1
+                ],
+                [
+                  1.6,
+                  0
+                ]
+              ]
+            ],
+            "labels": {
+              "A": [
+                0.8,
+                1.14
+              ],
+              "B": [
+                1.74,
+                0.5
+              ]
+            }
+          },
+          "transverse": true,
+          "counts": "C",
+          "remarks": "C = turns",
+          "formula": "L = C √((π(A - d))² + B²)"
+        },
+        "99": {
+          "name": "special (as sketched)",
+          "letters": "",
+          "length": "L",
+          "sketch": {
+            "paths": [
+              [
+                [
+                  0,
+                  0.2
+                ],
+                [
+                  0.5,
+                  0.9
+                ],
+                [
+                  1.0,
+                  0.1
+                ],
+                [
+                  1.6,
+                  0.8
+                ]
+              ]
+            ],
+            "labels": {
+              "L": [
+                0.8,
+                1.0
+              ]
+            }
+          },
+          "kind": "special",
+          "formula": "L as detailed"
+        }
+      },
+      "aliases": {
+        "straight": "STR",
+        "bar": "STR",
+        "str": "STR",
+        "l": "1",
+        "lbar": "1",
+        "u": "2",
+        "ubar": "2",
+        "z": "3",
+        "offset": "3",
+        "crank": "4",
+        "cranked": "4",
+        "truss": "4",
+        "link": "T1",
+        "stirrup": "T1",
+        "tie": "T1",
+        "hoop": "T1",
+        "closedlink": "T1",
+        "helix": "SP",
+        "spiral": "SP",
+        "special": "99"
+      },
+      "columns": [
+        {
+          "key": "member",
+          "title": "Member"
+        },
+        {
+          "key": "mark",
+          "title": "Mark"
+        },
+        {
+          "key": "members",
+          "title": "No. of\nmbrs"
+        },
+        {
+          "key": "per_member",
+          "title": "No.\neach"
+        },
+        {
+          "key": "total_count",
+          "title": "No. of\npcs"
+        },
+        {
+          "key": "size",
+          "title": "Size"
+        },
+        {
+          "key": "cutting_length",
+          "title": "Length\n({len})"
+        },
+        {
+          "key": "shape",
+          "title": "Type"
+        },
+        {
+          "key": "A",
+          "title": "A\n({len})"
+        },
+        {
+          "key": "B",
+          "title": "B\n({len})"
+        },
+        {
+          "key": "C",
+          "title": "C\n({len})"
+        },
+        {
+          "key": "D",
+          "title": "D\n({len})"
+        },
+        {
+          "key": "E",
+          "title": "E/R\n({len})"
+        },
+        {
+          "key": "total_length",
+          "title": "Total\nlength (m)"
+        },
+        {
+          "key": "mass",
+          "title": "Weight\n(kg)"
+        },
+        {
+          "key": "remarks",
+          "title": "Remarks"
+        }
+      ],
+      "note": "Bar types and bar list after {name}: each length the sum of the out-to-out detailing dimensions, ties with the code's hooks; bend radii not less than {bend}; lengths rounded up to {round} mm (1 in); bar sizes are the soft-metric designations with the nominal masses of ASTM A615/A615M Table 1."
+    }
+  }
+}

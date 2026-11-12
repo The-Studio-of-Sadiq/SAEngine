@@ -1,0 +1,26 @@
+{
+  "$sources": [
+    "SAEngine practice on the HL-93 basis, for a code pack that gives no bridge rules: the load factors of AASHTO LRFD Table 3.4.1-1 (Strength I, Service I/III) and the load rating factors of the AASHTO Manual for Bridge Evaluation Art. 6A.4.2; the girders' resistances stay the pack's own concrete methods"
+  ],
+  "source": "SAEngine practice (HL-93 basis): 1.25 DC + 1.50 DW + 1.75 (LL + IM); load rating after the MBE",
+  "method": "loadFactors",
+  "strength": {"dc": 1.25, "dw": 1.5, "ll": 1.75},
+  "service": {"dc": 1.0, "dw": 1.0, "ll": 1.0},
+  "tensionLive": 0.8,
+  "rating": {
+    "dc": 1.25,
+    "dw": 1.5,
+    "dwMeasured": 1.25,
+    "inventory": 1.75,
+    "operating": 1.35,
+    "systemMin": 0.85
+  },
+  "thermalCoefficient": 1.0e-5,
+  "clauses": {
+    "code": "SAEngine practice (HL-93 basis)",
+    "strength": "after AASHTO LRFD Table 3.4.1-1",
+    "service": "after AASHTO LRFD Table 3.4.1-1",
+    "rating": "after MBE Art. 6A.4.2",
+    "thermal": "SAEngine practice"
+  }
+}

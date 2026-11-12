@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$sources": [
+    "NBCC 2020 4.1.7.3 (static procedure): p = Iw q Ce Ct Cg Cp; Ce of open and rough terrain, Cg = 2.0 for the building as a whole, Cp of the walls by H/D"
+  ],
+  "source": "NBCC 2020 4.1.7.3 static procedure (the power law of the program with V of the town's q1/50; the cladding, internal pressure and roof coefficients the parent's ASCE 7-22 / BNBC values until checked)",
+  "method": "powerLaw",
+  "exposures": {
+    "$replace": true,
+    "open": {"description": "Open terrain: level terrain with only scattered buildings, trees or other obstructions, open water or shorelines", "alpha": 10.0, "zg": 10.0, "kzFactor": 1.0, "kzMinHeight": 5.905},
+    "rough": {"description": "Rough terrain: suburban, urban or wooded terrain extending upwind (at least 1 km or 20 times the building height)", "alpha": 6.6667, "zg": 12.0, "kzFactor": 0.7, "kzMinHeight": 12.0}
+  },
+  "defaultExposure": "open",
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 2.0,
+  "cpWindward": 0.8,
+  "cpByHeight": [
+    {"heightRatioMax": 0.25, "windward": 0.6, "leeward": [[1000.0, -0.3]]},
+    {"heightRatioMax": 0.5, "windward": 0.667, "leeward": [[1000.0, -0.367]]},
+    {"heightRatioMax": 0.75, "windward": 0.733, "leeward": [[1000.0, -0.433]]},
+    {"heightRatioMax": 1000.0, "windward": 0.8, "leeward": [[1000.0, -0.5]]}
+  ],
+  "topography": null,
+  "sources": {
+    "$replace": true,
+    "exposures": "NBCC 2020 4.1.7.3(5): Ce = (h/10)^0.2 >= 0.9 (open terrain) and 0.7 (h/12)^0.3 >= 0.7 (rough terrain), written as Kz = kzFactor (max(z, kzMinHeight)/zg)^(2/α): open α 10, zg 10 m, factor 1.0, least height 5.905 m (Ce 0.9); rough α 6.667 (2/α = 0.3), zg 12 m, factor 0.7, least height 12 m",
+    "directionality": "NBCC has no directionality factor: 1.0",
+    "topographic": "Ct = 1.0 (flat terrain); NBCC 4.1.7.4 speed-up over hills is not covered (topography: none)",
+    "gust": "NBCC 2020 4.1.7.3(8): Cg = 2.0 for the building as a whole and its main structural members (static procedure)",
+    "cpByHeight": "NBCC 2020 4.1.7.3 and its commentary for the static procedure: Cp windward 0.8, leeward -0.5 for H/D >= 1; 0.6 and -0.3 for H/D < 0.25; linear between (taken at the top of each band, on the safe side); w the lesser plan dimension; leeward Ce at the roof height h (NBCC takes it at h/2: on the safe side)"
+  },
+  "clauses": {
+    "$replace": true,
+    "gust": "4.1.7.3(8)",
+    "pressure": "4.1.7.3(1)",
+    "exposure": "4.1.7.3(5)"
+  }
+}

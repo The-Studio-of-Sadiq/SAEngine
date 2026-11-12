@@ -1,0 +1,73 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "saudi-sbc",
+  "name": "Saudi Building Code (SBC 301, SBC 304, SBC 306)",
+  "edition": "SBC 301-2018",
+  "country": "SA",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "seismic",
+    "wind",
+    "concrete",
+    "barSchedule",
+    "citations"
+  ],
+  "description": "The Saudi Building Code (alpha 9 track C16), a pack that extends the US pack aci318-asce7-22: SBC 301-2018 loads in the ASCE 7-16 form (the cities' mapped SS and S1 with the site coefficients Fa and Fv of Tables 11.4-1 and 11.4-2, the site classes A-F, the basic wind speed of each city and the ASCE 7-16 velocity pressure constants), SBC 304-2018 concrete (ACI 318 with the Kingdom's bar sizes and the BS 8666 bar schedule practice of the Gulf; the clause references named SBC 304) and SBC 306 steel (AISC 360, the base pack's). Everything else, including the load combinations, live loads, seismic systems and the concrete and steel design rules, is the base pack's (ASCE 7-22, ACI 318-19, AISC 360-22): where SBC differs, VERIFY.md says so. Every value is listed in VERIFY.md; the city values are uncertain and must be checked against the printed code before design.",
+  "sources": [
+    {
+      "id": "SBC301",
+      "title": "Saudi Building Code: Loads and Forces Requirements (SBC 301)",
+      "edition": "2018",
+      "publisher": "Saudi Building Code National Committee"
+    },
+    {
+      "id": "SBC304",
+      "title": "Saudi Building Code: Concrete Structures Requirements (SBC 304)",
+      "edition": "2018",
+      "publisher": "Saudi Building Code National Committee"
+    },
+    {
+      "id": "SBC306",
+      "title": "Saudi Building Code: Steel Structures Requirements (SBC 306)",
+      "edition": "2018",
+      "publisher": "Saudi Building Code National Committee"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "SBC 301-2018 Sec 11.4.2 (mapped SS, S1) and Sec 26.5.1 (basic wind speed)"
+    ],
+    "seismic": [
+      "SBC 301-2018 Chapters 11, 12 and 20 (ASCE 7-16 form)"
+    ],
+    "wind": [
+      "SBC 301-2018 Chapter 26 (Table 26.10-1, Table 26.11-1)"
+    ],
+    "concrete": [
+      "SBC 304-2018 (bar sizes: SAEngine practice)"
+    ],
+    "barSchedule": [
+      "BS 8666 (SAEngine practice in the Gulf)"
+    ],
+    "citations": [
+      "SBC 304-2018 (ACI 318 numbering)"
+    ]
+  },
+  "basis": {
+    "general": "SBC 301-2018 (with ASCE 7-22 where it gives the same rule)",
+    "concrete": "SBC 304-2018 (ACI 318-19 rules of the base pack)",
+    "steel": "SBC 306-2018 (AISC 360-22 rules of the base pack)"
+  },
+  "tableCodes": {
+    "seismic": "SBC 301-2018",
+    "wind": "SBC 301-2018",
+    "locations": "SBC 301-2018",
+    "concrete": "SBC 304-2018",
+    "citations": "SBC 304-2018"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

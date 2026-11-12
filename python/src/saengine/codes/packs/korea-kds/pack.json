@@ -1,0 +1,69 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "korea-kds",
+  "name": "Korean Design Standards (KDS 41, KDS 14)",
+  "edition": "KDS 41 17 00:2019",
+  "country": "KR",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "seismic",
+    "occupancyCategories",
+    "concrete",
+    "factors"
+  ],
+  "description": "The Korean Design Standards (alpha 9 track C24), a pack that extends the US pack aci318-asce7-22. Seismic by KDS 41 17 00:2019 (the successor of KBC 2016): the seismic zones I and II with the effective peak ground acceleration S of the 2400-year earthquake (Z × I = 0.11 × 2.0 and 0.07 × 2.0), entered as the mapped values SS = 2.5 S and S1 = S of each town; the site classes S1-S6 with Fa and Fv by S; SDS = 2.5 S Fa × 2/3 and SD1 = S Fv × 2/3; the importance factors 1.5, 1.2, 1.0; the base pack's ASCE 7 form of the design spectrum, Cs, the Seismic Design Category bands, R, Ω0, Cd and the drift limits (the same numbers in KDS 41 17 00). Wind: the base pack's ASCE 7 method with the towns' KDS basic wind speed V0 (a 10-minute mean) turned into a 3-second gust (SAEngine practice, × 1.43). Concrete by KDS 14 20 (ACI 318 with the Korean strength reduction factors: 0.85 for tension-controlled sections, 0.70 spirals, 0.55 plain concrete) and the bars D10-D32; steel KDS 14 31 as the base pack's AISC 360-22. Every value is listed in VERIFY.md; the towns' zones and wind speeds and the S1-S6 coefficients are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "KDS411700",
+      "title": "KDS 41 17 00 Seismic Design Standard for Buildings",
+      "edition": "2019",
+      "publisher": "Ministry of Land, Infrastructure and Transport, Republic of Korea"
+    },
+    {
+      "id": "KDS411200",
+      "title": "KDS 41 12 00 Building Design Loads (wind)",
+      "edition": "2022",
+      "publisher": "Ministry of Land, Infrastructure and Transport, Republic of Korea"
+    },
+    {
+      "id": "KDS1420",
+      "title": "KDS 14 20 Concrete Structure Design Standards",
+      "edition": "2021",
+      "publisher": "Korea Concrete Institute / Ministry of Land, Infrastructure and Transport"
+    }
+  ],
+  "clauses": {
+    "locations": [
+      "KDS 41 17 00 4.2.1 (seismic zones I, II), KDS 41 12 00 5.5 (basic wind speed V0)"
+    ],
+    "seismic": [
+      "KDS 41 17 00 4.2 (site classes, Fa, Fv, SDS, SD1), 6.2 (R, Cd, Ω0)"
+    ],
+    "occupancyCategories": [
+      "KDS 41 17 00 3.2 (seismic importance classes and factors)"
+    ],
+    "concrete": [
+      "KS D 3504 (deformed bars D10-D32)"
+    ],
+    "factors": [
+      "KDS 14 20 10 4.2.3 (strength reduction factors)"
+    ]
+  },
+  "basis": {
+    "general": "KDS 41 17 00:2019 (seismic), KDS 41 12 00 (loads; the base pack's ASCE 7-22 where the numbers agree)",
+    "concrete": "KDS 14 20 (the base pack's ACI 318-19 rules with the KDS strength reduction factors)",
+    "steel": "KDS 14 31 (the base pack's AISC 360-22)"
+  },
+  "tableCodes": {
+    "seismic": "KDS 41 17 00",
+    "locations": "KDS 41 17 00",
+    "occupancyCategories": "KDS 41 17 00",
+    "concrete": "KDS 14 20",
+    "factors": "KDS 14 20"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

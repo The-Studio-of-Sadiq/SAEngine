@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/embeddedWalls.schema.json",
+  "$sources": [
+    "SAEngine practice where IBC 2021 and ASCE 7-22 give no method for embedded excavation walls: limit equilibrium by free and fixed earth support (Blum's equivalent beam), factor 2.0 on the passive resistance (CIRIA Report 104, Padfield and Mair 1984), embedment × 1.2 for fixed earth support, the least surcharge 10 kPa and the unplanned excavation 10 % of the retained height up to 0.5 m (CIRIA C580 / EN 1997-1 9.3.2.2); see VERIFY.md"
+  ],
+  "source": "SAEngine practice where IBC 2021 and ASCE 7-22 give no method: embedded walls by free and fixed earth support with a factor on the passive resistance (the same values as the extended pack)",
+  "clauses": {
+    "required": "IBC 2021 Sec 3304.1 (excavation and fill; no design method for embedded walls)",
+    "method": "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: free and fixed earth support (Blum), passive resistance / 2.0 (CIRIA Report 104)",
+    "overdig": "SAEngine practice where IBC 2021 and ASCE 7-22 are silent: unplanned excavation 10 % of the retained height, at most 0.5 m (EN 1997-1 9.3.2.2, CIRIA C580)"
+  }
+}

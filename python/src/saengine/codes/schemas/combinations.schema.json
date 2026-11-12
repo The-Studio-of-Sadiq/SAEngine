@@ -1,0 +1,489 @@
+{
+  "$defs": {
+    "CantileverUplift": {
+      "additionalProperties": false,
+      "description": "A net upward force on horizontal cantilevers, in addition to the combinations.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "factor": {
+          "description": "Upward force as a share of the dead load.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "categories": {
+          "description": "Seismic Design Categories it applies in.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        }
+      },
+      "required": [
+        "factor",
+        "categories"
+      ],
+      "title": "CantileverUplift",
+      "type": "object"
+    },
+    "Combination": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the row adds beyond the code (an adoption), shown with it in the report.",
+          "title": "Note"
+        }
+      },
+      "required": [
+        "name",
+        "factors"
+      ],
+      "title": "Combination",
+      "type": "object"
+    },
+    "FactorException": {
+      "additionalProperties": false,
+      "description": "A code's permitted change of one factor in some combinations (``rows``: their ids).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "case": {
+          "description": "Load case kind whose factor changes (L, W ...).",
+          "title": "Case",
+          "type": "string"
+        },
+        "to": {
+          "description": "The factor it may take instead.",
+          "title": "To",
+          "type": "number"
+        },
+        "rows": {
+          "description": "Ids of the strength combinations it applies to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "liveMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only where every floor live load L0 ≤ this [kN/m²].",
+          "title": "Livemax"
+        },
+        "excludedUses": {
+          "description": "Area uses (garages, assembly) it never applies to.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Excludeduses",
+          "type": "array"
+        },
+        "directionality": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only when the wind's directionality factor is this (W not reduced by it).",
+          "title": "Directionality"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only for members of this material category (concrete).",
+          "title": "Material"
+        }
+      },
+      "required": [
+        "case",
+        "to",
+        "rows"
+      ],
+      "title": "FactorException",
+      "type": "object"
+    },
+    "FloodCombinations": {
+      "additionalProperties": false,
+      "description": "The combinations of one kind of flood zone.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "strength": {
+          "items": {
+            "$ref": "#/$defs/Combination"
+          },
+          "title": "Strength",
+          "type": "array"
+        },
+        "allowable": {
+          "items": {
+            "$ref": "#/$defs/Combination"
+          },
+          "title": "Allowable",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "title": "FloodCombinations",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Load cases and load combinations by category.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "loadCases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Load case id -> title.",
+      "title": "Loadcases",
+      "type": "object"
+    },
+    "strength": {
+      "description": "Strength (LRFD/USD) combinations.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Strength",
+      "type": "array"
+    },
+    "service": {
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Service",
+      "type": "array"
+    },
+    "allowable": {
+      "description": "Allowable stress design (ASD) combinations, for the materials designed by permissible stresses (timber).",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Allowable",
+      "type": "array"
+    },
+    "temperature": {
+      "description": "Strength combinations with T (rise +, fall -).",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Temperature",
+      "type": "array"
+    },
+    "creepShrinkage": {
+      "description": "Strength combinations with the creep and shrinkage forces case CS (the factor the code gives a self-straining action); empty: CS is analysed, not designed for.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Creepshrinkage",
+      "type": "array"
+    },
+    "gravity": {
+      "description": "The strength combinations with gravity loads only.",
+      "items": {
+        "$ref": "#/$defs/Combination"
+      },
+      "title": "Gravity",
+      "type": "array"
+    },
+    "seismicDeadUpper": {
+      "description": "D factor of the strength combination with E and L (before + Ev).",
+      "title": "Seismicdeadupper",
+      "type": "number"
+    },
+    "seismicDeadLower": {
+      "description": "D factor of the strength combination with E and no L (before - Ev).",
+      "title": "Seismicdeadlower",
+      "type": "number"
+    },
+    "overstrength": {
+      "default": "",
+      "description": "How Em applies: text for the report (Ω0 from the seismic systems table).",
+      "title": "Overstrength",
+      "type": "string"
+    },
+    "optionalCases": {
+      "description": "Load case kinds a combination is formed without when the model has no such case (a model without basement walls has no H).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Optionalcases",
+      "type": "array"
+    },
+    "alternates": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "A case and the cases that may take its place at the same factor ('Lr or R'): each combination with the case is also formed with each alternate the model has.",
+      "title": "Alternates",
+      "type": "object"
+    },
+    "exceptions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FactorException"
+      },
+      "description": "Permitted factor changes of the strength combinations, by name.",
+      "title": "Exceptions",
+      "type": "object"
+    },
+    "allowableStressIncrease": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Allowable stress increase with the overstrength seismic load Em in the allowable stress combinations ``allowableStressIncreaseRows``.",
+      "title": "Allowablestressincrease"
+    },
+    "allowableStressIncreaseRows": {
+      "description": "Ids of the allowable stress combinations it applies to.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowablestressincreaserows",
+      "type": "array"
+    },
+    "upliftDeadFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Factor on the dead load that resists uplift in allowable stress design.",
+      "title": "Upliftdeadfactor"
+    },
+    "cantileverUplift": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CantileverUplift"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "withLateral": {
+      "description": "Case kinds that act in the direction of a row's wind or earthquake (the flood load Fa with the wind that drives it): they expand with it.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Withlateral",
+      "type": "array"
+    },
+    "flood": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FloodCombinations"
+      },
+      "description": "Combinations formed in a flood or tidal surge zone, by kind of zone (coastal, inland); the project's flood zone chooses one.",
+      "title": "Flood",
+      "type": "object"
+    },
+    "pDeltaPreload": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "D6: load case -> factor of the gravity preload of a P-Delta analysis (the gravity part of the seismic strength combination); empty: the generic default (codes/generic), named in the report.",
+      "title": "Pdeltapreload"
+    },
+    "strengthSets": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/Combination"
+        },
+        "type": "array"
+      },
+      "description": "Alternative sets of strength combinations by id; ``strengthSet`` chooses the one that becomes ``strength`` (every reader then sees that set).",
+      "title": "Strengthsets",
+      "type": "object"
+    },
+    "strengthSet": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the set of ``strengthSets`` used as ``strength`` (a project may choose another by overriding this value); empty: ``strength`` as given.",
+      "title": "Strengthset"
+    },
+    "strengthSetLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Readable name of each set, for the report.",
+      "title": "Strengthsetlabels",
+      "type": "object"
+    }
+  },
+  "required": [
+    "loadCases",
+    "strength",
+    "seismicDeadUpper",
+    "seismicDeadLower"
+  ],
+  "title": "CombinationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.combinations/1"
+}

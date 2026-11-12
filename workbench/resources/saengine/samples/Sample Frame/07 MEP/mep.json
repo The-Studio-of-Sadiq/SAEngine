@@ -1,0 +1,279 @@
+{
+	"schema": "saengine.mep/1",
+	"equipment": [],
+	"openings": [
+		{
+			"id": "OP1",
+			"host": "B1",
+			"kind": "sleeve",
+			"shape": "circle",
+			"diameter": 100,
+			"position": {
+				"distance": 2000,
+				"elevation": 250
+			},
+			"service": "DN100 drain"
+		}
+	],
+	"shafts": [
+		{
+			"id": "SH1",
+			"outline": [
+				[6600, 3800],
+				[7400, 3800],
+				[7400, 4600],
+				[6600, 4600]
+			],
+			"fromStory": "BASE",
+			"toStory": "L1",
+			"service": "Plumbing shaft"
+		}
+	],
+	"ifcModels": [],
+	"plumbing": {
+		"supply": {
+			"source": "mains",
+			"mainsHead": 8,
+			"pumpHours": 8
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"occupancy": "office",
+				"population": 12,
+				"fixtures": {
+					"wc": 2,
+					"basin": 2,
+					"kitchenSink": 1,
+					"floorDrain": 2
+				}
+			}
+		],
+		"risers": [
+			{
+				"id": "R1",
+				"system": "coldWater",
+				"x": 6800,
+				"y": 4200,
+				"fromStory": "BASE",
+				"toStory": "L1",
+				"shaft": "SH1",
+				"material": "PPR"
+			},
+			{
+				"id": "SS1",
+				"system": "soil",
+				"x": 7200,
+				"y": 4200,
+				"fromStory": "BASE",
+				"toStory": "L1",
+				"shaft": "SH1",
+				"diameter": 100,
+				"material": "uPVC"
+			}
+		],
+		"tanks": [
+			{
+				"id": "T1",
+				"kind": "overhead",
+				"story": "L1",
+				"x": 9500,
+				"y": 2500,
+				"length": 2200,
+				"width": 1700,
+				"waterDepth": 1400,
+				"freeboard": 250,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 150,
+				"base": 150,
+				"roof": 125,
+				"material": "C24.1",
+				"rebar": "B420DWR",
+				"sized": false
+			},
+			{
+				"id": "UGR1",
+				"kind": "underground",
+				"x": -3600,
+				"y": 2500,
+				"length": 3000,
+				"width": 2000,
+				"waterDepth": 1800,
+				"freeboard": 300,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 200,
+				"base": 250,
+				"roof": 150,
+				"material": "C27.6",
+				"rebar": "B420DWR",
+				"topLevel": 150,
+				"toe": 300,
+				"sized": false
+			},
+			{
+				"id": "SEP1",
+				"kind": "septic",
+				"x": 17000,
+				"y": 2500,
+				"length": 3600,
+				"width": 1200,
+				"waterDepth": 1200,
+				"freeboard": 300,
+				"compartments": 2,
+				"construction": "rc",
+				"walls": 200,
+				"base": 200,
+				"roof": 150,
+				"material": "C27.6",
+				"rebar": "B420DWR",
+				"topLevel": 150,
+				"sized": false
+			}
+		]
+	},
+	"hvac": {
+		"system": "vrf",
+		"envelope": {
+			"wall": "brick250",
+			"roof": "rcLimeTerracing",
+			"glazing": "singleClear",
+			"shading": "none"
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"conditioned": true,
+				"use": "officeSpace",
+				"occupants": 12
+			}
+		],
+		"plant": [
+			{
+				"id": "ODU1",
+				"kind": "vrfOutdoor",
+				"story": "L1",
+				"x": 1800,
+				"y": 1500,
+				"length": 310,
+				"width": 760,
+				"height": 1690.0,
+				"capacity": 14.0,
+				"operatingWeight": 0.8,
+				"sized": false,
+				"serves": [
+					"BASE"
+				]
+			},
+			{
+				"id": "ODU2",
+				"kind": "vrfOutdoor",
+				"story": "L1",
+				"x": 1800,
+				"y": 3500,
+				"length": 310,
+				"width": 760,
+				"height": 1690.0,
+				"capacity": 14.0,
+				"operatingWeight": 0.8,
+				"sized": false,
+				"serves": [
+					"BASE"
+				]
+			}
+		],
+		"ducts": [
+			{
+				"id": "SD1",
+				"system": "supply",
+				"shape": "rect",
+				"width": 650,
+				"height": 250,
+				"story": "BASE",
+				"path": [
+					[3000, 2500],
+					[10500, 2500]
+				]
+			}
+		]
+	},
+	"electrical": {
+		"supply": {
+			"voltage": "11kV",
+			"generator": true,
+			"ups": false
+		},
+		"stories": [
+			{
+				"story": "BASE",
+				"use": "office"
+			}
+		],
+		"equipment": [
+			{
+				"id": "TX1",
+				"kind": "transformer",
+				"story": "BASE",
+				"x": 3000,
+				"y": -3000,
+				"length": 1200.0,
+				"width": 800.0,
+				"height": 1300.0,
+				"rating": 100,
+				"operatingWeight": 7.4,
+				"sized": false
+			},
+			{
+				"id": "G1",
+				"kind": "generator",
+				"story": "BASE",
+				"x": 9000,
+				"y": -3000,
+				"length": 2100.0,
+				"width": 900.0,
+				"height": 1350.0,
+				"rating": 50,
+				"operatingWeight": 10.8,
+				"sized": false
+			}
+		],
+		"risers": [
+			{
+				"id": "ER1",
+				"kind": "busbar",
+				"x": 12300,
+				"y": 4300,
+				"width": 200,
+				"depth": 150,
+				"fromStory": "BASE",
+				"toStory": "L1"
+			}
+		],
+		"trays": [
+			{
+				"id": "CT1",
+				"story": "BASE",
+				"path": [
+					[7000, 4000],
+					[12000, 4000]
+				],
+				"width": 300,
+				"height": 100
+			}
+		],
+		"lightning": {
+			"enabled": true,
+			"downConductors": "structuralRebar",
+			"earthing": "foundation"
+		}
+	},
+	"fire": {
+		"stories": [
+			{
+				"story": "BASE",
+				"area": 65
+			}
+		]
+	}
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/compositePlateWalls.schema.json",
+  "$sources": [
+    "ANSI/AISC 341-22 Seismic Provisions Sec H7 (C-PSW/CF)",
+    "ANSI/AISC 360-22 Chapter I (I1.2a plastic stress distribution, I1.6 filled composite plate shear walls, I2)"
+  ],
+  "source": "AISC 341-22 H7 and AISC 360-22 Chapter I (LRFD): plate slenderness and tie spacing, wall thickness and steel ratio, compression and in-plane flexure by the plastic stress distribution, the in-plane shear of the composite section; see VERIFY.md",
+  "method": "filledPlates",
+  "factors": {
+    "shear": 0.9,
+    "flexure": 0.9,
+    "compression": 0.75
+  },
+  "concreteBlock": 0.85,
+  "crackedConcrete": 0.7,
+  "compositeShear": 4.0,
+  "limits": {
+    "plateSlenderness": 1.2,
+    "tieSpacing": 1.05,
+    "alphaFactor": 1.7,
+    "alphaExponent": 4,
+    "thicknessMin": 230,
+    "thicknessMax": 1520,
+    "steelRatioMin": 0.01,
+    "steelRatioMax": 0.1,
+    "plateMin": 9.5
+  },
+  "clauses": {
+    "code": "AISC 341-22 H7",
+    "shear": "AISC 341-22 H7.5b / AISC 360-22 I4.3 (in-plane shear)",
+    "flexure": "AISC 360-22 I1.2a, AISC 341-22 H7.5a (plastic stress distribution)",
+    "compression": "AISC 360-22 I2.2 (Pno, no slenderness: storey-high wall)",
+    "slenderness": "AISC 360-22 I1.6a (plate slenderness, tie spacing)",
+    "ties": "AISC 360-22 I1.6b (tie spacing for composite action)",
+    "detailing": "AISC 341-22 H7.4 (wall thickness, steel ratio, plate thickness)"
+  }
+}

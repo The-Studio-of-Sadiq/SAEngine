@@ -1,0 +1,83 @@
+{
+  "schema": "saengine.codePack/1",
+  "id": "brazil-nbr",
+  "name": "Brazil (ABNT NBR 6118, 6120, 6123, 8681, 8800, 15421)",
+  "edition": "NBR 6118:2014 / NBR 15421:2006",
+  "country": "BR",
+  "units": "SI",
+  "version": "0.1.0",
+  "extends": "aci318-asce7-22",
+  "covers": [
+    "locations",
+    "seismic",
+    "occupancyCategories",
+    "wind",
+    "combinations",
+    "concrete",
+    "concreteMethods"
+  ],
+  "description": "The Brazilian ABNT standards (alpha 9 track C24), a pack that extends the US pack aci318-asce7-22. Seismic by NBR 15421:2006: the characteristic ground acceleration ag of the seismic zones 0-4 (0.025-0.15 g), the site classes A-E with Ca and Cv (Table 3), ags0 = Ca ag and ags1 = Cv ag, the spectrum 2.5 ags0 from 0.08 Cv/Ca to 0.4 Cv/Ca and ags1/T beyond (the base pack's two-period form with SS = 2.5 ag, S1 = ag, Fa = Ca, Fv = Cv and no 2/3), Cs ≥ 0.01, the importance factors 1.0, 1.25, 1.5 and the R, Ω0, Cd of the systems (the base pack's ASCE 7 numbers, which NBR 15421 Table 6 shares). Wind by NBR 6123:1988: the basic speed V0 of the isopleths, Vk = V0 S1 S2 S3 with S2 = b Fr (z/10)^p of the terrain categories I-V (class B buildings), S3 the statistical factor of the use group and q = 0.613 Vk², by the generic speedFactors method. Load combinations by NBR 8681 (1.4G + 1.4Q, the wind combinations with ψ0, the exceptional seismic one). Concrete by NBR 6118:2014: γc 1.4, γs 1.15, the rectangular block 0.85 fcd over 0.8 x, x/d ≤ 0.45, Eci = 5600 √fck as Ecs, shear model I (Vc = 0.09 fck^(2/3) bw d, VRd2 = 0.27 αv2 fcd bw d, the stirrups on 0.9 d with fywd ≤ 435 MPa) by the generic partialFactors and tabulatedStress methods; bars Ø5-Ø40 (NBR 7480). Steel NBR 8800 as the base pack's AISC 360-22 (γa1 1.10 ≈ 1/φ 0.90). Every value is listed in VERIFY.md; the towns' ag and V0 are uncertain and must be checked before design.",
+  "sources": [
+    {
+      "id": "NBR15421",
+      "title": "ABNT NBR 15421 Projeto de estruturas resistentes a sismos",
+      "edition": "2006",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    },
+    {
+      "id": "NBR6123",
+      "title": "ABNT NBR 6123 Forças devidas ao vento em edificações",
+      "edition": "1988",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    },
+    {
+      "id": "NBR6118",
+      "title": "ABNT NBR 6118 Projeto de estruturas de concreto",
+      "edition": "2014",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    },
+    {
+      "id": "NBR8681",
+      "title": "ABNT NBR 8681 Ações e segurança nas estruturas",
+      "edition": "2003",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    },
+    {
+      "id": "NBR6120",
+      "title": "ABNT NBR 6120 Ações para o cálculo de estruturas de edificações",
+      "edition": "2019",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    },
+    {
+      "id": "NBR8800",
+      "title": "ABNT NBR 8800 Projeto de estruturas de aço e de estruturas mistas de aço e concreto de edifícios",
+      "edition": "2008",
+      "publisher": "Associação Brasileira de Normas Técnicas (ABNT)"
+    }
+  ],
+  "clauses": {
+    "locations": ["NBR 15421 Figure 1 (seismic zones), NBR 6123 Figure 1 (isopleths of V0)"],
+    "seismic": ["NBR 15421 Sections 6-9"],
+    "occupancyCategories": ["NBR 15421 Table 3 (I); NBR 6123 Table 3 (S3)"],
+    "wind": ["NBR 6123 Sections 5-6"],
+    "combinations": ["NBR 8681 5.1.3"],
+    "concrete": ["NBR 7480 (bars)"],
+    "concreteMethods": ["NBR 6118 8.2-8.3, 12.4, 17.2, 17.4"]
+  },
+  "basis": {
+    "general": "NBR 8681 (combinations), NBR 6120 (as the base pack's ASCE 7-22 live loads), NBR 6123 (wind), NBR 15421 (seismic)",
+    "concrete": "NBR 6118:2014 (ultimate and shear model I; the other areas the base pack's ACI 318-19)",
+    "steel": "NBR 8800:2008 (the base pack's AISC 360-22)"
+  },
+  "tableCodes": {
+    "seismic": "NBR 15421",
+    "locations": "NBR 15421",
+    "occupancyCategories": "NBR 15421",
+    "wind": "NBR 6123",
+    "combinations": "NBR 8681",
+    "concrete": "NBR 6118",
+    "concreteMethods": "NBR 6118"
+  },
+  "author": "SAEngine contributors",
+  "licence": "AGPL-3.0-only"
+}

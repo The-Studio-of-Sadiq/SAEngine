@@ -1,0 +1,242 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.saengine-cad-editor {
+	position: relative;
+	overflow: hidden;
+}
+
+.saengine-cad-editor .cad-host {
+	position: absolute;
+	inset: 0;
+}
+
+.saengine-cad-editor .cad-message {
+	display: none;
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	right: 12px;
+	padding: 8px 12px;
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+.saengine-cad-editor .cad-message.visible {
+	display: block;
+}
+
+.saengine-cad-editor .cad-instance {
+	position: absolute;
+	inset: 0;
+}
+
+/* The floor plan in the shared editor frame (editorFrame.css): the drawing fills the main area. */
+.saengine-floor-plan,
+.monaco-workbench .saengine-editor-frame.saengine-floor-plan:focus {
+	outline: none;
+}
+
+.saengine-floor-plan .saengine-cad-editor {
+	flex: 1;
+	min-height: 0;
+}
+
+.saengine-floor-plan .floor-plan-select.story {
+	width: 200px;
+}
+
+.saengine-floor-plan .floor-plan-select.type {
+	width: 200px;
+}
+
+.saengine-floor-plan .floor-plan-select.fill {
+	width: 220px;
+}
+
+/* Inline controls of the active tool: the type picker, the typed move or angle. */
+.saengine-floor-plan .floor-plan-inline {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+}
+
+.saengine-floor-plan .floor-plan-inline.hidden {
+	display: none;
+}
+
+.saengine-floor-plan .floor-plan-typed {
+	width: 170px;
+}
+
+/* Editable rows of the properties panel. */
+.saengine-floor-plan .sa-props-row.editable {
+	align-items: center;
+}
+
+.saengine-floor-plan .floor-plan-prop-control {
+	width: 190px;
+	max-width: 100%;
+}
+
+/*
+ * Theme. The canvas takes the editor background (cadHost.ts: cadBackground) and mlightcad draws
+ * ACI 7 linework black on light backgrounds and white on dark ones; the floor plan draws its
+ * layers in deeper shades on light canvases (floorPlanEditor.ts: LIGHT_CANVAS_COLORS).
+ */
+
+/* mlightcad's own controls (command line, quick toolbar) in the workbench colours. */
+.saengine-cad-editor .cad-instance,
+.saengine-cad-editor .cad-instance [data-ml-ui-theme] {
+	--ml-ui-text: var(--vscode-foreground) !important;
+	--ml-ui-text-muted: var(--vscode-descriptionForeground) !important;
+	--ml-ui-bg: var(--vscode-editorWidget-background) !important;
+	--ml-ui-border: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+	--ml-ui-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent) !important;
+	--ml-ui-accent: var(--sa-accent) !important;
+	--ml-ui-accent-alt: var(--vscode-descriptionForeground) !important;
+	--ml-ui-danger: var(--vscode-errorForeground) !important;
+	color-scheme: inherit !important;
+}
+
+/* The tool's pickers keep their width when the toolbar is short of room (1366 px screens). */
+.saengine-floor-plan .floor-plan-select {
+	flex-shrink: 0;
+	min-width: 150px;
+}
+
+/* Editable rows: the label on one line, the field under it when the panel is narrow. */
+.saengine-floor-plan .sa-props-row.editable {
+	flex-wrap: wrap;
+	row-gap: 2px;
+}
+
+.saengine-floor-plan .sa-props-row.editable > .name {
+	flex: 1 0 auto;
+	max-width: 100%;
+}
+
+.saengine-floor-plan .sa-props-row.editable .floor-plan-prop-control {
+	flex: 1 1 150px;
+	width: auto;
+	max-width: 240px;
+	margin-left: auto;
+}
+
+/* mlightcad's own notification bell and font warnings: the floor plan reports its own problems. */
+.saengine-cad-editor .ml-ui-notification-center {
+	display: none !important;
+}
+
+/* The empty plan: how to start, over the grid. */
+.saengine-floor-plan .floor-plan-empty {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	max-width: min(440px, calc(100% - 32px));
+	max-height: calc(100% - 32px);
+	overflow: auto;
+	padding: 8px 14px 10px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
+	z-index: 2;
+}
+
+.saengine-floor-plan .floor-plan-empty.hidden {
+	display: none;
+}
+
+.saengine-floor-plan .floor-plan-empty-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.saengine-floor-plan .floor-plan-empty h3 {
+	margin: 4px 0;
+	font-size: 14px;
+}
+
+.saengine-floor-plan .floor-plan-empty ol {
+	margin: 0;
+	padding-left: 20px;
+}
+
+.saengine-floor-plan .floor-plan-empty li {
+	margin: 6px 0;
+}
+
+.saengine-floor-plan .floor-plan-empty li.done > span {
+	color: var(--vscode-descriptionForeground);
+}
+
+/*
+ * The Architecture editor's properties: one line per row, the label left and every input and
+ * select at the same width right of it; a long choice ("Residential: rooms and private
+ * corridors") ends in an ellipsis.
+ */
+.saengine-architecture .sa-props-row.editable {
+	flex-wrap: nowrap;
+}
+
+.saengine-architecture .sa-props-row.editable > .name {
+	flex: 0 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.saengine-architecture .sa-props-row.editable > .value {
+	flex: 0 0 58%;
+	min-width: 0;
+}
+
+.saengine-architecture .sa-props-row.editable .floor-plan-prop-control {
+	width: 100%;
+	max-width: none;
+	margin-left: 0;
+}
+
+.saengine-architecture .floor-plan-prop-control .monaco-select-box {
+	width: 100%;
+	text-overflow: ellipsis;
+	padding-right: 22px; /* the ellipsis stops before the arrow */
+}
+
+/* Select boxes end their text in an ellipsis before the arrow, never under it; the story picker
+ * is as wide as its longest name ("Level 10 (+30000) = Level 2"). */
+.saengine-floor-plan .monaco-select-box {
+	text-overflow: ellipsis;
+	padding-right: 22px;
+}
+
+.saengine-floor-plan .floor-plan-select.story {
+	width: auto;
+	min-width: 200px;
+	max-width: 320px;
+}
+
+.saengine-floor-plan .floor-plan-select.story .monaco-select-box {
+	width: max-content;
+	min-width: 200px;
+	max-width: 320px;
+}
+
+/* The properties panel scrolls down only: its tables and fields fit its width. */
+.saengine-floor-plan .sa-frame-panel-content {
+	overflow-x: hidden;
+}
+
+.saengine-floor-plan .sa-props-row.editable .floor-plan-prop-control .monaco-select-box {
+	width: 100%;
+}
+
+/* While the start card shows, the plan is fitted beside it, so it covers none of the grid bubbles. */
+.saengine-floor-plan .saengine-cad-editor.with-start .cad-host {
+	left: min(472px, 45%);
+}

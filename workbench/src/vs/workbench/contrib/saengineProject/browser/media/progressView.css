@@ -1,0 +1,113 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Progress view (progressView.ts): SAEngine's jobs and their steps. */
+.monaco-workbench .sa-progress-view {
+	height: 100%;
+	overflow-y: auto;
+	box-sizing: border-box;
+	padding: var(--sa-space-2) var(--sa-space-3);
+	font-size: var(--sa-font-m);
+}
+
+.monaco-workbench .sa-progress-empty {
+	color: var(--sa-muted);
+}
+
+.monaco-workbench .sa-progress-job {
+	padding: var(--sa-space-2) 0;
+	border-bottom: 1px solid var(--sa-border);
+}
+
+.monaco-workbench .sa-progress-job:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .sa-progress-job-header {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+}
+
+.monaco-workbench .sa-progress-title {
+	font-family: var(--sa-font-brand);
+	font-weight: var(--sa-font-brand-heading-weight);
+}
+
+.monaco-workbench .sa-progress-meta {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.monaco-workbench .sa-progress-message {
+	margin: var(--sa-space-1) 0 0 22px;
+}
+
+.monaco-workbench .sa-progress-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-3);
+	margin: var(--sa-space-1) 0 0 22px;
+}
+
+.monaco-workbench .sa-progress-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.monaco-workbench .sa-progress-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.monaco-workbench .sa-progress-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.monaco-workbench .sa-progress-steps {
+	list-style: none;
+	margin: var(--sa-space-1) 0 0 22px;
+	padding: 0;
+}
+
+.monaco-workbench .sa-progress-step {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--sa-space-2);
+	padding: 1px 0;
+}
+
+.monaco-workbench .sa-progress-step-detail {
+	flex-basis: 100%;
+	margin-left: 22px;
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	white-space: pre-wrap;
+}
+
+.monaco-workbench .sa-progress-step.sa-step-pending .sa-progress-step-label,
+.monaco-workbench .sa-progress-step.sa-step-skipped .sa-progress-step-label {
+	color: var(--sa-muted);
+}
+
+.monaco-workbench .sa-progress-step.sa-step-running .sa-progress-step-label {
+	font-weight: 600;
+}
+
+/* Icons: shape and colour. */
+.monaco-workbench .sa-progress-icon { flex-shrink: 0; width: 14px; }
+.monaco-workbench .sa-job-done > .sa-progress-job-header .sa-progress-icon,
+.monaco-workbench .sa-step-done .sa-progress-icon { color: var(--sa-ok); }
+.monaco-workbench .sa-job-warning > .sa-progress-job-header .sa-progress-icon,
+.monaco-workbench .sa-step-warning .sa-progress-icon { color: var(--sa-warn); }
+.monaco-workbench .sa-job-failed > .sa-progress-job-header .sa-progress-icon,
+.monaco-workbench .sa-step-failed .sa-progress-icon { color: var(--sa-fail); }
+.monaco-workbench .sa-job-running > .sa-progress-job-header .sa-progress-icon,
+.monaco-workbench .sa-step-running .sa-progress-icon { color: var(--sa-brand-blue); }
+.monaco-workbench .sa-step-pending .sa-progress-icon,
+.monaco-workbench .sa-step-skipped .sa-progress-icon,
+.monaco-workbench .sa-step-cancelled .sa-progress-icon { color: var(--sa-idle); }

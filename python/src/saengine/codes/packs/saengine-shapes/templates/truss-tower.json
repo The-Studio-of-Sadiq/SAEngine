@@ -1,0 +1,23 @@
+{
+  "name": "Lattice tower",
+  "description": "Square lattice tower at the Generate panel's starting values.",
+  "shape": {
+    "kind": "trussTower",
+    "height": 40000.0,
+    "baseWidth": 6000.0,
+    "topWidth": 1500.0,
+    "section": "square",
+    "panels": 10,
+    "bracing": "x",
+    "memberType": "MEMBER",
+    "bracingType": null,
+    "horizontalType": null,
+    "supports": "fixed",
+    "origin": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "rotation": 0.0
+  }
+}

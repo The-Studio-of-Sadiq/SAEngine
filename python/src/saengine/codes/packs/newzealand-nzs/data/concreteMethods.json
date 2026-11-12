@@ -1,0 +1,242 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NZS 3101:2006 9.3.9 (shear by vc of ρw: concrete.shearStress)",
+    "NZS 3101:2006 A3 Chapters 9, 10, 11 and 15 and Appendix D (ductile and limited ductile detailing, capacity design)"
+  ],
+  "source": "NZS 3101 designs every concrete area by the strength design with φ: no method group (the beam shear by vc = (0.07 + 10 ρw) √f'c, concrete.shearStress)",
+  "seismic": {
+    "method": "ductileDetailing",
+    "basis": "capacityFactor",
+    "frames": [
+      "intermediate",
+      "special"
+    ],
+    "beams": {
+      "minWidth": 200.0,
+      "minRatio": 0.25,
+      "depthShare": 0.25,
+      "minBars": 2,
+      "minBarDia": 12.0,
+      "rhoMinRoot": 0.25,
+      "rhoMax": 0.025,
+      "positiveShare": 0.5,
+      "anyShare": 0.25,
+      "hoopZoneDepths": 2.0,
+      "hoopZoneOnDepth": true,
+      "hoopSpacing": [
+        0.25,
+        6.0,
+        150.0
+      ],
+      "firstHoop": 50.0,
+      "elsewhereShare": 0.5,
+      "hoopMinDia": 10.0,
+      "overstrength": 1.47
+    },
+    "columns": {
+      "axialShare": 0.1,
+      "minDimension": 200.0,
+      "minRatio": 0.4,
+      "rho": [
+        0.008,
+        0.036
+      ],
+      "strongColumn": 1.9,
+      "confinedLength": [
+        1.0,
+        10.0,
+        300.0
+      ],
+      "confinedSpacing": [
+        0.25,
+        6.0,
+        150.0
+      ],
+      "ash": [
+        0.3,
+        0.09
+      ],
+      "spiral": [
+        0.45,
+        0.12
+      ],
+      "hxMax": 200.0,
+      "outsideShare": 0.5,
+      "lapHoopSpacing": 100.0,
+      "ashForm": "axialLoad",
+      "ashAxial": [
+        1.3,
+        3.3,
+        0.006,
+        0.85
+      ],
+      "confinedByAxial": [
+        [
+          0.25,
+          1.0
+        ],
+        [
+          0.5,
+          2.0
+        ],
+        [
+          0.7,
+          3.0
+        ]
+      ],
+      "capacityShear": 1.25
+    },
+    "joints": {
+      "gamma": {
+        "4": 1.25,
+        "3": 1.25,
+        "other": 1.0
+      },
+      "overstrength": 1.25,
+      "widthShare": 0.5,
+      "stressLimit": [
+        0.2,
+        10.0
+      ],
+      "reinforcementShare": 0.5
+    },
+    "walls": {
+      "minThickness": 150.0,
+      "rhoMin": 0.0014,
+      "twoCurtainThickness": 200.0,
+      "twoCurtainRoot": 0.17,
+      "barDiaShare": 0.125,
+      "spacing": [
+        3.0,
+        2.5,
+        200.0
+      ],
+      "boundaryStress": 0.2,
+      "boundaryStop": 0.15,
+      "couplingRoot": 0.1,
+      "couplingSpanRatio": 2.0,
+      "shearAmplification": {
+        "aspect": 0.01,
+        "omega": 1.47,
+        "dynamicAspect": 0.01,
+        "dynamicLow": [
+          0.9,
+          10.0
+        ],
+        "dynamicHigh": [
+          1.3,
+          30.0
+        ],
+        "dynamicStoreys": 6,
+        "dynamicMax": 1.8,
+        "cap": 5.0
+      },
+      "boundaryAsh": [
+        0.3,
+        0.09
+      ],
+      "boundaryLength": [
+        0.1,
+        0.5
+      ],
+      "couplingPhi": 0.85
+    },
+    "levels": {
+      "intermediate": {
+        "beams": {
+          "minWidth": 200.0,
+          "minRatio": 0.25,
+          "depthShare": 0.25,
+          "minBars": 2,
+          "minBarDia": 12.0,
+          "rhoMinRoot": 0.25,
+          "rhoMax": 0.025,
+          "positiveShare": 0.5,
+          "anyShare": 0.25,
+          "hoopZoneDepths": 2.0,
+          "hoopZoneOnDepth": true,
+          "hoopSpacing": [
+            0.25,
+            10.0,
+            200.0
+          ],
+          "firstHoop": 50.0,
+          "elsewhereShare": 0.5,
+          "hoopMinDia": 10.0,
+          "overstrength": 1.47
+        },
+        "columns": {
+          "axialShare": 0.1,
+          "minDimension": 200.0,
+          "minRatio": 0.4,
+          "rho": [
+            0.008,
+            0.036
+          ],
+          "strongColumn": 1.47,
+          "confinedLength": [
+            1.0,
+            10.0,
+            300.0
+          ],
+          "confinedSpacing": [
+            0.33,
+            10.0,
+            200.0
+          ],
+          "ash": [
+            0.3,
+            0.09
+          ],
+          "spiral": [
+            0.45,
+            0.12
+          ],
+          "hxMax": 200.0,
+          "outsideShare": 0.5,
+          "lapHoopSpacing": 100.0,
+          "ashForm": "axialLoad",
+          "ashAxial": [
+            1.3,
+            6.0,
+            0.0045,
+            0.85
+          ],
+          "confinedByAxial": [
+            [
+              0.25,
+              1.0
+            ],
+            [
+              0.5,
+              2.0
+            ],
+            [
+              0.7,
+              3.0
+            ]
+          ],
+          "capacityShear": 1.0
+        }
+      }
+    }
+  },
+  "clauses": {
+    "seismicDetailing": "Chapters 9, 10, 11 and 15, Appendix D",
+    "seismicBeams": "9.4",
+    "seismicHinges": "9.4.6",
+    "seismicColumns": "10.4",
+    "seismicConfinement": "10.4.7",
+    "seismicJoints": "15.4",
+    "strongColumn": "Appendix D",
+    "capacityDesign": "Appendix D",
+    "seismicWalls": "11.4",
+    "seismicWallBoundary": "11.4.6",
+    "seismicCoupling": "11.4.11"
+  },
+  "sources": {
+    "seismic": "NZS 3101:2006 A3, ductile (special, μ up to 6) and limited ductile (intermediate, μ up to 3) frames and ductile walls, on nominal strengths with φ (basis capacityFactor): beams b >= 200 mm, ln >= 4 D, at least 2 HD12 top and bottom, ρ >= √f'c/(4 fy) (9.4.3.4), ρ <= 0.025 (the (f'c + 10)/(6 fy) cap not taken), the bottom >= 0.5 and any section >= 0.25 of the top at the faces, the plastic hinge region 2 D from the faces (9.4.6) with stirrup-ties at <= min(d/4, 6 db) ductile, min(d/4, 10 db) limited ductile (the mm caps 150 and 200 SAEngine practice), the beams' overstrength capacity shear on Mo = λo Mn = 1.25/0.85 φMn (λo of 500E, 2.6.5.5); columns ρ 0.8 % - 18/fy (10.3.8.1, 10.4.6.2), the plastic hinge region by N*/(φ f'c Ag): D up to 0.25 (or the length where M > 0.8 Mmax, SAEngine: clear/10), 2 D up to 0.5, 3 D up to 0.7 (10.4.5), hoops at <= min(h/4, 6 db) ductile, min(h/3, 10 db) limited (10.4.7.4), Ash/(s h'') = (1.3 - ρt m)/3.3 (Ag/Ac) (f'c/fyt) N*/(φ f'c Ag) - 0.006 ductile (10.4.7.4.4), (1.3 - ρt m)/6.0 ... - 0.0045 limited ductile (to verify), legs at most 200 mm apart; Appendix D capacity design: ΣMn,col >= ω λo/φ ΣMn,beam with ω = 1.3 (ductile: 1.9) and ω = 1.0 (limited ductile: 1.47) (the dynamic magnification ω by the frame's direction and the storey is not modelled: SAEngine takes one value, to verify), the columns' capacity shear 1.25 (Mn,top + Mn,bottom)/clear (ductile, 1.0 limited: SAEngine practice for Appendix D's V*col); joints (15.4): Vjh = λo fy ΣAs - Vcol, vjh <= min(0.2 f'c, 10 MPa), horizontal joint hoops Ajh >= 0.5 Vjh/fyh (SAEngine practice: 15.4.4.2 gives Ajh by its own expression with αi, to verify); ductile walls (11.4): ρ >= 0.7/fy, two layers above 200 mm, db <= t/8, bars <= min(lw/3, 2.5 t, 200 mm) apart (to verify), the design shear V*o = φo,w ωv V*E with φo,w taken 1.47 (λo/φ, the wall's own overstrength not computed) and ωv = 0.9 + n/10 up to 6 storeys, 1.3 + n/30 <= 1.8 above (11.4.7, the storeys n from hw over the storey height), at most 5 V*E (SAEngine cap, the elastic shear μ V*E with μ <= 5), the confined ends where σ > 0.2 f'c (the stress method as a stand-in for 11.4.6's neutral axis rule) over at least max(0.1 lw, 0.5 c), their hoops 0.3 (Ag/Ac - 1) and 0.09 f'c/fyt (to verify); diagonally reinforced coupling beams where v* > 0.1 (ln/h) √f'c with ln/h < 2 (11.4.11, the ratio to verify), V* <= φ 2 Asd fy sin α with φ 0.85 (to verify). Nominally ductile (μ 1.25) structures: the general member rules (no ductile rows). Every value of this group is to verify against the printed NZS 3101"
+  }
+}

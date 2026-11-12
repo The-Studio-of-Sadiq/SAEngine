@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Reglamento de Construcciones para la Ciudad de México Art. 139 (Groups A and B); NTC-Sismo Sec 3 (the spectrum × 1.5 for Group A); CFE Viento Sec 4.1 (return period by group)"
+  ],
+  "source": "Groups B2, B1, A2, A1 as SAEngine's categories I to IV; the seismic factor 1.5 of Group A; wind: the 200-year speed of Group A taken as 1.21 × the 50-year pressure (SAEngine estimate, VERIFY.md)",
+  "categories": {
+    "I": {"description": "Grupo B2: ordinary buildings (housing, offices, shops) not in B1", "seismicImportance": 1.0, "windImportance": 1.0},
+    "II": {"description": "Grupo B1: ordinary buildings over 30 m high or over 6000 m² of built area (in zones I and II; 15 m and 3000 m² in zone III)", "seismicImportance": 1.0, "windImportance": 1.0},
+    "III": {"description": "Grupo A2: buildings whose failure would cause many victims or great losses (large assembly, schools, museums)", "seismicImportance": 1.5, "windImportance": 1.21},
+    "IV": {"description": "Grupo A1: essential buildings after an earthquake (hospitals, fire and police stations, emergency centres)", "seismicImportance": 1.5, "windImportance": 1.21}
+  },
+  "sources": {
+    "categories": "Reglamento Art. 139 and NTC-Sismo Sec 3 (factor 1.5 of Group A); the wind importance 1.21 = (VR200 / VR50)² ≈ 1.1² (SAEngine estimate: enter the site's 200-year speed instead where it is known)"
+  }
+}

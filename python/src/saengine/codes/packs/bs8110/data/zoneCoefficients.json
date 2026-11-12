@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../schemas/zoneCoefficients.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BS 6399-1:1996, BS 6399-2:1997, BS 8110-1:1997: no seismic loading"
+  ],
+  "source": "Not covered: the British Standards of this pack give no earthquake loading. Every location is zone 0 with Z = 0: the derivation makes no earthquake cases (EX, EY are empty and reported so). A Z entered in Project Settings takes the parent pack's (BNBC 2020) spectrum and systems, which the report names as BNBC 2020.",
+  "zones": {
+    "0": 0.0
+  }
+}

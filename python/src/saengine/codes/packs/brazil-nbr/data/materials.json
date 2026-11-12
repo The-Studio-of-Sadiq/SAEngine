@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "ABNT NBR 6118:2014 8.2.1, 8.3.1"
+  ],
+  "structuralFcMin": 20.0,
+  "rebarFyMax": 600.0,
+  "sources": {
+    "structuralFcMin": "ABNT NBR 6118:2014 8.2.1: class C20 or higher for concrete with passive reinforcement (C15 only in temporary works or concrete without a structural purpose)",
+    "rebarFyMax": "ABNT NBR 6118:2014 8.3.1: bars and wires of categories CA-25, CA-50 and CA-60 of ABNT NBR 7480; the highest, CA-60, fyk 600 MPa"
+  }
+}

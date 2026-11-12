@@ -157,6 +157,10 @@ import { PlaywrightChannel } from '../../../platform/browserView/node/playwright
 import { AgentNetworkFilterService } from '../../../platform/networkFilter/common/networkFilterService.js';
 import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
 import { LocalGitService } from '../../../platform/git/node/localGitService.js';
+import { FEM_SOLVER_CHANNEL, IFemSolverService } from '../../../platform/saengine/common/femSolver.js';
+import { FemSolverService } from '../../../platform/saengine/node/femSolverService.js';
+import { SAENGINE_AI_CHANNEL } from '../../../platform/saengine/common/saengineAi.js';
+import { SaengineAiChannel } from '../../../platform/saengine/node/saengineAiServer.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -429,6 +433,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Web Content Extractor
 		services.set(ISharedWebContentExtractorService, new SyncDescriptor(SharedWebContentExtractorService));
 
+		// SAEngine FEM backend
+		services.set(IFemSolverService, new SyncDescriptor(FemSolverService, undefined, false /* proxied to other processes */));
+
 		// Local Git
 		services.set(ILocalGitService, new SyncDescriptor(LocalGitService, undefined, false /* proxied to other processes */));
 
@@ -517,6 +524,12 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(ISharedWebContentExtractorService), this._store);
 		this.server.registerChannel('sharedWebContentExtractor', webContentExtractorChannel);
+
+		// SAEngine FEM backend
+		this.server.registerChannel(FEM_SOLVER_CHANNEL, ProxyChannel.fromService(accessor.get(IFemSolverService), this._store));
+
+		// SAEngine MCP server (AI assistants), off until a window allows it
+		this.server.registerChannel(SAENGINE_AI_CHANNEL, this._register(new SaengineAiChannel(this.server, accessor.get(ILogService))));
 
 		// Playwright
 		const agentNetworkFilterService = this._register(new AgentNetworkFilterService(accessor.get(IConfigurationService)));

@@ -11,6 +11,7 @@ import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -29,6 +30,8 @@ import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
+import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -62,6 +65,8 @@ export class ExplorerService implements IExplorerService {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ISaengineProjectService private readonly saengineProjectService: ISaengineProjectService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -207,6 +212,14 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
+		// SAEngine: core project items (manifest, part folders, part main files) can be neither
+		// deleted, renamed nor moved. Copying them is fine.
+		const protectedItems = edit.filter(e => e.oldResource && !e.options.copy && this.saengineProjectService.isProtected(e.oldResource));
+		if (protectedItems.length) {
+			this.notificationService.warn(localize('saengineProtected', "{0} is a core part of the SAEngine project and cannot be deleted, renamed or moved.", protectedItems.map(e => basename(e.oldResource!)).join(', ')));
+			return;
+		}
+
 		const cancellationTokenSource = new CancellationTokenSource();
 		const location = options.progressLocation ?? ProgressLocation.Window;
 		let progressOptions;

@@ -1,0 +1,613 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "GB 50010-2010 (2015 edition) 3.4, 3.5, 4.1, 4.2, 6.2-6.5, 7.1, 7.2, 8.2-8.5, 9.1-9.4, 11.7"
+  ],
+  "source": "GB 50010-2010: design strengths fc = fck/γc (γc 1.4) of the prism strength fck of grade C (the cube strength fcu,k; the project's concrete takes fck), fy = fyk/γs, the rectangular stress block α1 fc over x = β1 xc (6.2.6), εcu = 0.0033 - (fcu,k - 50) 10⁻⁵, the axial capacity 0.9 (fc A + fy' As') (6.2.15), beam shear V <= 0.7 ft b h0 + fyv Asv h0 / s (6.3.4) within 0.25 βc fc b h0 (6.3.1)",
+  "ultimate": {
+    "method": "partialFactors",
+    "stressBlock": "rectangular",
+    "gammaC": 1.4,
+    "gammaS": 1.15,
+    "alphaCC": 1.0,
+    "alphaCT": 1.0,
+    "steelE": 200000.0,
+    "strengthClasses": [
+      [
+        13.4,
+        20
+      ],
+      [
+        16.7,
+        25
+      ],
+      [
+        20.1,
+        30
+      ],
+      [
+        23.4,
+        35
+      ],
+      [
+        26.8,
+        40
+      ],
+      [
+        29.6,
+        45
+      ],
+      [
+        32.4,
+        50
+      ],
+      [
+        35.5,
+        55
+      ],
+      [
+        38.5,
+        60
+      ],
+      [
+        41.5,
+        65
+      ],
+      [
+        44.5,
+        70
+      ],
+      [
+        47.4,
+        75
+      ],
+      [
+        50.2,
+        80
+      ]
+    ],
+    "relations": {
+      "highFrom": 32.4,
+      "fcmIncrement": 0.0,
+      "fctmCoefficient": 0.322,
+      "fctmExponent": 0.61,
+      "fctmHighCoefficient": 1.312,
+      "fctmHighDivisor": 5.0,
+      "fctkShares": [
+        1.0,
+        1.3
+      ],
+      "ecmCoefficient": 23620.0,
+      "ecmDivisor": 10.0,
+      "ecmExponent": 0.342,
+      "epsC2": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.15,
+        "divisor": 17.8
+      },
+      "epsCu2": {
+        "base": 3.3,
+        "highBase": 3.3,
+        "highCoefficient": -0.3,
+        "divisor": 17.8
+      },
+      "n": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": -0.5,
+        "divisor": 17.8
+      },
+      "epsC3": {
+        "base": 2.0,
+        "highBase": 2.0,
+        "highCoefficient": 0.15,
+        "divisor": 17.8
+      },
+      "epsCu3": {
+        "base": 3.3,
+        "highBase": 3.3,
+        "highCoefficient": -0.3,
+        "divisor": 17.8
+      },
+      "eta": {
+        "base": 1.0,
+        "highBase": 1.0,
+        "highCoefficient": -0.06,
+        "divisor": 17.8
+      },
+      "lambda": {
+        "base": 0.8,
+        "highBase": 0.8,
+        "highCoefficient": -0.06,
+        "divisor": 17.8
+      }
+    },
+    "eccentricityDivisor": 30.0,
+    "eccentricityMin": 20.0,
+    "pureCompressionStrain": "epsC2",
+    "axialShares": [
+      0.642857,
+      0.782609
+    ],
+    "designYields": [
+      [
+        300,
+        270
+      ],
+      [
+        335,
+        300
+      ],
+      [
+        400,
+        360
+      ],
+      [
+        500,
+        435
+      ]
+    ],
+    "axialYieldShare": 0.9
+  },
+  "shear": {
+    "method": "tabulatedStress",
+    "grades": [
+      13.4,
+      16.7,
+      20.1,
+      23.4,
+      26.8,
+      29.6,
+      32.4,
+      35.5,
+      38.5,
+      41.5,
+      44.5,
+      47.4,
+      50.2
+    ],
+    "steelRatios": [
+      0.15,
+      3.0
+    ],
+    "tauC": [
+      [
+        0.77,
+        0.889,
+        1.001,
+        1.099,
+        1.197,
+        1.26,
+        1.323,
+        1.372,
+        1.428,
+        1.463,
+        1.498,
+        1.526,
+        1.554
+      ],
+      [
+        0.77,
+        0.889,
+        1.001,
+        1.099,
+        1.197,
+        1.26,
+        1.323,
+        1.372,
+        1.428,
+        1.463,
+        1.498,
+        1.526,
+        1.554
+      ]
+    ],
+    "maxStress": [
+      2.4,
+      2.975,
+      3.575,
+      4.175,
+      4.775,
+      5.275,
+      5.775,
+      6.1142,
+      6.4167,
+      6.6825,
+      6.89,
+      7.0417,
+      7.18
+    ],
+    "minStirrupStress": 0.3432,
+    "fyMax": 400.0,
+    "spacing": [
+      0.5,
+      300.0
+    ],
+    "enhancement": 1.0
+  },
+  "torsion": {
+    "method": "plasticModulus",
+    "sectionWtShare": 0.8,
+    "plainLimit": 0.7,
+    "concreteShare": 0.35,
+    "steelFactor": 1.2,
+    "zeta": 1.2,
+    "zetaRange": [
+      0.6,
+      1.7
+    ],
+    "betaT": [
+      1.5,
+      0.5
+    ],
+    "betaTRange": [
+      0.5,
+      1.0
+    ],
+    "shearBase": 1.5,
+    "shearConcrete": 0.7,
+    "minLinks": 0.28,
+    "minLongitudinal": [
+      0.6,
+      2.0
+    ]
+  },
+  "punching": {
+    "method": "rootStress",
+    "strength": "tensile",
+    "perimeterDistance": 0.5,
+    "coefficient": 0.7,
+    "ratioBase": 0.4,
+    "ratioFactor": 1.2,
+    "locationTerm": [
+      0.5,
+      4.0
+    ],
+    "depthFactors": [
+      [
+        800,
+        1.0
+      ],
+      [
+        2000,
+        0.9
+      ]
+    ],
+    "reinforcedMax": 1.714286,
+    "concreteShare": 0.714286
+  },
+  "cracking": {
+    "method": "effectiveTensionRatio",
+    "width": {
+      "一": 0.3,
+      "二a": 0.2,
+      "二b": 0.2,
+      "三a": 0.2,
+      "三b": 0.2
+    },
+    "memberFactor": 1.9,
+    "coverFactor": 1.9,
+    "barFactor": 0.08,
+    "coverRange": [
+      20,
+      65
+    ],
+    "areaShare": 0.5,
+    "rhoTeMin": 0.01,
+    "psi": [
+      1.1,
+      0.65,
+      0.2,
+      1.0
+    ],
+    "leverArm": 0.87,
+    "liveShare": 0.4
+  },
+  "deflection": {
+    "method": "longTermStiffness",
+    "psiFactor": 1.15,
+    "offset": 0.2,
+    "ratioFactor": 6.0,
+    "flangeFactor": 3.5,
+    "theta": [
+      2.0,
+      1.6
+    ],
+    "limits": [
+      [
+        7000,
+        200
+      ],
+      [
+        9000,
+        250
+      ],
+      [
+        null,
+        300
+      ]
+    ],
+    "cantileverFactor": 2.0,
+    "areaShare": 0.5,
+    "rhoTeMin": 0.01,
+    "psi": [
+      1.1,
+      0.65,
+      0.2,
+      1.0
+    ],
+    "leverArm": 0.87,
+    "liveShare": 0.4
+  },
+  "cover": {
+    "method": "exposureCondition",
+    "conditions": {
+      "一": {
+        "cover": 20,
+        "beamCover": 25,
+        "waterCement": 0.6,
+        "grade": 13.4
+      },
+      "二a": {
+        "cover": 25,
+        "beamCover": 30,
+        "waterCement": 0.55,
+        "grade": 16.7
+      },
+      "二b": {
+        "cover": 30,
+        "beamCover": 40,
+        "waterCement": 0.5,
+        "grade": 20.1
+      },
+      "三a": {
+        "cover": 35,
+        "beamCover": 45,
+        "waterCement": 0.45,
+        "grade": 23.4
+      },
+      "三b": {
+        "cover": 45,
+        "beamCover": 55,
+        "waterCement": 0.4,
+        "grade": 26.8
+      }
+    },
+    "columnCover": 20,
+    "footingCover": 40,
+    "smallBarReduction": [
+      0,
+      0
+    ],
+    "gradeReduction": [
+      5,
+      20.1
+    ],
+    "gradeReductionConditions": [
+      "一",
+      "二a",
+      "二b",
+      "三a",
+      "三b"
+    ]
+  },
+  "anchorage": {
+    "method": "bondStressTable",
+    "grades": [
+      13.4,
+      16.7,
+      20.1,
+      23.4,
+      26.8,
+      29.6,
+      32.4,
+      35.5,
+      38.5,
+      41.5,
+      44.5,
+      47.4,
+      50.2
+    ],
+    "bond": [
+      1.719,
+      1.984,
+      2.234,
+      2.453,
+      2.672,
+      2.813,
+      2.953,
+      3.063,
+      3.188,
+      3.188,
+      3.188,
+      3.188,
+      3.188
+    ],
+    "deformedFactor": 1.142857,
+    "compressionFactor": 1.428571,
+    "lapTension": 1.0,
+    "lapCompression": 1.0,
+    "lapDirectTension": 1.0,
+    "lapLargeBar": 25,
+    "minLength": 200,
+    "largeBarFactor": [
+      25,
+      1.1
+    ],
+    "lapFactors": [
+      [
+        0.25,
+        1.2
+      ],
+      [
+        0.5,
+        1.4
+      ],
+      [
+        1.0,
+        1.6
+      ]
+    ],
+    "lapMinLength": 300,
+    "columnLapShare": 0.5
+  },
+  "exposureClasses": {
+    "一": {
+      "name": "一: indoor dry, or non-aggressive still water"
+    },
+    "二a": {
+      "name": "二a: indoor humid, or outdoor / soil without freezing"
+    },
+    "二b": {
+      "name": "二b: wet-dry cycles, or outdoor / soil with freezing above the frost line"
+    },
+    "三a": {
+      "name": "三a: severe-cold freezing water level, de-icing salt, sea breeze"
+    },
+    "三b": {
+      "name": "三b: saline soil, de-icing salt splash, sea shore"
+    }
+  },
+  "defaultExposure": "一",
+  "memberLimits": {
+    "beamMin": 0.72,
+    "beamMinRatio": 0.002,
+    "beamMinTensile": 0.45,
+    "beamMax": 0.04,
+    "sideFaceDepth": 450,
+    "sideFaceShare": 0.001,
+    "sideFaceSpacing": 200,
+    "sideFaceEach": true,
+    "slabMin": [
+      0.0015,
+      0.002
+    ],
+    "slabMinTensile": 0.45,
+    "plainFy": 300,
+    "slabBarShare": 0.125,
+    "slabSpacing": [
+      1.5,
+      250
+    ],
+    "slabDistributionSpacing": [
+      3.0,
+      250
+    ],
+    "columnRho": [
+      0.0055,
+      0.05
+    ],
+    "columnBars": [
+      4,
+      6
+    ],
+    "columnBarDia": 12,
+    "tieDiaShare": 0.25,
+    "tieDiaMin": 6,
+    "tiePitch": [
+      15,
+      400
+    ],
+    "neutralAxisStrain": 0.0
+  },
+  "columns": {
+    "slenderness": {
+      "method": "endMomentMagnifier",
+      "cmBase": 0.7,
+      "cmRatio": 0.3,
+      "cmMin": 0.7,
+      "divisor": 1300,
+      "zetaShare": 0.5,
+      "exemptRatio": 0.9,
+      "exemptAxial": 0.9,
+      "exemptSlenderness": [
+        34,
+        12
+      ]
+    },
+    "biaxial": {
+      "method": "surface"
+    }
+  },
+  "shearSpanWalls": {
+    "method": "shearSpanRatio",
+    "terms": [
+      0.5,
+      0.13,
+      1.0
+    ],
+    "seismicTerms": [
+      0.4,
+      0.1,
+      0.8
+    ],
+    "lambdaOffset": 0.5,
+    "lambdaRange": [
+      1.5,
+      2.2
+    ],
+    "axialShare": 0.2,
+    "sectionShare": 0.25,
+    "depthShare": 0.9,
+    "webMin": 0.002
+  },
+  "clauses": {
+    "designStrength": "4.1.4, 4.2.3",
+    "ultimate": "6.2.1, 6.2.6",
+    "neutralAxis": "6.2.7",
+    "minimumEccentricity": "6.2.5",
+    "axial": "6.2.15",
+    "slenderness": "6.2.3, 6.2.4",
+    "biaxial": "6.2.21",
+    "shear": "6.3.1, 6.3.4",
+    "shearMinimum": "9.2.9",
+    "shearSpacing": "9.2.9",
+    "torsion": "6.4",
+    "torsionSection": "6.4.1",
+    "torsionLinks": "6.4.8, 9.2.10",
+    "torsionLongitudinal": "6.4.4, 9.2.5",
+    "punching": "6.5.1",
+    "deflection": "3.4.3, 7.2",
+    "calculatedDeflection": "7.2.2-7.2.5",
+    "cracking": "3.4.5, 7.1.2",
+    "cover": "8.2.1",
+    "durability": "3.5.2, 3.5.3",
+    "anchorage": "8.3.1, 8.3.2, 11.1.7",
+    "laps": "8.4.3, 8.4.4, 8.4.5",
+    "beamSteel": "8.5.1",
+    "sideFace": "9.2.13",
+    "slabSteel": "8.5.1, 9.1.3",
+    "columnSteel": "8.5.1, 9.3.1",
+    "columnLinks": "9.3.2",
+    "wallShear": "6.3.21, 11.7.4",
+    "wallSteel": "9.4.4"
+  },
+  "sources": {
+    "ultimate.gammaC": "GB 50010-2010 4.1.4 (fc = fck / 1.4, the tabulated fc rounded)",
+    "ultimate.gammaS": "GB 50010-2010 4.2.3: γs 1.15 kept for grades outside designYields",
+    "ultimate.strengthClasses": "GB 50010-2010 Table 4.1.3-1: fck of C20-C80 (13.4 ... 50.2 MPa) with fcu,k",
+    "ultimate.relations": "GB 50010-2010 Table 4.1.3-2 ftk and Table 4.1.5 Ec as SAEngine fits on fck (ftk = 0.322 fck^0.61 to C50, 1.312 ln(1 + fck/5) above; Ec = 23 620 (fck/10)^0.342); 6.2.1: ε0 = 0.002 + 0.5 (fcu,k - 50) 10⁻⁵, εcu = 0.0033 - (fcu,k - 50) 10⁻⁵, n = 2 - (fcu,k - 50)/60; 6.2.6: α1 1.0 to C50, 0.94 at C80, β1 0.8 to 0.74 (linear in fck between C50 32.4 and C80 50.2 MPa)",
+    "ultimate.axialShares": "GB 50010-2010 6.2.15: N <= 0.9 φ (fc A + fy' As') with fc = fck/1.4 and fy' = fyk/1.15 (φ of the slenderness from the parent's method)",
+    "ultimate.eccentricityMin": "GB 50010-2010 6.2.5: ea = max(20 mm, h/30)",
+    "shear.tauC": "GB 50010-2010 6.3.4: Vc = 0.7 ft b h0 (αcv 0.7 of general beams; the concentrated-load αcv = 1.75/(λ + 1) is not covered), ft of Table 4.1.4-2 by grade, independent of the steel ratio",
+    "shear.maxStress": "GB 50010-2010 6.3.1: V <= 0.25 βc fc b h0 (hw/b <= 4), βc 1.0 to C50, 0.8 at C80",
+    "shear.minStirrupStress": "GB 50010-2010 9.2.9: ρsv >= 0.24 ft/fyv where V > 0.7 ft b h0, at ft of C30 (1.43 MPa; SAEngine practice, one value)",
+    "shear.fyMax": "GB 50010-2010 4.2.3: fyv at most 360 MPa (fyk 400 here)",
+    "shear.spacing": "GB 50010-2010 Table 9.2.9 (200-300 mm by depth): SAEngine takes min(0.5 d, 300 mm)",
+    "shear.enhancement": "GB 50010 has no enhancement near supports (1.0; corbels only)",
+    "ultimate.designYields": "GB 50010-2010 Table 4.2.3-1: fy = 270 (HPB300), 300 (HRB335), 360 (HRB400, HRBF400, RRB400), 435 (HRB500, HRBF500) MPa by fyk (fy' of HRB500 410: not told apart, U)",
+    "ultimate.axialYieldShare": "GB 50010-2010 6.2.15: N <= 0.9 φ (fc A + fy' As'), the bars at their design yield",
+    "torsion": "GB 50010-2010 6.4.1 (V/(b h0) + T/(0.8 Wt) <= 0.25 βc fc), 6.4.2 (no calculation below 0.7 ft), 6.4.3 (Wt = b²(3h - b)/6), 6.4.4 (T <= 0.35 ft Wt + 1.2 √ζ fyv Ast1 Acor/s, 0.6 <= ζ <= 1.7), 6.4.8 (βt = 1.5/(1 + 0.5 V Wt/(T b h0)), 0.5-1.0; V <= (1.5 - βt) 0.7 ft b h0 + fyv Asv h0/s), 9.2.5 (ρtl >= 0.6 √(T/(V b)) ft/fy, T/(V b) <= 2), 9.2.10 (ρsv >= 0.28 ft/fyv); ζ = 1.2 taken for the design (P)",
+    "punching": "GB 50010-2010 6.5.1: Fl <= 0.7 βh ft η um h0, um at h0/2, η = min(η1, η2), η1 = 0.4 + 1.2/βs (βs >= 2), η2 = 0.5 + αs h0/(4 um), αs 40/30/20, βh 1.0 at h <= 800 to 0.9 at 2000 mm (taken at h0: P); 6.5.3: with links Fl <= 1.2 ft η um h0 and 0.5 ft η um h0 + 0.8 fyv Asvu (as 1.714 τc and the share 0.714; not laid out)",
+    "cracking": "GB 50010-2010 7.1.2: wmax = αcr ψ σs/Es (1.9 cs + 0.08 deq/ρte), αcr 1.9 (flexure), ψ = 1.1 - 0.65 ftk/(ρte σs) in 0.2-1.0, ρte = As/(0.5 b h) >= 0.01, 20 <= cs <= 65 mm, σs = Mq/(0.87 h0 As) (7.1.4) under the quasi-permanent combination; Table 3.4.5 wlim 0.3 (一), 0.2 (二a-三b); ψq 0.4 (P: dwellings and offices)",
+    "deflection": "GB 50010-2010 7.2.3: Bs = Es As h0²/(1.15 ψ + 0.2 + 6 αE ρ/(1 + 3.5 γf')), 7.2.2 B = Bs/θ, 7.2.5 θ = 2.0 at ρ' = 0 to 1.6 at ρ' = ρ; Table 3.4.3 l0/200 (l0 < 7 m), l0/250 (7-9 m), l0/300 (> 9 m), cantilevers at l0 = 2 × the length; γf' = 0 (P); ψq 0.4 (P)",
+    "cover": "GB 50010-2010 Table 8.2.1: least cover of slabs, walls (and beams, columns) 15 (20), 20 (25), 25 (35), 30 (40), 40 (50) mm in 一, 二a, 二b, 三a, 三b, + 5 mm at C25 and below (tabulated here with the 5 mm, less 5 from C30); foundations 40 mm with a blinding layer (8.2.2); at least the bar diameter (8.2.1-1)",
+    "durability": "GB 50010-2010 Table 3.5.3: largest w/c 0.60, 0.55, 0.50, 0.45, 0.40 and least grades C20, C25, C30, C35, C40 (二b and 三a: C25 and C30 with air entrainment, not told apart); no least cement content",
+    "anchorage": "GB 50010-2010 8.3.1: lab = α fy d / ft, α 0.14 ribbed, 0.16 plain (bond = ft/(4 α): the table on plain bars × 0.16/0.14 for ribbed), ft at most of C60; la = ζa lab >= 200 mm, ζa 1.10 above 25 mm (8.3.2); compression 0.7 la (8.3.4); 11.1.7 laE = ζaE la (the grade's anchorage factor 1.15 / 1.05 / 1.00)",
+    "laps": "GB 50010-2010 8.4.4: ll = ζl la, ζl 1.2 (<= 25 % lapped), 1.4 (50 %), 1.6 (100 %), >= 300 mm; beams 25 %, columns 50 % taken (P); 8.4.2: no laps of bars above 25 mm (28 mm in compression: one value, U)",
+    "memberLimits": "GB 50010-2010 8.5.1: beams ρ >= max(0.20 %, 45 ft/fy) on b h, slabs 0.15 % (400/500 MPa bars) / 0.20 % (HPB300) and 45 ft/fy; columns 0.55 % total (HRB400; 0.50 % HRB500, U), at most 5 % (9.3.1); 9.2.13 side bars from hw 450 mm, 0.1 % b hw each face, at most 200 mm apart; 9.3.1 column bars >= 12 mm, 9.3.2 ties >= d/4 and 6 mm at most min(400 mm, b, 15 d); 9.1.3 slab bars at most 1.5 h and 250 mm (on d: P), 9.1.7 distribution bars at most 250 mm; beamMax 4 % and slab bars <= h/8 are SAEngine practice (P); xb/h0 by εcu/(εcu + fy/Es) (6.2.7)",
+    "columns": "GB 50010-2010 6.2.3: no P-δ where M1/M2 <= 0.9, N/(fc A) <= 0.9 and lc/i <= 34 - 12 M1/M2; 6.2.4: M = Cm ηns M2, Cm = 0.7 + 0.3 M1/M2 >= 0.7, ηns = 1 + (lc/h)² ζc/(1300 (M2/N + ea)/h0), ζc = 0.5 fc A/N <= 1, Cm ηns >= 1; 6.2.5 ea = max(20, h/30); lc the clear height (P); biaxial by the interaction surface (P, 6.2.21 not used)",
+    "shearSpanWalls": "GB 50010-2010 6.3.21: V <= 1/(λ - 0.5) (0.5 ft b h0 + 0.13 N Aw/A) + fyv Ash h0/sv, λ 1.5-2.2, N <= 0.2 fc b h; 6.3.20 V <= 0.25 βc fc b h0; 11.7.4: 0.4, 0.1 and 0.8 with γRE (on the forces); 9.4.4 web steel >= 0.20 %; h0 = 0.9 lw (P); the seismic section limit 0.20 / 0.15 fc b h0 / γRE not used (U)"
+  }
+}

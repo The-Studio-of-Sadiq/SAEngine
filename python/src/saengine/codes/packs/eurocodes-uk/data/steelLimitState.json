@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/steelLimitState.schema.json",
+  "$sources": [
+    "UK NA to BS EN 1993-1-1:2005+A1:2014 NA.2.15 (γM0, γM1, γM2); UK NA to BS EN 1993-1-8:2005 NA.2.3 (γM2 of joints)"
+  ],
+  "memberResistance": {
+    "gammaM0": 1.0,
+    "gammaM1": 1.0,
+    "gammaM2": 1.1
+  },
+  "connections": {
+    "gammaM2": 1.25
+  },
+  "sources": {
+    "memberResistance": "UK NA to BS EN 1993-1-1 6.1(1): γM0 = 1.00, γM1 = 1.00, γM2 = 1.10 (net section in tension)",
+    "connections": "UK NA to BS EN 1993-1-8 2.2(2): γM2 = 1.25 for bolts, welds and plates in bearing"
+  }
+}

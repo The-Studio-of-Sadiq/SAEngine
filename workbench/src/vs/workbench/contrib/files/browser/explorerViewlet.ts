@@ -144,6 +144,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
+			// SAEngine: projects use the Project view; the file explorer is a developer-mode view.
+			when: ContextKeyExpr.or(ContextKeyExpr.has('saengineDeveloperMode'), ContextKeyExpr.not('saengineProjectOpen')),
 			canMoveView: true,
 			canToggleVisibility: false,
 			focusCommand: {

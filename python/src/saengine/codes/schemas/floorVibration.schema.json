@@ -1,0 +1,414 @@
+{
+  "$defs": {
+    "FloorOccupancy": {
+      "additionalProperties": false,
+      "description": "The acceptance of one floor use: the walking acceleration limit ao/g, the response\nfactor limit R, and the live load present when the floor vibrates.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "accelerationLimit": {
+          "description": "ao/g of walkingAcceleration (0.005 = 0.5 %).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Accelerationlimit",
+          "type": "number"
+        },
+        "responseLimit": {
+          "description": "Largest response factor R (responseFactor).",
+          "exclusiveMinimum": 0,
+          "title": "Responselimit",
+          "type": "number"
+        },
+        "serviceLive": {
+          "description": "Live load on the floor while it vibrates [kN/m²].",
+          "minimum": 0,
+          "title": "Servicelive",
+          "type": "number"
+        },
+        "checked": {
+          "default": true,
+          "description": "False: a use with no walking comfort criterion (parking).",
+          "title": "Checked",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label",
+        "accelerationLimit",
+        "responseLimit",
+        "serviceLive"
+      ],
+      "title": "FloorOccupancy",
+      "type": "object"
+    },
+    "ModalSpread": {
+      "additionalProperties": false,
+      "description": "The bays a continuous slab panel's mode spreads over (the modal mass of\n``responseFactor``). In each plan direction the panel's bay and the bays continuous with it\nalong its row of supports count, outwards on either side while a bay is at least\n``minimumSpanRatio`` × the panel's span (a shorter bay or the slab's free edge ends the\nrun), up to ``maxBays`` in all; the effective number of bays is 1 + ``adjacentShare`` ×\n(the bays counted - 1) in each direction, and the modal mass is ``modalShare`` × the\npanel's mass × the two. A single bay gives 1 × 1: the one-bay mass.",
+      "properties": {
+        "adjacentShare": {
+          "description": "Share of each further continuous bay in the effective bays.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Adjacentshare",
+          "type": "number"
+        },
+        "maxBays": {
+          "description": "Most bays counted in one direction (the panel's own included).",
+          "minimum": 1,
+          "title": "Maxbays",
+          "type": "integer"
+        },
+        "minimumSpanRatio": {
+          "description": "A bay continues the run when its span is at least this × the panel's.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimumspanratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "adjacentShare",
+        "maxBays",
+        "minimumSpanRatio"
+      ],
+      "title": "ModalSpread",
+      "type": "object"
+    },
+    "ResponseFactor": {
+      "additionalProperties": false,
+      "description": "``responseFactor``: below ``highFrequency`` the resonant response to the walking\nharmonic at fn, a_rms = μ·ρ·W(fn)·r_h·Q / (2√2·M·ζ), ρ = 1 - exp(-2π·ζ·L/stepLength); above\nit the transient response to a footfall impulse I = impulse·fp^impulsePace / fn^impulseFrequency\n· Q/impulseWeight [N·s], v = μ·I/M, a_rms = W(fn)·2π·fn·v·√((1 - e^(-x))/(2x)), x = 4π ζ fn/fp\n(the rms over one footfall period 1/fp);\nR = a_rms / baseAcceleration. M = ``modalShare`` × the panel's mass × the effective bays of\n``spread`` in X and Y (one bay without it); W(f) the weighting 0.5√f below 4 Hz, 1 to 8 Hz,\n8/f above.",
+      "properties": {
+        "method": {
+          "const": "responseFactor",
+          "default": "responseFactor",
+          "title": "Method",
+          "type": "string"
+        },
+        "walkerWeight": {
+          "description": "Q, the walker's weight [N].",
+          "exclusiveMinimum": 0,
+          "title": "Walkerweight",
+          "type": "number"
+        },
+        "pace": {
+          "description": "Walking frequency range fp [Hz].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Pace",
+          "type": "array"
+        },
+        "harmonics": {
+          "description": "Per harmonic h = 1, 2, ...: (a, b) of its Fourier coefficient r_h = a·(h·fp + b).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Harmonics",
+          "type": "array"
+        },
+        "highFrequency": {
+          "description": "fn at or above this [Hz]: transient.",
+          "exclusiveMinimum": 0,
+          "title": "Highfrequency",
+          "type": "number"
+        },
+        "baseAcceleration": {
+          "description": "R = 1 at this rms acceleration [m/s²].",
+          "exclusiveMinimum": 0,
+          "title": "Baseacceleration",
+          "type": "number"
+        },
+        "stepLength": {
+          "description": "Of the resonance build-up ρ [m].",
+          "exclusiveMinimum": 0,
+          "title": "Steplength",
+          "type": "number"
+        },
+        "modalShare": {
+          "description": "Modal mass over the panel's mass.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Modalshare",
+          "type": "number"
+        },
+        "spread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModalSpread"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The continuous bays the mode spreads over; None: the panel's bay alone."
+        },
+        "impulse": {
+          "description": "Of the footfall impulse [N·s].",
+          "exclusiveMinimum": 0,
+          "title": "Impulse",
+          "type": "number"
+        },
+        "impulsePace": {
+          "description": "Exponent of fp in the impulse.",
+          "title": "Impulsepace",
+          "type": "number"
+        },
+        "impulseFrequency": {
+          "description": "Exponent of fn in the impulse.",
+          "title": "Impulsefrequency",
+          "type": "number"
+        },
+        "impulseWeight": {
+          "description": "Q of the impulse's reference walker [N].",
+          "exclusiveMinimum": 0,
+          "title": "Impulseweight",
+          "type": "number"
+        },
+        "damping": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "ζ by fit-out (bare, ceilings, ...).",
+          "title": "Damping",
+          "type": "object"
+        }
+      },
+      "required": [
+        "walkerWeight",
+        "pace",
+        "harmonics",
+        "highFrequency",
+        "baseAcceleration",
+        "stepLength",
+        "modalShare",
+        "impulse",
+        "impulsePace",
+        "impulseFrequency",
+        "impulseWeight",
+        "damping"
+      ],
+      "title": "ResponseFactor",
+      "type": "object"
+    },
+    "WalkingAcceleration": {
+      "additionalProperties": false,
+      "description": "``walkingAcceleration``: ap/g = P0·exp(-decay·fn) / (β·W), W the effective weight of the\npanel (``panelBays`` × its bay's area × the weight per area), against ao/g of the use.\nValid from ``minimumFrequency`` to ``maximumFrequency`` [Hz]; outside them the floor is\nreported as not checked by this method.",
+      "properties": {
+        "method": {
+          "const": "walkingAcceleration",
+          "default": "walkingAcceleration",
+          "title": "Method",
+          "type": "string"
+        },
+        "force": {
+          "description": "P0, the constant force of walking [kN].",
+          "exclusiveMinimum": 0,
+          "title": "Force",
+          "type": "number"
+        },
+        "decay": {
+          "description": "Of exp(-decay·fn).",
+          "exclusiveMinimum": 0,
+          "title": "Decay",
+          "type": "number"
+        },
+        "minimumFrequency": {
+          "description": "fn below this [Hz]: too low a floor.",
+          "exclusiveMinimum": 0,
+          "title": "Minimumfrequency",
+          "type": "number"
+        },
+        "maximumFrequency": {
+          "description": "fn above this [Hz]: a high-frequency floor.",
+          "exclusiveMinimum": 0,
+          "title": "Maximumfrequency",
+          "type": "number"
+        },
+        "panelBays": {
+          "default": 1.0,
+          "description": "The effective panel as a multiple of its bay's area.",
+          "exclusiveMinimum": 0,
+          "title": "Panelbays",
+          "type": "number"
+        },
+        "damping": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "description": "β by fit-out (bare, ceilings, ...).",
+          "title": "Damping",
+          "type": "object"
+        }
+      },
+      "required": [
+        "force",
+        "decay",
+        "minimumFrequency",
+        "maximumFrequency",
+        "damping"
+      ],
+      "title": "WalkingAcceleration",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Floors under walking (see the module notes): the method of steel and composite floors\nand of concrete floors, the natural frequency from the floor's deflection, and the\nacceptance of each use.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "steelMethod": {
+      "description": "Floors on steel beams (composite or not).",
+      "enum": [
+        "walkingAcceleration",
+        "responseFactor"
+      ],
+      "title": "Steelmethod",
+      "type": "string"
+    },
+    "concreteMethod": {
+      "description": "Reinforced and post-tensioned concrete floors.",
+      "enum": [
+        "walkingAcceleration",
+        "responseFactor"
+      ],
+      "title": "Concretemethod",
+      "type": "string"
+    },
+    "frequencyConstant": {
+      "description": "fn = this·√(g/Δ), Δ the panel's deflection under the vibrating weight.",
+      "exclusiveMinimum": 0,
+      "title": "Frequencyconstant",
+      "type": "number"
+    },
+    "walkingAcceleration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WalkingAcceleration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "responseFactor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResponseFactor"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "occupancies": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FloorOccupancy"
+      },
+      "title": "Occupancies",
+      "type": "object"
+    },
+    "areaUses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Area use id -> occupancy id (others: the default).",
+      "title": "Areauses",
+      "type": "object"
+    },
+    "defaultOccupancy": {
+      "title": "Defaultoccupancy",
+      "type": "string"
+    },
+    "defaultFitOut": {
+      "description": "The fit-out (damping key) of a floor that sets none.",
+      "title": "Defaultfitout",
+      "type": "string"
+    },
+    "compositeDynamicModulus": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Alpha 9 P8: a steel floor on composite beams vibrates on the composite section with the concrete's modulus × this (full interaction): the panel's deflection (the analysis carries the steel beams alone) × Is / It,dyn of its composite beams. None: the analysis deflection as it is.",
+      "title": "Compositedynamicmodulus"
+    }
+  },
+  "required": [
+    "steelMethod",
+    "concreteMethod",
+    "frequencyConstant",
+    "occupancies",
+    "defaultOccupancy",
+    "defaultFitOut"
+  ],
+  "title": "FloorVibrationTable",
+  "type": "object",
+  "$id": "saengine.codePack.floorVibration/1"
+}

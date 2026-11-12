@@ -1,0 +1,133 @@
+File frame.s2k: a synthetic two-story frame for the SAEngine import tests
+
+TABLE:  "PROGRAM CONTROL"
+   ProgramName=SAP2000   Version=24.0.0   ProgLevel=Ultimate   CurrUnits="KN, m, C"   SteelCode="AISC 360-16"   ConcCode="ACI 318-14"
+
+TABLE:  "ACTIVE DEGREES OF FREEDOM"
+   UX=Yes   UY=Yes   UZ=Yes   RX=Yes   RY=Yes   RZ=Yes
+
+TABLE:  "MATERIAL PROPERTIES 01 - GENERAL"
+   Material=C25   Type=Concrete   SymType=Isotropic   TempDepend=No   Color=Gray8Dark
+   Material=A992Fy50   Type=Steel   SymType=Isotropic   TempDepend=No   Color=Blue
+   Material=A615Gr60   Type=Rebar   SymType=Uniaxial   TempDepend=No   Color=White
+
+TABLE:  "MATERIAL PROPERTIES 02 - BASIC MECHANICAL PROPERTIES"
+   Material=C25   UnitWeight=23.5616   UnitMass=2.40262   E1=23500000   G12=9791667   U12=0.2   A1=0.0000099
+   Material=A992Fy50   UnitWeight=76.9729   UnitMass=7.849   E1=199947979   G12=76903069   U12=0.3   A1=0.0000117
+   Material=A615Gr60   UnitWeight=76.9729   UnitMass=7.849   E1=199947979   A1=0.0000117
+
+TABLE:  "MATERIAL PROPERTIES 03A - STEEL DATA"
+   Material=A992Fy50   Fy=344737.9   Fu=448159.3   EffFy=379211.7   EffFu=492975.2   SSCurveOpt=Simple
+
+TABLE:  "MATERIAL PROPERTIES 03B - CONCRETE DATA"
+   Material=C25   Fc=25000   LtWtConc=No   SSCurveOpt=Mander
+
+TABLE:  "FRAME SECTION PROPERTIES 01 - GENERAL"
+   SectionName=COL400X600   Material=C25   Shape=Rectangular   t3=0.6   t2=0.4   Area=0.24   _
+        I33=0.0072   I22=0.0032
+   SectionName=BM300X500   Material=C25   Shape=Rectangular   t3=0.5   t2=0.3   Area=0.15
+   SectionName=W200X46   Material=A992Fy50   Shape="I/Wide Flange"   t3=0.203   t2=0.203   tf=0.011   tw=0.0072   t2b=0.203   tfb=0.011
+
+TABLE:  "AREA SECTION PROPERTIES"
+   Section=SLAB150   Material=C25   MatAngle=0   AreaType=Shell   Type=Shell-Thin   DrillDOF=Yes   Thickness=0.15   BendThick=0.15
+
+TABLE:  "JOINT COORDINATES"
+   Joint=1   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=0   SpecialJt=No   GlobalX=0   GlobalY=0   GlobalZ=0
+   Joint=2   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=0   Z=0
+   Joint=3   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=5   Z=0
+   Joint=4   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=5   Z=0
+   Joint=5   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=3.2
+   Joint=6   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=0   Z=3.2
+   Joint=7   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=5   Z=3.2
+   Joint=8   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=5   Z=3.2
+   Joint=9   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=0   Z=6.4
+   Joint=10   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=0   Z=6.4
+   Joint=11   CoordSys=GLOBAL   CoordType=Cartesian   XorR=6   Y=5   Z=6.4
+   Joint=12   CoordSys=GLOBAL   CoordType=Cartesian   XorR=0   Y=5   Z=6.4
+
+TABLE:  "CONNECTIVITY - FRAME"
+   Frame=1   JointI=1   JointJ=5   IsCurved=No
+   Frame=2   JointI=2   JointJ=6   IsCurved=No
+   Frame=3   JointI=3   JointJ=7   IsCurved=No
+   Frame=4   JointI=4   JointJ=8   IsCurved=No
+   Frame=5   JointI=5   JointJ=9   IsCurved=No
+   Frame=6   JointI=6   JointJ=10   IsCurved=No
+   Frame=7   JointI=7   JointJ=11   IsCurved=No
+   Frame=8   JointI=8   JointJ=12   IsCurved=No
+   Frame=9   JointI=5   JointJ=6   IsCurved=No
+   Frame=10   JointI=6   JointJ=7   IsCurved=No
+   Frame=11   JointI=7   JointJ=8   IsCurved=No
+   Frame=12   JointI=8   JointJ=5   IsCurved=No
+   Frame=13   JointI=9   JointJ=10   IsCurved=No
+   Frame=14   JointI=10   JointJ=11   IsCurved=No
+   Frame=15   JointI=11   JointJ=12   IsCurved=No
+   Frame=16   JointI=12   JointJ=9   IsCurved=No
+   Frame=17   JointI=1   JointJ=6   IsCurved=No
+
+TABLE:  "CONNECTIVITY - AREA"
+   Area=1   NumJoints=4   Joint1=5   Joint2=6   Joint3=7   Joint4=8
+   Area=2   NumJoints=4   Joint1=9   Joint2=10   Joint3=11   Joint4=12
+
+TABLE:  "FRAME SECTION ASSIGNMENTS"
+   Frame=1   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=2   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=3   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=4   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=5   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=6   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=7   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=8   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=COL400X600   MatProp=Default
+   Frame=9   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=10   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=11   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=12   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=13   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=14   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=15   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=16   SectionType=Rectangular   AutoSelect=N.A.   AnalSect=BM300X500   MatProp=Default
+   Frame=17   SectionType="I/Wide Flange"   AutoSelect=N.A.   AnalSect=W200X46   MatProp=Default
+
+TABLE:  "AREA SECTION ASSIGNMENTS"
+   Area=1   Section=SLAB150   MatProp=Default
+   Area=2   Section=SLAB150   MatProp=Default
+
+TABLE:  "JOINT RESTRAINT ASSIGNMENTS"
+   Joint=1   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+   Joint=2   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+   Joint=3   U1=Yes   U2=Yes   U3=Yes   R1=Yes   R2=Yes   R3=Yes
+   Joint=4   U1=Yes   U2=Yes   U3=Yes   R1=No   R2=No   R3=No
+
+TABLE:  "LOAD PATTERN DEFINITIONS"
+   LoadPat=DEAD   DesignType=Dead   SelfWtMult=1
+   LoadPat=SDEAD   DesignType="Super Dead"   SelfWtMult=0
+   LoadPat=LIVE   DesignType=Live   SelfWtMult=0
+   LoadPat=ROOFLIVE   DesignType="Roof Live"   SelfWtMult=0
+   LoadPat=WINDY   DesignType=Wind   SelfWtMult=0
+
+TABLE:  "AREA LOADS - UNIFORM"
+   Area=1   LoadPat=SDEAD   CoordSys=GLOBAL   Dir=Gravity   UnifLoad=1.5
+   Area=2   LoadPat=SDEAD   CoordSys=GLOBAL   Dir=Gravity   UnifLoad=1.5
+   Area=1   LoadPat=LIVE   CoordSys=GLOBAL   Dir=Gravity   UnifLoad=2
+   Area=2   LoadPat=ROOFLIVE   CoordSys=GLOBAL   Dir=Gravity   UnifLoad=1
+
+TABLE:  "FRAME LOADS - DISTRIBUTED"
+   Frame=9   LoadPat=SDEAD   CoordSys=GLOBAL   Type=Force   Dir=Gravity   DistType=RelDist   RelDistA=0   RelDistB=1   AbsDistA=0   AbsDistB=6   FOverLA=5   FOverLB=5
+
+TABLE:  "JOINT LOADS - FORCE"
+   Joint=10   LoadPat=LIVE   CoordSys=GLOBAL   F1=0   F2=0   F3=-10   M1=0   M2=0   M3=0
+   Joint=9   LoadPat=WINDY   CoordSys=GLOBAL   F1=0   F2=-4   F3=0   M1=0   M2=0   M3=0
+
+TABLE:  "COMBINATION DEFINITIONS"
+   ComboName=DSTL1   ComboType="Linear Add"   AutoDesign=No   CaseType="Linear Static"   CaseName=DEAD   ScaleFactor=1.4   SteelDesign=Strength
+   ComboName=DSTL1   CaseType="Linear Static"   CaseName=SDEAD   ScaleFactor=1.4
+   ComboName=DSTL2   ComboType="Linear Add"   CaseType="Linear Static"   CaseName=DEAD   ScaleFactor=1.2
+   ComboName=DSTL2   CaseType="Linear Static"   CaseName=SDEAD   ScaleFactor=1.2
+   ComboName=DSTL2   CaseType="Linear Static"   CaseName=LIVE   ScaleFactor=1.6
+   ComboName=DSTL2   CaseType="Linear Static"   CaseName=ROOFLIVE   ScaleFactor=0.5
+   ComboName=GRAV   ComboType="Linear Add"   CaseType="Linear Static"   CaseName=DEAD   ScaleFactor=1
+   ComboName=GRAV   CaseType="Linear Static"   CaseName=SDEAD   ScaleFactor=1
+   ComboName=DWIND   ComboType="Linear Add"   CaseType="Response Combo"   CaseName=GRAV   ScaleFactor=1.2
+   ComboName=DWIND   CaseType="Linear Static"   CaseName=WINDY   ScaleFactor=1.6
+   ComboName=ENV   ComboType=Envelope   CaseType="Response Combo"   CaseName=DSTL1   ScaleFactor=1
+
+END TABLE DATA

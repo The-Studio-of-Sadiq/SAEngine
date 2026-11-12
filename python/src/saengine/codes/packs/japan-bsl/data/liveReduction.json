@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../schemas/liveReduction.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BSL Enforcement Order Art. 85(1) table, column (ii): the floor live load for the design of beams, columns and foundations"
+  ],
+  "source": "BSL Enforcement Order Art. 85(1) column (ii)",
+  "method": "frameValue",
+  "heavyLive": 100.0,
+  "notReduced": [],
+  "twoFloorsOnly": [],
+  "notReducedBuildings": [],
+  "sources": {
+    "method": "BSL Enforcement Order Art. 85(1): beams and columns take the use's value for frames (areaLoads frameLive) in place of the slabs' value; a member under several uses the largest ratio (SAEngine practice). Applied where Analysis > Live load reduction is on (the project setting). The reduction of the columns' load by the number of floors carried (Art. 85(2)) is not covered."
+  }
+}

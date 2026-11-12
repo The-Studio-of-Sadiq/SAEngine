@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Standard 2800 (4th ed.) Appendix 1: the relative seismic hazard of the towns (SAEngine readings, uncertain: VERIFY.md R1); the basic wind speed: SAEngine placeholder (VERIFY.md R2)"
+  ],
+  "source": "Standard 2800 (4th ed.): the seismic zone of each town (1 very high, 2 high, 3 moderate, 4 low; to be checked against Appendix 1, VERIFY.md R1); the basic wind speed V (3-second gust, the base pack's ASCE 7 method) is a placeholder of 40 m/s to replace from INBC Part 6. Elsewhere a custom location: enter A as Z and V. Choose the soil type of the zone's group: I-IV in zones 1-2, IL-IVL in zones 3-4.",
+  "default": "tehran",
+  "locations": {
+    "tehran": { "name": "Tehran", "zone": 1, "windSpeed": 40.0 },
+    "karaj": { "name": "Karaj", "zone": 1, "windSpeed": 40.0 },
+    "tabriz": { "name": "Tabriz", "zone": 1, "windSpeed": 40.0 },
+    "bandarabbas": { "name": "Bandar Abbas", "zone": 1, "windSpeed": 40.0 },
+    "mashhad": { "name": "Mashhad", "zone": 2, "windSpeed": 40.0 },
+    "shiraz": { "name": "Shiraz", "zone": 2, "windSpeed": 40.0 },
+    "qom": { "name": "Qom", "zone": 2, "windSpeed": 40.0 },
+    "kermanshah": { "name": "Kermanshah", "zone": 2, "windSpeed": 40.0 },
+    "kerman": { "name": "Kerman", "zone": 2, "windSpeed": 40.0 },
+    "rasht": { "name": "Rasht", "zone": 2, "windSpeed": 40.0 },
+    "isfahan": { "name": "Isfahan", "zone": 3, "windSpeed": 40.0 },
+    "ahvaz": { "name": "Ahvaz", "zone": 3, "windSpeed": 40.0 },
+    "yazd": { "name": "Yazd", "zone": 3, "windSpeed": 40.0 },
+    "zahedan": { "name": "Zahedan", "zone": 3, "windSpeed": 40.0 }
+  }
+}

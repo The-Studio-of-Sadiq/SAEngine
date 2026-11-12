@@ -1,0 +1,31 @@
+{
+  "$schema": "../../../schemas/occupancyCategories.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Table 6.1.1 (p. 480)",
+    "BNBC 2020 Part 6 Table 6.2.17 (p. 616)",
+    "BNBC 2020 Part 6 Table 6.2.9 (p. 601)"
+  ],
+  "source": "BNBC 2020 Part 6 Table 6.1.1 (p. 480) categories; Table 6.2.17 (p. 616) seismic importance; Table 6.2.9 (p. 601) wind importance",
+  "categories": {
+    "I": {
+      "description": "Low hazard to human life on failure (agricultural, minor storage)",
+      "seismicImportance": 1.0,
+      "windImportance": 0.87
+    },
+    "II": {
+      "description": "Standard occupancy (all buildings not in I, III or IV)",
+      "seismicImportance": 1.0,
+      "windImportance": 1.0
+    },
+    "III": {
+      "description": "Substantial hazard: assembly, schools, health care without surgery",
+      "seismicImportance": 1.25,
+      "windImportance": 1.15
+    },
+    "IV": {
+      "description": "Essential facilities: hospitals, fire and police stations, shelters",
+      "seismicImportance": 1.5,
+      "windImportance": 1.15
+    }
+  }
+}

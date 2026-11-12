@@ -1,0 +1,5216 @@
+{
+  "$defs": {
+    "AdjacentRatio": {
+      "additionalProperties": false,
+      "description": "Irregular when a storey's value is more than ``adjacent`` × an adjacent storey's.",
+      "properties": {
+        "adjacent": {
+          "exclusiveMinimum": 1,
+          "title": "Adjacent",
+          "type": "number"
+        },
+        "topExempt": {
+          "default": true,
+          "title": "Topexempt",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "adjacent"
+      ],
+      "title": "AdjacentRatio",
+      "type": "object"
+    },
+    "CsLimits": {
+      "additionalProperties": false,
+      "description": "Bounds of the seismic response coefficient Cs of the equivalent lateral force method:\nCs ≥ max(``sdsFactor``·SDS·Ie, ``floor``) and, where S1 ≥ ``nearFaultS1``,\nCs ≥ ``nearFaultFactor``·S1 / (R/Ie).",
+      "properties": {
+        "sdsFactor": {
+          "minimum": 0,
+          "title": "Sdsfactor",
+          "type": "number"
+        },
+        "floor": {
+          "minimum": 0,
+          "title": "Floor",
+          "type": "number"
+        },
+        "nearFaultS1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaults1"
+        },
+        "nearFaultFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearfaultfactor"
+        }
+      },
+      "required": [
+        "sdsFactor",
+        "floor"
+      ],
+      "title": "CsLimits",
+      "type": "object"
+    },
+    "DampedTerm": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: a damping-dependent term of the spectrum, base + (ref - ζ) / (a + b ζ), at\nleast ``least`` (ref the rule's ``referenceDamping``; GB 50011 Eqs 5.1.5-1 to -3).",
+      "properties": {
+        "base": {
+          "title": "Base",
+          "type": "number"
+        },
+        "a": {
+          "exclusiveMinimum": 0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "minimum": 0,
+          "title": "B",
+          "type": "number"
+        },
+        "least": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Least"
+        }
+      },
+      "required": [
+        "base",
+        "a",
+        "b"
+      ],
+      "title": "DampedTerm",
+      "type": "object"
+    },
+    "DampingCorrection": {
+      "additionalProperties": false,
+      "description": "The spectrum's damping correction η(ξ). ``squareRoot``: η = √(numerator / (offset +\n100ξ)), at least ``minimum``; ``none``: η = dampingEta; ``table`` (alpha 9 C9b): η of\n``points`` (ξ, η), linear between, the end values outside.",
+      "properties": {
+        "method": {
+          "default": "none",
+          "enum": [
+            "none",
+            "squareRoot",
+            "table"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "referenceDamping": {
+          "default": 0.05,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Referencedamping",
+          "type": "number"
+        },
+        "numerator": {
+          "default": 10.0,
+          "title": "Numerator",
+          "type": "number"
+        },
+        "offset": {
+          "default": 5.0,
+          "title": "Offset",
+          "type": "number"
+        },
+        "minimum": {
+          "default": 0.0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "points": {
+          "description": "(ξ, η) of the method 'table', ξ ascending.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "title": "DampingCorrection",
+      "type": "object"
+    },
+    "DesignCategories": {
+      "additionalProperties": false,
+      "properties": {
+        "occupancyGroups": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Occupancygroups",
+          "type": "object"
+        },
+        "bySiteClass": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "title": "Bysiteclass",
+          "type": "object"
+        },
+        "aliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "object"
+        },
+        "zoneColumns": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Zonecolumns",
+          "type": "object"
+        },
+        "byHeight": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Byheight",
+          "type": "object"
+        },
+        "simpleStatic": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Simplestatic",
+          "type": "object"
+        },
+        "dynamicRequired": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dynamicrequired",
+          "type": "array"
+        }
+      },
+      "required": [
+        "occupancyGroups",
+        "bySiteClass"
+      ],
+      "title": "DesignCategories",
+      "type": "object"
+    },
+    "DesignEccentricity": {
+      "additionalProperties": false,
+      "description": "The design eccentricity of the static torsion cases: ed = staticAmplification × es +\nthe accidental share, or es - the accidental share; es from the plan's centres of mass\nand rigidity (:mod:`saengine.fem.design_eccentricity`).",
+      "properties": {
+        "method": {
+          "const": "amplifiedStatic",
+          "default": "amplifiedStatic",
+          "title": "Method",
+          "type": "string"
+        },
+        "staticAmplification": {
+          "description": "a of a·es.",
+          "minimum": 1,
+          "title": "Staticamplification",
+          "type": "number"
+        }
+      },
+      "required": [
+        "staticAmplification"
+      ],
+      "title": "DesignEccentricity",
+      "type": "object"
+    },
+    "DesignSpectrumRule": {
+      "additionalProperties": false,
+      "description": "The design spectrum: a method id the pack picks (C4, C1). Empty: ``reducedElastic``.\n\n- ``reducedElastic`` (the default pack's): Sa = pgaFactor·Z·I/R·Cs(T), Cs the elastic shape\n  of the site class (S, TB, TC, TD; :func:`saengine.fem.loads.design_acceleration`).\n- ``behaviourFactor`` (EN 1998-1 3.2.2.5): ag = Z·I, Sd = ag·S·[2/3 + T/TB·(2.5/q - 2/3)] up\n  to TB, ag·S·2.5/q to TC, ·TC/T to TD, ·TC·TD/T² beyond, at least ``lowerBound``·ag from TC\n  (:mod:`saengine.fem.spectra`); R stands for q.\n- ``mappedSpectral`` (ASCE 7-22 Ch 11-12, :mod:`saengine.fem.spectral_hazard`): the site's\n  SDS and SD1 (and S1, TL) entered from the code's hazard tool (Site > Mapped spectral\n  values) instead of a zone: a two-period spectrum (T0 = ``t0Share``·TS, TS = SD1/SDS;\n  ``rampStart``·SDS at T = 0 up to SDS at T0, SDS to TS, SD1/T to TL, SD1·TL/T² beyond) or\n  the site's multi-period design spectrum, × I/R; the equivalent lateral force coefficient\n  Cs = SDS/(R/Ie) ≤ SD1/(T R/Ie) (SD1 TL/(T² R/Ie) beyond TL) within ``csLimits``; the\n  Seismic Design Category read by the band of SDS and SD1 (``sdsBands``, ``sd1Bands``, the\n  more severe; the band after the last where S1 ≥ ``s1Extreme``) as zone packs read it by\n  zone; the period's upper limit Cu·Ta from ``periodUpper`` by SD1. The fields after\n  ``lowerBound`` are this method's. Alpha 9 C23: with ``siteCoefficients`` SMS, SM1 also\n  from SS, S1 by Fa, Fv, and a town may carry SS, S1, TL.\n- ``ubc97`` (alpha 9 C16, UBC 1997 Sec 1629-1630 and the codes that adopt it): the same\n  two-period spectrum and Cs bounds with 2.5 Ca for SDS and Cv for SD1, Ca and Cv from the\n  zone's Z and the soil profile by ``ubc97`` (:class:`Ubc97Rule`).\n- ``shapeFactors`` (alpha 9 C18, AS 1170.4 / NZS 1170.5): the site class's spectral shape\n  factor Ch(T) (its ``shape`` branches), Cd(T) = (Z I) Ch(T) N Sp / kμ with R standing for μ\n  (:class:`ShapeFactorsRule`, :mod:`saengine.fem.spectra`); ``factor`` is not used.\n- ``influenceCoefficient`` (alpha 9 C20, GB 50011 5.1.5): Sa = Z I / R α(T)/αmax with Z\n  holding αmax, the damping in η1, η2 and γ (:class:`InfluenceCoefficientRule`); ``factor``\n  and the damping correction η are not used.",
+      "properties": {
+        "method": {
+          "default": "reducedElastic",
+          "enum": [
+            "reducedElastic",
+            "behaviourFactor",
+            "mappedSpectral",
+            "ubc97",
+            "ductilityOverstrength",
+            "standardShearCoefficient",
+            "shapeFactors",
+            "influenceCoefficient"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "plateau": {
+          "default": 2.5,
+          "description": "Spectral amplification of the plateau.",
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "lowerBound": {
+          "default": 0.0,
+          "description": "β: least Sd / ag.",
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Lowerbound",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: Sa = factor·Z·I/R·Cs (IS 1893: Z/2); empty: 2/3.",
+          "title": "Factor"
+        },
+        "longPeriod": {
+          "default": "inverseSquare",
+          "description": "reducedElastic: beyond TD the normalized spectrum falls as TC·TD/T² or stays at its value at TD.",
+          "enum": [
+            "inverseSquare",
+            "constant"
+          ],
+          "title": "Longperiod",
+          "type": "string"
+        },
+        "staticPlateau": {
+          "default": false,
+          "description": "reducedElastic: the equivalent static method takes the plateau below TB (no rising branch); the dynamic analysis the full shape.",
+          "title": "Staticplateau",
+          "type": "boolean"
+        },
+        "shapePlateau": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: the normalized plateau (empty: 2.5); the descending branch plateau × S × (TC / T)^descendingExponent.",
+          "title": "Shapeplateau"
+        },
+        "descendingExponent": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: the power of TC / T (empty: 1).",
+          "title": "Descendingexponent"
+        },
+        "leastCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "reducedElastic: Sa at least factor × Z × I × this (C / R >= this; empty: no least value).",
+          "title": "Leastcoefficient"
+        },
+        "designShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SDS = share × SMS, SD1 = share × SM1 (mapped values).",
+          "title": "Designshare"
+        },
+        "t0Share": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "T0 = share × TS.",
+          "title": "T0Share"
+        },
+        "rampStart": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sa at T = 0 as a share of SDS (the ramp to T0).",
+          "title": "Rampstart"
+        },
+        "sdsBands": {
+          "description": "SDS [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sdsbands",
+          "type": "array"
+        },
+        "sd1Bands": {
+          "description": "SD1 [g] at which each band from the second starts.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "Sd1Bands",
+          "type": "array"
+        },
+        "s1Extreme": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S1 [g] from which the band after the last one applies.",
+          "title": "S1Extreme"
+        },
+        "csLimits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CsLimits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "periodUpper": {
+          "description": "(SD1 [g], Cu) points: T ≤ Cu·Ta, Cu linear between, held beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Periodupper",
+          "type": "array"
+        },
+        "multiPeriod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultiPeriodRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "siteCoefficients": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SiteCoefficients"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shortPeriodReduction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShortPeriodReduction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ubc97": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ubc97Rule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ordinates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpectrumOrdinates"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ductility": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuctilityOverstrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shearCoefficient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShearCoefficientRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shapeFactors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShapeFactorsRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "influence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InfluenceCoefficientRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "DesignSpectrumRule",
+      "type": "object"
+    },
+    "DiaphragmConnections": {
+      "additionalProperties": false,
+      "description": "The connection force increase of irregular buildings (the factor is the pack's\n``transfer.diaphragm.irregularIncrease``): in the ``categories`` with an irregularity of\n``types``. ``wingTypes``: irregularities whose projecting wings need chords and collectors\nfor independent motion, satisfied by a dynamic 3D analysis when ``wingsDynamicExempt``.",
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "wingTypes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Wingtypes",
+          "type": "array"
+        },
+        "wingsDynamicExempt": {
+          "default": false,
+          "title": "Wingsdynamicexempt",
+          "type": "boolean"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "wingsClause": {
+          "default": "",
+          "title": "Wingsclause",
+          "type": "string"
+        }
+      },
+      "title": "DiaphragmConnections",
+      "type": "object"
+    },
+    "DiaphragmDeflection": {
+      "additionalProperties": false,
+      "description": "In-plane diaphragm deflection limit [mm]; empty: the code gives no number (the\npermissible deflection of the attached elements, which the engineer enters).",
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        }
+      },
+      "title": "DiaphragmDeflection",
+      "type": "object"
+    },
+    "DriftAmplificationRow": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: the elasto-plastic drift amplification ηp of the structures this row is\nfor (system groups, at most ``maxStoreys`` storeys), by the storey's yield strength\ncoefficient ξy: (ξy, ηp) points, linear between, the end values outside.",
+      "properties": {
+        "groups": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Groups"
+        },
+        "maxStoreys": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxstoreys"
+        },
+        "points": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "DriftAmplificationRow",
+      "type": "object"
+    },
+    "DriftLimit": {
+      "additionalProperties": false,
+      "description": "A row of the allowable storey drift table; the first row whose conditions hold applies\n(a condition left empty always holds), else ``allowableDrift``.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "masonry": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The system is a masonry one.",
+          "title": "Masonry"
+        },
+        "cantileverWalls": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The walls are cantilevered from the base (no coupling).",
+          "title": "Cantileverwalls"
+        },
+        "maxStoreys": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxstoreys"
+        },
+        "driftTolerantFinishes": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Interior walls, partitions, ceilings and exterior walls designed to accommodate the storey drift.",
+          "title": "Drifttolerantfinishes"
+        },
+        "groups": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The system's group is one of these (empty: any).",
+          "title": "Groups"
+        },
+        "concrete": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The system is a concrete one (its systems row's concrete).",
+          "title": "Concrete"
+        },
+        "limits": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Δa/hsx by occupancy category.",
+          "title": "Limits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "limits"
+      ],
+      "title": "DriftLimit",
+      "type": "object"
+    },
+    "DriftServiceRatio": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a drift limit checked as λ δ / h ≤ the limit (TBDY 2018 4.9.1.3: λ the\nratio of the elastic spectral accelerations of the more frequent earthquake to the design\nearthquake's): the allowable drift of the table (or its row) divided by ``value``, a\nproject's Code Value (the site's own ratio).",
+      "properties": {
+        "value": {
+          "description": "λ (the drift limits are divided by it).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Value",
+          "type": "number"
+        },
+        "label": {
+          "default": "λ",
+          "description": "The factor's symbol in the code.",
+          "title": "Label",
+          "type": "string"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "DriftServiceRatio",
+      "type": "object"
+    },
+    "DuctilityOverstrength": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the reduction of the method ``ductilityOverstrength`` (NTC-Sismo CDMX\ntype, :mod:`saengine.fem.ductility_spectrum`): the design ordinate a / (Q' R) × I, Q the\nsystem's R. Without k: Q' = 1 + (Q - 1) T / Ta below Ta, Q beyond, R = 1; with k:\nQ' = 1 + (Q - 1) √(β / k) T / Ta below Ta, 1 + (Q - 1) √(β / k) to Tb,\n1 + (Q - 1) √(β p / k) beyond, and R = k1 R0 + k2 with R0 of ``overstrength`` by Q (the\nlast point at or below Q) and k2 = ``k2Coefficient`` [1 - (T / Ta)^½] >= 0. Q' ×\n``regularityFactor`` (at least 1).",
+      "properties": {
+        "sites": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SiteSpectrum"
+          },
+          "description": "By site class id.",
+          "minProperties": 1,
+          "title": "Sites",
+          "type": "object"
+        },
+        "beta": {
+          "default": 1.0,
+          "description": "Damping factor β (1: 5 %).",
+          "exclusiveMinimum": 0,
+          "title": "Beta",
+          "type": "number"
+        },
+        "overstrength": {
+          "description": "(Q, R0) points of the site-specific form.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Overstrength",
+          "type": "array"
+        },
+        "redundancy": {
+          "default": 1.0,
+          "description": "k1 of R = k1 R0 + k2.",
+          "exclusiveMinimum": 0,
+          "title": "Redundancy",
+          "type": "number"
+        },
+        "k2Coefficient": {
+          "default": 0.5,
+          "minimum": 0,
+          "title": "K2Coefficient",
+          "type": "number"
+        },
+        "regularityFactor": {
+          "default": 1.0,
+          "description": "On Q' (regular 1; the code's factor when irregular).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Regularityfactor",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sites"
+      ],
+      "title": "DuctilityOverstrength",
+      "type": "object"
+    },
+    "DynamicAnalysis": {
+      "additionalProperties": false,
+      "description": "When the equivalent static method is not enough. ``regularHeights`` and\n``irregularHeights``: height [m] above which dynamic analysis is required, by seismic zone\n(\"1\"..\"4\"); ``recommendedIrregular``: zones where it is recommended for an irregular building\nbelow that height. The static procedure also needs T below ``periodTcFactor`` × TC and\n``periodMax`` and no vertical irregularity (``verticalIrregularity``).",
+      "properties": {
+        "regularHeights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Regularheights",
+          "type": "object"
+        },
+        "irregularHeights": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Irregularheights",
+          "type": "object"
+        },
+        "recommendedIrregular": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Recommendedirregular",
+          "type": "array"
+        },
+        "periodTcFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodtcfactor"
+        },
+        "periodMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodmax"
+        },
+        "verticalIrregularity": {
+          "default": false,
+          "title": "Verticalirregularity",
+          "type": "boolean"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "staticClause": {
+          "default": "",
+          "title": "Staticclause",
+          "type": "string"
+        }
+      },
+      "title": "DynamicAnalysis",
+      "type": "object"
+    },
+    "FoundationCapacityRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: capacity design of foundations (method ``overstrengthFactor``): the\nfoundations' design action EFd = EF,G + γRd Ω EF,E with γRd = ``gammaLow`` for q up to\n``qLimit``, ``gammaHigh`` above, Ω the project's or ``omega`` (None: q, the elastic\nresponse), γRd Ω at most q.",
+      "properties": {
+        "method": {
+          "const": "overstrengthFactor",
+          "default": "overstrengthFactor",
+          "title": "Method",
+          "type": "string"
+        },
+        "qLimit": {
+          "exclusiveMinimum": 0,
+          "title": "Qlimit",
+          "type": "number"
+        },
+        "gammaLow": {
+          "exclusiveMinimum": 0,
+          "title": "Gammalow",
+          "type": "number"
+        },
+        "gammaHigh": {
+          "exclusiveMinimum": 0,
+          "title": "Gammahigh",
+          "type": "number"
+        },
+        "omega": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Omega"
+        }
+      },
+      "required": [
+        "qLimit",
+        "gammaLow",
+        "gammaHigh"
+      ],
+      "title": "FoundationCapacityRule",
+      "type": "object"
+    },
+    "GradeDesignRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the seismic grade in the member design (method ``gradeFactors``,\n:mod:`saengine.design.seismic_grades`): in the earthquake combinations the earthquake part\nof the forces × the grade's factors (columns' moments × strongColumn ηc, their shears ×\nηc × columnShear ηvc, beams' shears × beamShear ηvb, walls' in-plane shear × wallShear\nηvw), then every force × γRE (``adjustment``); the grade's axialRatio μN, confinement and\ndetailing checked.",
+      "properties": {
+        "method": {
+          "const": "gradeFactors",
+          "default": "gradeFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "adjustment": {
+          "$ref": "#/$defs/ResistanceAdjustment"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adjustment"
+      ],
+      "title": "GradeDesignRule",
+      "type": "object"
+    },
+    "GradeDetailing": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the detailing of one seismic grade (GB 50011 6.3, GB 50010 11.3-11.7\ntype, :mod:`saengine.design.seismic_grades`); an empty field is not checked. Ratios are\nshares (0.004 = 0.4 %); ``ft/fy`` terms on the design strengths.",
+      "properties": {
+        "beamEndSteel": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(ratio, c): As/(b h) at the ends at least max(ratio, c ft/fy).",
+          "title": "Beamendsteel"
+        },
+        "beamSpanSteel": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(ratio, c): As/(b h) in the span at least max(ratio, c ft/fy).",
+          "title": "Beamspansteel"
+        },
+        "beamEndDepth": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "x/h0 at the ends at most (the stress block's x).",
+          "title": "Beamenddepth"
+        },
+        "beamEndCompression": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "As'/As at the ends at least.",
+          "title": "Beamendcompression"
+        },
+        "beamHoopZone": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, mm): the end zone at least max(a hb, mm) long.",
+          "title": "Beamhoopzone"
+        },
+        "beamHoops": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, mm): hoops in the end zone at most min(hb/a, b d, mm).",
+          "title": "Beamhoops"
+        },
+        "beamHoopDia": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone hoops at least [mm].",
+          "title": "Beamhoopdia"
+        },
+        "columnSteel": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least total steel ratio of columns: 'interior' (and edge), 'corner'.",
+          "title": "Columnsteel",
+          "type": "object"
+        },
+        "columnSteelIncrease": {
+          "description": "(fyk from [MPa], ratio added) to the column steel by the bar grade: the last row whose fyk is at most the bars' (none: nothing added).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMaximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Columnsteelincrease",
+          "type": "array"
+        },
+        "columnHoopZone": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, b, mm): the end zone at least max(a hc, Hn/b, mm).",
+          "title": "Columnhoopzone"
+        },
+        "columnHoops": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(a, mm): hoops in the end zone at most min(a d, mm).",
+          "title": "Columnhoops"
+        },
+        "columnHoopDia": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "End zone hoops at least [mm].",
+          "title": "Columnhoopdia"
+        },
+        "confinement": {
+          "description": "(μN, λv) points, linear between: ρv >= λv fc / fyv in the end zones.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Confinement",
+          "type": "array"
+        },
+        "confinementMin": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ρv in the end zones at least this.",
+          "title": "Confinementmin"
+        },
+        "confinementFckMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fck at least this [MPa] in λv fc / fyv.",
+          "title": "Confinementfckmin"
+        },
+        "wallWebMin": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall web steel ρ each way at least this.",
+          "title": "Wallwebmin"
+        }
+      },
+      "title": "GradeDetailing",
+      "type": "object"
+    },
+    "GravityShareVerticalRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the vertical seismic action as a share of the gravity load by the seismic\nzone (method ``gravityShare``, GB 50011 5.3.3 type: 10 % / 15 % / 20 % of the\nrepresentative gravity load at intensity 8 / 8 (0.30g) / 9 for long spans and\ncantilevers): Ev / D = combinationShare × share of the zone (zones not listed: none),\napplied to every member (on the safe side) when the vertical component is on.",
+      "properties": {
+        "method": {
+          "const": "gravityShare",
+          "title": "Method",
+          "type": "string"
+        },
+        "shares": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Seismic zone -> Ev / G (the vertical action over the gravity load).",
+          "title": "Shares",
+          "type": "object"
+        },
+        "combinationShare": {
+          "description": "The vertical action's factor in the combination (γEv).",
+          "exclusiveMinimum": 0,
+          "title": "Combinationshare",
+          "type": "number"
+        },
+        "members": {
+          "default": "",
+          "description": "Which members the code applies it to.",
+          "title": "Members",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "shares",
+        "combinationShare"
+      ],
+      "title": "GravityShareVerticalRule",
+      "type": "object"
+    },
+    "HazardMapsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C25 (SP 14.13330.2018 4.3 type: the OSR-2015 maps A, B and C of 10 %, 5 % and\n1 % in 50 years): the map a project's town zone is read from (``locations.*.mapZones``),\nby the occupancy category (``byOccupancy``), else ``default``. A project overrides either\nvalue (``seismic.hazardMaps.default`` ...).",
+      "properties": {
+        "maps": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map id -> its name, for the settings and report.",
+          "title": "Maps",
+          "type": "object"
+        },
+        "default": {
+          "type": "string",
+          "description": "The map id of an occupancy category not listed.",
+          "title": "Default"
+        },
+        "byOccupancy": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Occupancy category -> map id.",
+          "title": "Byoccupancy",
+          "type": "object"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "maps",
+        "default"
+      ],
+      "title": "HazardMapsRule",
+      "type": "object"
+    },
+    "HeightClass": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a building height class: the building is of this class when its height\nabove the base exceeds ``above`` [m] of its column (the first class, in order, it\nexceeds).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "above": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "description": "Least height [m] (exclusive) by column of ``columns`` ('all': any).",
+          "title": "Above",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "above"
+      ],
+      "title": "HeightClass",
+      "type": "object"
+    },
+    "HigherModeTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the higher mode factor Mv of one group of systems by the spectral ratio\n(the pack's ``higherModePeriods``) and the period, bilinear between the points, the end\nvalues outside.",
+      "properties": {
+        "ratios": {
+          "description": "Spectral ratios of the rows.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Ratios",
+          "type": "array"
+        },
+        "periods": {
+          "description": "Periods [s] of the columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Periods",
+          "type": "array"
+        },
+        "values": {
+          "description": "Mv, a row per ratio, a column per period.",
+          "items": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ratios",
+        "periods",
+        "values"
+      ],
+      "title": "HigherModeTable",
+      "type": "object"
+    },
+    "InfluenceCoefficientRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: the terms of the method ``influenceCoefficient`` (GB 50011-2010 5.1.4,\n5.1.5 type, :mod:`saengine.fem.spectra`): the seismic influence coefficient α(T) as a share\nof αmax (Z holds αmax of the frequent earthquake), with the characteristic period Tg the\nsite class's TC: ``riseStart`` at T = 0 rising to η2 at ``risePeriod``, η2 to Tg, η2 (Tg /\nT)^γ to ``tailFrom`` Tg, η2 tailShare^γ - η1 (T - tailFrom Tg) to ``longest`` (held beyond);\nγ, η1, η2 by the damping ratio ζ. The rare earthquake (``rare``: αmax by zone, Tg +\n``rarePeriodIncrease`` in ``rareIncreaseZones``) for the elasto-plastic drift check.",
+      "properties": {
+        "referenceDamping": {
+          "default": 0.05,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Referencedamping",
+          "type": "number"
+        },
+        "riseStart": {
+          "description": "α(0) / αmax.",
+          "exclusiveMinimum": 0,
+          "title": "Risestart",
+          "type": "number"
+        },
+        "risePeriod": {
+          "description": "End of the rising branch [s].",
+          "exclusiveMinimum": 0,
+          "title": "Riseperiod",
+          "type": "number"
+        },
+        "tailFrom": {
+          "description": "The linear tail from this × Tg.",
+          "exclusiveMinimum": 0,
+          "title": "Tailfrom",
+          "type": "number"
+        },
+        "longest": {
+          "description": "The spectrum's last period [s]; held beyond.",
+          "exclusiveMinimum": 0,
+          "title": "Longest",
+          "type": "number"
+        },
+        "gamma": {
+          "$ref": "#/$defs/DampedTerm",
+          "description": "γ, the power of the descending branch."
+        },
+        "eta1": {
+          "$ref": "#/$defs/DampedTerm",
+          "description": "η1, the slope of the linear tail [1/s]."
+        },
+        "eta2": {
+          "$ref": "#/$defs/DampedTerm",
+          "description": "η2, the damping adjustment of the plateau."
+        },
+        "rare": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "αmax of the rare earthquake by seismic zone.",
+          "title": "Rare",
+          "type": "object"
+        },
+        "rarePeriodIncrease": {
+          "default": 0.0,
+          "description": "Tg + this [s] (rare).",
+          "minimum": 0,
+          "title": "Rareperiodincrease",
+          "type": "number"
+        },
+        "rareIncreaseZones": {
+          "description": "Zones whose rare earthquake takes the Tg increase.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Rareincreasezones",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "riseStart",
+        "risePeriod",
+        "tailFrom",
+        "longest",
+        "gamma",
+        "eta1",
+        "eta2"
+      ],
+      "title": "InfluenceCoefficientRule",
+      "type": "object"
+    },
+    "Irregularities": {
+      "additionalProperties": false,
+      "description": "Plan and vertical irregularity thresholds (each block empty: not checked).",
+      "properties": {
+        "reentrantProjection": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reentrantprojection"
+        },
+        "openingShare": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Openingshare"
+        },
+        "diaphragmStiffnessChange": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Diaphragmstiffnesschange"
+        },
+        "nonparallelTolerance": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 45,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nonparalleltolerance"
+        },
+        "nonparallelOrthogonal": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nonparallelorthogonal",
+          "type": "array"
+        },
+        "offsets": {
+          "default": false,
+          "title": "Offsets",
+          "type": "boolean"
+        },
+        "inPlaneOffset": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inplaneoffset"
+        },
+        "soft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extremeSoft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mass": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdjacentRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdjacentRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "weak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extremeWeak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyRatio"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "strength": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoreyStrength"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "labels": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "Irregularities",
+      "type": "object"
+    },
+    "LateralForceRule": {
+      "additionalProperties": false,
+      "description": "C4: the lateral force method. Base shear × ``correction`` when T ≤ ``periodTcFactor``·TC\nand the building has more than ``minStoreys`` - 1 storeys (EN 1998-1 4.3.3.2.2 λ = 0.85);\n``distribution``: ``heightPower`` (Fx ∝ wx·hx^k, k 1 to 2 with T) or ``linear`` (Fi ∝ zi·mi,\nEN 1998-1 4.3.3.2.3 with the linear mode shape).",
+      "properties": {
+        "correction": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Correction",
+          "type": "number"
+        },
+        "correctionMethod": {
+          "default": "constant",
+          "description": "constant: correction (with periodTcFactor, minStoreys); linearMode: (Σ Wi hi)² / (Σ Wi Σ Wi hi²) of the levels.",
+          "enum": [
+            "constant",
+            "linearMode"
+          ],
+          "title": "Correctionmethod",
+          "type": "string"
+        },
+        "periodTcFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodtcfactor"
+        },
+        "minStoreys": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Minstoreys",
+          "type": "integer"
+        },
+        "distribution": {
+          "default": "heightPower",
+          "enum": [
+            "heightPower",
+            "linear",
+            "heightSquared",
+            "shearCoefficientAi"
+          ],
+          "title": "Distribution",
+          "type": "string"
+        },
+        "minimumShare": {
+          "additionalProperties": {
+            "exclusiveMaximum": 1,
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "C7: least base shear V / W by seismic zone (IS 1893 Table 7); empty: none.",
+          "title": "Minimumshare",
+          "type": "object"
+        },
+        "topForce": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TopForce"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = factor T V <= maxShare V at the top when T > periodFrom; the rest distributed (empty: none)."
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "LateralForceRule",
+      "type": "object"
+    },
+    "ModalCombinationRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the combination of the modal maxima (method ``independence``): SRSS where\nevery pair of modes is independent (Tj <= ``ratio`` Ti), else CQC.",
+      "properties": {
+        "method": {
+          "const": "independence",
+          "default": "independence",
+          "title": "Method",
+          "type": "string"
+        },
+        "ratio": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "ratio"
+      ],
+      "title": "ModalCombinationRule",
+      "type": "object"
+    },
+    "MultiPeriodRule": {
+      "additionalProperties": false,
+      "description": "SMS and SM1 from a multi-period MCER spectrum (Sa [g] by T [s]): SMS = ``smsShare`` ×\nthe largest Sa from ``smsPeriods[0]`` to ``smsPeriods[1]``, at least Sa at the first;\nSM1 = the largest T·Sa from ``sm1Periods[0]`` to ``sm1Periods[1]`` (``sm1PeriodsSoft`` for\nthe ``softClasses``); SDS, SD1 = ``designShare`` × them. Used when the project gives the\nMCER spectrum and not SDS and SD1.",
+      "properties": {
+        "smsShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Smsshare",
+          "type": "number"
+        },
+        "smsPeriods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Smsperiods",
+          "type": "array"
+        },
+        "sm1Periods": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Sm1Periods",
+          "type": "array"
+        },
+        "sm1PeriodsSoft": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sm1Periodssoft"
+        },
+        "softClasses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Softclasses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "smsShare",
+        "smsPeriods",
+        "sm1Periods"
+      ],
+      "title": "MultiPeriodRule",
+      "type": "object"
+    },
+    "PerformanceBasedRules": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: when the code requires performance-based design (TBDY 2018 3.3, 3.4 and\nChapter 13 type, :mod:`saengine.fem.performance_requirements`): the building's height class\nby its height and design category, and the rules that ask for the performance objectives;\nreported in the analysis notes with the procedures (the Pushover and the Nonlinear time\nhistory analyses) that carry them out. Empty: not covered.",
+      "properties": {
+        "columns": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Design category -> column of the height classes (empty: 'all').",
+          "title": "Columns",
+          "type": "object"
+        },
+        "heightClasses": {
+          "description": "In order, the tallest first.",
+          "items": {
+            "$ref": "#/$defs/HeightClass"
+          },
+          "title": "Heightclasses",
+          "type": "array"
+        },
+        "heightLabel": {
+          "default": "height class",
+          "description": "The classes' name.",
+          "title": "Heightlabel",
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/PerformanceRule"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "PerformanceBasedRules",
+      "type": "object"
+    },
+    "PerformanceObjective": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: one performance objective of a performance-based design: the hazard level,\nthe performance level the building must meet there and the analysis that shows it.",
+      "properties": {
+        "hazard": {
+          "description": "The hazard level as the code names it (DD-1 ...).",
+          "title": "Hazard",
+          "type": "string"
+        },
+        "level": {
+          "description": "The performance level (collapse prevention ...).",
+          "title": "Level",
+          "type": "string"
+        },
+        "procedure": {
+          "default": "strength",
+          "description": "linear (an elastic response spectrum analysis), strength (the strength-based design), pushover (the Pushover analysis) or nonlinearHistory (the Nonlinear time history analysis).",
+          "enum": [
+            "linear",
+            "strength",
+            "pushover",
+            "nonlinearHistory"
+          ],
+          "title": "Procedure",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hazard",
+        "level"
+      ],
+      "title": "PerformanceObjective",
+      "type": "object"
+    },
+    "PerformanceRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: buildings that need a performance-based design: of the height ``classes``\nor in the design ``categories`` (either holding).",
+      "properties": {
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "description": "What the rule is (tall buildings ...).",
+          "title": "Label",
+          "type": "string"
+        },
+        "objectives": {
+          "items": {
+            "$ref": "#/$defs/PerformanceObjective"
+          },
+          "minItems": 1,
+          "title": "Objectives",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "objectives"
+      ],
+      "title": "PerformanceRule",
+      "type": "object"
+    },
+    "PeriodCoefficient": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "Ct": {
+          "exclusiveMinimum": 0,
+          "title": "Ct",
+          "type": "number"
+        },
+        "m": {
+          "exclusiveMinimum": 0,
+          "title": "M",
+          "type": "number"
+        },
+        "planDimension": {
+          "default": false,
+          "description": "C7: T = Ct·h^m / √d, d the base plan dimension along the shaking [m] (False: T = Ct·h^m).",
+          "title": "Plandimension",
+          "type": "boolean"
+        },
+        "wallArea": {
+          "default": false,
+          "description": "T = Ct·h^m / √Aw, Aw = Σ Awi (wallBase + min(Lwi/h, wallRatioMax)²) of the first storey's walls along the shaking [m²]; at least the lowerFamily's T.",
+          "title": "Wallarea",
+          "type": "boolean"
+        },
+        "wallBase": {
+          "default": 0.2,
+          "minimum": 0,
+          "title": "Wallbase",
+          "type": "number"
+        },
+        "wallRatioMax": {
+          "default": 0.9,
+          "exclusiveMinimum": 0,
+          "title": "Wallratiomax",
+          "type": "number"
+        },
+        "lowerFamily": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The family whose period bounds this one from below.",
+          "title": "Lowerfamily"
+        }
+      },
+      "required": [
+        "Ct",
+        "m"
+      ],
+      "title": "PeriodCoefficient",
+      "type": "object"
+    },
+    "RareDriftLimit": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: the elasto-plastic storey drift limit [θp] of the systems of ``groups``.",
+      "properties": {
+        "groups": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Groups"
+        },
+        "limit": {
+          "exclusiveMinimum": 0,
+          "title": "Limit",
+          "type": "number"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "title": "RareDriftLimit",
+      "type": "object"
+    },
+    "RareDriftRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: the elasto-plastic storey drift under the rare earthquake by the simplified\nmethod (GB 50011-2010 5.5.2-5.5.5 type, :mod:`saengine.fem.two_level_seismic`): Δup = ηp\nΔue, Δue the elastic storey drift under the rare earthquake (the frequent earthquake's\ndrift × α_rare(T1) / α(T1) of the influenceCoefficient spectrum), ηp by the storey count\nand the yield strength coefficient ξy (``yieldStrengthRatio``, a project's Code Value: the\nstorey's yield shear over its elastic rare-earthquake shear), at most [θp] h. Checked in the\nzones of ``zones``; empty: every zone of the rare earthquake.",
+      "properties": {
+        "method": {
+          "const": "amplifiedElastic",
+          "default": "amplifiedElastic",
+          "title": "Method",
+          "type": "string"
+        },
+        "zones": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Zones",
+          "type": "array"
+        },
+        "yieldStrengthRatio": {
+          "description": "ξy taken for every storey.",
+          "exclusiveMinimum": 0,
+          "title": "Yieldstrengthratio",
+          "type": "number"
+        },
+        "amplification": {
+          "items": {
+            "$ref": "#/$defs/DriftAmplificationRow"
+          },
+          "minItems": 1,
+          "title": "Amplification",
+          "type": "array"
+        },
+        "defaultAmplification": {
+          "description": "ηp where no row holds.",
+          "exclusiveMinimum": 0,
+          "title": "Defaultamplification",
+          "type": "number"
+        },
+        "limits": {
+          "items": {
+            "$ref": "#/$defs/RareDriftLimit"
+          },
+          "minItems": 1,
+          "title": "Limits",
+          "type": "array"
+        },
+        "defaultLimit": {
+          "description": "[θp] where no row holds.",
+          "exclusiveMinimum": 0,
+          "title": "Defaultlimit",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "yieldStrengthRatio",
+        "amplification",
+        "defaultAmplification",
+        "limits",
+        "defaultLimit"
+      ],
+      "title": "RareDriftRule",
+      "type": "object"
+    },
+    "RegularityCriteria": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: regularity in plan and in elevation by criteria (method ``criteria``,\n:mod:`saengine.fem.seismic_regularity`; EN 1998-1 4.2.3 type) and what follows from them.\n\nPlan: each floor's slenderness Lmax / Lmin at most ``slendernessMax``; its outline within a\nconvex envelope whose area exceeds the floor's by at most ``compactnessShare``; at each\nstorey the eccentricity e0 of the centre of stiffness (from the moments of inertia of the\ncolumns' and walls' sections) from the centre of mass (the floor's centroid) at most\n``eccentricityShare`` × the torsional radius r, and r at least the radius of gyration ls of\nthe floor (``torsionalRadius``). Elevation: the lateral systems run from the base to the\ntop (the offsets of the irregularity checks), setbacks preserving symmetry each at most\n``setbackShare`` of the dimension below, a single one in the lower ``baseHeightShare`` of\nthe height at most ``baseSetbackShare``, unsymmetric ones each at most\n``unsymmetricShare`` and in all at most ``unsymmetricTotal`` of the base dimension.\n\nConsequences: a structure not regular in elevation takes q × ``elevationFactor``; one not\nregular in plan takes αu/α1 as the mean of 1 and the system's (``planAverage``); the\nlateral force method needs regularity in elevation (``dynamicAnalysis``); a planar model\nneeds regularity in plan (SAEngine always analyses the spatial model).",
+      "properties": {
+        "method": {
+          "const": "criteria",
+          "default": "criteria",
+          "title": "Method",
+          "type": "string"
+        },
+        "slendernessMax": {
+          "exclusiveMinimum": 0,
+          "title": "Slendernessmax",
+          "type": "number"
+        },
+        "compactnessShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Compactnessshare",
+          "type": "number"
+        },
+        "eccentricityShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Eccentricityshare",
+          "type": "number"
+        },
+        "torsionalRadius": {
+          "default": true,
+          "title": "Torsionalradius",
+          "type": "boolean"
+        },
+        "setbackShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Setbackshare",
+          "type": "number"
+        },
+        "baseHeightShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Baseheightshare",
+          "type": "number"
+        },
+        "baseSetbackShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Basesetbackshare",
+          "type": "number"
+        },
+        "unsymmetricShare": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Unsymmetricshare",
+          "type": "number"
+        },
+        "unsymmetricTotal": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Unsymmetrictotal",
+          "type": "number"
+        },
+        "symmetryTolerance": {
+          "default": 0.25,
+          "description": "A setback is symmetric when its two sides differ by at most this share of it (SAEngine practice).",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Symmetrytolerance",
+          "type": "number"
+        },
+        "elevationFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Elevationfactor",
+          "type": "number"
+        },
+        "planAverage": {
+          "default": true,
+          "title": "Planaverage",
+          "type": "boolean"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "slendernessMax",
+        "compactnessShare",
+        "eccentricityShare",
+        "setbackShare",
+        "baseHeightShare",
+        "baseSetbackShare",
+        "unsymmetricShare",
+        "unsymmetricTotal",
+        "elevationFactor"
+      ],
+      "title": "RegularityCriteria",
+      "type": "object"
+    },
+    "ResistanceAdjustment": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20b: the seismic adjustment factors γRE of the resistances (GB 50011 Table\n5.4.2 type): S <= R / γRE, applied as γRE × the earthquake combinations' forces.",
+      "properties": {
+        "beamBending": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Beambending",
+          "type": "number"
+        },
+        "columnBending": {
+          "description": "Columns in compression and bending.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Columnbending",
+          "type": "number"
+        },
+        "wallBending": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wallbending",
+          "type": "number"
+        },
+        "shear": {
+          "description": "Shear and torsion of every concrete member.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "steelStrength": {
+          "description": "Steel beams (strength).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelstrength",
+          "type": "number"
+        },
+        "steelStability": {
+          "description": "Steel columns and braces (stability).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Steelstability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "beamBending",
+        "columnBending",
+        "wallBending",
+        "shear",
+        "steelStrength",
+        "steelStability"
+      ],
+      "title": "ResistanceAdjustment",
+      "type": "object"
+    },
+    "SeismicGrade": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: one seismic (detailing) grade: its name, the detailing level it stands for\nin SAEngine's levels, and the design factors the code gives it (by key: strongColumn ηc,\ncolumnShear ηvc, beamShear ηvb, wallShear ηvw, axialRatio μN, anchorage ζaE ...).",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "special",
+            "intermediate",
+            "ordinary"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "factors": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Factors",
+          "type": "object"
+        },
+        "detailing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GradeDetailing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "label",
+        "level"
+      ],
+      "title": "SeismicGrade",
+      "type": "object"
+    },
+    "SeismicGradeRow": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: the grade of the systems of ``groups`` up to ``maxHeight`` [m] (empty: any\nheight), by the intensity column.",
+      "properties": {
+        "groups": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Groups",
+          "type": "array"
+        },
+        "maxHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxheight"
+        },
+        "grades": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Intensity column -> grade id.",
+          "title": "Grades",
+          "type": "object"
+        }
+      },
+      "required": [
+        "groups",
+        "grades"
+      ],
+      "title": "SeismicGradeRow",
+      "type": "object"
+    },
+    "SeismicGradesRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C20: seismic grades by structure type, intensity and height (GB 50011-2010 Table\n6.1.2 type, :mod:`saengine.fem.two_level_seismic`): the zone's intensity column\n(``columns``), raised ``raise`` columns of ``order`` for the occupancy categories that take\nthe measures of a higher intensity, the first row of the system's group whose height holds,\nthe grade's level and factors (reported with the seismic design).",
+      "properties": {
+        "columns": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Seismic zone -> intensity column.",
+          "title": "Columns",
+          "type": "object"
+        },
+        "order": {
+          "description": "The intensity columns, lowest first.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Order",
+          "type": "array"
+        },
+        "raise": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Occupancy category -> columns the measures are raised by.",
+          "title": "Raise",
+          "type": "object"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/SeismicGradeRow"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "grades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SeismicGrade"
+          },
+          "title": "Grades",
+          "type": "object"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "columns",
+        "order",
+        "rows",
+        "grades"
+      ],
+      "title": "SeismicGradesRule",
+      "type": "object"
+    },
+    "Separation": {
+      "additionalProperties": false,
+      "description": "Separation from adjacent structures: the gap to the property line is at least\n``propertyLineFactor``·δ; between units of one property the ``sameProperty`` combination\n(\"srss\" or \"sum\") of the two δ; times ``equalFloorLevelsFactor`` where the floors align.",
+      "properties": {
+        "propertyLineFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Propertylinefactor",
+          "type": "number"
+        },
+        "sameProperty": {
+          "default": "srss",
+          "enum": [
+            "srss",
+            "sum"
+          ],
+          "title": "Sameproperty",
+          "type": "string"
+        },
+        "equalFloorLevelsFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Equalfloorlevelsfactor",
+          "type": "number"
+        }
+      },
+      "title": "Separation",
+      "type": "object"
+    },
+    "ShapeBranch": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: one branch of a site class's spectral shape factor Ch(T) (AS 1170.4 Table\n6.4, NZS 1170.5 Table 3.1 type): Ch = a + b T + c (t0 / T)^n, at most ``most``, for T up\nto ``upTo`` [s] (empty: the last branch, beyond).",
+      "properties": {
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upto"
+        },
+        "a": {
+          "default": 0.0,
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "default": 0.0,
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "default": 0.0,
+          "title": "C",
+          "type": "number"
+        },
+        "n": {
+          "default": 1.0,
+          "title": "N",
+          "type": "number"
+        },
+        "t0": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "T0",
+          "type": "number"
+        },
+        "most": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Most"
+        },
+        "c2": {
+          "default": 0.0,
+          "description": "c2 of the second term c2 (t0 / T)^n2.",
+          "title": "C2",
+          "type": "number"
+        },
+        "n2": {
+          "default": 1.0,
+          "title": "N2",
+          "type": "number"
+        },
+        "d": {
+          "default": 0.0,
+          "description": "d of the divisor 1 + d (t0 / T)^m.",
+          "title": "D",
+          "type": "number"
+        },
+        "m": {
+          "default": 1.0,
+          "title": "M",
+          "type": "number"
+        }
+      },
+      "title": "ShapeBranch",
+      "type": "object"
+    },
+    "ShapeFactorsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the terms of the method ``shapeFactors`` (AS 1170.4 Section 6, NZS 1170.5\nSection 5 type, :mod:`saengine.fem.spectra`): Cd(T) = (Z I) Ch(T) N(T, D) Sp / kμ, the\nsystem's R standing for the structural ductility factor μ.",
+      "properties": {
+        "performance": {
+          "description": "(μ, Sp) points: Sp linear between, the end values beyond.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Performance",
+          "type": "array"
+        },
+        "ductilityPeriod": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "kμ = μ from this period [s] on, (μ - 1) T / this + 1 below; empty: kμ = μ.",
+          "title": "Ductilityperiod"
+        },
+        "ductilityMinPeriod": {
+          "default": 0.0,
+          "description": "T of kμ at least [s].",
+          "minimum": 0,
+          "title": "Ductilityminperiod",
+          "type": "number"
+        },
+        "softClasses": {
+          "description": "Site classes of soft.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Softclasses",
+          "type": "array"
+        },
+        "softPeriod": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "kμ = μ from T [s] (soft).",
+          "title": "Softperiod"
+        },
+        "softDuctility": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soft: kμ = μ below this μ, else (μ - this) T/softPeriod + this.",
+          "title": "Softductility"
+        },
+        "hazardMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z I at least.",
+          "title": "Hazardmin"
+        },
+        "hazardMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z I at most.",
+          "title": "Hazardmax"
+        },
+        "leastZShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least (this Z + leastOffset) I.",
+          "title": "Leastzshare"
+        },
+        "leastOffset": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leastoffset"
+        },
+        "leastFloor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least this × I.",
+          "title": "Leastfloor"
+        },
+        "faultDistance": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "D [km] of the site to the nearest major fault (a project's value); empty: N = 1.",
+          "title": "Faultdistance"
+        },
+        "nearFault": {
+          "description": "(T [s], Nmax) points of the near-fault factor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Nearfault",
+          "type": "array"
+        },
+        "nearFaultFull": {
+          "default": 2.0,
+          "description": "N = Nmax up to D [km].",
+          "minimum": 0,
+          "title": "Nearfaultfull",
+          "type": "number"
+        },
+        "nearFaultNone": {
+          "default": 20.0,
+          "description": "N = 1 from D [km].",
+          "exclusiveMinimum": 0,
+          "title": "Nearfaultnone",
+          "type": "number"
+        },
+        "soilFactors": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "S on Cd by site class: (Z from, S) steps; empty: S = 1.",
+          "title": "Soilfactors",
+          "type": "object"
+        },
+        "ductilityForm": {
+          "default": "linear",
+          "description": "linear: kμ by ductilityPeriod (or μ); periodRatio: kμ = 1 + T / (ratioShare T0 + T / μ).",
+          "enum": [
+            "linear",
+            "periodRatio"
+          ],
+          "title": "Ductilityform",
+          "type": "string"
+        },
+        "ratioShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "periodRatio: the share of T0.",
+          "title": "Ratioshare"
+        },
+        "ratioPeriods": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "periodRatio: T0 [s] by site class (a class without one: kμ = μ).",
+          "title": "Ratioperiods",
+          "type": "object"
+        },
+        "leastSoilShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cd at least this × Z I S (empty: none).",
+          "title": "Leastsoilshare"
+        },
+        "capByDuctility": {
+          "description": "(μ, share): Cd at most share × Z I S, share linear between, the end values beyond; empty: no cap.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Capbyductility",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "performance"
+      ],
+      "title": "ShapeFactorsRule",
+      "type": "object"
+    },
+    "ShearCoefficientRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C19: the standard shear coefficient method (BSL Enforcement Order Art. 88, MLIT\nNotification 1793 type): the storey shear Qi = Ci ΣWi, Ci = Z Rt Ai C0 (the design spectrum\nmethod ``standardShearCoefficient``, :mod:`saengine.fem.shear_coefficient`).\n\nRt (the vibration characteristic factor) of the period T and the site class's corner TC:\n1 while T < TC, 1 - ``transition`` (T/TC - 1)² up to ``transitionEnd`` TC, ``longFactor``\nTC / T beyond. Ai (the distribution of the storey shear coefficient over the height) of\nαi = the weight above storey i over the total: 1 + (1/√αi - αi) ``aiNumerator`` T / (1 +\n``aiDenominator`` T), when the lateral force distribution is ``shearCoefficientAi``. C0 the\nstandard shear coefficient of the primary design (``standardCoefficient``) and of the\nrequired horizontal capacity (``ultimateCoefficient``).",
+      "properties": {
+        "standardCoefficient": {
+          "description": "C0 of the primary design.",
+          "exclusiveMinimum": 0,
+          "title": "Standardcoefficient",
+          "type": "number"
+        },
+        "ultimateCoefficient": {
+          "description": "C0 of the required horizontal capacity.",
+          "exclusiveMinimum": 0,
+          "title": "Ultimatecoefficient",
+          "type": "number"
+        },
+        "transition": {
+          "minimum": 0,
+          "title": "Transition",
+          "type": "number"
+        },
+        "transitionEnd": {
+          "description": "× TC: the end of the parabolic transition.",
+          "exclusiveMinimum": 0,
+          "title": "Transitionend",
+          "type": "number"
+        },
+        "longFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Longfactor",
+          "type": "number"
+        },
+        "least": {
+          "default": 0.0,
+          "description": "Rt at least this.",
+          "minimum": 0,
+          "title": "Least",
+          "type": "number"
+        },
+        "aiNumerator": {
+          "exclusiveMinimum": 0,
+          "title": "Ainumerator",
+          "type": "number"
+        },
+        "aiDenominator": {
+          "exclusiveMinimum": 0,
+          "title": "Aidenominator",
+          "type": "number"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "standardCoefficient",
+        "ultimateCoefficient",
+        "transition",
+        "transitionEnd",
+        "longFactor",
+        "aiNumerator",
+        "aiDenominator"
+      ],
+      "title": "ShearCoefficientRule",
+      "type": "object"
+    },
+    "ShortPeriodReduction": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C21: a reduction of the two-period spectrum of ``mappedSpectral`` that grows with\nthe period up to TS (TBDY 2018 4.3, Eq 4.1 type, method ``overstrengthRamp``): Ra(T) = D +\n(R/I - D) T / TS for T ≤ TS, R/I beyond, D the system's overstrength (its ``Omega0``); the\ndesign spectrum Sa(T) / Ra(T) and the equivalent static coefficient Sa(T) / Ra(T) of the\nfull spectrum (with its ramp below T0), within ``csLimits``. Where the caller gives no\noverstrength (elastic spectra) Ra = R/I.",
+      "properties": {
+        "method": {
+          "const": "overstrengthRamp",
+          "default": "overstrengthRamp",
+          "title": "Method",
+          "type": "string"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "ShortPeriodReduction",
+      "type": "object"
+    },
+    "SiteClass": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "shape": {
+          "description": "Branches of the spectral shape factor Ch(T), in period order; empty: the shape of S, TB, TC, TD.",
+          "items": {
+            "$ref": "#/$defs/ShapeBranch"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "S": {
+          "default": 1.0,
+          "description": "Soil factor.",
+          "exclusiveMinimum": 0,
+          "title": "S",
+          "type": "number"
+        },
+        "TB": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Tb",
+          "type": "number"
+        },
+        "TC": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Tc",
+          "type": "number"
+        },
+        "TD": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Td",
+          "type": "number"
+        },
+        "vs30": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(lower, upper) average shear wave speed of the top 30 m [m/s] of the class, where the code defines the class by it; empty: by the description.",
+          "title": "Vs30"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "SiteClass",
+      "type": "object"
+    },
+    "SiteCoefficientTable": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C23: one site coefficient table (Fa by SS, Fv by S1): the factor of each site\nclass at the mapped values ``points`` [g], linear between, the end values outside.",
+      "properties": {
+        "points": {
+          "description": "SS (or S1) of the columns [g].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        },
+        "classes": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Site class id -> the factor at each point.",
+          "title": "Classes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "points",
+        "classes"
+      ],
+      "title": "SiteCoefficientTable",
+      "type": "object"
+    },
+    "SiteCoefficients": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C23: SMS = Fa·SS and SM1 = Fv·S1 from the site's (or its town's) mapped values,\nused where neither SDS, SD1 nor SMS, SM1 are given (the IBC / ASCE 7-05 to 7-16 form).",
+      "properties": {
+        "fa": {
+          "$ref": "#/$defs/SiteCoefficientTable"
+        },
+        "fv": {
+          "$ref": "#/$defs/SiteCoefficientTable"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fa",
+        "fv"
+      ],
+      "title": "SiteCoefficients",
+      "type": "object"
+    },
+    "SiteSpecificStudy": {
+      "additionalProperties": false,
+      "description": "Site classes the code gives no spectrum for: they need a site-specific study.",
+      "properties": {
+        "classes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "assumedClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assumedclass"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        },
+        "warning": {
+          "default": "",
+          "title": "Warning",
+          "type": "string"
+        }
+      },
+      "title": "SiteSpecificStudy",
+      "type": "object"
+    },
+    "SiteSpectrum": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the elastic spectrum of one site class (zone) of the method\n``ductilityOverstrength``: a = a0 + (c - a0) T / Ta below Ta, c to Tb, beyond it\nc (Tb / T)^r; with ``k`` (the site-specific form) c p (Tb / T)² with\np = k + (1 - k)(Tb / T)². In g and s.",
+      "properties": {
+        "a0": {
+          "exclusiveMinimum": 0,
+          "title": "A0",
+          "type": "number"
+        },
+        "c": {
+          "exclusiveMinimum": 0,
+          "title": "C",
+          "type": "number"
+        },
+        "ta": {
+          "exclusiveMinimum": 0,
+          "title": "Ta",
+          "type": "number"
+        },
+        "tb": {
+          "exclusiveMinimum": 0,
+          "title": "Tb",
+          "type": "number"
+        },
+        "r": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "k": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "a0",
+        "c",
+        "ta",
+        "tb"
+      ],
+      "title": "SiteSpectrum",
+      "type": "object"
+    },
+    "SoftStoreyDesign": {
+      "additionalProperties": false,
+      "description": "Design of a soft storey without the overstrength factor. ``forceFactors``: the soft\nstorey's columns and beams take ``frameFactor`` × the earthquake forces, its structural walls\n``wallFactor`` ×; ``types``: the irregularity types that make a storey soft.",
+      "properties": {
+        "method": {
+          "const": "forceFactors",
+          "default": "forceFactors",
+          "title": "Method",
+          "type": "string"
+        },
+        "frameFactor": {
+          "exclusiveMinimum": 1,
+          "title": "Framefactor",
+          "type": "number"
+        },
+        "wallFactor": {
+          "exclusiveMinimum": 1,
+          "title": "Wallfactor",
+          "type": "number"
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Types",
+          "type": "array"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frameFactor",
+        "wallFactor"
+      ],
+      "title": "SoftStoreyDesign",
+      "type": "object"
+    },
+    "SpectralMatching": {
+      "additionalProperties": false,
+      "description": "P5: spectral matching of a record to the target (``fem.spectral_matching``), by method\nid: ``frequencyDomain`` (the Fourier amplitudes adjusted by the ratio of the target to the\nrecord's spectrum, iterated, with a baseline correction). The record is matched from ``lowerShare`` × the lower to ``upperShare`` × the upper bound\nof the procedure's period range on ``points`` periods, until every ordinate there is within\n``tolerance`` of the target or after ``iterations``; ``baselineOrder``: the degree of the\npolynomial taken off the displacement.",
+      "properties": {
+        "method": {
+          "const": "frequencyDomain",
+          "title": "Method",
+          "type": "string"
+        },
+        "lowerShare": {
+          "default": 0.8,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lowershare",
+          "type": "number"
+        },
+        "upperShare": {
+          "default": 1.25,
+          "minimum": 1,
+          "title": "Uppershare",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0.1,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "iterations": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "points": {
+          "default": 40,
+          "maximum": 200,
+          "minimum": 8,
+          "title": "Points",
+          "type": "integer"
+        },
+        "baselineOrder": {
+          "default": 3,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Baselineorder",
+          "type": "integer"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "SpectralMatching",
+      "type": "object"
+    },
+    "SpectrumOrdinates": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C17: the design spectrum and the equivalent static base shear from the site's\n(or its town's) uniform hazard spectrum, an option of ``mappedSpectral`` (NBCC 2020\n4.1.8.4 and 4.1.8.11 type, :mod:`saengine.fem.spectral_hazard`): S(T) the spectrum's\nordinates, linear between them, held beyond the last; at and below the first of\n``shortPeriods`` the largest ordinate of those periods. SDS and SD1 of the bands stand for\nS at ``bandPeriods``. V/W = S(T) Mv I / R, at least S(least period of the system's group)\nMv I / R and, for systems with Rd at least ``capFromRd``, at most the largest\nshare × S(period) of ``capShares`` × I / R; Mv from ``higherMode`` by the system's group,\nthe ratio S(``higherModePeriods[0]``) / S(``higherModePeriods[1]``) and T (1 without a\ntable of the group).",
+      "properties": {
+        "shortPeriods": {
+          "description": "[s]",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Shortperiods",
+          "type": "array"
+        },
+        "bandPeriods": {
+          "default": [
+            0.2,
+            1.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Bandperiods",
+          "type": "array"
+        },
+        "referenceClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Site class of the towns' spectra (empty: any class).",
+          "title": "Referenceclass"
+        },
+        "minimumPeriod": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Least period [s] of the base shear by higher mode group ('default' for the rest); empty: no least value.",
+          "title": "Minimumperiod",
+          "type": "object"
+        },
+        "capShares": {
+          "description": "(period [s], share): the cap's candidates.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Capshares",
+          "type": "array"
+        },
+        "capFromRd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The cap applies to systems with Rd at least this.",
+          "title": "Capfromrd"
+        },
+        "higherModePeriods": {
+          "default": [
+            0.2,
+            5.0
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Highermodeperiods",
+          "type": "array"
+        },
+        "higherMode": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HigherModeTable"
+          },
+          "title": "Highermode",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "title": "SpectrumOrdinates",
+      "type": "object"
+    },
+    "SpectrumTypeGuidance": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: when to choose the pack's second spectrum type: ``type`` where the\nearthquakes that contribute most to the hazard have a surface-wave magnitude Ms at most\n``magnitude``.",
+      "properties": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "magnitude": {
+          "exclusiveMinimum": 0,
+          "title": "Magnitude",
+          "type": "number"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "magnitude"
+      ],
+      "title": "SpectrumTypeGuidance",
+      "type": "object"
+    },
+    "StabilityRule": {
+      "additionalProperties": false,
+      "description": "θ, a method id (C4, C1). ``elasticOverImportance`` (the default pack's): θ = Px δe/(I Vx\nh), θmax = 0.5/Cd ≤ ``thetaCap``; ``elasticDrift`` (ASCE 7-22 Eq 12.8-16, θ = Px Δ Ie/(Vx\nhsx Cd) with Δ = Cd δe/Ie): θ = Px δe/(Vx h), θmax = 0.5/Cd ≤ ``thetaCap``; ``designDrift``\n(EN 1998-1 4.4.2.2): θ = Ptot dr/(Vtot h) with dr = Cd·de (Cd standing for qd), θmax =\n``thetaCap``. Below ``ignoreBelow`` second order effects need not be taken into account; up\nto ``amplifyUpTo`` they may be by 1/(1 - θ).",
+      "properties": {
+        "method": {
+          "default": "elasticOverImportance",
+          "enum": [
+            "elasticOverImportance",
+            "elasticDrift",
+            "designDrift"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ignoreBelow": {
+          "default": 0.1,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Ignorebelow",
+          "type": "number"
+        },
+        "amplifyUpTo": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amplifyupto"
+        },
+        "thetaCap": {
+          "default": 0.25,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Thetacap",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "title": "StabilityRule",
+      "type": "object"
+    },
+    "StoreyRatio": {
+      "additionalProperties": false,
+      "description": "A storey irregular when its value is below ``storeyAbove`` × the storey above's, or\nbelow ``threeAbove`` × the mean of the three storeys above (empty: not checked).",
+      "properties": {
+        "storeyAbove": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Storeyabove"
+        },
+        "threeAbove": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threeabove"
+        }
+      },
+      "title": "StoreyRatio",
+      "type": "object"
+    },
+    "StoreyStrength": {
+      "additionalProperties": false,
+      "description": "How a storey's lateral strength is estimated for the weak storey check. ``shearStrength``:\nthe sum of the nominal shear strengths of the storey's columns and structural walls in the\ndirection, Vn = concreteFactor·λ·√f'c·bw·d + Av·fyt·d/s, d = depthFactor × the depth.",
+      "properties": {
+        "method": {
+          "const": "shearStrength",
+          "default": "shearStrength",
+          "title": "Method",
+          "type": "string"
+        },
+        "concreteFactor": {
+          "exclusiveMinimum": 0,
+          "title": "Concretefactor",
+          "type": "number"
+        },
+        "depthFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Depthfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "concreteFactor",
+        "depthFactor"
+      ],
+      "title": "StoreyStrength",
+      "type": "object"
+    },
+    "StructuralSystem": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "R": {
+          "exclusiveMinimum": 0,
+          "title": "R",
+          "type": "number"
+        },
+        "Omega0": {
+          "exclusiveMinimum": 0,
+          "title": "Omega0",
+          "type": "number"
+        },
+        "Cd": {
+          "exclusiveMinimum": 0,
+          "title": "Cd",
+          "type": "number"
+        },
+        "row": {
+          "default": "",
+          "description": "Row of the code's system table.",
+          "title": "Row",
+          "type": "string"
+        },
+        "heightLimits": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Heightlimits",
+          "type": "object"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "enum": [
+                "special",
+                "intermediate",
+                "ordinary"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "specialWalls": {
+          "default": false,
+          "title": "Specialwalls",
+          "type": "boolean"
+        },
+        "concrete": {
+          "default": true,
+          "title": "Concrete",
+          "type": "boolean"
+        },
+        "masonry": {
+          "default": false,
+          "description": "A masonry system: its walls are designed as masonry.",
+          "title": "Masonry",
+          "type": "boolean"
+        },
+        "momentFrame": {
+          "default": false,
+          "title": "Momentframe",
+          "type": "boolean"
+        },
+        "periodFamily": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodfamily"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Group of the code's system table (bearingWall, dualSpecial...).",
+          "title": "Group"
+        },
+        "Rd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ductility-related factor.",
+          "title": "Rd"
+        },
+        "Ro": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Overstrength-related factor.",
+          "title": "Ro"
+        },
+        "higherModeGroup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Group of the higher mode factor table (Mv) and least period.",
+          "title": "Highermodegroup"
+        },
+        "dual": {
+          "default": false,
+          "description": "A dual system (one row of the table).",
+          "title": "Dual",
+          "type": "boolean"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "name",
+        "R",
+        "Omega0",
+        "Cd"
+      ],
+      "title": "StructuralSystem",
+      "type": "object"
+    },
+    "SystemCombination": {
+      "additionalProperties": false,
+      "description": "How the values of several systems in one direction combine: \"min\" or \"max\".",
+      "properties": {
+        "R": {
+          "default": "min",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "R",
+          "type": "string"
+        },
+        "Cd": {
+          "default": "max",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Cd",
+          "type": "string"
+        },
+        "Omega0": {
+          "default": "max",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Omega0",
+          "type": "string"
+        },
+        "heightLimit": {
+          "default": "min",
+          "enum": [
+            "min",
+            "max"
+          ],
+          "title": "Heightlimit",
+          "type": "string"
+        }
+      },
+      "title": "SystemCombination",
+      "type": "object"
+    },
+    "TimeHistoryRules": {
+      "additionalProperties": false,
+      "description": "Ground motion suites of the response history procedures (B19; B36 for the nonlinear\ntarget). ``method``: how a suite is scaled (``periodRange``: the mean spectrum of the\nrecords, or of the pairs' SRSS spectra, is not below ``singleRatio`` / ``pairRatio`` times\nthe target spectrum at every period from ``periodLower``·T to ``periodUpper``·T, the\nspectra ``spectrumDamping`` damped); ``minimumRecords`` per suite; ``meanFrom``: from this\nmany records (or pairs) the design value is the mean of their peaks, fewer the largest;\n``baseShearShare``: the responses are scaled by share·V/Vth where the suite's base shear\nVth is below share·V (the equivalent static V); ``scaleDrifts``: that factor also on the\ndisplacements and drifts; ``simultaneousPairs``: a pair's components act together (no\northogonal 100 % + 30 % rule); ``targets``: by procedure (``linear``, ``nonlinear``).",
+      "properties": {
+        "method": {
+          "const": "periodRange",
+          "default": "periodRange",
+          "title": "Method",
+          "type": "string"
+        },
+        "minimumRecords": {
+          "minimum": 1,
+          "title": "Minimumrecords",
+          "type": "integer"
+        },
+        "periodLower": {
+          "exclusiveMinimum": 0,
+          "title": "Periodlower",
+          "type": "number"
+        },
+        "periodUpper": {
+          "exclusiveMinimum": 0,
+          "title": "Periodupper",
+          "type": "number"
+        },
+        "spectrumDamping": {
+          "default": 0.05,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Spectrumdamping",
+          "type": "number"
+        },
+        "singleRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Singleratio",
+          "type": "number"
+        },
+        "pairRatio": {
+          "exclusiveMinimum": 0,
+          "title": "Pairratio",
+          "type": "number"
+        },
+        "meanFrom": {
+          "minimum": 1,
+          "title": "Meanfrom",
+          "type": "integer"
+        },
+        "baseShearShare": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Baseshearshare",
+          "type": "number"
+        },
+        "scaleDrifts": {
+          "default": true,
+          "title": "Scaledrifts",
+          "type": "boolean"
+        },
+        "simultaneousPairs": {
+          "default": true,
+          "title": "Simultaneouspairs",
+          "type": "boolean"
+        },
+        "targets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TimeHistoryTarget"
+          },
+          "title": "Targets",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        },
+        "pairCombination": {
+          "default": "srss",
+          "description": "The spectrum of a pair: the SRSS of its two components, the maximum-direction (RotD100) spectrum, or each component's own (the mean of each component must meet the criterion).",
+          "enum": [
+            "srss",
+            "maxDirection",
+            "eachComponent"
+          ],
+          "title": "Paircombination",
+          "type": "string"
+        },
+        "periodBasis": {
+          "default": "governing",
+          "description": "The period range of a pair: periodLower to periodUpper times the longer fundamental period (governing), or periodLower times the shorter to periodUpper times the longer (bounds).",
+          "enum": [
+            "governing",
+            "bounds"
+          ],
+          "title": "Periodbasis",
+          "type": "string"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The criterion of a suite of spectrally matched records (empty: the single or pair ratio).",
+          "title": "Matchedratio"
+        },
+        "matching": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpectralMatching"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "minimumRecords",
+        "periodLower",
+        "periodUpper",
+        "singleRatio",
+        "pairRatio",
+        "meanFrom"
+      ],
+      "title": "TimeHistoryRules",
+      "type": "object"
+    },
+    "TimeHistoryTarget": {
+      "additionalProperties": false,
+      "description": "The spectrum records are scaled to: the design spectrum with ``R`` and ``I`` (empty: the\nbuilding's own). P5: ``factor`` times it (e.g. the maximum considered earthquake as a\nmultiple of the design spectrum); the other fields, when given, replace the table's own\nfor this procedure (empty: the table's).",
+      "properties": {
+        "R": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "R"
+        },
+        "I": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "I"
+        },
+        "factor": {
+          "default": 1.0,
+          "description": "Factor on the target spectrum.",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "spectrum": {
+          "default": "design",
+          "description": "The design spectrum with R and I, or (packs whose design spectrum is by a behaviour factor) the elastic response spectrum of the same shape with I.",
+          "enum": [
+            "design",
+            "elastic"
+          ],
+          "title": "Spectrum",
+          "type": "string"
+        },
+        "minimumRecords": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimumrecords"
+        },
+        "periodLower": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodlower"
+        },
+        "periodUpper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodupper"
+        },
+        "periodBasis": {
+          "anyOf": [
+            {
+              "enum": [
+                "governing",
+                "bounds"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Periodbasis"
+        },
+        "singleRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Singleratio"
+        },
+        "pairRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pairratio"
+        },
+        "matchedRatio": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matchedratio"
+        },
+        "modification": {
+          "default": "amplitude",
+          "description": "How the records of this procedure are modified to the target by default: amplitude scaling over the period range, or spectral matching (the table's ``matching``).",
+          "enum": [
+            "amplitude",
+            "matching"
+          ],
+          "title": "Modification",
+          "type": "string"
+        }
+      },
+      "title": "TimeHistoryTarget",
+      "type": "object"
+    },
+    "TopForce": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C10: the concentrated top force Ft of the equivalent static method: factor × T ×\nV when T > periodFrom; alpha 9 C21 (TBDY 2018 4.7.2.2, ΔFN = 0.0075 N Vt): with\n``storeyFactor`` storeyFactor × N × V whatever the period, N the number of levels.",
+      "properties": {
+        "periodFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = 0 while T <= this [s].",
+          "title": "Periodfrom"
+        },
+        "factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = factor × T × V.",
+          "title": "Factor"
+        },
+        "maxShare": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1,
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft at most this × V (empty: no cap).",
+          "title": "Maxshare"
+        },
+        "storeyFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = storeyFactor × N × V (N levels), in place of T.",
+          "title": "Storeyfactor"
+        },
+        "cornerFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ft = 0 while T <= this × TC (none: periodFrom only).",
+          "title": "Cornerfactor"
+        },
+        "offsets": {
+          "description": "(TC up to [s], offset): Ft = (factor T + offset) V; the first row whose TC holds, the last row above.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Offsets",
+          "type": "array"
+        }
+      },
+      "title": "TopForce",
+      "type": "object"
+    },
+    "TorsionalEffectsRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: accidental torsional effects by the factor δ = 1 + ``coefficient`` x / Le\non each element's earthquake effects (method ``deltaFactor``, EN 1998-1 4.3.3.2.4 type),\nwhere the analysis has no accidental eccentricity cases: x the element's distance from the\ncentre of mass across the earthquake, Le the plan's extent across it; the larger of the two\ndirections' δ, rounded up to ``step``.",
+      "properties": {
+        "method": {
+          "const": "deltaFactor",
+          "default": "deltaFactor",
+          "title": "Method",
+          "type": "string"
+        },
+        "coefficient": {
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "planarCoefficient": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planarcoefficient"
+        },
+        "step": {
+          "default": 0.05,
+          "exclusiveMinimum": 0,
+          "title": "Step",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coefficient"
+      ],
+      "title": "TorsionalEffectsRule",
+      "type": "object"
+    },
+    "Ubc97Rule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C16: the seismic coefficients Ca and Cv of the UBC-97 form (UBC 1997 Tables\n16-Q, 16-R; adopted by NSCP 2015 Sec 208 and BCP SP-2007) by soil profile and Z, given at\nthe zone factors ``zValues`` (linear between them for an entered Z, held beyond). From\n``nearSourceFrom`` (Z) up, Ca × Na and Cv × Nv, the near-source factors by the seismic\nsource type and the distance to the source [km] (``na`` / ``nv``: (distance, factor)\npoints, linear between, held beyond; the project may enter Na and Nv instead; without\neither they are 1.0 and the settings check says so). The spectrum is the two-period one\nof ``mappedSpectral`` with the plateau 2.5 Ca and Cv/T (T0 = 0.2 TS, TS = Cv / 2.5 Ca, Ca\nat T = 0), so V = Cv I W / (R T) ≤ 2.5 Ca I W / R (``csLimits.sdsFactor`` 0.044 gives the\nleast 0.11 Ca I W); from ``nearSourceFrom`` V ≥ ``nearSourceFactor`` Z Nv I W / R. The zone\nof the town (or the zone nearest the entered Z) reads the category table.",
+      "properties": {
+        "zValues": {
+          "description": "Z of the Ca / Cv columns.",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Zvalues",
+          "type": "array"
+        },
+        "ca": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Ca by soil profile, one per zValues.",
+          "title": "Ca",
+          "type": "object"
+        },
+        "cv": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Cv by soil profile, one per zValues.",
+          "title": "Cv",
+          "type": "object"
+        },
+        "assumedClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The row a soil profile without one (SF: site-specific) takes meanwhile; empty: no hazard.",
+          "title": "Assumedclass"
+        },
+        "nearSourceFrom": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Z from which the near-source factors apply; empty: never.",
+          "title": "Nearsourcefrom"
+        },
+        "na": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Na by seismic source type: (distance [km], Na).",
+          "title": "Na",
+          "type": "object"
+        },
+        "nv": {
+          "additionalProperties": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "description": "Nv by seismic source type: (distance [km], Nv).",
+          "title": "Nv",
+          "type": "object"
+        },
+        "nearSourceFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "V ≥ this × Z Nv I W / R from nearSourceFrom; empty: none.",
+          "title": "Nearsourcefactor"
+        },
+        "periodUpper": {
+          "description": "(Z from, Cu) steps: T from the structure's properties ≤ Cu·Ta, Cu of the last step at or below the site's Z; empty: the pack's periodUpperFactor.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Periodupper",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "zValues",
+        "ca",
+        "cv"
+      ],
+      "title": "Ubc97Rule",
+      "type": "object"
+    },
+    "VerticalComponentRule": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C5c: the vertical seismic action (method ``verticalSpectrum``): only where avg =\n``ratio`` [spectrum type] × ag exceeds ``threshold`` g; Ev / D = share × avg × ``plateau`` /\n``behaviour`` (the vertical design spectrum's plateau, q = 1.5), with the orthogonal share\nof the combination; the members of ``members`` (applied to every member, on the safe side).",
+      "properties": {
+        "method": {
+          "const": "verticalSpectrum",
+          "default": "verticalSpectrum",
+          "title": "Method",
+          "type": "string"
+        },
+        "threshold": {
+          "exclusiveMinimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "ratio": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Ratio",
+          "type": "object"
+        },
+        "plateau": {
+          "exclusiveMinimum": 0,
+          "title": "Plateau",
+          "type": "number"
+        },
+        "behaviour": {
+          "exclusiveMinimum": 0,
+          "title": "Behaviour",
+          "type": "number"
+        },
+        "combinationShare": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Combinationshare",
+          "type": "number"
+        },
+        "members": {
+          "default": "",
+          "description": "Which members the code applies it to.",
+          "title": "Members",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threshold",
+        "ratio",
+        "plateau",
+        "behaviour",
+        "combinationShare"
+      ],
+      "title": "VerticalComponentRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Site classes, spectrum, systems, SDC and the plain numbers of the seismic analysis.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of the seismic results, by key.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "siteClasses": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SiteClass"
+      },
+      "title": "Siteclasses",
+      "type": "object"
+    },
+    "systems": {
+      "additionalProperties": {
+        "$ref": "#/$defs/StructuralSystem"
+      },
+      "title": "Systems",
+      "type": "object"
+    },
+    "periodCoefficients": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PeriodCoefficient"
+      },
+      "title": "Periodcoefficients",
+      "type": "object"
+    },
+    "designCategories": {
+      "$ref": "#/$defs/DesignCategories"
+    },
+    "requiredDetailing": {
+      "additionalProperties": {
+        "enum": [
+          "special",
+          "intermediate",
+          "ordinary"
+        ],
+        "type": "string"
+      },
+      "title": "Requireddetailing",
+      "type": "object"
+    },
+    "allowableDrift": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Δa/hsx by occupancy category.",
+      "title": "Allowabledrift",
+      "type": "object"
+    },
+    "allowableDriftLabel": {
+      "default": "",
+      "description": "The structures allowableDrift is for.",
+      "title": "Allowabledriftlabel",
+      "type": "string"
+    },
+    "driftLimits": {
+      "description": "Rows of the drift table before allowableDrift.",
+      "items": {
+        "$ref": "#/$defs/DriftLimit"
+      },
+      "title": "Driftlimits",
+      "type": "array"
+    },
+    "driftRedundancyCategories": {
+      "description": "Seismic Design Categories where the drift limit of systems of moment frames only is divided by the redundancy factor ρ.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Driftredundancycategories",
+      "type": "array"
+    },
+    "driftServiceRatio": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftServiceRatio"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "performanceBased": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerformanceBasedRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "siteSpecificStudy": {
+      "$ref": "#/$defs/SiteSpecificStudy"
+    },
+    "dampingEta": {
+      "default": 1.0,
+      "title": "Dampingeta",
+      "type": "number"
+    },
+    "dampingCorrection": {
+      "$ref": "#/$defs/DampingCorrection"
+    },
+    "systemCombination": {
+      "$ref": "#/$defs/SystemCombination"
+    },
+    "separation": {
+      "$ref": "#/$defs/Separation"
+    },
+    "diaphragmDeflection": {
+      "$ref": "#/$defs/DiaphragmDeflection"
+    },
+    "irregularities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Irregularities"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dynamicAnalysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DynamicAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "softStorey": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SoftStoreyDesign"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "diaphragmConnections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DiaphragmConnections"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "timeHistory": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeHistoryRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "regularity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegularityCriteria"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "torsionalEffects": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TorsionalEffectsRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "modalCombination": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModalCombinationRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verticalComponent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VerticalComponentRule"
+        },
+        {
+          "$ref": "#/$defs/GravityShareVerticalRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verticalcomponent"
+    },
+    "foundationCapacity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FoundationCapacityRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "spectrumTypeGuidance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SpectrumTypeGuidance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "liveShare": {
+      "description": "Share of the floor live load in the seismic weight.",
+      "title": "Liveshare",
+      "type": "number"
+    },
+    "heavyLiveLimit": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Live loads above this [kN/m²] count in the seismic weight with heavyLiveShare (empty: every live load with liveShare).",
+      "title": "Heavylivelimit"
+    },
+    "heavyLiveShare": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Share of a heavy live load in the seismic weight.",
+      "title": "Heavyliveshare"
+    },
+    "liveWeight": {
+      "default": "share",
+      "description": "share: liveShare (and the heavy-live rule); byUse: the share of each use's seismicLive over its live load (areaLoads), liveShare where it gives none.",
+      "enum": [
+        "share",
+        "byUse"
+      ],
+      "title": "Liveweight",
+      "type": "string"
+    },
+    "partitionWeight": {
+      "anyOf": [
+        {
+          "enum": [
+            "full",
+            "withLiveShare"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the area loads' partition allowance counts in the seismic weight: full (100 %, like the dead load; the live share and its threshold use the floor live load without it) or withLiveShare (as live load, the threshold judged on the live load with it). Empty: the generic default (full).",
+      "title": "Partitionweight"
+    },
+    "periodUpperFactor": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A period from the structure's properties is at most this times the approximate period Ta (empty: 1.4).",
+      "title": "Periodupperfactor"
+    },
+    "minimumScale": {
+      "description": "Least share of the static base shear for RS.",
+      "title": "Minimumscale",
+      "type": "number"
+    },
+    "accidentalEccentricity": {
+      "title": "Accidentaleccentricity",
+      "type": "number"
+    },
+    "designEccentricity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DesignEccentricity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "orthogonalShare": {
+      "title": "Orthogonalshare",
+      "type": "number"
+    },
+    "massParticipation": {
+      "title": "Massparticipation",
+      "type": "number"
+    },
+    "torsionIrregular": {
+      "title": "Torsionirregular",
+      "type": "number"
+    },
+    "torsionExtreme": {
+      "title": "Torsionextreme",
+      "type": "number"
+    },
+    "torsionAmplificationMax": {
+      "title": "Torsionamplificationmax",
+      "type": "number"
+    },
+    "pgaFactor": {
+      "description": "a_h = pgaFactor · Z · S.",
+      "title": "Pgafactor",
+      "type": "number"
+    },
+    "verticalFactor": {
+      "description": "Ev = verticalFactor · a_h · D.",
+      "title": "Verticalfactor",
+      "type": "number"
+    },
+    "stabilityGravity": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "D6: load case -> factor of the gravity load Px of the stability coefficient θ; empty: the generic default (codes/generic), named in the report.",
+      "title": "Stabilitygravity"
+    },
+    "spectrumType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Id of the spectrum of ``spectra`` whose site parameters become ``siteClasses`` (EN 1998-1 Type 1 or Type 2); a project chooses another by overriding this value. Empty: ``siteClasses`` as given.",
+      "title": "Spectrumtype"
+    },
+    "spectra": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/SiteClass"
+        },
+        "type": "object"
+      },
+      "description": "Site parameters (S, TB, TC, TD) by spectrum type id, then site class.",
+      "title": "Spectra",
+      "type": "object"
+    },
+    "designSpectrum": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DesignSpectrumRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the design spectrum follows from the elastic one; empty: reducedElastic, Sa = pgaFactor·Z·I/R·Cs(T)."
+    },
+    "lateralForce": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LateralForceRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The base shear correction and the distribution of the lateral force method; empty: no correction, Fx ∝ wx·hx^k with k from the period."
+    },
+    "driftAmplification": {
+      "anyOf": [
+        {
+          "enum": [
+            "overImportance",
+            "displacementFactor",
+            "designForces"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Design displacements from the elastic ones: overImportance (Cd·δe/I) or displacementFactor (qd·de, Cd standing for qd, the importance already in de); designForces (C7, IS 1893 7.11): the drift checked as computed from the design forces, the separation with Cd·de (Cd standing for R). Empty: overImportance.",
+      "title": "Driftamplification"
+    },
+    "defaultSiteClass": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the site class of a new project under this pack.",
+      "title": "Defaultsiteclass"
+    },
+    "defaultSystem": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the structural system of a new project under this pack.",
+      "title": "Defaultsystem"
+    },
+    "generatorSystems": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "Alpha 9 C3b: the New Building generator's candidate systems by its system kind (rcFrame, rcFrameWithWalls, flatSlab, masonry, steelMomentFrame, steelBracedFrame), least ductile first: the first one the category and the height permit is taken; a kind not listed takes the generator's own.",
+      "title": "Generatorsystems",
+      "type": "object"
+    },
+    "stability": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StabilityRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The interstorey drift sensitivity coefficient θ; empty: θ = Px δe/(I Vx h) with θmax = 0.5/Cd ≤ 0.25."
+    },
+    "rareDrift": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RareDriftRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The elasto-plastic storey drift check under the rare earthquake; empty: not checked."
+    },
+    "seismicGrades": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SeismicGradesRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Seismic grades by structure type, intensity and height; empty: none."
+    },
+    "gradeDesign": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GradeDesignRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The seismic grade's force factors and γRE in the member design; empty: not applied."
+    },
+    "hazardMaps": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HazardMapsRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The town's zone by hazard map (locations mapZones), the map by occupancy category; empty: the town's zone."
+    }
+  },
+  "required": [
+    "siteClasses",
+    "systems",
+    "periodCoefficients",
+    "designCategories",
+    "requiredDetailing",
+    "allowableDrift",
+    "liveShare",
+    "minimumScale",
+    "accidentalEccentricity",
+    "orthogonalShare",
+    "massParticipation",
+    "torsionIrregular",
+    "torsionExtreme",
+    "torsionAmplificationMax",
+    "pgaFactor",
+    "verticalFactor"
+  ],
+  "title": "SeismicTable",
+  "type": "object",
+  "$id": "saengine.codePack.seismic/1"
+}

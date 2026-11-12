@@ -1,0 +1,238 @@
+{
+  "$defs": {
+    "AxialCap": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: the largest design axial compression as a share of φ P0 (ACI 318 Table\n22.4.2.1: 0.80 tied, 0.85 spiral; NZS 3101 10.3.4.2: 0.85).",
+      "properties": {
+        "tied": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tied",
+          "type": "number"
+        },
+        "spiral": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Spiral",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tied",
+        "spiral"
+      ],
+      "title": "AxialCap",
+      "type": "object"
+    },
+    "ConcretePhi": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "φ of reinforced concrete (extra keys allowed for hooks, also 0 < φ <= 1).",
+      "properties": {
+        "tension": {
+          "description": "Tension-controlled sections.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tension",
+          "type": "number"
+        },
+        "compressionTied": {
+          "description": "Compression-controlled, tied.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressiontied",
+          "type": "number"
+        },
+        "compressionSpiral": {
+          "description": "Compression-controlled, spiral.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compressionspiral",
+          "type": "number"
+        },
+        "shear": {
+          "description": "Shear and torsion.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "punching": {
+          "description": "Two-way (punching) shear.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Punching",
+          "type": "number"
+        },
+        "shearSeismic": {
+          "description": "Shear of members whose nominal shear is not governed.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearseismic",
+          "type": "number"
+        },
+        "diagonalCoupling": {
+          "description": "Diagonally reinforced coupling beams.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Diagonalcoupling",
+          "type": "number"
+        },
+        "joint": {
+          "description": "Beam-column joints of special moment frames.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Joint",
+          "type": "number"
+        },
+        "strutAndTie": {
+          "description": "Strut-and-tie models.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strutandtie",
+          "type": "number"
+        },
+        "stiffnessReduction": {
+          "description": "φK of the slender column moment magnifier.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stiffnessreduction",
+          "type": "number"
+        },
+        "plain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Flexure, compression, shear and bearing of structural plain concrete.",
+          "title": "Plain"
+        }
+      },
+      "required": [
+        "tension",
+        "compressionTied",
+        "compressionSpiral",
+        "shear",
+        "punching",
+        "shearSeismic",
+        "diagonalCoupling",
+        "joint",
+        "strutAndTie",
+        "stiffnessReduction"
+      ],
+      "title": "ConcretePhi",
+      "type": "object"
+    },
+    "PhiTransition": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C18: φ of moment and axial force by the neutral-axis depth (method\n``neutralAxisDepth``, AS 3600:2018 Table 2.2.2): φ = intercept - slope kuo within the\ncompression and tension φ, kuo = c / d0 = εcu / (εcu + εt) of the extreme tension bar. A\npack without it interpolates by εt between εty and εty + εcu (ACI 318 Table 21.2.2).",
+      "properties": {
+        "method": {
+          "const": "neutralAxisDepth",
+          "default": "neutralAxisDepth",
+          "title": "Method",
+          "type": "string"
+        },
+        "intercept": {
+          "exclusiveMinimum": 0,
+          "title": "Intercept",
+          "type": "number"
+        },
+        "slope": {
+          "exclusiveMinimum": 0,
+          "title": "Slope",
+          "type": "number"
+        },
+        "clause": {
+          "default": "",
+          "title": "Clause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intercept",
+        "slope"
+      ],
+      "title": "PhiTransition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strength reduction factors φ.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "phi": {
+      "$ref": "#/$defs/ConcretePhi"
+    },
+    "phiTransition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PhiTransition"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "axialCap": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AxialCap"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "phiClause": {
+      "default": "",
+      "description": "Clause of φ for moment and axial force, named in the design report's method line where the pack's φ is one value without a transition ('' names none).",
+      "title": "Phiclause",
+      "type": "string"
+    }
+  },
+  "required": [
+    "phi"
+  ],
+  "title": "FactorsTable",
+  "type": "object",
+  "$id": "saengine.codePack.factors/1"
+}

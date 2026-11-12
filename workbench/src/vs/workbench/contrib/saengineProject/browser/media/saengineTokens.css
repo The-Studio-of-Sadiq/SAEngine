@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * SAEngine design tokens, shared by every SAEngine surface. Colours come from the active
+ * colour theme (SAEngine Light / SAEngine Dark set the chart colours so they read on both
+ * canvases), so these follow theme switches with no code. Use them as
+ * `var(--sa-space-2)`; never hard-code a colour in SAEngine CSS.
+ */
+.monaco-workbench {
+	/* Spacing scale */
+	--sa-space-1: 4px;
+	--sa-space-2: 8px;
+	--sa-space-3: 12px;
+	--sa-space-4: 16px;
+	--sa-space-6: 24px;
+
+	/* Shape and type */
+	--sa-radius: 4px;
+	--sa-font-s: 12px;
+	--sa-font-m: 13px;
+	--sa-font-l: 16px;
+	--sa-font-xl: 20px;
+	--sa-toolbar-height: 34px;
+
+	/* Surfaces and lines */
+	--sa-border: var(--vscode-panel-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.35)));
+	--sa-muted: var(--vscode-descriptionForeground);
+	--sa-surface: var(--vscode-editor-background);
+	--sa-surface-alt: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--sa-accent: var(--vscode-focusBorder);
+
+	/* Status dots: pass / defaults to review / near the limit / fail / not run yet */
+	--sa-ok: var(--vscode-charts-green, #2e8540);
+	--sa-info: var(--vscode-charts-blue, #1a73c4);
+	--sa-warn: var(--vscode-charts-orange, #c2620e);
+	--sa-fail: var(--vscode-charts-red, #c62f2f);
+	/* Idle: muted text pulled a quarter towards the sidebar, so it reads as quieter than text but
+	   stays above 3:1 on it (about 3.3:1 in SAEngine Light, 4:1 in SAEngine Dark). */
+	--sa-idle: color-mix(in srgb, var(--vscode-descriptionForeground, #8a9099) 75%, var(--sa-surface-alt));
+}
+
+/*
+ * The brand (workbench/resources/brand/README.md): the logo's colours and typography. Saira is the
+ * logo's typeface (bundled, OFL-1.1): "SA" is Saira Expanded ExtraBold, "Engine" Saira Regular.
+ * Brand type is for SAEngine's own titles and headings only; body text, tables and the editor keep
+ * the workbench font for readability.
+ */
+@font-face {
+	font-family: 'Saira';
+	src: url('./fonts/Saira-Variable.ttf') format('truetype');
+	font-weight: 100 900;
+	font-stretch: 50% 125%;
+	font-style: normal;
+	font-display: swap;
+}
+
+.monaco-workbench {
+	--sa-brand-ink: var(--vscode-saengine-brandInk, #0A1F3D);
+	--sa-brand-blue: var(--vscode-saengine-brandBlue, #1A5FB4);
+	--sa-brand-facade-top: var(--vscode-saengine-brandFacadeTop, #1C6EC1);
+	--sa-brand-facade-bottom: var(--vscode-saengine-brandFacadeBottom, #0B3C84);
+	--sa-brand-grey: var(--vscode-saengine-brandGrey, #939AA3);
+	/* Bahnschrift (Windows 10+) is the closest system face while Saira loads or is missing. */
+	--sa-font-brand: 'Saira', 'Bahnschrift', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+	--sa-font-brand-display-weight: 800;
+	--sa-font-brand-display-stretch: 125%;
+	--sa-font-brand-heading-weight: 600;
+}
+
+/*
+ * Brand headings, in one place: the titles of SAEngine pages, of the property sheets and of the
+ * empty states take the logo's typeface; their muted details and all body text keep the
+ * workbench font.
+ */
+.monaco-workbench :is(.saengine-overview, .saengine-new-building, .saengine-placeholder, .saengine-planned, .saengine-import-report) :is(h1, h2),
+.monaco-workbench .sa-props-heading,
+.monaco-workbench .sa-frame-empty-title {
+	font-family: var(--sa-font-brand);
+	font-weight: var(--sa-font-brand-heading-weight);
+}
+
+.monaco-workbench .sa-props-heading .sa-props-detail {
+	font-family: var(--vscode-font-family);
+}
+
+/* The logo drawn inline (saengineBrand.ts): the classes take the brand tokens. */
+.monaco-workbench .sa-brand-art .sa-brand-ink { fill: var(--sa-brand-ink); }
+.monaco-workbench .sa-brand-art .sa-brand-grey { fill: var(--sa-brand-grey); }
+.monaco-workbench .sa-brand-art .sa-brand-facade-top { stop-color: var(--sa-brand-facade-top); }
+.monaco-workbench .sa-brand-art .sa-brand-facade-bottom { stop-color: var(--sa-brand-facade-bottom); }
+
+/* High contrast themes: status colours at full strength, borders from the contrast border. */
+.monaco-workbench.hc-black,
+.monaco-workbench.hc-light {
+	--sa-border: var(--vscode-contrastBorder);
+}

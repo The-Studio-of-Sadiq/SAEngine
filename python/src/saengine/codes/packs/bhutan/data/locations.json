@@ -1,0 +1,81 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Bhutan Building Rules (structural design to the Indian Standards): seismic zone by IS 1893 (Part 1):2016 zoning as applied in Bhutan; basic wind speed by IS 875 (Part 3):2015 Figure 1 at the adjoining Indian regions (VERIFY.md B1, B2)"
+  ],
+  "source": "Bhutan designs to the Indian Standards (parent pack is-codes): zone = the IS zone number (IV, V as 4, 5 in zoneCoefficients) as Bhutan applies the IS 1893 map, western Bhutan zone IV and central, eastern and south-eastern Bhutan zone V (SAEngine reading, to be checked); Vb [m/s] of IS 875 (Part 3):2015 read at the adjoining Indian regions (47 m/s West Bengal and Sikkim side, 50 m/s Assam side). Check both values of every town against the zoning the Department of Engineering Services applies (VERIFY.md). Elsewhere a custom location.",
+  "default": "thimphu",
+  "locations": {
+    "thimphu": {
+      "name": "Thimphu",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "paro": {
+      "name": "Paro",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "haa": {
+      "name": "Haa",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "punakha": {
+      "name": "Punakha",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "wangduePhodrang": {
+      "name": "Wangdue Phodrang",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "phuentsholing": {
+      "name": "Phuentsholing",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "samtse": {
+      "name": "Samtse",
+      "zone": 4,
+      "windSpeed": 47.0
+    },
+    "tsirang": {
+      "name": "Tsirang (Damphu)",
+      "zone": 5,
+      "windSpeed": 47.0
+    },
+    "gelephu": {
+      "name": "Gelephu",
+      "zone": 5,
+      "windSpeed": 50.0
+    },
+    "trongsa": {
+      "name": "Trongsa",
+      "zone": 5,
+      "windSpeed": 47.0
+    },
+    "bumthang": {
+      "name": "Bumthang (Jakar)",
+      "zone": 5,
+      "windSpeed": 47.0
+    },
+    "mongar": {
+      "name": "Mongar",
+      "zone": 5,
+      "windSpeed": 50.0
+    },
+    "trashigang": {
+      "name": "Trashigang",
+      "zone": 5,
+      "windSpeed": 50.0
+    },
+    "samdrupJongkhar": {
+      "name": "Samdrup Jongkhar",
+      "zone": 5,
+      "windSpeed": 50.0
+    }
+  }
+}

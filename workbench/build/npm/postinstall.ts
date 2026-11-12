@@ -336,10 +336,13 @@ async function main() {
 		log('.', `Created ${claudeMdLinkType} .claude/CLAUDE.md -> .github/copilot-instructions.md`);
 	}
 
+	// SAEngine: .agents/skills holds no tracked files, so a fresh checkout (CI) has no folder to link.
 	const claudeSkillsLink = path.join(claudeDir, 'skills');
-	const claudeSkillsLinkType = ensureAgentHarnessLink(path.join('..', '.agents', 'skills'), claudeSkillsLink);
-	if (claudeSkillsLinkType !== 'existing') {
-		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
+	if (fs.existsSync(path.join(root, '.agents', 'skills'))) {
+		const claudeSkillsLinkType = ensureAgentHarnessLink(path.join('..', '.agents', 'skills'), claudeSkillsLink);
+		if (claudeSkillsLinkType !== 'existing') {
+			log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
+		}
 	}
 
 	// foundry-local-sdk's libraryPath redirects its shared libraries but not its

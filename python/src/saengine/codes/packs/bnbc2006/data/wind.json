@@ -1,0 +1,423 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BNBC 1993 / 2006 Part 6 Sec 2.4 (wind loads)"
+  ],
+  "source": "BNBC 1993 / 2006 Part 6 Sec 2.4: sustained wind pressure qz = Cc CI Cz Vb² (2.4.4, Cc = 47.2 × 10⁻⁶ with Vb in km/h), design pressure pz = CG Cp qz (2.4.5), Cz of Table 6.2.10 and the gust response factor CG of Table 6.2.11 by exposure A, B, C and height, the overall pressure coefficients of buildings (Table 6.2.12). SAEngine form: the design wind speed factors method, k2 = √(Cz CG) so that the pressure is Cc CI Cz CG Vb², k1 = √CI.",
+  "defaultExposure": "A",
+  "method": "speedFactors",
+  "exposures": {
+    "A": {
+      "description": "Exposure A: urban and suburban areas, industrial areas, wooded areas, hilly or uneven terrain with obstructions"
+    },
+    "B": {
+      "description": "Exposure B: open terrain with scattered obstructions less than 10 m high, flat open country, grassland"
+    },
+    "C": {
+      "description": "Exposure C: flat unobstructed coastal areas exposed to wind flowing over open water"
+    }
+  },
+  "speedFactors": {
+    "airFactor": 0.61171,
+    "heightFactors": {
+      "A": [
+        [
+          4.5,
+          0.7793
+        ],
+        [
+          6,
+          0.813
+        ],
+        [
+          9,
+          0.8667
+        ],
+        [
+          12,
+          0.9075
+        ],
+        [
+          15,
+          0.9407
+        ],
+        [
+          18,
+          0.969
+        ],
+        [
+          21,
+          0.9938
+        ],
+        [
+          24,
+          1.0159
+        ],
+        [
+          27,
+          1.0358
+        ],
+        [
+          30,
+          1.0541
+        ],
+        [
+          35,
+          1.0816
+        ],
+        [
+          40,
+          1.106
+        ],
+        [
+          45,
+          1.1282
+        ],
+        [
+          50,
+          1.1485
+        ],
+        [
+          60,
+          1.1846
+        ],
+        [
+          70,
+          1.2163
+        ],
+        [
+          80,
+          1.2445
+        ],
+        [
+          90,
+          1.2701
+        ],
+        [
+          100,
+          1.2935
+        ],
+        [
+          120,
+          1.3353
+        ],
+        [
+          140,
+          1.3718
+        ],
+        [
+          160,
+          1.4045
+        ],
+        [
+          180,
+          1.4341
+        ],
+        [
+          200,
+          1.4611
+        ],
+        [
+          250,
+          1.5205
+        ],
+        [
+          300,
+          1.5711
+        ]
+      ],
+      "B": [
+        [
+          4.5,
+          1.0281
+        ],
+        [
+          6,
+          1.0584
+        ],
+        [
+          9,
+          1.1057
+        ],
+        [
+          12,
+          1.1408
+        ],
+        [
+          15,
+          1.169
+        ],
+        [
+          18,
+          1.1926
+        ],
+        [
+          21,
+          1.2131
+        ],
+        [
+          24,
+          1.2311
+        ],
+        [
+          27,
+          1.2473
+        ],
+        [
+          30,
+          1.2621
+        ],
+        [
+          35,
+          1.2839
+        ],
+        [
+          40,
+          1.3033
+        ],
+        [
+          45,
+          1.3206
+        ],
+        [
+          50,
+          1.3364
+        ],
+        [
+          60,
+          1.3642
+        ],
+        [
+          70,
+          1.3882
+        ],
+        [
+          80,
+          1.4094
+        ],
+        [
+          90,
+          1.4285
+        ],
+        [
+          100,
+          1.4458
+        ],
+        [
+          120,
+          1.4763
+        ],
+        [
+          140,
+          1.5027
+        ],
+        [
+          160,
+          1.5261
+        ],
+        [
+          180,
+          1.547
+        ],
+        [
+          200,
+          1.566
+        ],
+        [
+          250,
+          1.6072
+        ],
+        [
+          300,
+          1.6418
+        ]
+      ],
+      "C": [
+        [
+          4.5,
+          1.1747
+        ],
+        [
+          6,
+          1.2
+        ],
+        [
+          9,
+          1.2389
+        ],
+        [
+          12,
+          1.2675
+        ],
+        [
+          15,
+          1.2901
+        ],
+        [
+          18,
+          1.309
+        ],
+        [
+          21,
+          1.3253
+        ],
+        [
+          24,
+          1.3395
+        ],
+        [
+          27,
+          1.3522
+        ],
+        [
+          30,
+          1.3637
+        ],
+        [
+          35,
+          1.3808
+        ],
+        [
+          40,
+          1.3957
+        ],
+        [
+          45,
+          1.4091
+        ],
+        [
+          50,
+          1.4212
+        ],
+        [
+          60,
+          1.4424
+        ],
+        [
+          70,
+          1.4606
+        ],
+        [
+          80,
+          1.4765
+        ],
+        [
+          90,
+          1.4908
+        ],
+        [
+          100,
+          1.5037
+        ],
+        [
+          120,
+          1.5264
+        ],
+        [
+          140,
+          1.5458
+        ],
+        [
+          160,
+          1.5629
+        ],
+        [
+          180,
+          1.5782
+        ],
+        [
+          200,
+          1.592
+        ],
+        [
+          250,
+          1.6216
+        ],
+        [
+          300,
+          1.6464
+        ]
+      ]
+    },
+    "riskCoefficients": [
+      {
+        "id": "lowRisk",
+        "name": "Low-risk structures (CI 0.80)",
+        "importance": 0.8,
+        "k1": [
+          [
+            30,
+            0.8944
+          ],
+          [
+            80,
+            0.8944
+          ]
+        ]
+      },
+      {
+        "id": "standard",
+        "name": "Standard and special occupancy structures (CI 1.00)",
+        "importance": 1.0,
+        "k1": [
+          [
+            30,
+            1.0
+          ],
+          [
+            80,
+            1.0
+          ]
+        ]
+      },
+      {
+        "id": "essential",
+        "name": "Essential and hazardous facilities (CI 1.25)",
+        "importance": 1.25,
+        "k1": [
+          [
+            30,
+            1.118
+          ],
+          [
+            80,
+            1.118
+          ]
+        ]
+      }
+    ],
+    "importance": 1.0,
+    "areaAveraging": 1.0,
+    "combination": 1.0,
+    "minimumShare": 0.0
+  },
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.0,
+  "cpWindward": 0.8,
+  "cpLeeward": [
+    [
+      1.0,
+      -0.5
+    ],
+    [
+      2.0,
+      -0.3
+    ],
+    [
+      4.0,
+      -0.2
+    ]
+  ],
+  "sources": {
+    "speedFactors.airFactor": "BNBC 1993 2.4.4: Cc = 47.2 × 10⁻⁶ [kN/m² per (km/h)²], here per (m/s)²: 47.2e-6 × 3.6² × 1000 = 0.6117 N/m²",
+    "speedFactors.heightFactors": "BNBC 1993 Tables 6.2.10 (Cz) and 6.2.11 (CG) by their power-law forms (exposure A α 4.5, zg 365.76 m; B 7.0, 274.32 m; C 10.0, 213.36 m; Cz constant below 4.572 m; CG = 0.65 + 3.65 Tz with D0 0.010 / 0.005 / 0.003), k2 = √(Cz CG): the tables are to be checked against these values (VERIFY.md)",
+    "speedFactors.riskCoefficients": "BNBC 1993 Table 6.2.9: CI 0.80 low-risk, 1.00 standard and special occupancy, 1.25 essential and hazardous; k1 = √CI",
+    "directionality": "BNBC 1993 has no directionality factor (1.0)",
+    "topographic": "BNBC 1993 has no topographic factor in the method (1.0; a hill site: override in Project Settings > Wind)",
+    "gust": "The gust response factor CG is in k2 (1.0 here)",
+    "cpWindward": "BNBC 1993 Table 6.2.12: windward wall Cp 0.8 (SAEngine reading of the overall coefficients: check)",
+    "cpLeeward": "BNBC 1993: leeward wall Cp -0.5, -0.3, -0.2 by L/B 0-1, 2, >= 4 (SAEngine reading: check)"
+  }
+}

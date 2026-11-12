@@ -1,0 +1,30 @@
+{
+  "$schema": "../../../schemas/detailing.schema.json",
+  "$sources": [
+    "IS 13920:2016 Clauses 6-9: the values of the parent's ductile frame rules that Design Reinforcement and the capacity design read (the checks are concreteMethods.seismic's)"
+  ],
+  "special": {
+    "axialShare": 0.08,
+    "beamMinWidth": 200.0,
+    "columnRho": [0.008, 0.04],
+    "hxMax": 300.0
+  },
+  "joints": {
+    "probableStress": 1.4,
+    "strongColumnRatio": 1.4,
+    "gamma": {"4": 1.5, "3": 1.2, "opposite": 1.2, "other": 1.0}
+  },
+  "clauses": {
+    "shearFriction": "13.4 (places the construction joints, gives no shear-friction rule): the column construction joint keeps the shear-friction check as SAEngine practice (owner decision 2026-11-04), with the parent's mu, limits and phi"
+  },
+  "sources": {
+    "shearFriction": "SAEngine practice under IS 456:2000 13.4 (owner decision 2026-11-04): shear friction across column construction joints by the parent's rule (BNBC 2020 Part 6 Sec 6.4.5, Eq 6.6.66)",
+    "special.axialShare": "IS 13920:2016 6.1 / 7.1: flexural members with Pu at most 0.08 fck Ag (columns above it)",
+    "special.beamMinWidth": "IS 13920:2016 6.1.2: b >= 200 mm",
+    "special.columnRho": "IS 13920:2016 7.3.1: 0.8 % to 4 %",
+    "special.hxMax": "IS 13920:2016 8.1: hoop legs (cross ties) at most 300 mm apart",
+    "joints.probableStress": "IS 13920:2016 6.3.3, 7.5: the capacity design shear from 1.4 × the beams' moment capacities (read as the bars at 1.4 fy with the design strengths: 1.4 × 0.87 fy)",
+    "joints.strongColumnRatio": "IS 13920:2016 7.2.1: ΣMc >= 1.4 ΣMb",
+    "joints.gamma": "IS 13920:2016 9.1.1: 1.5 (four faces confined), 1.2 (three faces or two opposite), 1.0 (others) × √fck Aej"
+  }
+}

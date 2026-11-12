@@ -1,0 +1,229 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "BNBC 1993 / 2006 Part 6 Sec 2.5 (earthquake loads)"
+  ],
+  "source": "BNBC 1993 / 2006 Part 6 Sec 2.5: the equivalent static base shear V = Z I C W / R (2.5.6.1), C = 1.25 S / T^(2/3) <= 2.75 (2.5.6.3), C/R at least 0.075, T = Ct hn^(3/4) (2.5.6.5), the site coefficient S of soil types S1-S4 (Table 6.2.24), R of the structural systems (Table 6.2.25), the force Ft = 0.07 T V <= 0.25 V at the top when T > 0.7 s and the rest by wx hx (2.5.7). The other seismic values are BNBC 2020's (the parent pack): the drift and its amplification, the irregularities, the response spectrum rules.",
+  "designSpectrum": {
+    "method": "reducedElastic",
+    "factor": 1.0,
+    "shapePlateau": 2.75,
+    "descendingExponent": 0.666667,
+    "leastCoefficient": 0.075,
+    "staticPlateau": true,
+    "longPeriod": "constant",
+    "clause": "BNBC 1993 Part 6 2.5.6.1-2.5.6.3"
+  },
+  "lateralForce": {
+    "distribution": "linear",
+    "topForce": {
+      "periodFrom": 0.7,
+      "factor": 0.07,
+      "maxShare": 0.25
+    },
+    "clause": "BNBC 1993 Part 6 2.5.7.2"
+  },
+  "siteClasses": {
+    "SA": {
+      "description": "S1: rock, or stiff soil less than 61 m deep over rock",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.3065,
+      "TD": 10.0
+    },
+    "SB": {
+      "description": "S1: rock, or stiff soil less than 61 m deep over rock",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.3065,
+      "TD": 10.0
+    },
+    "SC": {
+      "description": "S2: deep cohesionless or stiff clay soils more than 61 m deep",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.4028,
+      "TD": 10.0
+    },
+    "SD": {
+      "description": "S3: soft to medium-stiff clays and sands, 9 m or more",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.563,
+      "TD": 10.0
+    },
+    "SE": {
+      "description": "S4: soft clays or silts more than 12 m deep",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.8668,
+      "TD": 10.0
+    }
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": {
+      "Ct": 0.073,
+      "m": 0.75
+    },
+    "steelMomentFrame": {
+      "Ct": 0.083,
+      "m": 0.75
+    },
+    "eccentricallyBracedSteelFrame": {
+      "Ct": 0.073,
+      "m": 0.75
+    },
+    "other": {
+      "Ct": 0.049,
+      "m": 0.75
+    }
+  },
+  "systems": {
+    "rcSmf": {
+      "R": 12.0
+    },
+    "rcImf": {
+      "R": 8.0
+    },
+    "rcOmf": {
+      "R": 5.0
+    },
+    "steelSmf": {
+      "R": 12.0
+    },
+    "steelImf": {
+      "R": 8.0
+    },
+    "steelOmf": {
+      "R": 6.0
+    },
+    "rcSpecialWallFrame": {
+      "R": 8.0
+    },
+    "rcOrdinaryWallFrame": {
+      "R": 8.0
+    },
+    "rcSpecialBearingWall": {
+      "R": 6.0
+    },
+    "rcOrdinaryBearingWall": {
+      "R": 6.0
+    },
+    "masonryOrdinaryReinforced": {
+      "R": 6.0
+    },
+    "masonryOrdinaryReinforcedFrame": {
+      "R": 8.0
+    },
+    "rcDualSpecial": {
+      "R": 12.0
+    },
+    "rcDualSpecialOrdinaryWalls": {
+      "R": 12.0
+    },
+    "rcDualIntermediateSpecialWalls": {
+      "R": 9.0
+    },
+    "rcDualIntermediateOrdinaryWalls": {
+      "R": 9.0
+    },
+    "steelEbf": {
+      "R": 10.0
+    },
+    "steelEbfMoment": {
+      "R": 10.0
+    },
+    "steelScbf": {
+      "R": 8.0
+    },
+    "steelOcbf": {
+      "R": 8.0
+    },
+    "steelDualSmfEbf": {
+      "R": 12.0
+    },
+    "steelDualSmfScbf": {
+      "R": 10.0
+    }
+  },
+  "designCategories": {
+    "$replace": true,
+    "occupancyGroups": {
+      "I": "I-III",
+      "II": "I-III",
+      "III": "I-III",
+      "IV": "IV"
+    },
+    "bySiteClass": {
+      "SA": {
+        "I-III": [
+          "B",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D"
+        ]
+      },
+      "SB": {
+        "I-III": [
+          "B",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D"
+        ]
+      },
+      "SC": {
+        "I-III": [
+          "B",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D"
+        ]
+      },
+      "SD": {
+        "I-III": [
+          "B",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D"
+        ]
+      },
+      "SE": {
+        "I-III": [
+          "B",
+          "C",
+          "D"
+        ],
+        "IV": [
+          "C",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {}
+  },
+  "sources": {
+    "designSpectrum": "BNBC 1993 2.5.6.1 V = Z I C W / R; 2.5.6.3 C = 1.25 S / T^(2/3) at most 2.75, C/R at least 0.075. SAEngine form: the normalized spectrum 2.75 to TC and 2.75 (TC/T)^(2/3) after it with TC = (1.25 S / 2.75)^1.5 per soil type, factor 1 (Sa = Z I C / R); the equivalent static method from T = 0 on the plateau, the dynamic analysis rising from 1.0 at T = 0 to the plateau at TB = 0.1 s (SAEngine practice: the code's normalized response spectra are not tabulated here)",
+    "siteClasses": "BNBC 1993 Table 6.2.24 (S1 1.0, S2 1.2, S3 1.5, S4 2.0) mapped to the default pack's classes SA-SE (SA and SB as S1, SC as S2, SD as S3, SE as S4: SAEngine practice, check the soil type against 2.5.4.3)",
+    "periodCoefficients": "BNBC 1993 2.5.6.5: T = Ct hn^(3/4), hn in m, Ct 0.083 steel moment frames, 0.073 RC moment frames and eccentrically braced frames, 0.049 the others",
+    "systems": "BNBC 1993 Table 6.2.25: R of the structural systems (the rows the default pack lists; the rows the 1993 table does not have keep BNBC 2020's R, Ω0 and Cd)",
+    "lateralForce": "BNBC 1993 2.5.7.2: Ft = 0.07 T V at most 0.25 V when T > 0.7 s, the rest Fx = (V - Ft) wx hx / Σ wi hi",
+    "designCategories": "SAEngine practice: the detailing of the members by zone (zone 1 ordinary, zone 2 intermediate, zone 3 special; essential facilities one step higher), the reading of BNBC 1993 Part 6 Sec 8 (ductile detailing in zone 3) to check"
+  }
+}

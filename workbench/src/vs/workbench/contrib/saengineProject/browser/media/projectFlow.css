@@ -1,0 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The Explorer used to draw the project's part folders as a flowchart (boxes and arrows). The
+ * project sidebar now shows the workflow; the Explorer, shown in developer mode only, is a plain
+ * file tree. The row classes its renderer still sets (saengine-flow-*) carry no style.
+ */

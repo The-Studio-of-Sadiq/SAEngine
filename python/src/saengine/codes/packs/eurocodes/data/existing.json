@@ -1,0 +1,111 @@
+{
+  "$schema": "../../../schemas/existing.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-3:2005 Sec 3.3 and Table 3.1 (knowledge levels KL1-KL3, confidence factors, analysis methods)",
+    "EN 1998-3:2005 Sec 2.1 and 2.2 (limit states DL, SD, NC; return periods recommended in the Notes)",
+    "EN 1998-3:2005 Sec 4.4.2 (lateral force analysis with the elastic spectrum), Sec 4.5 (safety verifications), Table 4.3 (ductile and brittle members)",
+    "EN 1998-3:2005 Annex A.3.2 (chord rotation capacity: Eq A.1, A.3.2.3, A.3.2.4, Eq A.10a), A.3.3.1 (cyclic shear strength, Eq A.12)",
+    "EN 1998-3:2005 Annex A.4.2.2 (concrete jacketing, monolithic factors), A.4.4 (FRP plating and wrapping)",
+    "EN 1998-1:2004 Sec 2.1(4) Note (importance factor by return period, exponent k = 3)",
+    "EN 1990:2002 Table A1.1 (ψ2 of the quasi-permanent live load, category B offices)"
+  ],
+  "source": "EN 1998-3:2005 (assessment and retrofitting of buildings)",
+  "sources": {
+    "knowledge": "EN 1998-3 Sec 3.3, Table 3.1",
+    "strengths": "EN 1998-3 Sec 3.5 and Table 4.3 (mean values from tests, divided by CF; brittle also by the partial factors)",
+    "linear": "EN 1998-3 Sec 4.4.2, 4.5; A.3.2.2 (θum, Eq A.1), A.3.2.3 (SD: 3/4 θum), A.3.2.4 (DL: θy, Eq A.10a)",
+    "hazards": "EN 1998-3 Sec 2.1(2)P-(4)P Notes (DL 225 years, SD 475 years, NC 2475 years); spectrum scales by EN 1998-1 Sec 2.1(4) Note with k = 3",
+    "shear": "EN 1998-3 A.3.3.1 Eq A.12",
+    "jacketing": "EN 1998-3 A.4.2.2",
+    "frp": "EN 1998-3 A.4.4.2 (shear), A.4.4.3 (confinement)"
+  },
+  "basis": "EN 1998-3:2005",
+  "knowledge": [
+    {"id": "KL1", "label": "KL1: limited knowledge", "confidenceFactor": 1.35, "procedures": ["linear"], "note": "EN 1998-3 Table 3.1: lateral force or modal response spectrum analysis only."},
+    {"id": "KL2", "label": "KL2: normal knowledge", "confidenceFactor": 1.2},
+    {"id": "KL3", "label": "KL3: full knowledge", "confidenceFactor": 1.0}
+  ],
+  "defaultKnowledge": "KL1",
+  "strengths": {
+    "analysis": {"value": "mean"},
+    "deformation": {"value": "mean", "divideByConfidence": true},
+    "force": {"value": "mean", "divideByConfidence": true, "concreteDivisor": 1.5, "steelDivisor": 1.15},
+    "lowerBoundSigma": 0.0,
+    "expectedFactors": {"concrete": 1.0, "rebar": 1.0, "steel": 1.0},
+    "minTests": 1,
+    "calibrated": ["core", "tensile"]
+  },
+  "linear": {
+    "method": "chordRotation",
+    "levels": [
+      {"id": "DL", "label": "Damage Limitation"},
+      {"id": "SD", "label": "Significant Damage"},
+      {"id": "NC", "label": "Near Collapse"}
+    ],
+    "hazards": [
+      {"id": "SD", "label": "SD: 10 % in 50 years (475 years, the design earthquake)", "spectrumScale": 1.0, "level": "SD"},
+      {"id": "NC", "label": "NC: 2 % in 50 years (2475 years)", "spectrumScale": 1.73, "level": "NC"},
+      {"id": "DL", "label": "DL: 20 % in 50 years (225 years)", "spectrumScale": 0.78, "level": "DL"}
+    ],
+    "massFactor": 1.0,
+    "gravityUpper": 1.0,
+    "gravityLower": 1.0,
+    "liveShare": 0.3,
+    "forceDivisor": 1.0,
+    "biaxialExponent": 1.0,
+    "chordRotation": {
+      "gammaEl": 1.5,
+      "k": 0.016,
+      "axialBase": 0.3,
+      "omegaMin": 0.01,
+      "omegaExponent": 0.225,
+      "spanExponent": 0.35,
+      "confinementBase": 25,
+      "diagonalBase": 1.25,
+      "wallFactor": 0.58,
+      "yieldLevel": "DL",
+      "shares": {"SD": 0.75, "NC": 1.0}
+    },
+    "yieldRotation": {"curvature": 2.1, "shear": 0.0013, "shearDepth": 1.5, "slip": 0.13},
+    "note": "The seismic forces of the analysis (the design forces with q and γI) are made the elastic forces of the limit state's return period: × q/γI × the hazard's spectrum scale. Ductile members: the chord rotation θ = (M/My)·θy of the secant stiffness to yield against θy (DL), 3/4 θum (SD) and θum (NC), with the strengths of the deformation use (mean/CF) and γel = 1.5 of primary members. Brittle actions: the shear against VR of Eq A.12. φy = 2.1 εy/h of a rectangular section stands for the section's yield curvature (SAEngine practice). ψ2 = 0.3 (offices) for the live load (SAEngine practice; a project with another use overrides linear.liveShare)."
+  },
+  "nonlinear": {
+    "capacityFactor": false,
+    "confidenceFactor": true,
+    "shearCheck": true,
+    "note": "The EN 1998-3 hinges of the pushover table: θum with the strengths divided by CF, and the hinges' shear against VR of Eq A.12 with the plastic ductility at the target."
+  },
+  "shear": {
+    "method": "cyclicDegradation",
+    "gammaEl": 1.15,
+    "axialShare": 0.55,
+    "degradation": 0.05,
+    "ductilityCap": 5.0,
+    "rhoFactor": 0.16,
+    "rhoMin": 0.5,
+    "spanFactor": 0.16,
+    "spanCap": 5.0,
+    "note": "z = 0.9 d; x (the compression zone depth) from the section's strain compatibility at the axial force."
+  },
+  "jacketing": {
+    "strengthFactor": 1.0,
+    "yieldFactor": 1.05,
+    "ultimateFactor": 1.0,
+    "shearFactor": 0.9,
+    "note": "EN 1998-3 A.4.2.2: the jacketed member as a monolithic one with the jacket's concrete over the whole section, the old bars where they are."
+  },
+  "frp": {
+    "method": "en1998",
+    "environment": {
+      "carbon": {"interior": 1.0, "exterior": 1.0, "aggressive": 1.0},
+      "glass": {"interior": 1.0, "exterior": 1.0, "aggressive": 1.0},
+      "aramid": {"interior": 1.0, "exterior": 1.0, "aggressive": 1.0}
+    },
+    "confinement": {"strainShare": 0.5, "rotationFactor": 1.0},
+    "shear": {"psiFull": 1.0, "psiPartial": 1.0, "strainFull": 0.004, "strainShare": 0.5},
+    "note": "EN 1998-3 gives no environmental factors: 1.0 (a project overrides them). Full wraps: ff,e = Ef·εfe with εfe = 0.004 at most half the rupture strain (SAEngine practice for the debonding-free full wrap of A.4.4.2). Flexural strengthening with FRP is not covered by this pack."
+  },
+  "tier1": [],
+  "note": "EN 1998-3:2005 with the recommended values of its Notes (the national annex may change them, as a project override). EN 1998-3 has no screening checklist."
+}

@@ -1,0 +1,1545 @@
+{
+  "$defs": {
+    "Arch": {
+      "additionalProperties": false,
+      "description": "A single arch in its own vertical plane along x, springing at z = 0.",
+      "properties": {
+        "kind": {
+          "const": "arch",
+          "default": "arch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "span": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Span",
+          "type": "number"
+        },
+        "rise": {
+          "description": "Of the crown above the springings [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Rise",
+          "type": "number"
+        },
+        "segments": {
+          "description": "Straight members along the arch.",
+          "maximum": 400,
+          "minimum": 2,
+          "title": "Segments",
+          "type": "integer"
+        },
+        "form": {
+          "default": "circular",
+          "enum": [
+            "circular",
+            "parabolic"
+          ],
+          "title": "Form",
+          "type": "string"
+        },
+        "memberType": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "span",
+        "rise",
+        "segments",
+        "memberType"
+      ],
+      "title": "Arch",
+      "type": "object"
+    },
+    "BarrelVault": {
+      "additionalProperties": false,
+      "description": "A cylindrical vault: arches across x (the span) repeated along y (the length).",
+      "properties": {
+        "kind": {
+          "const": "barrelVault",
+          "default": "barrelVault",
+          "title": "Kind",
+          "type": "string"
+        },
+        "span": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Span",
+          "type": "number"
+        },
+        "rise": {
+          "description": "Of the crown above the springings [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Rise",
+          "type": "number"
+        },
+        "length": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Length",
+          "type": "number"
+        },
+        "segments": {
+          "description": "Straight members across each arch.",
+          "maximum": 400,
+          "minimum": 2,
+          "title": "Segments",
+          "type": "integer"
+        },
+        "bays": {
+          "description": "Bays along the length.",
+          "maximum": 400,
+          "minimum": 1,
+          "title": "Bays",
+          "type": "integer"
+        },
+        "pattern": {
+          "default": "braced",
+          "description": "Ribbed: arches and purlins; braced: also a diagonal in every bay.",
+          "enum": [
+            "ribbed",
+            "braced"
+          ],
+          "title": "Pattern",
+          "type": "string"
+        },
+        "memberType": {
+          "description": "Object type of the arches and purlins.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "diagonalType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the diagonals; none uses the member type.",
+          "title": "Diagonal type"
+        },
+        "panelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slab or wall type of the cladding panels between the members; none adds no panels.",
+          "title": "Panel type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "span",
+        "rise",
+        "length",
+        "segments",
+        "bays",
+        "memberType"
+      ],
+      "title": "BarrelVault",
+      "type": "object"
+    },
+    "CableNet": {
+      "additionalProperties": false,
+      "description": "A saddle-shaped (hyperbolic paraboloid) net of cables over a rectangle.\n\nIts corners lie at z = 0; the edges rise by ``rise`` at the middle of the x edges and fall by\nit at the middle of the y edges. Cables are drawn as members: a tension-only brace type\n(Part 4) releases the ones a combination compresses (:mod:`saengine.fem.tension_only`);\nprestress and large displacements come with the nonlinear analyses.",
+      "properties": {
+        "kind": {
+          "const": "cableNet",
+          "default": "cableNet",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lengthX": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Length X",
+          "type": "number"
+        },
+        "lengthY": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Length Y",
+          "type": "number"
+        },
+        "divisionsX": {
+          "maximum": 400,
+          "minimum": 2,
+          "title": "Divisions in X",
+          "type": "integer"
+        },
+        "divisionsY": {
+          "maximum": 400,
+          "minimum": 2,
+          "title": "Divisions in Y",
+          "type": "integer"
+        },
+        "rise": {
+          "description": "Saddle height at the middle of the edges [mm].",
+          "title": "Rise",
+          "type": "number"
+        },
+        "memberType": {
+          "description": "Object type of the cables.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "edgeType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the edge members; none uses the member type.",
+          "title": "Edge type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "supportAt": {
+          "default": "perimeter",
+          "enum": [
+            "corners",
+            "perimeter"
+          ],
+          "title": "Supports at",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lengthX",
+        "lengthY",
+        "divisionsX",
+        "divisionsY",
+        "rise",
+        "memberType"
+      ],
+      "title": "CableNet",
+      "type": "object"
+    },
+    "DeckGrillage": {
+      "additionalProperties": false,
+      "description": "A bridge deck as a grillage: girders along x (the spans), transverse members across y\nat every station (the deck slab's strips and the diaphragms), supported under every\ngirder at each support line. The origin is the first girder's start; girders are\n``girderSpacing`` apart along +y.",
+      "properties": {
+        "kind": {
+          "const": "deckGrillage",
+          "default": "deckGrillage",
+          "title": "Kind",
+          "type": "string"
+        },
+        "spans": {
+          "description": "Span lengths in order [mm].",
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Spans",
+          "type": "array"
+        },
+        "girders": {
+          "description": "Girders across the deck.",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Girders",
+          "type": "integer"
+        },
+        "girderSpacing": {
+          "description": "[mm].",
+          "exclusiveMinimum": 0,
+          "title": "Girder spacing",
+          "type": "number"
+        },
+        "divisions": {
+          "default": 10,
+          "description": "Elements of each girder in each span.",
+          "maximum": 100,
+          "minimum": 2,
+          "title": "Divisions",
+          "type": "integer"
+        },
+        "memberType": {
+          "description": "Object type of the girders.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Girder type",
+          "type": "string"
+        },
+        "crossType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the transverse members (deck strips, diaphragms); none uses the girder type.",
+          "title": "Transverse type"
+        },
+        "panelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slab or wall type of the cladding panels between the members; none adds no panels.",
+          "title": "Panel type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "spans",
+        "girders",
+        "girderSpacing",
+        "memberType"
+      ],
+      "title": "DeckGrillage",
+      "type": "object"
+    },
+    "Dome": {
+      "additionalProperties": false,
+      "description": "A spherical dome (a cap of a sphere) on a circular base centred on the origin.",
+      "properties": {
+        "kind": {
+          "const": "dome",
+          "default": "dome",
+          "title": "Kind",
+          "type": "string"
+        },
+        "radius": {
+          "description": "Of the base circle [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Radius",
+          "type": "number"
+        },
+        "rise": {
+          "description": "Of the crown above the base [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Rise",
+          "type": "number"
+        },
+        "rings": {
+          "description": "Rings from the crown down to the base.",
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Rings",
+          "type": "integer"
+        },
+        "segments": {
+          "description": "Meridian ribs around the dome.",
+          "maximum": 360,
+          "minimum": 3,
+          "title": "Segments",
+          "type": "integer"
+        },
+        "pattern": {
+          "default": "schwedler",
+          "description": "Ribbed: ribs and rings; Schwedler: also a diagonal in every bay.",
+          "enum": [
+            "ribbed",
+            "schwedler"
+          ],
+          "title": "Pattern",
+          "type": "string"
+        },
+        "memberType": {
+          "description": "Object type of the ribs and rings.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "diagonalType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the diagonals; none uses the member type.",
+          "title": "Diagonal type"
+        },
+        "panelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slab or wall type of the cladding panels between the members; none adds no panels.",
+          "title": "Panel type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "radius",
+        "rise",
+        "rings",
+        "segments",
+        "memberType"
+      ],
+      "title": "Dome",
+      "type": "object"
+    },
+    "JacketFrame": {
+      "additionalProperties": false,
+      "description": "A fixed offshore structure from the mudline (z = 0, the origin at its centre): a\nfour-legged jacket with battered legs, a horizontal frame at every bay level and X braces\nin every face, or a monopile (one vertical pile).",
+      "properties": {
+        "kind": {
+          "const": "jacketFrame",
+          "default": "jacketFrame",
+          "title": "Kind",
+          "type": "string"
+        },
+        "form": {
+          "default": "jacket",
+          "enum": [
+            "jacket",
+            "monopile"
+          ],
+          "title": "Form",
+          "type": "string"
+        },
+        "height": {
+          "description": "From the mudline to the top [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "baseWidth": {
+          "default": 20000,
+          "description": "Legs apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Base width",
+          "type": "number"
+        },
+        "topWidth": {
+          "default": 12000,
+          "description": "Legs apart [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Top width",
+          "type": "number"
+        },
+        "bays": {
+          "default": 4,
+          "description": "Braced bays up the jacket.",
+          "maximum": 40,
+          "minimum": 1,
+          "title": "Bays",
+          "type": "integer"
+        },
+        "memberType": {
+          "description": "Object type of the legs or the pile.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Leg type",
+          "type": "string"
+        },
+        "braceType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the braces; none uses the member type.",
+          "title": "Brace type"
+        },
+        "supports": {
+          "default": "fixed",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "memberType"
+      ],
+      "title": "JacketFrame",
+      "type": "object"
+    },
+    "PlaneTruss": {
+      "additionalProperties": false,
+      "description": "A flat truss with parallel chords, in its own vertical plane along x.",
+      "properties": {
+        "kind": {
+          "const": "planeTruss",
+          "default": "planeTruss",
+          "title": "Kind",
+          "type": "string"
+        },
+        "span": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Span",
+          "type": "number"
+        },
+        "depth": {
+          "description": "Between the chord centre lines [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "panels": {
+          "description": "Panels along the span.",
+          "maximum": 200,
+          "minimum": 2,
+          "title": "Panels",
+          "type": "integer"
+        },
+        "pattern": {
+          "default": "pratt",
+          "description": "Warren: diagonals only; Pratt: diagonals down towards midspan (in tension under gravity); Howe: diagonals up towards midspan.",
+          "enum": [
+            "warren",
+            "pratt",
+            "howe"
+          ],
+          "title": "Pattern",
+          "type": "string"
+        },
+        "memberType": {
+          "description": "Object type of the chords.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "webType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the diagonals and verticals; none uses the member type.",
+          "title": "Web type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "span",
+        "depth",
+        "panels",
+        "memberType"
+      ],
+      "title": "PlaneTruss",
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "description": "A point in space [mm].",
+      "properties": {
+        "x": {
+          "description": "[mm]",
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "description": "[mm]",
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "description": "Elevation [mm].",
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "PortalFrame": {
+      "additionalProperties": false,
+      "description": "A steel shed of portal frames (a pre-engineered building, PEB): columns and rafters in\nframes across x, repeated along y, tied by purlins on the roof, girts on the walls and\neave struts, with X-bracing in the braced bays of the roof and the side walls.\n\nThe shape's origin is the base of the first frame's left column; x runs across the\n``width`` (the frames' plane), y along the ``length``, z up. A gable roof rises from both\neaves to a ridge at mid-width, a mono-slope roof from x = 0 to x = width. ``spans`` > 1\nputs interior columns at equal spacing (a multi-span frame under one roof). Rafters and\ncolumns are split where purlins, girts and braces meet them, so every member joins the\nframes at a node. Bracing uses the bracing type (a tension-only brace type for rods and\nslender angles, Part 4). Frame members are prismatic: tapered and haunched members are a\nplanned feature (``structure.taperedMembers``).",
+      "properties": {
+        "kind": {
+          "const": "portalFrame",
+          "default": "portalFrame",
+          "title": "Kind",
+          "type": "string"
+        },
+        "width": {
+          "description": "Across the frames, column centre to centre [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "number"
+        },
+        "length": {
+          "description": "Along the building, first to last frame [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Length",
+          "type": "number"
+        },
+        "bays": {
+          "description": "Bays along the length (frames = bays + 1).",
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Bays",
+          "type": "integer"
+        },
+        "eaveHeight": {
+          "description": "Base to the eave [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Eave height",
+          "type": "number"
+        },
+        "roof": {
+          "default": "gable",
+          "description": "Gable: ridge at mid-width; mono-slope: rising along x.",
+          "enum": [
+            "gable",
+            "monoSlope"
+          ],
+          "title": "Roof",
+          "type": "string"
+        },
+        "slope": {
+          "default": 5.71,
+          "description": "Roof slope [°] (5.71° is 1 in 10).",
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "title": "Slope",
+          "type": "number"
+        },
+        "spans": {
+          "default": 1,
+          "description": "Spans across the width.",
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Spans",
+          "type": "integer"
+        },
+        "columnType": {
+          "description": "Object type of the frame columns.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Column type",
+          "type": "string"
+        },
+        "rafterType": {
+          "description": "Object type of the rafters.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Rafter type",
+          "type": "string"
+        },
+        "interiorColumnType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the interior columns; none uses the member type.",
+          "title": "Interior column type"
+        },
+        "endColumns": {
+          "default": 0,
+          "description": "Wind columns between the corner columns of each gable end wall.",
+          "maximum": 12,
+          "minimum": 0,
+          "title": "End wall columns",
+          "type": "integer"
+        },
+        "endColumnType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the end wall columns; none uses the member type.",
+          "title": "End wall column type"
+        },
+        "purlinType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the purlins; none: none.",
+          "title": "Purlin type"
+        },
+        "purlinSpacing": {
+          "default": 1500,
+          "description": "Along the roof slope [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Purlin spacing",
+          "type": "number"
+        },
+        "girtType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the wall girts; none: none.",
+          "title": "Girt type"
+        },
+        "girtSpacing": {
+          "default": 1800,
+          "description": "Vertical [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Girt spacing",
+          "type": "number"
+        },
+        "eaveStrutType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the eave struts; none uses the purlin type (and no struts without one).",
+          "title": "Eave strut type"
+        },
+        "bracingType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Brace type of the roof and wall X-bracing; none: no bracing.",
+          "title": "Bracing type"
+        },
+        "bracedBays": {
+          "description": "Bays with X-bracing, 1 = the first; empty: the first and the last bay.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Braced bays",
+          "type": "array"
+        },
+        "roofBracingPanels": {
+          "default": 2,
+          "description": "X-braced panels along each roof slope in a braced bay.",
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Roof bracing panels",
+          "type": "integer"
+        },
+        "roofPanelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Slab type of roof cladding panels (they carry the roof area loads); none adds no panels.",
+          "title": "Roof panel type"
+        },
+        "wallPanelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall type of side wall cladding panels; none adds no panels.",
+          "title": "Wall panel type"
+        },
+        "endWallPanelType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Wall type of the gable end walls' cladding panels (between the end posts, up to the roof); none adds no panels. With roof and side wall panels the shed is clad all round: its wind can be the wall and roof pressures (wind form 'clad').",
+          "title": "End wall panel type"
+        },
+        "overhang": {
+          "default": 0,
+          "description": "The roof (rafters, panels and an edge purlin) runs on past each eave by this, in plan [mm]; a windward overhang also takes the wind on its underside.",
+          "minimum": 0,
+          "title": "Eave overhang",
+          "type": "number"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "width",
+        "length",
+        "bays",
+        "eaveHeight",
+        "columnType",
+        "rafterType"
+      ],
+      "title": "PortalFrame",
+      "type": "object"
+    },
+    "RevolutionShell": {
+      "additionalProperties": false,
+      "description": "A shell of revolution about the vertical axis through the origin, as flat facets\nbetween rings and meridians: a cylinder (silo, tank), a cone (chimney) or a hyperboloid of\none sheet (cooling tower, its throat at ``throatHeight``).",
+      "properties": {
+        "kind": {
+          "const": "revolutionShell",
+          "default": "revolutionShell",
+          "title": "Kind",
+          "type": "string"
+        },
+        "profile": {
+          "default": "cylinder",
+          "enum": [
+            "cylinder",
+            "cone",
+            "hyperboloid"
+          ],
+          "title": "Profile",
+          "type": "string"
+        },
+        "height": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "baseRadius": {
+          "description": "Of the mid-surface [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Base radius",
+          "type": "number"
+        },
+        "topRadius": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cone, hyperboloid [mm].",
+          "title": "Top radius"
+        },
+        "throatRadius": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hyperboloid [mm].",
+          "title": "Throat radius"
+        },
+        "throatHeight": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hyperboloid, above the base [mm].",
+          "title": "Throat height"
+        },
+        "rings": {
+          "default": 12,
+          "description": "Facets up the height.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Rings",
+          "type": "integer"
+        },
+        "segments": {
+          "default": 24,
+          "description": "Facets round the shell.",
+          "maximum": 360,
+          "minimum": 6,
+          "title": "Segments",
+          "type": "integer"
+        },
+        "panelType": {
+          "description": "Wall type of the shell.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Shell type",
+          "type": "string"
+        },
+        "memberType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of ring beams at the top and the base; none: no ring beams.",
+          "title": "Ring beam type"
+        },
+        "supports": {
+          "default": "fixed",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "baseRadius",
+        "panelType"
+      ],
+      "title": "RevolutionShell",
+      "type": "object"
+    },
+    "SpaceTruss": {
+      "additionalProperties": false,
+      "description": "A double-layer grid (square on square, offset): a flat roof spanning both ways.",
+      "properties": {
+        "kind": {
+          "const": "spaceTruss",
+          "default": "spaceTruss",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lengthX": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Length X",
+          "type": "number"
+        },
+        "lengthY": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Length Y",
+          "type": "number"
+        },
+        "baysX": {
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Bays in X",
+          "type": "integer"
+        },
+        "baysY": {
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Bays in Y",
+          "type": "integer"
+        },
+        "depth": {
+          "description": "Between the top and bottom layers [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "memberType": {
+          "description": "Object type of the chords.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Member type",
+          "type": "string"
+        },
+        "diagonalType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the diagonals; none uses the member type.",
+          "title": "Diagonal type"
+        },
+        "supports": {
+          "default": "pinned",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "supportAt": {
+          "default": "perimeter",
+          "description": "Top-layer nodes that are held.",
+          "enum": [
+            "corners",
+            "perimeter"
+          ],
+          "title": "Supports at",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lengthX",
+        "lengthY",
+        "baysX",
+        "baysY",
+        "depth",
+        "memberType"
+      ],
+      "title": "SpaceTruss",
+      "type": "object"
+    },
+    "TrussTower": {
+      "additionalProperties": false,
+      "description": "A self-supporting lattice tower, tapering linearly from its base to its top: legs at the\ncorners, X or single-diagonal bracing in every face of every panel, optional horizontals.\nThe origin is the centre of its base.",
+      "properties": {
+        "kind": {
+          "const": "trussTower",
+          "default": "trussTower",
+          "title": "Kind",
+          "type": "string"
+        },
+        "height": {
+          "description": "[mm]",
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "baseWidth": {
+          "description": "Face width at the base [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Base width",
+          "type": "number"
+        },
+        "topWidth": {
+          "description": "Face width at the top [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Top width",
+          "type": "number"
+        },
+        "section": {
+          "default": "square",
+          "enum": [
+            "square",
+            "triangular"
+          ],
+          "title": "Section",
+          "type": "string"
+        },
+        "panels": {
+          "description": "Panels up the height.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Panels",
+          "type": "integer"
+        },
+        "bracing": {
+          "default": "x",
+          "enum": [
+            "x",
+            "single"
+          ],
+          "title": "Bracing",
+          "type": "string"
+        },
+        "memberType": {
+          "description": "Object type of the legs.",
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Leg type",
+          "type": "string"
+        },
+        "bracingType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the bracings; none uses the member type.",
+          "title": "Bracing type"
+        },
+        "horizontalType": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Object type of the horizontals at the panel points; none: no horizontals (the top is closed with the bracing type).",
+          "title": "Horizontal type"
+        },
+        "supports": {
+          "default": "fixed",
+          "description": "Supports added where the shape meets the ground.",
+          "enum": [
+            "none",
+            "pinned",
+            "fixed"
+          ],
+          "title": "Supports",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Point",
+          "description": "Where the shape's own origin is placed [mm].",
+          "title": "Origin"
+        },
+        "rotation": {
+          "default": 0,
+          "description": "Rotation in plan about the origin [°].",
+          "title": "Rotation",
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "baseWidth",
+        "topWidth",
+        "panels",
+        "memberType"
+      ],
+      "title": "TrussTower",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A preset of a built-in parametric shape (``templates/<name>.json``).",
+  "properties": {
+    "$schema": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "$Schema"
+    },
+    "name": {
+      "description": "Name in the shape list, e.g. 'Warren truss 24 m'.",
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "shape": {
+      "description": "The shape and its parameters, as the Generate panel edits them.",
+      "discriminator": {
+        "mapping": {
+          "arch": "#/$defs/Arch",
+          "barrelVault": "#/$defs/BarrelVault",
+          "cableNet": "#/$defs/CableNet",
+          "deckGrillage": "#/$defs/DeckGrillage",
+          "dome": "#/$defs/Dome",
+          "jacketFrame": "#/$defs/JacketFrame",
+          "planeTruss": "#/$defs/PlaneTruss",
+          "portalFrame": "#/$defs/PortalFrame",
+          "revolutionShell": "#/$defs/RevolutionShell",
+          "spaceTruss": "#/$defs/SpaceTruss",
+          "trussTower": "#/$defs/TrussTower"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SpaceTruss"
+        },
+        {
+          "$ref": "#/$defs/PlaneTruss"
+        },
+        {
+          "$ref": "#/$defs/Arch"
+        },
+        {
+          "$ref": "#/$defs/Dome"
+        },
+        {
+          "$ref": "#/$defs/BarrelVault"
+        },
+        {
+          "$ref": "#/$defs/CableNet"
+        },
+        {
+          "$ref": "#/$defs/PortalFrame"
+        },
+        {
+          "$ref": "#/$defs/DeckGrillage"
+        },
+        {
+          "$ref": "#/$defs/TrussTower"
+        },
+        {
+          "$ref": "#/$defs/RevolutionShell"
+        },
+        {
+          "$ref": "#/$defs/JacketFrame"
+        }
+      ],
+      "title": "Shape"
+    }
+  },
+  "required": [
+    "name",
+    "shape"
+  ],
+  "title": "SAEngine structure template (a shape preset)",
+  "type": "object",
+  "$id": "saengine.structureTemplate/1"
+}

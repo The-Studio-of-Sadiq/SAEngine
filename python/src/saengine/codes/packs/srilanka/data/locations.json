@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "Design of Buildings for High Winds - Sri Lanka (Ministry of Local Government, Housing and Construction, 1980): wind zones 1-3 with the basic wind speeds (3-second gust at 10 m, 50 years) of normal structures 49, 43, 33 m/s (post-disaster structures 54, 47, 38 m/s); converted to the EN 1991-1-4 vb,0 (10-minute mean) by 1/1.53 (SAEngine practice, VERIFY.md S1-S3)"
+  ],
+  "source": "Sri Lanka wind zones (Design of Buildings for High Winds, 1980): zone 1 (the north and east, cyclone-prone) 49 m/s, zone 2 43 m/s, zone 3 (the west, south and the hill country) 33 m/s, 3-second gusts of normal structures. The Eurocode method of the parent pack takes the 10-minute mean vb,0: the gust speed / 1.53 (SAEngine practice: the gust-to-mean ratio of EN 1991-1-4 at 10 m in terrain II, (1 + 7 Iv)^0.5 with Iv = 0.19): 32.0, 28.1 and 21.6 m/s. The towns' zones are SAEngine readings of the zone map (uncertain). Post-disaster structures: enter vb,0 = 54, 47 or 38 m/s / 1.53 as a project's wind speed. No seismic design (zone 0).",
+  "default": "colombo",
+  "locations": {
+    "colombo": { "name": "Colombo (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "kandy": { "name": "Kandy (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "galle": { "name": "Galle (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "matara": { "name": "Matara (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "negombo": { "name": "Negombo (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "ratnapura": { "name": "Ratnapura (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "nuwaraEliya": { "name": "Nuwara Eliya (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "kurunegala": { "name": "Kurunegala (zone 3)", "zone": 0, "windSpeed": 21.6 },
+    "anuradhapura": { "name": "Anuradhapura (zone 2)", "zone": 0, "windSpeed": 28.1 },
+    "polonnaruwa": { "name": "Polonnaruwa (zone 2)", "zone": 0, "windSpeed": 28.1 },
+    "vavuniya": { "name": "Vavuniya (zone 2)", "zone": 0, "windSpeed": 28.1 },
+    "ampara": { "name": "Ampara (zone 2)", "zone": 0, "windSpeed": 28.1 },
+    "jaffna": { "name": "Jaffna (zone 1)", "zone": 0, "windSpeed": 32.0 },
+    "trincomalee": { "name": "Trincomalee (zone 1)", "zone": 0, "windSpeed": 32.0 },
+    "batticaloa": { "name": "Batticaloa (zone 1)", "zone": 0, "windSpeed": 32.0 },
+    "mullaitivu": { "name": "Mullaitivu (zone 1)", "zone": 0, "windSpeed": 32.0 }
+  }
+}

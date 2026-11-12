@@ -1,0 +1,82 @@
+{
+  "$schema": "../../../schemas/hazardLookup.schema.json",
+  "$sources": [
+    "USGS Seismic Design Web Services, ASCE 7-22 reference document (public documentation of the asce7-22 endpoint); ASCE/SEI 7-22 Sec 11.4 (the site's mapped values) and Sec 11.4.5.1 / Ch 21 (multi-period spectra); see VERIFY.md (C22)"
+  ],
+  "source": "ASCE/SEI 7-22 Sec 11.4: the site's design values from the USGS Seismic Design Web Services by latitude and longitude",
+  "manualNote": "Without a lookup (offline, a site outside the service's regions, site class F): take SDS, SD1, S1, TL and the multi-period spectra from the ASCE 7 Hazard Tool or the USGS service by hand and type them in Site > Mapped spectral values. Wind speeds (Ch 26) and ground snow loads (Ch 7) are typed by hand: no public lookup is covered.",
+  "providers": [
+    {
+      "id": "usgs-asce7-22",
+      "kind": "seismic",
+      "service": "USGS Seismic Design Web Services (ASCE 7-22)",
+      "publisher": "U.S. Geological Survey",
+      "reference": "ASCE/SEI 7-22",
+      "endpoint": "https://earthquake.usgs.gov/ws/designmaps/asce7-22.json",
+      "query": {
+        "latitude": "{latitude}",
+        "longitude": "{longitude}",
+        "riskCategory": "{riskCategory}",
+        "siteClass": "{siteClass}",
+        "title": "SAEngine"
+      },
+      "format": "json",
+      "status": {
+        "request.status": "success"
+      },
+      "message": ["response", "message", "error"],
+      "riskCategories": {
+        "I": "I",
+        "II": "II",
+        "III": "III",
+        "IV": "IV"
+      },
+      "siteClasses": {
+        "SA": "A",
+        "SB": "B",
+        "SBC": "BC",
+        "SC": "C",
+        "SCD": "CD",
+        "SD": "D",
+        "SDE": "DE",
+        "SE": "E"
+      },
+      "values": [
+        { "target": "site.spectral.sds", "label": "SDS", "path": ["response.data.sds"], "unit": "g" },
+        { "target": "site.spectral.sd1", "label": "SD1", "path": ["response.data.sd1"], "unit": "g" },
+        { "target": "site.spectral.sms", "label": "SMS", "path": ["response.data.sms"], "unit": "g" },
+        { "target": "site.spectral.sm1", "label": "SM1", "path": ["response.data.sm1"], "unit": "g" },
+        { "target": "site.spectral.ss", "label": "SS", "path": ["response.data.ss", "response.data.underlyingData.ss"], "unit": "g" },
+        { "target": "site.spectral.s1", "label": "S1", "path": ["response.data.s1", "response.data.underlyingData.s1"], "unit": "g" },
+        { "target": "site.spectral.tl", "label": "TL", "path": ["response.data.tl", "response.data.t-sub-l", "response.data.tL"], "unit": "s" },
+        {
+          "target": "site.spectral.designSpectrum",
+          "label": "Multi-period design spectrum",
+          "periods": ["response.data.multiPeriodDesignSpectrum.periods"],
+          "ordinates": ["response.data.multiPeriodDesignSpectrum.ordinates"],
+          "unit": "g"
+        },
+        {
+          "target": "site.spectral.mcerSpectrum",
+          "label": "Multi-period MCER spectrum",
+          "periods": ["response.data.multiPeriodMCErSpectrum.periods"],
+          "ordinates": ["response.data.multiPeriodMCErSpectrum.ordinates"],
+          "unit": "g"
+        }
+      ],
+      "regions": [
+        { "name": "the conterminous United States", "south": 24.0, "north": 50.0, "west": -125.5, "east": -65.0 },
+        { "name": "Alaska", "south": 51.0, "north": 72.0, "west": 172.0, "east": -129.0 },
+        { "name": "Hawaii", "south": 18.5, "north": 22.5, "west": -161.0, "east": -154.5 },
+        { "name": "Puerto Rico and the U.S. Virgin Islands", "south": 17.5, "north": 18.7, "west": -67.5, "east": -64.4 },
+        { "name": "Guam and the Northern Mariana Islands", "south": 13.2, "north": 20.6, "west": 144.5, "east": 146.1 },
+        { "name": "American Samoa", "south": -14.7, "north": -11.0, "west": -171.2, "east": -168.0 }
+      ],
+      "decimals": 4,
+      "timeout": 30,
+      "documentation": "https://earthquake.usgs.gov/ws/designmaps/asce7-22.html",
+      "terms": "USGS information is in the U.S. public domain (https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits); the service page calls the software preliminary or provisional and subject to revision. To be confirmed by the owner (VERIFY.md C22).",
+      "inheritable": false
+    }
+  ]
+}

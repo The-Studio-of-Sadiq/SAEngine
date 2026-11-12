@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/slabMethods.schema.json",
+  "$sources": [
+    "ACI 318-19 Sec 8.2.1, 8.10 (direct design method), 8.11 (equivalent frame method), 8.7.3 (corner reinforcement), 8.5.4 (openings)"
+  ],
+  "source": "ACI 318-19 Sec 8.5.4, 8.7.3, 8.10, 8.11 (the same numbers as the extended pack's)",
+  "sources": {
+    "twoWayMethods": "ACI 318-19 8.2.1, 8.4.1.2: two-way slabs by the direct design method (8.10) or the equivalent frame method (8.11) for gravity loads",
+    "directDesign.limits": "ACI 318-19 8.10.2.1-8.10.2.7, Eq 8.10.2.7b: three spans, panels at most 2 : 1, spans within one third, column offsets 10 %, L <= 2D, 0.2 <= αf1 l2² / αf2 l1² <= 5",
+    "directDesign.static": "ACI 318-19 8.10.3.2, Eq 8.10.3.2: Mo = qu l2 ln² / 8, ln >= 0.65 l1 (8.10.3.2.1)",
+    "directDesign.distribution": "ACI 318-19 8.10.4.1, Table 8.10.4.2: 0.65 / 0.35 in interior spans and the end span shares",
+    "directDesign.strips": "ACI 318-19 8.10.5.1-8.10.5.7, 8.10.6, Tables 8.10.5.1, 8.10.5.2, 8.10.5.5, Eq 8.10.5.2a-b",
+    "directDesign.transfer": "ACI 318-19 8.10.7.3: 0.3 Mo to an edge column; 8.10.7.2 Eq 8.10.7.2: Msc = 0.07 [(qDu + 0.5 qLu) l2 ln² - qDu' l2' ln'²]",
+    "directDesign.modification": "ACI 318-19 8.10.4.3: 10 % if Mo is kept",
+    "equivalentFrame": "ACI 318-19 8.11.2-8.11.6: slab-beams (8.11.3), equivalent columns with torsional members (8.11.4-8.11.5, Eq 8.10.5.2b for C), 6.4.3.3 live load patterns of 3/4 L when L > 0.75 D, 8.11.6.1 face moments not farther than 0.175 l1",
+    "corner": "ACI 318-19 8.7.3.1: top and bottom steel at exterior corners for the largest positive moment over l/5 with edge walls or αf > 1",
+    "openings": "ACI 318-19 8.5.4.1-8.5.4.2: openings in slabs without beams"
+  },
+  "clauses": {
+    "methods": "8.2.1",
+    "directDesign": "8.10",
+    "limits": "8.10.2",
+    "static": "8.10.3.2, Eq 8.10.3.2",
+    "distribution": "8.10.4, Table 8.10.4.2",
+    "strips": "8.10.5-8.10.6, Tables 8.10.5.1-8.10.5.5",
+    "beams": "8.10.5.7",
+    "edgeTransfer": "8.10.7.3",
+    "columnMoment": "8.10.7.2, Eq 8.10.7.2",
+    "equivalentFrame": "8.11",
+    "torsion": "8.11.5, Eq 8.10.5.2b",
+    "pattern": "6.4.3.2, 6.4.3.3",
+    "face": "8.11.6.1",
+    "corner": "8.7.3.1",
+    "openings": "8.5.4",
+    "openingsAnalysis": "8.5.4.1",
+    "openingShear": "8.5.4.2, 22.6.4.3",
+    "patternExemption": "6.4.3.2"
+  }
+}

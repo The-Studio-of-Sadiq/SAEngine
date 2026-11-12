@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/materials.schema.json",
+  "$sources": [
+    "Building Standard Law Enforcement Order Art. 74; JIS G 3112 (verify)"
+  ],
+  "structuralFcMin": 12.0,
+  "rebarFyMax": 690.0,
+  "sources": {
+    "structuralFcMin": "Building Standard Law Enforcement Order Art. 74: the four-week compressive strength of concrete at least 12 N/mm² (9 N/mm² with lightweight aggregate)",
+    "rebarFyMax": "Not checked (verify): JIS G 3112 grades up to SD490 under the MLIT notifications, higher grades (SD590, SD685) by approval; the parent's ACI 318-19 limit (690 MPa) kept so that no approved grade is refused"
+  }
+}

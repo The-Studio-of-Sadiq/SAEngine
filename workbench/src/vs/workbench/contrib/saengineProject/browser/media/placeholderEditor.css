@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The page of a part that is not built yet: its number, its name and one sentence, centred. */
+
+.saengine-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	padding: var(--sa-space-6, 24px);
+	background-color: var(--sa-surface, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m, 13px);
+	outline: none;
+}
+
+.saengine-placeholder .page {
+	max-width: 440px;
+	margin-top: -8vh;
+	text-align: center;
+}
+
+.saengine-placeholder h1 {
+	display: flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: var(--sa-space-2, 8px);
+	margin: 0;
+	font-size: var(--sa-font-xl, 20px);
+	font-weight: 600;
+}
+
+.saengine-placeholder h1 .number {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-weight: normal;
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-placeholder .description,
+.saengine-placeholder .note {
+	margin: var(--sa-space-3, 12px) 0 0;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	line-height: 1.5;
+}
+
+.saengine-placeholder .note {
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-placeholder .open-json {
+	display: inline-block;
+	margin-top: var(--sa-space-4, 16px);
+	font-size: var(--sa-font-s, 12px);
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.saengine-placeholder .open-json:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.saengine-placeholder .open-json:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}

@@ -51,6 +51,9 @@ export const ExplorerResourceParentReadOnlyContext = new RawContextKey<boolean>(
 export const ExplorerResourceAvailableEditorIdsContext = new RawContextKey<string>('explorerResourceAvailableEditorIds', '');
 export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false, { type: 'boolean', description: localize('explorerResourceIsRoot', "True when the focused item in the EXPLORER is a root folder.") });
 export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false, { type: 'boolean', description: localize('explorerResourceCut', "True when an item in the EXPLORER has been cut for cut and paste.") });
+/** SAEngine: true when the focused item in the EXPLORER is a core project item that cannot be deleted, renamed or moved. */
+export const ExplorerResourceProtectedContext = new RawContextKey<boolean>('explorerResourceProtected', false, { type: 'boolean', description: localize('explorerResourceProtected', "True when the focused item in the EXPLORER is a core SAEngine project item.") });
+export const ExplorerResourceNotProtectedContext = ExplorerResourceProtectedContext.toNegated();
 export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false, { type: 'boolean', description: localize('explorerResourceMoveableToTrash', "True when the focused item in the EXPLORER can be moved to trash.") });
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true, { type: 'boolean', description: localize('filesExplorerFocus', "True when the focus is inside the EXPLORER view.") });
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true, { type: 'boolean', description: localize('openEditorsFocus', "True when the focus is inside the OPEN EDITORS view.") });

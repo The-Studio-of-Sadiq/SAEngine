@@ -1,0 +1,469 @@
+{
+  "$defs": {
+    "AluminiumAlloy": {
+      "additionalProperties": false,
+      "description": "One alloy and temper: f0, fu by product and thickness, the heat-affected zone and the\nbuckling class.",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "f0": {
+          "description": "0.2 % proof strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "F0",
+          "type": "number"
+        },
+        "fu": {
+          "description": "Ultimate tensile strength [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fu",
+          "type": "number"
+        },
+        "thicknessMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Up to this thickness [mm].",
+          "title": "Thicknessmax"
+        },
+        "rhoHazProof": {
+          "description": "ρo,haz = fo,haz / fo.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhohazproof",
+          "type": "number"
+        },
+        "rhoHazUltimate": {
+          "description": "ρu,haz = fu,haz / fu.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Rhohazultimate",
+          "type": "number"
+        },
+        "bucklingClass": {
+          "enum": [
+            "A",
+            "B"
+          ],
+          "title": "Bucklingclass",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "f0",
+        "fu",
+        "rhoHazProof",
+        "rhoHazUltimate",
+        "bucklingClass"
+      ],
+      "title": "AluminiumAlloy",
+      "type": "object"
+    },
+    "AluminiumBolt": {
+      "additionalProperties": false,
+      "description": "A bolt material of aluminium joints: fub and αv of its shear resistance.",
+      "properties": {
+        "fub": {
+          "description": "Ultimate strength of the bolt [MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Fub",
+          "type": "number"
+        },
+        "alphaV": {
+          "description": "Fv,Rd = αv fub A / γM2 (A the stress area).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Alphav",
+          "type": "number"
+        },
+        "stressArea": {
+          "default": 0.78,
+          "description": "The threaded part's stress area As = this × π d² / 4.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stressarea",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fub",
+        "alphaV"
+      ],
+      "title": "AluminiumBolt",
+      "type": "object"
+    },
+    "AluminiumBuckling": {
+      "additionalProperties": false,
+      "description": "α and λ̄0 of flexural buckling by buckling class; of lateral-torsional buckling by the\nsection class.",
+      "properties": {
+        "flexural": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Flexural",
+          "type": "object"
+        },
+        "lateralTorsional": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Lateraltorsional",
+          "type": "object"
+        },
+        "interaction": {
+          "description": "Exponents ξ of the combined checks: [axial (major), axial (minor), bending] (the conservative values).",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Interaction",
+          "type": "array"
+        }
+      },
+      "required": [
+        "flexural",
+        "lateralTorsional",
+        "interaction"
+      ],
+      "title": "AluminiumBuckling",
+      "type": "object"
+    },
+    "AluminiumClassLimits": {
+      "additionalProperties": false,
+      "description": "β/ε limits [class 1, class 2, class 3] by element and buckling class (ε = √(ref/f0)).",
+      "properties": {
+        "epsilonReference": {
+          "exclusiveMinimum": 0,
+          "title": "Epsilonreference",
+          "type": "number"
+        },
+        "internal": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Internal",
+          "type": "object"
+        },
+        "outstand": {
+          "additionalProperties": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Outstand",
+          "type": "object"
+        }
+      },
+      "required": [
+        "epsilonReference",
+        "internal",
+        "outstand"
+      ],
+      "title": "AluminiumClassLimits",
+      "type": "object"
+    },
+    "AluminiumJoints": {
+      "additionalProperties": false,
+      "description": "Alpha 9 L7: bolted and welded joints of aluminium members (EN 1999 type): bolts in\nshear and bearing, fillet welds by their throat with the filler's fw, and the heat-affected\nzone beside the weld at fu,haz.",
+      "properties": {
+        "gammaM2": {
+          "description": "γM2 of bolts and the members' bearing.",
+          "exclusiveMinimum": 0,
+          "title": "Gammam2",
+          "type": "number"
+        },
+        "gammaMw": {
+          "description": "γMw of welds and the heat-affected zone.",
+          "exclusiveMinimum": 0,
+          "title": "Gammamw",
+          "type": "number"
+        },
+        "bolts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AluminiumBolt"
+          },
+          "minProperties": 1,
+          "title": "Bolts",
+          "type": "object"
+        },
+        "bearingK1Max": {
+          "description": "k1 = min(2.8 e2/d0 - 1.7, this).",
+          "exclusiveMinimum": 0,
+          "title": "Bearingk1Max",
+          "type": "number"
+        },
+        "holeClearance": {
+          "description": "d0 = d + this [mm].",
+          "minimum": 0,
+          "title": "Holeclearance",
+          "type": "number"
+        },
+        "weldStrength": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "fw [MPa] of the weld metal by '<alloy key>|<filler>' or '<filler>'.",
+          "title": "Weldstrength",
+          "type": "object"
+        },
+        "weldCriterion": {
+          "default": 3.0,
+          "description": "Fillet welds: √(σ⊥² + this (τ⊥² + τ∥²)) ≤ fw / γMw.",
+          "exclusiveMinimum": 0,
+          "title": "Weldcriterion",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gammaM2",
+        "gammaMw",
+        "bolts",
+        "bearingK1Max",
+        "holeClearance",
+        "weldStrength"
+      ],
+      "title": "AluminiumJoints",
+      "type": "object"
+    },
+    "AluminiumLocalBuckling": {
+      "additionalProperties": false,
+      "description": "ρc = C1 / (β/ε) - C2 / (β/ε)² of class 4 elements by element and buckling class.",
+      "properties": {
+        "internal": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Internal",
+          "type": "object"
+        },
+        "outstand": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Outstand",
+          "type": "object"
+        }
+      },
+      "required": [
+        "internal",
+        "outstand"
+      ],
+      "title": "AluminiumLocalBuckling",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Alpha 9 C6: aluminium members (EN 1999 type): the alloys, γM1, γM2, the cross-section\nclasses, the local and flexural buckling and the combined checks.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "const": "partialFactors",
+      "default": "partialFactors",
+      "title": "Method",
+      "type": "string"
+    },
+    "gammaM1": {
+      "exclusiveMinimum": 0,
+      "title": "Gammam1",
+      "type": "number"
+    },
+    "gammaM2": {
+      "exclusiveMinimum": 0,
+      "title": "Gammam2",
+      "type": "number"
+    },
+    "modulus": {
+      "description": "E [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "Modulus",
+      "type": "number"
+    },
+    "shearModulus": {
+      "description": "G [MPa].",
+      "exclusiveMinimum": 0,
+      "title": "Shearmodulus",
+      "type": "number"
+    },
+    "density": {
+      "description": "[kg/m³].",
+      "exclusiveMinimum": 0,
+      "title": "Density",
+      "type": "number"
+    },
+    "alloys": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AluminiumAlloy"
+      },
+      "minProperties": 1,
+      "title": "Alloys",
+      "type": "object"
+    },
+    "classes": {
+      "$ref": "#/$defs/AluminiumClassLimits"
+    },
+    "localBuckling": {
+      "$ref": "#/$defs/AluminiumLocalBuckling"
+    },
+    "buckling": {
+      "$ref": "#/$defs/AluminiumBuckling"
+    },
+    "netTension": {
+      "description": "Nu,Rd = this Anet fu / γM2.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Nettension",
+      "type": "number"
+    },
+    "shearSlenderness": {
+      "description": "hw/tw <= this ε: no shear buckling.",
+      "exclusiveMinimum": 0,
+      "title": "Shearslenderness",
+      "type": "number"
+    },
+    "joints": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AluminiumJoints"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "gammaM1",
+    "gammaM2",
+    "modulus",
+    "shearModulus",
+    "density",
+    "alloys",
+    "classes",
+    "localBuckling",
+    "buckling",
+    "netTension",
+    "shearSlenderness"
+  ],
+  "title": "AluminiumTable",
+  "type": "object",
+  "$id": "saengine.codePack.aluminium/1"
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "BS 8110-2:1985 7.2: Ec,28 = 20 + 0.2 fcu kN/mm²"
+  ],
+  "modulus": {
+    "normal": 4750.0
+  },
+  "sources": {
+    "modulus": "BS 8110-2:1985 7.2 (Ec,28 = 20 + 0.2 fcu kN/mm²), here as 4750 √fcu (within 5 % from C25 to C35; SAEngine form of the table's √fc rule; the design of concreteMethods uses 20 + 0.2 fcu itself); the other values of the table are BNBC 2020's (the parent pack)"
+  }
+}

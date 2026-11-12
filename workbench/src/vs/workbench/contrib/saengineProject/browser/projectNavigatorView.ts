@@ -1,0 +1,559 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import './media/projectNavigator.css';
+import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { isPartSectionPane } from '../../../services/saengineProject/common/partSections.js';
+import { IPartStatus, ISaenginePartStatusService, nextStep } from '../../../services/saengineProject/common/partStatus.js';
+import { IProjectPart, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { EXPORTS_SCHEME } from './exportsEditorInput.js';
+import { IPartEntry, IPartSection, isPartEditor, isSectionActive, openPart, openPartSection, partGroups, partName, partResource, partSections, stateClass, stateLabel, stateText } from './projectParts.js';
+import { ProjectOverviewInput } from './projectOverviewInput.js';
+import { unsavedSummary } from './versionsModel.js';
+import { IProjectVersionsService } from './versionsService.js';
+import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common/developerMode.js';
+
+/** The UI command that opens the Versions editor (registered in projectPlatform.contribution.ts). */
+const SHOW_VERSIONS_COMMAND = 'saengine.project.showVersions';
+/** The height of the versions line under the parts. */
+const VERSIONS_LINE_HEIGHT = 28;
+
+
+/** How deep the raw files of a part are listed in developer mode. */
+const FILE_DEPTH = 4;
+
+interface IGroupNode {
+	readonly kind: 'group';
+	readonly id: string;
+	readonly label: string;
+}
+
+interface IPartNode {
+	readonly kind: 'part';
+	readonly id: string;
+	readonly entry: IPartEntry;
+	readonly status: IPartStatus | undefined;
+}
+
+interface ISectionNode {
+	readonly kind: 'section';
+	readonly id: string;
+	readonly entry: IPartEntry;
+	readonly section: IPartSection;
+}
+
+interface IFileNode {
+	readonly kind: 'file';
+	readonly id: string;
+	readonly resource: URI;
+	readonly name: string;
+	readonly isDirectory: boolean;
+}
+
+/** The project's Overview, the first row (N-N1): the parts, their status and what to do next. */
+interface IOverviewNode {
+	readonly kind: 'overview';
+	readonly id: string;
+	/** The next step's text ("Next: 9 Substructure"), when there is one. */
+	readonly next: string | undefined;
+}
+
+type NavigatorNode = IOverviewNode | IGroupNode | IPartNode | ISectionNode | IFileNode;
+
+class Delegate implements IListVirtualDelegate<NavigatorNode> {
+	getHeight(node: NavigatorNode): number {
+		switch (node.kind) {
+			case 'group': return 30;
+			case 'part':
+			case 'overview': return 28;
+			case 'section': return 24;
+			default: return 22;
+		}
+	}
+	getTemplateId(node: NavigatorNode): string {
+		return node.kind;
+	}
+}
+
+class GroupRenderer implements ITreeRenderer<NavigatorNode, void, HTMLElement> {
+	readonly templateId = 'group';
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return append(container, $('.sa-nav-group'));
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, label: HTMLElement): void {
+		label.textContent = node.element.kind === 'group' ? node.element.label : '';
+	}
+	disposeTemplate(): void { }
+}
+
+class OverviewRenderer implements ITreeRenderer<NavigatorNode, void, IPartTemplate> {
+	readonly templateId = 'overview';
+	constructor(private readonly isActive: () => boolean) { }
+	renderTemplate(container: HTMLElement): IPartTemplate {
+		const row = append(container, $('.sa-nav-part.sa-nav-overview'));
+		return {
+			row,
+			number: append(row, $(`span.sa-nav-number${ThemeIcon.asCSSSelector(Codicon.dashboard)}`)),
+			name: append(row, $('span.sa-nav-name')),
+			dot: append(row, $('span.sa-state-dot.hidden')),
+			text: append(row, $('span.sa-nav-state')),
+		};
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, template: IPartTemplate): void {
+		if (node.element.kind !== 'overview') {
+			return;
+		}
+		template.name.textContent = localize('projectNavigator.overview', "Overview");
+		template.text.textContent = node.element.next ?? '';
+		template.text.title = node.element.next ?? '';
+		template.row.classList.toggle('active', this.isActive());
+	}
+	disposeTemplate(): void { }
+}
+
+interface IPartTemplate {
+	readonly row: HTMLElement;
+	readonly number: HTMLElement;
+	readonly name: HTMLElement;
+	readonly dot: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+class PartRenderer implements ITreeRenderer<NavigatorNode, void, IPartTemplate> {
+	readonly templateId = 'part';
+	constructor(private readonly isActive: (part: IProjectPart) => boolean) { }
+	renderTemplate(container: HTMLElement): IPartTemplate {
+		const row = append(container, $('.sa-nav-part'));
+		return {
+			row,
+			number: append(row, $('span.sa-nav-number')),
+			name: append(row, $('span.sa-nav-name')),
+			dot: append(row, $('span.sa-state-dot')),
+			text: append(row, $('span.sa-nav-state')),
+		};
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, template: IPartTemplate): void {
+		if (node.element.kind !== 'part') {
+			return;
+		}
+		const { entry, status } = node.element;
+		template.number.textContent = String(entry.number);
+		template.name.textContent = entry.name;
+		template.dot.className = `sa-state-dot ${stateClass(status?.state)}`;
+		template.dot.title = stateLabel(status);
+		template.text.textContent = stateText(status);
+		template.row.classList.toggle('active', this.isActive(entry.part));
+	}
+	disposeTemplate(): void { }
+}
+
+class SectionRenderer implements ITreeRenderer<NavigatorNode, void, HTMLElement> {
+	readonly templateId = 'section';
+	constructor(private readonly isActive: (node: ISectionNode) => boolean) { }
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return append(container, $('.sa-nav-section'));
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, row: HTMLElement): void {
+		if (node.element.kind !== 'section') {
+			return;
+		}
+		row.textContent = node.element.section.label;
+		row.classList.toggle('active', this.isActive(node.element));
+	}
+	disposeTemplate(): void { }
+}
+
+interface IFileTemplate {
+	readonly icon: HTMLElement;
+	readonly name: HTMLElement;
+}
+
+class FileRenderer implements ITreeRenderer<NavigatorNode, void, IFileTemplate> {
+	readonly templateId = 'file';
+	renderTemplate(container: HTMLElement): IFileTemplate {
+		const row = append(container, $('.sa-nav-file'));
+		return { icon: append(row, $('span.sa-nav-file-icon')), name: append(row, $('span.sa-nav-file-name')) };
+	}
+	renderElement(node: ITreeNode<NavigatorNode, void>, _index: number, template: IFileTemplate): void {
+		if (node.element.kind !== 'file') {
+			return;
+		}
+		template.icon.className = `sa-nav-file-icon ${ThemeIcon.asClassName(node.element.isDirectory ? Codicon.folder : Codicon.file)}`;
+		template.name.textContent = node.element.name;
+	}
+	disposeTemplate(): void { }
+}
+
+/**
+ * The project in the sidebar: its parts, numbered in workflow order under small group headings,
+ * each with its status. Selecting a part opens its editor. In developer mode the files of each
+ * part are listed under it.
+ */
+export class ProjectNavigatorView extends ViewPane {
+
+	static readonly ID = 'saengine.projectNavigator';
+
+	private tree: WorkbenchObjectTree<NavigatorNode, void> | undefined;
+	private activeResource: URI | undefined;
+	private partNodes: IPartNode[] = [];
+	private overviewNode: IOverviewNode | undefined;
+	private sectionNodes: ISectionNode[] = [];
+	/** The active editor's section (Settings, BIM, MEP), and the listener on its changes. */
+	private activeSection: string | undefined;
+	private readonly sectionListener = this._register(new MutableDisposable());
+	/** The parts (ids) expanded because their editor became active: collapsed again when it no longer is. */
+	private readonly autoExpanded = new Set<string>();
+	/** The entry being opened: an editor that works out its page first (the result charts) becomes active only then. */
+	private opening: ISectionNode | undefined;
+	/** "3 parts changed since v12", under the parts; opens the versions. */
+	private versionsLine: HTMLElement | undefined;
+	private versionsText: HTMLElement | undefined;
+	private versionsIcon: HTMLElement | undefined;
+	private bodySize: { height: number; width: number } | undefined;
+	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => void this.refresh(), 200));
+
+	constructor(
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@ISaenginePartStatusService private readonly statusService: ISaenginePartStatusService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IProjectVersionsService private readonly versionsService: IProjectVersionsService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this._register(this.projectService.onDidChangeProject(() => {
+			this._onDidChangeTitleArea.fire();
+			this.refreshScheduler.schedule();
+		}));
+	}
+
+	/** The sidebar's title is the project's name. */
+	override get singleViewPaneContainerTitle(): string | undefined {
+		return this.projectService.project?.name ?? super.singleViewPaneContainerTitle;
+	}
+
+	private get developerMode(): boolean {
+		return this.configurationService.getValue<boolean>(DEVELOPER_MODE_SETTING) === true;
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		container.classList.add('saengine-project-navigator');
+		const treeContainer = append(container, $('.sa-nav-tree'));
+		this.renderVersionsLine(container);
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<NavigatorNode, void>, 'SaengineProjectNavigator', treeContainer, new Delegate(), [
+			new OverviewRenderer(() => this.editorService.activeEditor instanceof ProjectOverviewInput),
+			new GroupRenderer(),
+			new PartRenderer(part => this.isActive(part)),
+			new SectionRenderer(node => this.isSectionActive(node)),
+			new FileRenderer(),
+		], {
+			identityProvider: { getId: node => node.id },
+			accessibilityProvider: {
+				getAriaLabel: node => {
+					switch (node.kind) {
+						case 'overview': return [localize('projectNavigator.overview', "Overview"), node.next].filter(Boolean).join(', ');
+						case 'group': return node.label;
+						case 'part': return [`${node.entry.number} ${node.entry.name}`, stateLabel(node.status), node.status?.text].filter(Boolean).join(', ');
+						case 'section': return localize('projectNavigator.sectionAria', "{0}, {1}", node.section.label, node.entry.name);
+						default: return node.name;
+					}
+				},
+				getWidgetAriaLabel: () => localize('projectNavigator.aria', "Project Parts"),
+			},
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: node => node.kind === 'part' ? node.entry.name : node.kind === 'section' ? node.section.label : node.kind === 'file' ? node.name : node.kind === 'overview' ? localize('projectNavigator.overview', "Overview") : node.label },
+			multipleSelectionSupport: false,
+			expandOnlyOnTwistieClick: true,
+			indent: 12,
+		}));
+		this._register(this.tree.onDidOpen(e => void this.open(e.element, !!e.editorOptions.preserveFocus)));
+		// Only opening a part moves the selection: a heading, or a twistie (which expands a part
+		// without opening it), leaves it on the part whose editor is active.
+		this._register(this.tree.onDidChangeSelection(e => {
+			const selected = e.elements[0];
+			const twistie = isHTMLElement(e.browserEvent?.target) && !!e.browserEvent.target.closest('.monaco-tl-twistie');
+			if (selected?.kind === 'group' || (selected?.kind === 'part' && twistie && !this.isActive(selected.entry.part))) {
+				this.selectActive();
+			}
+		}));
+		this._register(this.statusService.onDidChange(() => this.refreshScheduler.schedule()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
+				this.refreshScheduler.schedule();
+			}
+		}));
+		// The raw files change without the parts' statuses changing.
+		this._register(this.fileService.onDidFilesChange(e => {
+			const root = this.projectService.project?.root;
+			if (root && this.developerMode && e.affects(root)) {
+				this.refreshScheduler.schedule();
+			}
+		}));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateActive()));
+		this.updateActive();
+		void this.refresh();
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.bodySize = { height, width };
+		const line = this.versionsLine && !this.versionsLine.classList.contains('hidden') ? VERSIONS_LINE_HEIGHT : 0;
+		this.tree?.layout(Math.max(0, height - line), width);
+	}
+
+	/** The line under the parts that says what changed since the latest version. */
+	private renderVersionsLine(container: HTMLElement): void {
+		const line = this.versionsLine = append(container, $('.sa-nav-versions.hidden', { role: 'button', tabIndex: 0 }));
+		this.versionsIcon = append(line, $('span.sa-nav-versions-icon'));
+		this.versionsText = append(line, $('span.sa-nav-versions-text'));
+		const open = () => void this.commandService.executeCommand(SHOW_VERSIONS_COMMAND);
+		this._register(addDisposableListener(line, EventType.CLICK, open));
+		this._register(addDisposableListener(line, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				open();
+			}
+		}));
+		this._register(this.versionsService.onDidChange(() => this.updateVersionsLine()));
+		this.updateVersionsLine();
+	}
+
+	private updateVersionsLine(): void {
+		const line = this.versionsLine;
+		if (!line || !this.versionsText || !this.versionsIcon) {
+			return;
+		}
+		// Quiet until the backend answers: no line at all without versions.
+		const summary = this.projectService.project && this.versionsService.available ? unsavedSummary(this.versionsService.status, this.versionsService.editedParts) : undefined;
+		const wasHidden = line.classList.contains('hidden');
+		line.classList.toggle('hidden', !summary);
+		line.classList.toggle('dirty', !!summary?.dirty);
+		line.classList.toggle('problem', !!summary?.problem);
+		this.versionsText.textContent = summary?.text ?? '';
+		this.versionsIcon.className = `sa-nav-versions-icon ${ThemeIcon.asClassName(summary?.problem ? Codicon.warning : summary?.dirty ? Codicon.circleFilled : Codicon.history)}`;
+		line.title = summary?.problem
+			? localize('projectNavigator.versionsProblem', "{0}: {1}", summary.text, summary.problem)
+			: summary?.dirty
+				? localize('projectNavigator.versionsDirty', "{0}. Open Versions to save them as a version.", summary.text)
+				: localize('projectNavigator.versionsClean', "Open Versions");
+		line.setAttribute('aria-label', summary?.text ?? '');
+		if (wasHidden !== !summary && this.bodySize) {
+			this.layoutBody(this.bodySize.height, this.bodySize.width);
+		}
+	}
+
+	override focus(): void {
+		super.focus();
+		this.tree?.domFocus();
+	}
+
+	private isActive(part: IProjectPart): boolean {
+		if (this.opening) {
+			return this.opening.entry.part.id === part.id;
+		}
+		const project = this.projectService.project;
+		const active = this.activeResource;
+		if (project && isPartEditor(part.id, this.editorService.activeEditor)) {
+			return true; // the part's own editors without its file (result charts, members table)
+		}
+		if (!project || !active) {
+			return false;
+		}
+		if (part.id === 'exports' && active.scheme === EXPORTS_SCHEME) {
+			return true;
+		}
+		const resource = partResource(project, part);
+		return resource ? isEqual(resource, active) : isEqualOrParent(active, joinPath(project.root, part.folder));
+	}
+
+	/** The entry under its part that the active editor shows. */
+	private isSectionActive(node: ISectionNode): boolean {
+		if (this.opening) {
+			return node.id === this.opening.id;
+		}
+		return this.isActive(node.entry.part) && isSectionActive(node.section, this.editorService.activeEditor, this.activeSection);
+	}
+
+	/** The part whose editor is active is the selected row (its entry, when it has entries). */
+	private updateActive(): void {
+		this.opening = undefined;
+		this.activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+		const pane = this.editorService.activeEditorPane;
+		if (isPartSectionPane(pane)) {
+			this.activeSection = pane.partSection;
+			this.sectionListener.value = pane.onDidChangePartSection(() => {
+				this.activeSection = pane.partSection;
+				this.rerenderActive();
+			});
+		} else {
+			this.activeSection = undefined;
+			this.sectionListener.clear();
+		}
+		this.rerenderActive();
+	}
+
+	private rerenderActive(): void {
+		if (!this.tree) {
+			return;
+		}
+		// The active part shows its entries; a part expanded for that closes again after it, and
+		// the parts the user expanded stay as they are.
+		const active = this.partNodes.find(node => this.isActive(node.entry.part));
+		for (const id of [...this.autoExpanded]) {
+			if (id === active?.id) {
+				continue;
+			}
+			this.autoExpanded.delete(id);
+			const node = this.partNodes.find(n => n.id === id);
+			if (node && this.tree.hasElement(node)) {
+				this.tree.collapse(node);
+			}
+		}
+		if (active && this.tree.hasElement(active) && this.tree.isCollapsible(active) && this.tree.isCollapsed(active)) {
+			this.tree.expand(active);
+			this.autoExpanded.add(active.id);
+		}
+		this.selectActive();
+		// The list rerenders all rows only with dynamic heights: the rows are rerendered one by one.
+		for (const node of [...(this.overviewNode && this.tree.hasElement(this.overviewNode) ? [this.overviewNode] : []), ...this.partNodes, ...this.sectionNodes]) {
+			this.tree.rerender(node);
+		}
+	}
+
+	/** Selects (and focuses) the part whose editor is active; nothing when no part's is. */
+	private selectActive(): void {
+		if (!this.tree) {
+			return;
+		}
+		const part = this.partNodes.find(node => this.isActive(node.entry.part));
+		const overview = this.editorService.activeEditor instanceof ProjectOverviewInput && this.overviewNode && this.tree.hasElement(this.overviewNode) ? this.overviewNode : undefined;
+		const active = this.sectionNodes.find(node => this.isSectionActive(node)) ?? part ?? overview;
+		const selected = this.tree.getSelection()[0];
+		if (active) {
+			if (selected !== active) {
+				this.tree.setSelection([active]);
+				this.tree.setFocus([active]);
+			}
+		} else if (selected && selected.kind !== 'file') {
+			this.tree.setSelection([]);
+		}
+	}
+
+	private async refresh(): Promise<void> {
+		const project = this.projectService.project;
+		if (!this.tree) {
+			return;
+		}
+		this.element.classList.toggle('developer-mode', this.developerMode);
+		if (!project) {
+			this.tree.setChildren(null, []);
+			return;
+		}
+		const developerMode = this.developerMode;
+		const elements: IObjectTreeElement<NavigatorNode>[] = [];
+		const next = nextStep(this.statusService.statuses);
+		const nextPart = next && this.projectService.parts[next.index];
+		const overview: IOverviewNode = { kind: 'overview', id: 'overview', next: nextPart ? localize('projectNavigator.next', "Next: {0}", partName(nextPart)) : undefined };
+		elements.push({ element: overview, collapsible: false });
+		const partNodes: IPartNode[] = [];
+		const sectionNodes: ISectionNode[] = [];
+		for (const group of partGroups(this.projectService.parts)) {
+			elements.push({ element: { kind: 'group', id: `group:${group.id}`, label: group.label }, collapsible: false });
+			for (const entry of group.parts) {
+				const sections: ISectionNode[] = partSections(entry.part.id).map(section => ({ kind: 'section', id: `section:${entry.part.id}:${section.id}`, entry, section }));
+				sectionNodes.push(...sections);
+				const files = developerMode ? await this.files(joinPath(project.root, entry.part.folder), FILE_DEPTH) : [];
+				const children: IObjectTreeElement<NavigatorNode>[] = [...sections.map(element => ({ element })), ...files];
+				const node: IPartNode = { kind: 'part', id: `part:${entry.part.id}`, entry, status: this.statusService.statusOf(entry.part.id) };
+				partNodes.push(node);
+				elements.push({
+					element: node,
+					children,
+					collapsible: children.length > 0,
+					collapsed: ObjectTreeElementCollapseState.PreserveOrCollapsed,
+				});
+			}
+		}
+		if (project !== this.projectService.project) {
+			return; // changed meanwhile
+		}
+		this.tree.setChildren(null, elements);
+		this.partNodes = partNodes;
+		this.sectionNodes = sectionNodes;
+		this.overviewNode = overview;
+		this.updateActive();
+	}
+
+	private async files(folder: URI, depth: number): Promise<IObjectTreeElement<NavigatorNode>[]> {
+		let stat: IFileStat;
+		try {
+			stat = await this.fileService.resolve(folder);
+		} catch {
+			return [];
+		}
+		const children = [...stat.children ?? []].sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
+		return Promise.all(children.map(async child => {
+			const grandChildren = child.isDirectory && depth > 1 ? await this.files(child.resource, depth - 1) : [];
+			return {
+				element: { kind: 'file' as const, id: `file:${child.resource.toString()}`, resource: child.resource, name: child.name, isDirectory: child.isDirectory },
+				children: grandChildren,
+				collapsible: child.isDirectory,
+				collapsed: ObjectTreeElementCollapseState.PreserveOrCollapsed,
+			};
+		}));
+	}
+
+	private async open(node: NavigatorNode | undefined, preserveFocus: boolean): Promise<void> {
+		const project = this.projectService.project;
+		if (!node || !project) {
+			return;
+		}
+		if (node.kind === 'overview') {
+			await this.editorService.openEditor(ProjectOverviewInput.instance, { pinned: true, preserveFocus });
+		} else if (node.kind === 'part') {
+			await openPart(project, node.entry.part, { editorService: this.editorService, fileService: this.fileService, openerService: this.openerService, commandService: this.commandService }, { preserveFocus });
+		} else if (node.kind === 'section') {
+			this.opening = node;
+			this.rerenderActive();
+			await openPartSection(project, node.entry.part, node.section, { editorService: this.editorService, commandService: this.commandService }, { preserveFocus });
+		} else if (node.kind === 'file' && !node.isDirectory) {
+			await this.editorService.openEditor({ resource: node.resource, options: { preserveFocus } });
+		}
+	}
+}

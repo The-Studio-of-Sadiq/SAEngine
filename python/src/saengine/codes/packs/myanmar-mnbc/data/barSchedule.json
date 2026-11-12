@@ -1,0 +1,8 @@
+{
+  "$schema": "../../../schemas/barSchedule.schema.json",
+  "$sources": [
+    "SAEngine practice for Myanmar's metric bars: the bar shapes and schedule of BS 8666 (as the default pack), in place of the parent's ACI 315 inch rounding"
+  ],
+  "standard": "bs8666",
+  "shapeKey": false
+}

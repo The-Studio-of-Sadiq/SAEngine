@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { DEFAULT_MATERIALS, MATERIALS_SCHEMA, TEMPLATES } from '../../../../services/saengineProject/common/projectLibraries.generated.js';
+import { setActiveDisplayUnits } from '../../../../services/saengineProject/common/displayUnits.js';
+import { JsonObject, placeholderText, SchemaForm, unionEntry } from '../../browser/schemaForm.js';
+
+suite('SAEngine - SchemaForm', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup(item: JsonObject) {
+		const changes: string[] = [];
+		const form = workbenchInstantiationService(undefined, store).createInstance(SchemaForm, {
+			root: MATERIALS_SCHEMA,
+			template: defName => JSON.parse(JSON.stringify(TEMPLATES[defName])),
+			references: () => undefined,
+			validate: () => undefined,
+			changed: path => changes.push(path),
+			mode: () => undefined,
+		});
+		store.add({ dispose: () => form.dispose() });
+		const container = mainWindow.document.createElement('div');
+		form.render(container, MATERIALS_SCHEMA.$defs!.Material, item, ['category']);
+
+		const type = (label: string, text: string) => {
+			const row = [...container.querySelectorAll('.form-field')].find(r => r.querySelector('.form-label')?.textContent === label);
+			const input = row?.querySelector('input');
+			assert.ok(input, `no input for ${label}`);
+			input.value = text;
+			input.dispatchEvent(new Event('input'));
+		};
+		return { changes, type, container, labels: () => [...container.querySelectorAll('.form-group-title')].map(e => e.textContent) };
+	}
+
+	function concrete(): JsonObject {
+		const materials = (DEFAULT_MATERIALS as { materials: JsonObject[] }).materials;
+		return JSON.parse(JSON.stringify(materials.find(m => m.id === 'C24.1')));
+	}
+
+	test('applies valid values and never invalid ones', () => {
+		const item = concrete();
+		const { changes, type } = setup(item);
+
+		type('Compressive strength f\'c', '30');
+		type('Compressive strength f\'c', '-5');
+		type('Compressive strength f\'c', 'abc');
+		type('Poisson\'s ratio ν', '0.7');
+		type('ID', 'bad id!');
+
+		assert.deepStrictEqual({
+			fc: (item.concrete as JsonObject).fc,
+			nu: (item.mechanical as JsonObject).nu,
+			id: item.id,
+			changes,
+		}, { fc: 30, nu: 0.2, id: 'C24.1', changes: ['concrete.fc'] });
+	});
+
+	test('C13: a field with a unit shows and reads the display units and stores SI', () => {
+		setActiveDisplayUnits({ system: 'USCustomary' });
+		try {
+			const item = concrete();
+			const { type, container } = setup(item);
+			const row = [...container.querySelectorAll('.form-field')].find(r => r.querySelector('.form-label')?.textContent === 'Compressive strength f\'c');
+			assert.strictEqual(row?.querySelector('.form-unit')?.textContent, 'ksi');
+			assert.strictEqual(row?.querySelector('input')?.value, '3.4954'); // 24.1 MPa
+			type('Compressive strength f\'c', '4');
+			assert.ok(Math.abs(((item.concrete as JsonObject).fc as number) - 27.579029172672) < 1e-9);
+			type('Compressive strength f\'c', '30 MPa'); // a unit of its own
+			assert.strictEqual((item.concrete as JsonObject).fc, 30);
+		} finally {
+			setActiveDisplayUnits(undefined);
+		}
+	});
+
+	test('C13b: the greyed code value of an override follows the display units; as it was in SI', () => {
+		assert.strictEqual(placeholderText('34.5 (Dhaka, Table 6.2.8)', undefined), '34.5 (Dhaka, Table 6.2.8)');
+		setActiveDisplayUnits({ system: 'USCustomary' });
+		try {
+			assert.strictEqual(placeholderText('34.5 (Dhaka, Table 6.2.8)', 'm/s'), '77.174 (Dhaka, Table 6.2.8)');
+			assert.strictEqual(placeholderText('0.25; 0.5 above 3 kN/m² (Sec 2.5.7.3)', undefined), '0.25; 0.5 above 62.7 psf (Sec 2.5.7.3)');
+		} finally {
+			setActiveDisplayUnits(undefined);
+		}
+	});
+
+	test('clearing an optional field removes it; a required one keeps its value', () => {
+		const item = concrete();
+		const { type } = setup(item);
+
+		type('Modulus of rupture fr', '');
+		type('Compressive strength f\'c', '');
+
+		assert.deepStrictEqual({ ft: (item.concrete as JsonObject).ft, fc: (item.concrete as JsonObject).fc }, { ft: undefined, fc: 24.1 });
+	});
+
+	test('W4C-4: a union alternative chosen in its select names its discriminator', () => {
+		// A steel beam's Connection: End plate gave `{}` (no "type"), which pydantic rejects.
+		assert.deepStrictEqual(unionEntry({}, 'type', 'endPlate'), { type: 'endPlate' });
+		assert.deepStrictEqual(unionEntry(JSON.parse(JSON.stringify(TEMPLATES.EndPlateConnection)), 'type', 'endPlate'), { type: 'endPlate' });
+		assert.deepStrictEqual(unionEntry({ xDim: 450, yDim: 450 }, 'shape', 'rectangle'), { xDim: 450, yDim: 450, shape: 'rectangle' });
+	});
+});

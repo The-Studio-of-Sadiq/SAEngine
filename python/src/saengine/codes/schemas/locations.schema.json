@@ -1,0 +1,424 @@
+{
+  "$defs": {
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "zone": {
+          "description": "Seismic zone (index into zoneCoefficients).",
+          "title": "Zone",
+          "type": "integer"
+        },
+        "windSpeed": {
+          "description": "Basic wind speed V [m/s].",
+          "exclusiveMinimum": 0,
+          "title": "Windspeed",
+          "type": "number"
+        },
+        "ss": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCE acceleration SS at short periods [g].",
+          "title": "Ss"
+        },
+        "s1": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapped MCE acceleration S1 [g].",
+          "title": "S1"
+        },
+        "tl": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Long-period transition period TL [s].",
+          "title": "Tl"
+        },
+        "spectrum": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "(T [s], Sa [g]) of the town's 5 % damped uniform hazard spectrum, for the reference site class of the pack's designSpectrum.ordinates.",
+          "title": "Spectrum"
+        },
+        "groundSnow": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ground snow load Ss [kN/m²] of the town.",
+          "title": "Groundsnow"
+        },
+        "rainLoad": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Associated rain load Sr [kN/m²] of the town.",
+          "title": "Rainload"
+        },
+        "pressureFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Factor on the velocity pressure of the town's wind speed (the speed is taken × √factor); empty: 1.",
+          "title": "Pressurefactor"
+        },
+        "zoneLabel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The zone as the code names it (e.g. '2A'); empty: its number.",
+          "title": "Zonelabel"
+        },
+        "spectrumType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Id of the pack's seismic.spectra the town takes (e.g. its design earthquake group); empty: the pack's spectrumType.",
+          "title": "Spectrumtype"
+        },
+        "mapZones": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Zone (index into zoneCoefficients) by hazard map id (seismic.hazardMaps); empty: zone for every map.",
+          "title": "Mapzones"
+        }
+      },
+      "required": [
+        "name",
+        "zone",
+        "windSpeed"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "Town": {
+      "additionalProperties": false,
+      "description": "A town of the code's hazard tables and where it is (WGS 84), for the map's suggestion.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "name": {
+          "description": "The town as the code spells it.",
+          "title": "Name",
+          "type": "string"
+        },
+        "latitude": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "z": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Seismic zone coefficient Z; empty: not in the table.",
+          "title": "Z"
+        },
+        "windSpeed": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Basic wind speed V [m/s]; empty: not in the table.",
+          "title": "Windspeed"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Its ``locations`` id (Project Settings), where there is one.",
+          "title": "Location"
+        }
+      },
+      "required": [
+        "name",
+        "latitude",
+        "longitude"
+      ],
+      "title": "Town",
+      "type": "object"
+    },
+    "TownMap": {
+      "additionalProperties": false,
+      "description": "The towns of the code's zone and wind tables with their coordinates: the site map\nsuggests the nearest one's Z and V (D3: they were module constants of ``gis/towns.py``).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "area": {
+          "description": "Where the code applies (for the outside-the-area note).",
+          "title": "Area",
+          "type": "string"
+        },
+        "bounds": {
+          "description": "(south, west, north, east) [degrees] of the area.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bounds",
+          "type": "array"
+        },
+        "zClause": {
+          "description": "The table of the towns' Z.",
+          "title": "Zclause",
+          "type": "string"
+        },
+        "windClause": {
+          "description": "The table of the towns' V.",
+          "title": "Windclause",
+          "type": "string"
+        },
+        "governs": {
+          "default": "",
+          "description": "What governs over the nearest town.",
+          "title": "Governs",
+          "type": "string"
+        },
+        "towns": {
+          "items": {
+            "$ref": "#/$defs/Town"
+          },
+          "minItems": 1,
+          "title": "Towns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "area",
+        "bounds",
+        "zClause",
+        "windClause",
+        "towns"
+      ],
+      "title": "TownMap",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Towns with their seismic zone and basic wind speed.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "locations": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Location"
+      },
+      "title": "Locations",
+      "type": "object"
+    },
+    "default": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "C7: the town a new project under this pack starts with; empty: the first of ``locations``.",
+      "title": "Default"
+    },
+    "towns": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TownMap"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Towns with coordinates for the site map's suggestion; empty: the pack does not cover the suggestion."
+    }
+  },
+  "required": [
+    "locations"
+  ],
+  "title": "LocationsTable",
+  "type": "object",
+  "$id": "saengine.codePack.locations/1"
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/slabCoefficients.schema.json",
+  "$sources": [
+    "SAEngine practice: two-way and one-way moment coefficients (EN 1992-1-1 5.1.1 accepts any analysis meeting equilibrium); the bar spacing of EN 1992-1-1 9.3.1.1 is in concreteMethods"
+  ],
+  "source": "SAEngine practice: two-way and one-way moment coefficients (EN 1992-1-1 5.1.1 accepts any analysis meeting equilibrium); the bar spacing of EN 1992-1-1 9.3.1.1 is in concreteMethods",
+  "sources": {
+    "twoWay": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "twoWayLimits": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "oneWay": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "maxSpacing": "EN 1992-1-1 9.3.1.1(3), recommended values: main bars 3h and 400 mm, secondary bars 3.5h and 450 mm (two-way slabs: both directions main; the smaller values of areas with concentrated loads or the largest moment, 2h and 250 mm, not applied)",
+    "discontinuousEdgeShare": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  },
+  "maxSpacing": {
+    "twoWay": [3.0, 400.0],
+    "oneWay": [3.0, 400.0],
+    "temperature": [3.5, 450.0]
+  }
+}

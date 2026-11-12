@@ -1,0 +1,30 @@
+{
+  "id": "steel-design",
+  "name": "SAEngine steel design",
+  "repository": "The-Studio-of-Sadiq/saengine-steel-design",
+  "description": "Steel member and connection design, the steel section library, the steel drawing sheets and the steel results panel of SAEngine.",
+  "licence": "AGPL-3.0-only",
+  "notes": [
+    "The steel tables of a design code (BNBC 2020: python/src/saengine/codes/packs/bnbc2020/data/steel.json) belong to the code pack and are published by saengine-design-codes, not here.",
+    "The shared design pipeline that calls steel (design/check.py, design/proposal.py, design/overwrites.py, report/build.py, library/objects.py, drawings/sheets/model.py) stays in the core."
+  ],
+  "paths": [
+    "python/src/saengine/design/steel",
+    "python/src/saengine/design/steel_design.py",
+    "python/src/saengine/design/steel_proposal.py",
+    "python/src/saengine/design/steel_connections.py",
+    "python/src/saengine/library/steel_sections.py",
+    "python/src/saengine/drawings/sheets/steel.py",
+    "python/src/saengine/verification/cases/steel.py",
+    "python/tests/test_design_steel.py",
+    "python/tests/test_design_steel_connections.py",
+    "python/tests/test_design_steel_frame.py",
+    "python/tests/test_design_steel_proposal.py",
+    "python/tests/test_drawings_steel.py",
+    "python/tests/test_steel_integration.py",
+    "python/tests/test_steel_sections.py",
+    "workbench/src/vs/workbench/contrib/saengineFem/browser/femSteelDesign.ts",
+    "workbench/src/vs/workbench/contrib/saengineFem/test/browser/femSteelDesign.test.ts",
+    "docs/images/steel-drawings"
+  ]
+}

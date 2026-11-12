@@ -373,8 +373,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Custom menu bar (disabled if auxiliary)
 		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
-			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
-				if (this.currentMenubarVisibility === 'compact') {
+			if (event.affectsConfiguration(MenuSettings.MenuBarVisibility) || event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) /* SAEngine */) {
+				if (!this.menubarInTitle) { // SAEngine: was `this.currentMenubarVisibility === 'compact'`
 					this.uninstallMenubar();
 				} else {
 					this.installMenubar();
@@ -487,7 +487,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			!this.isAuxiliary &&
 			!hasNativeMenu(this.configurationService, this.titleBarStyle) &&
 			(!isMacintosh || isWeb) &&
-			this.currentMenubarVisibility !== 'compact'
+			this.menubarInTitle // SAEngine: was `this.currentMenubarVisibility !== 'compact'`
 		) {
 			this.installMenubar();
 		}
@@ -894,6 +894,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return getMenuBarVisibility(this.configurationService);
 	}
 
+	/**
+	 * SAEngine: the compact (≡) menu lives in the activity bar, which is only on the side at its
+	 * default location. With the activity bar elsewhere, the title bar hosts the compact menu.
+	 */
+	private get menubarInTitle(): boolean {
+		return this.currentMenubarVisibility !== 'compact' || this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
+	}
+
 	private get layoutControlEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false;
 	}
@@ -912,7 +920,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private get activityActionsEnabled(): boolean {
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return !this.isCompact && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM);
+		// SAEngine: also with the activity bar hidden (the start page), so that Manage (settings) stays reachable.
+		return !this.isCompact && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM || activityBarPosition === ActivityBarPosition.HIDDEN);
 	}
 
 	private get globalActionsEnabled(): boolean {

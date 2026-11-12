@@ -1,0 +1,11 @@
+{
+  "$help": "The strength combinations are a list matched by name (bnbc2020 declares the merge key): the seismic combination with 1.0L is removed and one with 0.5L is added. Every other combination comes from bnbc2020 unchanged.",
+  "$sources": ["Example local schedule, clause 4.2"],
+  "strength": [
+    { "name": "1.2D + 1.0E + 1.0L", "$remove": true },
+    {
+      "name": "1.2D + 1.0E + 0.5L",
+      "factors": { "D": 1.2, "E": 1.0, "L": 0.5 }
+    }
+  ]
+}

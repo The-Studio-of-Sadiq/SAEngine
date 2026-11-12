@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/cfdWind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1991-1-4:2005 Sec 1.5 (design assisted by testing and measurements); z0 of the terrain categories from the wind table (Table 4.1); see VERIFY.md"
+  ],
+  "source": "EN 1991-1-4:2005 Sec 1.5; SAEngine practice for the number of directions and the lower limit",
+  "directionStep": 30,
+  "roughness": {},
+  "lowerLimit": 0.8,
+  "validation": "EN 1991-1-4 Sec 1.5 allows wind tunnel tests and properly validated numerical methods, with appropriate models of the structure and of the natural wind. SAEngine does not validate the CFD results: the engineer does.",
+  "sources": {
+    "directionStep": "SAEngine practice: 12 directions every 30° (EN 1991-1-4 gives no number of directions for tests)",
+    "roughness": "None here: the terrain categories' z0 of the wind table (EN 1991-1-4 Table 4.1)",
+    "lowerLimit": "SAEngine practice after ASCE 7-22 Sec 31.4.3 (EN 1991-1-4 gives no lower limit; a National Annex may)",
+    "validation": "EN 1991-1-4:2005 Sec 1.5(2)"
+  },
+  "clauses": {
+    "procedure": "EN 1991-1-4 Sec 1.5"
+  }
+}

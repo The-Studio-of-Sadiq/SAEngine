@@ -1,0 +1,1720 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$sources": [
+    "GB 50011-2010 (2016 edition) Chapters 3, 5, 6 and 8; GB 55002-2021"
+  ],
+  "source": "GB 50011-2010: site classes I0-IV with the characteristic period Tg by design earthquake group (Table 5.1.4-2), the seismic influence coefficient spectrum with the damping adjustment (5.1.5), αmax of the frequent and rare earthquakes (Table 5.1.4-1), the base shear method FEk = α1 Geq with Geq = 0.85 GE and Fi = Gi Hi / Σ Gj Hj (5.2.1), the modal method (CQC), the minimum shear coefficient λ (Table 5.2.5), the elastic storey drift limits of the frequent earthquake (Table 5.5.1), the elasto-plastic drift of the rare earthquake (5.5.2-5.5.5) and the seismic grades (Tables 6.1.2, 8.1.3)",
+  "defaultSiteClass": "II",
+  "defaultSystem": "rcFrame",
+  "spectrumType": "group3",
+  "spectra": {
+    "group1": {
+      "I0": {
+        "description": "Class I0: hard rock (vs > 800 m/s); Tg 0.2 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.2,
+        "TD": 1.0
+      },
+      "I1": {
+        "description": "Class I1: soft rock or hard soil, thin cover; Tg 0.25 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.25,
+        "TD": 1.25
+      },
+      "II": {
+        "description": "Class II: medium soil; Tg 0.35 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.35,
+        "TD": 1.75
+      },
+      "III": {
+        "description": "Class III: soft soil, medium cover; Tg 0.45 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.45,
+        "TD": 2.25
+      },
+      "IV": {
+        "description": "Class IV: soft soil, thick cover (over 80 m); Tg 0.65 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.65,
+        "TD": 3.25
+      }
+    },
+    "group2": {
+      "I0": {
+        "description": "Class I0: hard rock (vs > 800 m/s); Tg 0.25 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.25,
+        "TD": 1.25
+      },
+      "I1": {
+        "description": "Class I1: soft rock or hard soil, thin cover; Tg 0.3 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.3,
+        "TD": 1.5
+      },
+      "II": {
+        "description": "Class II: medium soil; Tg 0.4 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.4,
+        "TD": 2.0
+      },
+      "III": {
+        "description": "Class III: soft soil, medium cover; Tg 0.55 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.55,
+        "TD": 2.75
+      },
+      "IV": {
+        "description": "Class IV: soft soil, thick cover (over 80 m); Tg 0.75 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.75,
+        "TD": 3.75
+      }
+    },
+    "group3": {
+      "I0": {
+        "description": "Class I0: hard rock (vs > 800 m/s); Tg 0.3 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.3,
+        "TD": 1.5
+      },
+      "I1": {
+        "description": "Class I1: soft rock or hard soil, thin cover; Tg 0.35 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.35,
+        "TD": 1.75
+      },
+      "II": {
+        "description": "Class II: medium soil; Tg 0.45 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.45,
+        "TD": 2.25
+      },
+      "III": {
+        "description": "Class III: soft soil, medium cover; Tg 0.65 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.65,
+        "TD": 3.25
+      },
+      "IV": {
+        "description": "Class IV: soft soil, thick cover (over 80 m); Tg 0.9 s",
+        "S": 1.0,
+        "TB": 0.1,
+        "TC": 0.9,
+        "TD": 4.5
+      }
+    }
+  },
+  "siteClasses": {
+    "$replace": true,
+    "I0": {
+      "description": "Class I0: hard rock (vs > 800 m/s); Tg 0.3 s",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.3,
+      "TD": 1.5
+    },
+    "I1": {
+      "description": "Class I1: soft rock or hard soil, thin cover; Tg 0.35 s",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.35,
+      "TD": 1.75
+    },
+    "II": {
+      "description": "Class II: medium soil; Tg 0.45 s",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.45,
+      "TD": 2.25
+    },
+    "III": {
+      "description": "Class III: soft soil, medium cover; Tg 0.65 s",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.65,
+      "TD": 3.25
+    },
+    "IV": {
+      "description": "Class IV: soft soil, thick cover (over 80 m); Tg 0.9 s",
+      "S": 1.0,
+      "TB": 0.1,
+      "TC": 0.9,
+      "TD": 4.5
+    }
+  },
+  "systems": {
+    "$replace": true,
+    "rcFrame": {
+      "name": "RC frame (框架)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 6.1.1: frame",
+      "heightLimits": {
+        "B": 60.0,
+        "C": 50.0,
+        "D": 40.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "concreteMomentFrame",
+      "group": "frame",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "rcFrameWall": {
+      "name": "RC frame-shear wall (框架-抗震墙)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 6.1.1: frame-shear wall",
+      "heightLimits": {
+        "B": 130.0,
+        "C": 120.0,
+        "D": 100.0
+      },
+      "frame": "ordinary",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "frameWall",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "rcWall": {
+      "name": "RC shear walls (抗震墙)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 6.1.1: shear walls",
+      "heightLimits": {
+        "B": 140.0,
+        "C": 120.0,
+        "D": 100.0
+      },
+      "frame": "ordinary",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "wall",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "rcFrameTube": {
+      "name": "RC frame-core tube (框架-核心筒)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 6.1.1: frame-core tube",
+      "heightLimits": {
+        "B": 150.0,
+        "C": 130.0,
+        "D": 100.0
+      },
+      "frame": "ordinary",
+      "specialWalls": true,
+      "concrete": true,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "frameTube",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "steelFrame": {
+      "name": "Steel frame (钢框架)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 8.1.1: frame",
+      "heightLimits": {
+        "B": 110.0,
+        "C": 110.0,
+        "D": 90.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": true,
+      "periodFamily": "steelMomentFrame",
+      "group": "steelFrame",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "steelBraced": {
+      "name": "Steel frame with concentric braces (钢框架-中心支撑)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 8.1.1: frame-concentric braces",
+      "heightLimits": {
+        "B": 220.0,
+        "C": 220.0,
+        "D": 180.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "other",
+      "group": "steelBraced",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    },
+    "steelEccentric": {
+      "name": "Steel frame with eccentric braces (钢框架-偏心支撑)",
+      "R": 1.0,
+      "Omega0": 1.0,
+      "Cd": 1.0,
+      "row": "GB 50011 Table 8.1.1: frame-eccentric braces",
+      "heightLimits": {
+        "B": 240.0,
+        "C": 240.0,
+        "D": 200.0
+      },
+      "frame": "ordinary",
+      "specialWalls": false,
+      "concrete": false,
+      "masonry": false,
+      "momentFrame": false,
+      "periodFamily": "eccentricallyBracedSteelFrame",
+      "group": "steelBraced",
+      "note": "GB designs for the frequent earthquake elastically: R = Ω0 = Cd = 1 (SAEngine's factors); the detailing follows the seismic grade"
+    }
+  },
+  "generatorSystems": {
+    "rcFrame": [
+      "rcFrame"
+    ],
+    "rcFrameWithWalls": [
+      "rcFrameWall"
+    ],
+    "flatSlab": [
+      "rcFrameWall"
+    ],
+    "steelMomentFrame": [
+      "steelFrame"
+    ],
+    "steelBracedFrame": [
+      "steelBraced"
+    ],
+    "$comment": "SAEngine practice: the New Building generator's systems of this pack's own table (GB 50011-2010 Table 6.1.1): an RC frame as rcFrame; a frame with walls, and a flat slab (core walls added: the slab-column frame is no moment frame), as rcFrameWall; the first the height limit permits is taken"
+  },
+  "designCategories": {
+    "occupancyGroups": {
+      "$replace": true,
+      "I": "all",
+      "II": "all",
+      "III": "all",
+      "IV": "all"
+    },
+    "bySiteClass": {
+      "$replace": true,
+      "I0": {
+        "all": [
+          "B",
+          "C",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "I1": {
+        "all": [
+          "B",
+          "C",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "II": {
+        "all": [
+          "B",
+          "C",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "III": {
+        "all": [
+          "B",
+          "C",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      },
+      "IV": {
+        "all": [
+          "B",
+          "C",
+          "C",
+          "D",
+          "D",
+          "D"
+        ]
+      }
+    },
+    "aliases": {
+      "$replace": true
+    }
+  },
+  "requiredDetailing": {
+    "$replace": true,
+    "B": "ordinary",
+    "C": "intermediate",
+    "D": "special"
+  },
+  "allowableDrift": {
+    "$replace": true,
+    "I": 0.0018181818181818182,
+    "II": 0.0018181818181818182,
+    "III": 0.0018181818181818182,
+    "IV": 0.0018181818181818182
+  },
+  "allowableDriftLabel": "RC frames (GB 50011 Table 5.5.1: elastic storey drift under the frequent earthquake at most 1/550)",
+  "driftLimits": [
+    {
+      "id": "frameWall",
+      "label": "RC frame-shear wall, frame-core tube: 1/800",
+      "groups": [
+        "frameWall",
+        "frameTube"
+      ],
+      "limits": {
+        "I": 0.00125,
+        "II": 0.00125,
+        "III": 0.00125,
+        "IV": 0.00125
+      }
+    },
+    {
+      "id": "wall",
+      "label": "RC shear walls, tube in tube: 1/1000",
+      "groups": [
+        "wall"
+      ],
+      "limits": {
+        "I": 0.001,
+        "II": 0.001,
+        "III": 0.001,
+        "IV": 0.001
+      }
+    },
+    {
+      "id": "steel",
+      "label": "Steel structures: 1/250",
+      "groups": [
+        "steelFrame",
+        "steelBraced"
+      ],
+      "limits": {
+        "I": 0.004,
+        "II": 0.004,
+        "III": 0.004,
+        "IV": 0.004
+      }
+    }
+  ],
+  "driftRedundancyCategories": [],
+  "driftAmplification": "designForces",
+  "siteSpecificStudy": {
+    "$replace": true,
+    "classes": [],
+    "assumedClass": null,
+    "clause": "",
+    "warning": ""
+  },
+  "dampingEta": 1.0,
+  "dampingCorrection": {
+    "$replace": true,
+    "method": "none"
+  },
+  "designSpectrum": {
+    "method": "influenceCoefficient",
+    "clause": "GB 50011-2010 5.1.5",
+    "influence": {
+      "referenceDamping": 0.05,
+      "riseStart": 0.45,
+      "risePeriod": 0.1,
+      "tailFrom": 5.0,
+      "longest": 6.0,
+      "gamma": {
+        "base": 0.9,
+        "a": 0.3,
+        "b": 6.0
+      },
+      "eta1": {
+        "base": 0.02,
+        "a": 4.0,
+        "b": 32.0,
+        "least": 0.0
+      },
+      "eta2": {
+        "base": 1.0,
+        "a": 0.08,
+        "b": 1.6,
+        "least": 0.55
+      },
+      "rare": {
+        "1": 0.28,
+        "2": 0.5,
+        "3": 0.72,
+        "4": 0.9,
+        "5": 1.2,
+        "6": 1.4
+      },
+      "rarePeriodIncrease": 0.05,
+      "rareIncreaseZones": [
+        4,
+        5,
+        6
+      ],
+      "clauses": {
+        "shape": "GB 50011-2010 5.1.5, Figure 5.1.5",
+        "damping": "GB 50011-2010 Eqs 5.1.5-1 (γ), 5.1.5-2 (η1), 5.1.5-3 (η2)",
+        "rare": "GB 50011-2010 Table 5.1.4-1 (rare earthquake), 5.1.4 (Tg + 0.05 s for 8 and 9)"
+      }
+    }
+  },
+  "lateralForce": {
+    "correction": 0.85,
+    "minStoreys": 2,
+    "distribution": "linear",
+    "minimumShare": {
+      "1": 0.008,
+      "2": 0.016,
+      "3": 0.024,
+      "4": 0.032,
+      "5": 0.048,
+      "6": 0.064
+    },
+    "clause": "GB 50011-2010 5.2.1, 5.2.5",
+    "topForce": {
+      "periodFrom": 0.1,
+      "factor": 0.08,
+      "maxShare": 0.9,
+      "cornerFactor": 1.4,
+      "offsets": [
+        [
+          0.35,
+          0.07
+        ],
+        [
+          0.55,
+          0.01
+        ],
+        [
+          10.0,
+          -0.02
+        ]
+      ]
+    }
+  },
+  "rareDrift": {
+    "method": "amplifiedElastic",
+    "zones": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "yieldStrengthRatio": 0.5,
+    "amplification": [
+      {
+        "groups": [
+          "frame"
+        ],
+        "maxStoreys": 4,
+        "points": [
+          [
+            0.3,
+            1.6
+          ],
+          [
+            0.4,
+            1.4
+          ],
+          [
+            0.5,
+            1.3
+          ]
+        ],
+        "label": "uniform frames of 2-4 storeys"
+      },
+      {
+        "groups": [
+          "frame"
+        ],
+        "maxStoreys": 7,
+        "points": [
+          [
+            0.3,
+            1.8
+          ],
+          [
+            0.4,
+            1.65
+          ],
+          [
+            0.5,
+            1.5
+          ]
+        ],
+        "label": "uniform frames of 5-7 storeys"
+      },
+      {
+        "groups": [
+          "frame"
+        ],
+        "maxStoreys": 12,
+        "points": [
+          [
+            0.3,
+            2.2
+          ],
+          [
+            0.4,
+            2.0
+          ],
+          [
+            0.5,
+            1.8
+          ]
+        ],
+        "label": "uniform frames of 8-12 storeys"
+      }
+    ],
+    "defaultAmplification": 2.2,
+    "limits": [
+      {
+        "groups": [
+          "frame"
+        ],
+        "limit": 0.02,
+        "label": "RC frames"
+      },
+      {
+        "groups": [
+          "frameWall",
+          "frameTube"
+        ],
+        "limit": 0.01,
+        "label": "RC frame-shear wall, frame-core tube"
+      },
+      {
+        "groups": [
+          "wall"
+        ],
+        "limit": 0.008333333333333333,
+        "label": "RC shear walls, tube in tube"
+      },
+      {
+        "groups": [
+          "steelFrame",
+          "steelBraced"
+        ],
+        "limit": 0.02,
+        "label": "multi- and high-rise steel"
+      }
+    ],
+    "defaultLimit": 0.01,
+    "clause": "GB 50011-2010 5.5.3, 5.5.4 (Table 5.5.4 ηp), 5.5.5 (Table 5.5.5 [θp])"
+  },
+  "seismicGrades": {
+    "columns": {
+      "1": "6",
+      "2": "7",
+      "3": "7",
+      "4": "8",
+      "5": "8",
+      "6": "9"
+    },
+    "order": [
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "raise": {
+      "III": 1,
+      "IV": 1
+    },
+    "rows": [
+      {
+        "groups": [
+          "frame"
+        ],
+        "maxHeight": 24.0,
+        "grades": {
+          "6": "frame-4",
+          "7": "frame-3",
+          "8": "frame-2",
+          "9": "frame-1"
+        }
+      },
+      {
+        "groups": [
+          "frame"
+        ],
+        "grades": {
+          "6": "frame-3",
+          "7": "frame-2",
+          "8": "frame-1"
+        }
+      },
+      {
+        "groups": [
+          "frameWall"
+        ],
+        "maxHeight": 24.0,
+        "grades": {
+          "6": "dual-4",
+          "7": "dual-4",
+          "8": "dual-3",
+          "9": "dual-2"
+        }
+      },
+      {
+        "groups": [
+          "frameWall"
+        ],
+        "maxHeight": 60.0,
+        "grades": {
+          "6": "dual-4",
+          "7": "dual-3",
+          "8": "dual-2",
+          "9": "dual-1"
+        }
+      },
+      {
+        "groups": [
+          "frameWall"
+        ],
+        "grades": {
+          "6": "dual-3",
+          "7": "dual-2",
+          "8": "dual-1"
+        }
+      },
+      {
+        "groups": [
+          "wall"
+        ],
+        "maxHeight": 24.0,
+        "grades": {
+          "6": "dual-4",
+          "7": "dual-4",
+          "8": "dual-3",
+          "9": "dual-2"
+        }
+      },
+      {
+        "groups": [
+          "wall"
+        ],
+        "maxHeight": 80.0,
+        "grades": {
+          "6": "dual-4",
+          "7": "dual-3",
+          "8": "dual-2",
+          "9": "dual-1"
+        }
+      },
+      {
+        "groups": [
+          "wall"
+        ],
+        "grades": {
+          "6": "dual-3",
+          "7": "dual-2",
+          "8": "dual-1"
+        }
+      },
+      {
+        "groups": [
+          "frameTube"
+        ],
+        "grades": {
+          "6": "dual-3",
+          "7": "dual-2",
+          "8": "dual-1",
+          "9": "dual-1"
+        }
+      },
+      {
+        "groups": [
+          "steelFrame",
+          "steelBraced"
+        ],
+        "maxHeight": 50.0,
+        "grades": {
+          "6": "steel-none",
+          "7": "steel-4",
+          "8": "steel-3",
+          "9": "steel-2"
+        }
+      },
+      {
+        "groups": [
+          "steelFrame",
+          "steelBraced"
+        ],
+        "grades": {
+          "6": "steel-4",
+          "7": "steel-3",
+          "8": "steel-2",
+          "9": "steel-1"
+        }
+      }
+    ],
+    "grades": {
+      "frame-1": {
+        "label": "一级 (grade 1), frame",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.7,
+          "columnShear": 1.5,
+          "beamShear": 1.3,
+          "axialRatio": 0.65,
+          "confinement": 0.1,
+          "anchorage": 1.15
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.004,
+            0.8
+          ],
+          "beamSpanSteel": [
+            0.003,
+            0.65
+          ],
+          "beamEndDepth": 0.25,
+          "beamEndCompression": 0.5,
+          "beamHoopZone": [
+            2.0,
+            500
+          ],
+          "beamHoops": [
+            4,
+            6,
+            100
+          ],
+          "beamHoopDia": 10,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            6,
+            100
+          ],
+          "columnHoopDia": 10,
+          "confinement": [
+            [
+              0.3,
+              0.1
+            ],
+            [
+              0.4,
+              0.11
+            ],
+            [
+              0.5,
+              0.13
+            ],
+            [
+              0.6,
+              0.15
+            ],
+            [
+              0.7,
+              0.17
+            ],
+            [
+              0.8,
+              0.2
+            ],
+            [
+              0.9,
+              0.23
+            ]
+          ],
+          "confinementMin": 0.008,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.01,
+            "corner": 0.011
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "dual-1": {
+        "label": "一级 (grade 1), frames of frame-wall and tube structures",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.4,
+          "columnShear": 1.4,
+          "beamShear": 1.3,
+          "axialRatio": 0.75,
+          "wallShear": 1.6,
+          "confinement": 0.1,
+          "anchorage": 1.15
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.004,
+            0.8
+          ],
+          "beamSpanSteel": [
+            0.003,
+            0.65
+          ],
+          "beamEndDepth": 0.25,
+          "beamEndCompression": 0.5,
+          "beamHoopZone": [
+            2.0,
+            500
+          ],
+          "beamHoops": [
+            4,
+            6,
+            100
+          ],
+          "beamHoopDia": 10,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            6,
+            100
+          ],
+          "columnHoopDia": 10,
+          "confinement": [
+            [
+              0.3,
+              0.1
+            ],
+            [
+              0.4,
+              0.11
+            ],
+            [
+              0.5,
+              0.13
+            ],
+            [
+              0.6,
+              0.15
+            ],
+            [
+              0.7,
+              0.17
+            ],
+            [
+              0.8,
+              0.2
+            ],
+            [
+              0.9,
+              0.23
+            ]
+          ],
+          "confinementMin": 0.008,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.009,
+            "corner": 0.011
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "steel-1": {
+        "label": "一级 (grade 1), steel",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.15
+        }
+      },
+      "frame-2": {
+        "label": "二级 (grade 2), frame",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.5,
+          "columnShear": 1.3,
+          "beamShear": 1.2,
+          "axialRatio": 0.75,
+          "confinement": 0.08,
+          "anchorage": 1.15
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.003,
+            0.65
+          ],
+          "beamSpanSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamEndDepth": 0.35,
+          "beamEndCompression": 0.3,
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            100
+          ],
+          "beamHoopDia": 8,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            100
+          ],
+          "columnHoopDia": 8,
+          "confinement": [
+            [
+              0.3,
+              0.08
+            ],
+            [
+              0.4,
+              0.09
+            ],
+            [
+              0.5,
+              0.11
+            ],
+            [
+              0.6,
+              0.13
+            ],
+            [
+              0.7,
+              0.15
+            ],
+            [
+              0.8,
+              0.17
+            ],
+            [
+              0.9,
+              0.19
+            ],
+            [
+              1.0,
+              0.22
+            ],
+            [
+              1.05,
+              0.24
+            ]
+          ],
+          "confinementMin": 0.006,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.008,
+            "corner": 0.009
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "dual-2": {
+        "label": "二级 (grade 2), frames of frame-wall and tube structures",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.2,
+          "columnShear": 1.2,
+          "beamShear": 1.2,
+          "axialRatio": 0.85,
+          "wallShear": 1.4,
+          "confinement": 0.08,
+          "anchorage": 1.15
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.003,
+            0.65
+          ],
+          "beamSpanSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamEndDepth": 0.35,
+          "beamEndCompression": 0.3,
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            100
+          ],
+          "beamHoopDia": 8,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            100
+          ],
+          "columnHoopDia": 8,
+          "confinement": [
+            [
+              0.3,
+              0.08
+            ],
+            [
+              0.4,
+              0.09
+            ],
+            [
+              0.5,
+              0.11
+            ],
+            [
+              0.6,
+              0.13
+            ],
+            [
+              0.7,
+              0.15
+            ],
+            [
+              0.8,
+              0.17
+            ],
+            [
+              0.9,
+              0.19
+            ],
+            [
+              1.0,
+              0.22
+            ],
+            [
+              1.05,
+              0.24
+            ]
+          ],
+          "confinementMin": 0.006,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.007,
+            "corner": 0.009
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "steel-2": {
+        "label": "二级 (grade 2), steel",
+        "level": "special",
+        "factors": {
+          "strongColumn": 1.1
+        }
+      },
+      "frame-3": {
+        "label": "三级 (grade 3), frame",
+        "level": "intermediate",
+        "factors": {
+          "strongColumn": 1.3,
+          "columnShear": 1.2,
+          "beamShear": 1.1,
+          "axialRatio": 0.85,
+          "confinement": 0.06,
+          "anchorage": 1.05
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamSpanSteel": [
+            0.002,
+            0.45
+          ],
+          "beamEndDepth": 0.35,
+          "beamEndCompression": 0.3,
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            150
+          ],
+          "beamHoopDia": 8,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            150
+          ],
+          "columnHoopDia": 8,
+          "confinement": [
+            [
+              0.3,
+              0.06
+            ],
+            [
+              0.4,
+              0.07
+            ],
+            [
+              0.5,
+              0.09
+            ],
+            [
+              0.6,
+              0.11
+            ],
+            [
+              0.7,
+              0.13
+            ],
+            [
+              0.8,
+              0.15
+            ],
+            [
+              0.9,
+              0.17
+            ],
+            [
+              1.0,
+              0.2
+            ],
+            [
+              1.05,
+              0.22
+            ]
+          ],
+          "confinementMin": 0.004,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.007,
+            "corner": 0.008
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "dual-3": {
+        "label": "三级 (grade 3), frames of frame-wall and tube structures",
+        "level": "intermediate",
+        "factors": {
+          "strongColumn": 1.1,
+          "columnShear": 1.1,
+          "beamShear": 1.1,
+          "axialRatio": 0.9,
+          "wallShear": 1.2,
+          "confinement": 0.06,
+          "anchorage": 1.05
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamSpanSteel": [
+            0.002,
+            0.45
+          ],
+          "beamEndDepth": 0.35,
+          "beamEndCompression": 0.3,
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            150
+          ],
+          "beamHoopDia": 8,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            150
+          ],
+          "columnHoopDia": 8,
+          "confinement": [
+            [
+              0.3,
+              0.06
+            ],
+            [
+              0.4,
+              0.07
+            ],
+            [
+              0.5,
+              0.09
+            ],
+            [
+              0.6,
+              0.11
+            ],
+            [
+              0.7,
+              0.13
+            ],
+            [
+              0.8,
+              0.15
+            ],
+            [
+              0.9,
+              0.17
+            ],
+            [
+              1.0,
+              0.2
+            ],
+            [
+              1.05,
+              0.22
+            ]
+          ],
+          "confinementMin": 0.004,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.0025,
+          "columnSteel": {
+            "interior": 0.006,
+            "corner": 0.008
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "steel-3": {
+        "label": "三级 (grade 3), steel",
+        "level": "intermediate",
+        "factors": {
+          "strongColumn": 1.05
+        }
+      },
+      "frame-4": {
+        "label": "四级 (grade 4), frame",
+        "level": "ordinary",
+        "factors": {
+          "strongColumn": 1.2,
+          "columnShear": 1.1,
+          "beamShear": 1.0,
+          "axialRatio": 0.9,
+          "confinement": 0.06,
+          "anchorage": 1.0
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamSpanSteel": [
+            0.002,
+            0.45
+          ],
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            150
+          ],
+          "beamHoopDia": 6,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            150
+          ],
+          "columnHoopDia": 6,
+          "confinement": [
+            [
+              0.3,
+              0.06
+            ],
+            [
+              0.4,
+              0.07
+            ],
+            [
+              0.5,
+              0.09
+            ],
+            [
+              0.6,
+              0.11
+            ],
+            [
+              0.7,
+              0.13
+            ],
+            [
+              0.8,
+              0.15
+            ],
+            [
+              0.9,
+              0.17
+            ],
+            [
+              1.0,
+              0.2
+            ],
+            [
+              1.05,
+              0.22
+            ]
+          ],
+          "confinementMin": 0.004,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.002,
+          "columnSteel": {
+            "interior": 0.006,
+            "corner": 0.007
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "dual-4": {
+        "label": "四级 (grade 4), frames of frame-wall and tube structures",
+        "level": "ordinary",
+        "factors": {
+          "strongColumn": 1.1,
+          "columnShear": 1.1,
+          "beamShear": 1.0,
+          "axialRatio": 0.95,
+          "wallShear": 1.0,
+          "confinement": 0.06,
+          "anchorage": 1.0
+        },
+        "detailing": {
+          "beamEndSteel": [
+            0.0025,
+            0.55
+          ],
+          "beamSpanSteel": [
+            0.002,
+            0.45
+          ],
+          "beamHoopZone": [
+            1.5,
+            500
+          ],
+          "beamHoops": [
+            4,
+            8,
+            150
+          ],
+          "beamHoopDia": 6,
+          "columnHoopZone": [
+            1.0,
+            6.0,
+            500
+          ],
+          "columnHoops": [
+            8,
+            150
+          ],
+          "columnHoopDia": 6,
+          "confinement": [
+            [
+              0.3,
+              0.06
+            ],
+            [
+              0.4,
+              0.07
+            ],
+            [
+              0.5,
+              0.09
+            ],
+            [
+              0.6,
+              0.11
+            ],
+            [
+              0.7,
+              0.13
+            ],
+            [
+              0.8,
+              0.15
+            ],
+            [
+              0.9,
+              0.17
+            ],
+            [
+              1.0,
+              0.2
+            ],
+            [
+              1.05,
+              0.22
+            ]
+          ],
+          "confinementMin": 0.004,
+          "confinementFckMin": 23.4,
+          "wallWebMin": 0.002,
+          "columnSteel": {
+            "interior": 0.005,
+            "corner": 0.007
+          },
+          "columnSteelIncrease": [
+            [
+              1,
+              0.001
+            ],
+            [
+              400,
+              0.0005
+            ],
+            [
+              500,
+              0.0
+            ]
+          ]
+        }
+      },
+      "steel-4": {
+        "label": "四级 (grade 4), steel",
+        "level": "ordinary",
+        "factors": {
+          "strongColumn": 1.0
+        }
+      },
+      "steel-none": {
+        "label": "no seismic grade (steel, 6 degree, up to 50 m)",
+        "level": "ordinary",
+        "factors": {}
+      }
+    },
+    "clause": "GB 50011-2010 6.1.2 (Table 6.1.2), 8.1.3 (Table 8.1.3), 6.2.2-6.2.5, 6.2.8, 6.3.6, 6.3.9, 8.2.5; GB 50223 (乙类 raised one degree)"
+  },
+  "liveShare": 0.5,
+  "heavyLiveLimit": null,
+  "heavyLiveShare": null,
+  "minimumScale": 0.0,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.85,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.5,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 0.444444,
+  "verticalFactor": 0.0,
+  "clauses": {
+    "systems": "GB 50011 Table 6.1.1, 8.1.1",
+    "drift": "Table 5.5.1",
+    "elf": "5.2.1",
+    "spectrum": "5.1.5",
+    "minimum": "Table 5.2.5",
+    "modal": "5.2.2 (CQC)",
+    "rare": "5.5.2-5.5.5",
+    "grades": "Table 6.1.2",
+    "adjustment": "Table 5.4.2",
+    "axialRatio": "Table 6.3.6",
+    "columnSteel": "Table 6.3.7-1",
+    "columnHoops": "6.3.7, Table 6.3.7-2, 6.3.9",
+    "confinement": "6.3.9, Table 6.3.9",
+    "beamSteel": "6.3.3, 6.3.4",
+    "beamEndDepth": "6.3.3",
+    "beamHoops": "Table 6.3.3",
+    "wallSteel": "6.4.3",
+    "vertical": "5.1.1, 5.3.3",
+    "topForce": "5.2.1, Table 5.2.1"
+  },
+  "gradeDesign": {
+    "method": "gradeFactors",
+    "adjustment": {
+      "beamBending": 0.75,
+      "columnBending": 0.8,
+      "wallBending": 0.85,
+      "shear": 0.85,
+      "steelStrength": 0.75,
+      "steelStability": 0.8
+    },
+    "clause": "GB 50011-2010 5.4.2, 6.2"
+  },
+  "verticalComponent": {
+    "method": "gravityShare",
+    "shares": {
+      "4": 0.1,
+      "5": 0.15,
+      "6": 0.2
+    },
+    "combinationShare": 0.5,
+    "members": "long-span structures and long cantilevers at intensity 8 and 9 (GB 50011 5.1.1-4)"
+  },
+  "sources": {
+    "siteClasses": "GB 50011-2010 4.1.6 (site classes by the equivalent shear wave speed and the cover thickness) and Table 5.1.4-2 (Tg by design earthquake group); siteClasses is the chosen group's row (spectrumType, set by the town: locations spectrumType)",
+    "spectrumType": "SAEngine practice: a custom location takes design earthquake group 3 (the longest Tg, on the safe side) until the project overrides seismic.spectrumType",
+    "minimumScale": "GB 50011 has no scaling of the response spectrum to the static base shear (0); its minimum shear λ (Table 5.2.5) is applied to the static base shear only",
+    "pgaFactor": "GB 50011 5.1.5: αmax = 2.25 × the peak ground acceleration (a_h = αmax / 2.25)",
+    "orthogonalShare": "GB 50011 5.2.3: √(Sx² + (0.85 Sy)²); SAEngine's 100 % + 85 % is on the safe side",
+    "lateralForce.correction": "GB 50011 5.2.1: Geq = 0.85 GE of buildings of more than one storey",
+    "lateralForce.minimumShare": "GB 50011 Table 5.2.5: λ of structures with T1 below 3.5 s (0.008, 0.016 (0.024), 0.032 (0.048), 0.064), taken for every period (on the safe side; T1 above 5 s takes 75 %); GB applies it to every storey's shear, SAEngine to the base shear of the static method",
+    "liveShare": "GB 50011 5.1.3: 0.5 of the floor live load in the representative gravity load (0.8 for storage and libraries: not applied)",
+    "accidentalEccentricity": "GB 50011 5.2.3 / JGJ 3 4.3.3: 5 % of the plan dimension",
+    "torsionIrregular": "GB 50011 Table 3.4.3-1: torsional irregularity above 1.2 × the mean storey drift",
+    "torsionExtreme": "GB 50011 3.4.4: at most 1.5",
+    "torsionAmplificationMax": "GB 50011 has no amplification Ax of the accidental torsion (1.0)",
+    "verticalFactor": "GB 50011 5.3: the vertical earthquake of 8 and 9 degree long spans and 9 degree tall buildings is not covered (0)",
+    "rareDrift.yieldStrengthRatio": "SAEngine practice: ξy = 0.5 for every storey (the storeys' yield shears are not computed: enter the lowest storey's ξy; GB 5.5.4 also takes 1.5 ηp for a storey whose ξy is below 0.8 of its neighbours' mean)",
+    "rareDrift.zones": "GB 50011 5.5.2: required for frames of 7-9 degree with ξy below 0.5 (and others listed there), recommended for the rest: SAEngine checks every 7-9 degree site",
+    "rareDrift.defaultAmplification": "GB 50011 5.5.3: the simplified method holds for frames up to 12 storeys; others take ηp 2.2 here (SAEngine practice) and should be checked by pushover or time history",
+    "gradeDesign.adjustment": "GB 50011-2010 Table 5.4.2: γRE beams 0.75, columns 0.75 (μN < 0.15) / 0.80, shear walls 0.85, shear and members in eccentric tension 0.85; steel members strength 0.75, stability 0.80 (the columns' 0.80 for every column: P)",
+    "seismicGrades.detailing": "GB 50011-2010 6.3.3 (beam ends x/h0 <= 0.25 / 0.35, As'/As >= 0.5 / 0.3, Table 6.3.3 hoop zone max(2 hb, 500) / max(1.5 hb, 500), hoops min(hb/4, 6 d / 8 d, 100 / 150), dia 10 / 8 / 8 / 6), GB 50010-2010 Table 11.3.6-1 (beam steel at the supports 0.40 % and 80 ft/fy ... span 0.30 % and 65 ft/fy ...), GB 50011 Table 6.3.7-1 (column steel %, frame structures in brackets, + 0.05 for 400 MPa bars, + 0.1 below), Table 6.3.7-2 (hoops min(6 d / 8 d, 100 / 150) mm, dia 10 / 8 / 8 / 6; 三, 四 base 100 mm not told apart), 6.3.9 (zone max(hc, Hn/6, 500), ρv >= λv fc/fyv, fc at least of C35, ρv >= 0.8 / 0.6 / 0.4 / 0.4 %, Table 6.3.9 λv of ordinary and compound hoops), 6.4.3 (wall webs 0.25 % / 0.20 % for 四); every value U",
+    "seismicGrades.anchorage": "GB 50010-2010 11.1.7: ζaE 1.15 (一, 二), 1.05 (三), 1.00 (四)",
+    "verticalComponent": "GB 50011-2010 5.3.3: the vertical action of long spans and cantilevers 10 % (8, 0.20g), 15 % (8, 0.30g), 20 % (9) of the representative gravity load; GB 55002-2021 4.3.2 γEv 0.5 with the horizontal action (U); 5.3.1 (FEvk = 0.65 αmax × 0.75 GE of 9-degree tall buildings) not computed: the 20 % share taken (U); the dead load stands for the representative gravity load (P); the response spectrum combinations only (the static earthquake rows have no Ev)",
+    "lateralForce.topForce": "GB 50011-2010 5.2.1, Table 5.2.1: δn = 0.08 T1 + 0.07 (Tg <= 0.35), + 0.01 (0.35-0.55), - 0.02 (> 0.55) where T1 > 1.4 Tg; ΔFn = δn FEk at the top, the rest (1 - δn) FEk by Gi Hi; δn at most 0.9 (P)"
+  }
+}

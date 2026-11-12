@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/flood.schema.json",
+  "$sources": [
+    "EN 1991-1-7:2006 Annex D (informative) Sec D.2, Eqs D.1-D.2: internal natural gas explosions in rooms"
+  ],
+  "explosion": {
+    "ventCurve": [[0.05, 20.5], [0.075, 11.61], [0.1, 8.5], [0.125, 7.06], [0.15, 6.28]],
+    "glassPressure": 3.0,
+    "minPressure": 6.0,
+    "reliefPressure": 3.0
+  },
+  "sources": {
+    "returnPeriod": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "waterUnitWeight": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "surgeRegions": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "minDistance": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "waterLevels": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "freeWaterIncrease": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "hydrodynamic": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "breakingWave": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "impact": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "breakaway": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "stabilityFactor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "rain": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "helipad": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "shelter": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "explosion": "EN 1991-1-7 Annex D, Eqs D.1 pd = 3 + pstat and D.2 pd = 3 + pstat/2 + 0.04/(Av/V)², the larger, valid for 0.05 ≤ Av/V ≤ 0.15 1/m, V ≤ 1000 m³; the points are the two equations for pstat = 3.0 kN/m² (the venting panels' failure pressure, which the project should confirm: override flood.explosion for another pstat); minPressure = Eq D.1. The rise and decay times stay those of the pack it extends. The flood, surge, rain, helipad and shelter rules are not in the Eurocodes covered here: they stay those of the pack it extends (bnbc2020)"
+  },
+  "source": "EN 1991-1-7 Annex D (internal gas explosions); the flood, rain and other loads of the pack this one extends are SAEngine practice (see VERIFY.md)",
+  "notes": {
+    "waveCombination": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "flotationFactor": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+  }
+}

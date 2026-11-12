@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "ComponentForce": {
+      "additionalProperties": false,
+      "description": "``spectralAcceleration``: F = Sa(Tc) Wc Ic / Rc (``divideByR``), within the\nnonstructural table's least and largest force (``bounds``).",
+      "properties": {
+        "method": {
+          "const": "spectralAcceleration",
+          "default": "spectralAcceleration",
+          "title": "Method",
+          "type": "string"
+        },
+        "rigidPeriod": {
+          "description": "Tc of a rigid component [s].",
+          "exclusiveMinimum": 0,
+          "title": "Rigidperiod",
+          "type": "number"
+        },
+        "flexibleAlpha": {
+          "description": "A component whose amplification is above this is flexible: the peak of the floor spectrum (its period is not known).",
+          "exclusiveMinimum": 0,
+          "title": "Flexiblealpha",
+          "type": "number"
+        },
+        "divideByR": {
+          "description": "Divide by the component's response modification.",
+          "title": "Dividebyr",
+          "type": "boolean"
+        },
+        "bounds": {
+          "description": "Keep the nonstructural table's least and largest force.",
+          "title": "Bounds",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rigidPeriod",
+        "flexibleAlpha",
+        "divideByR",
+        "bounds"
+      ],
+      "title": "ComponentForce",
+      "type": "object"
+    },
+    "DirectMethod": {
+      "additionalProperties": false,
+      "description": "``spectrumToSpectrum``: the ground spectrum's power spectral density (iterated until\nits oscillator peaks meet the spectrum), the floor's modal transfer function.",
+      "properties": {
+        "duration": {
+          "description": "Strong-motion duration of the peak factor [s].",
+          "exclusiveMinimum": 0,
+          "title": "Duration",
+          "type": "number"
+        },
+        "iterations": {
+          "description": "Iterations of the density.",
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "structureDamping": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Modal damping of the structure; none: the run's spectrum's.",
+          "title": "Structuredamping"
+        }
+      },
+      "required": [
+        "duration",
+        "iterations"
+      ],
+      "title": "DirectMethod",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Floor response spectra (see the module notes).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "methods": {
+      "description": "Allowed methods, default first.",
+      "items": {
+        "enum": [
+          "timeHistory",
+          "spectrumToSpectrum"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Methods",
+      "type": "array"
+    },
+    "broadening": {
+      "description": "Peak broadening ± share of the period.",
+      "exclusiveMaximum": 1,
+      "minimum": 0,
+      "title": "Broadening",
+      "type": "number"
+    },
+    "damping": {
+      "description": "Component damping ratios computed.",
+      "items": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Damping",
+      "type": "array"
+    },
+    "componentDamping": {
+      "description": "The damping the components' forces use.",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Componentdamping",
+      "type": "number"
+    },
+    "periods": {
+      "description": "Periods of the spectra: (first, last, count) on a log scale [s].",
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        }
+      ],
+      "title": "Periods",
+      "type": "array"
+    },
+    "direct": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DirectMethod"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "components": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComponentForce"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "methods",
+    "broadening",
+    "damping",
+    "componentDamping",
+    "periods"
+  ],
+  "title": "FloorSpectraTable",
+  "type": "object",
+  "$id": "saengine.codePack.floorSpectra/1"
+}

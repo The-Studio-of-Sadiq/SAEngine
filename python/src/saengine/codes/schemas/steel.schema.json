@@ -1,0 +1,1533 @@
+{
+  "$defs": {
+    "PondingCurve": {
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "description": "The curve's flexibility constant (Cs or Cp).",
+          "minimum": 0,
+          "title": "Param",
+          "type": "number"
+        },
+        "points": {
+          "description": "[stress index U, upper limit of the other flexibility constant] pairs.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "param",
+        "points"
+      ],
+      "title": "PondingCurve",
+      "type": "object"
+    },
+    "SteelBars": {
+      "additionalProperties": false,
+      "description": "Rectangular bars and rounds in flexure.",
+      "properties": {
+        "plasticCap": {
+          "description": "Mp at most this × My.",
+          "exclusiveMinimum": 0,
+          "title": "Plasticcap",
+          "type": "number"
+        },
+        "yieldLimit": {
+          "description": "Lb d / t² <= this E / Fy: yielding only.",
+          "exclusiveMinimum": 0,
+          "title": "Yieldlimit",
+          "type": "number"
+        },
+        "ltbLimit": {
+          "description": "... <= this E / Fy: inelastic LTB, else elastic.",
+          "exclusiveMinimum": 0,
+          "title": "Ltblimit",
+          "type": "number"
+        },
+        "ltbA": {
+          "description": "Mn = Cb (ltbA - ltbB (Lb d / t²) Fy / E) My.",
+          "exclusiveMinimum": 0,
+          "title": "Ltba",
+          "type": "number"
+        },
+        "ltbB": {
+          "description": "See ``ltbA``.",
+          "exclusiveMinimum": 0,
+          "title": "Ltbb",
+          "type": "number"
+        },
+        "elastic": {
+          "description": "Fcr = this E Cb / (Lb d / t²).",
+          "exclusiveMinimum": 0,
+          "title": "Elastic",
+          "type": "number"
+        }
+      },
+      "required": [
+        "plasticCap",
+        "yieldLimit",
+        "ltbLimit",
+        "ltbA",
+        "ltbB",
+        "elastic"
+      ],
+      "title": "SteelBars",
+      "type": "object"
+    },
+    "SteelBoltGrade": {
+      "additionalProperties": false,
+      "description": "Nominal stresses of a bolt grade or a threaded part [MPa]: fixed values, or shares of the\npart's Fu (threaded parts).",
+      "properties": {
+        "Fnt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nominal tensile stress [MPa].",
+          "title": "Fnt"
+        },
+        "Fnv": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Nominal shear stress, bearing-type [MPa].",
+          "title": "Fnv"
+        },
+        "FntOfFu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fnt as a share of Fu.",
+          "title": "Fntoffu"
+        },
+        "FnvOfFu": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fnv as a share of Fu.",
+          "title": "Fnvoffu"
+        },
+        "pretension": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Key of ``pretension`` (the bolt family); none: not pretensioned.",
+          "title": "Pretension"
+        }
+      },
+      "title": "SteelBoltGrade",
+      "type": "object"
+    },
+    "SteelBracing": {
+      "additionalProperties": false,
+      "description": "Stability bracing of columns and beams (K = 1 between the braces).",
+      "properties": {
+        "phi": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "columnRelative": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "columnNodal": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "beamRelative": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "beamNodal": {
+          "$ref": "#/$defs/SteelBracingRow"
+        },
+        "torsionalMoment": {
+          "description": "Mbr = this × Mr L / (n Cb Lb).",
+          "exclusiveMinimum": 0,
+          "title": "Torsionalmoment",
+          "type": "number"
+        },
+        "torsionalStiffness": {
+          "description": "βT = this × L Mr² / (n E Iy Cb²) / φ.",
+          "exclusiveMinimum": 0,
+          "title": "Torsionalstiffness",
+          "type": "number"
+        },
+        "torsionalMomentForm": {
+          "default": "spanRatio",
+          "description": "Mbr of a nodal torsional brace: ``spanRatio`` (this × Mr L / (n Cb Lb)) or ``share`` (torsionalMoment × Mr).",
+          "enum": [
+            "spanRatio",
+            "share"
+          ],
+          "title": "Torsionalmomentform",
+          "type": "string"
+        },
+        "distortional": {
+          "description": "βsec = this × E / ho × (...).",
+          "exclusiveMinimum": 0,
+          "title": "Distortional",
+          "type": "number"
+        },
+        "slenderness": {
+          "description": "L/r limit of stability bracing.",
+          "exclusiveMinimum": 0,
+          "title": "Slenderness",
+          "type": "number"
+        },
+        "rows": {
+          "default": false,
+          "description": "List each brace's required strength and stiffness as flagged check rows.",
+          "title": "Rows",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "phi",
+        "columnRelative",
+        "columnNodal",
+        "beamRelative",
+        "beamNodal",
+        "torsionalMoment",
+        "torsionalStiffness",
+        "distortional",
+        "slenderness"
+      ],
+      "title": "SteelBracing",
+      "type": "object"
+    },
+    "SteelBracingRow": {
+      "additionalProperties": false,
+      "description": "Required brace strength Pbr = strength × Pr (columns) or × Mr Cd / ho (beams), stiffness\nβbr = stiffness × Pr / Lb (or × Mr Cd / (Lb ho)) / φ.",
+      "properties": {
+        "strength": {
+          "exclusiveMinimum": 0,
+          "title": "Strength",
+          "type": "number"
+        },
+        "stiffness": {
+          "exclusiveMinimum": 0,
+          "title": "Stiffness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "strength",
+        "stiffness"
+      ],
+      "title": "SteelBracingRow",
+      "type": "object"
+    },
+    "SteelBuiltUp": {
+      "additionalProperties": false,
+      "description": "Built-up compression members: modified slenderness and dimensional limits.",
+      "properties": {
+        "welded": {
+          "description": "Welded / pretensioned connectors: this α²/(1+α²).",
+          "exclusiveMinimum": 0,
+          "title": "Welded",
+          "type": "number"
+        },
+        "componentShare": {
+          "description": "K a / ri at most this × the member's KL/r.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Componentshare",
+          "type": "number"
+        },
+        "componentK": {
+          "description": "K of a component between connectors.",
+          "exclusiveMinimum": 0,
+          "title": "Componentk",
+          "type": "number"
+        },
+        "plateSpacing": {
+          "description": "Outside plate: spacing <= this √(E/Fy) t ...",
+          "exclusiveMinimum": 0,
+          "title": "Platespacing",
+          "type": "number"
+        },
+        "plateSpacingMax": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Platespacingmax",
+          "type": "number"
+        },
+        "plateStaggered": {
+          "description": "Staggered fasteners: <= this √(E/Fy) t ...",
+          "exclusiveMinimum": 0,
+          "title": "Platestaggered",
+          "type": "number"
+        },
+        "plateStaggeredMax": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Platestaggeredmax",
+          "type": "number"
+        },
+        "lacingSingle": {
+          "description": "L/r of single lacing bars at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Lacingsingle",
+          "type": "number"
+        },
+        "lacingDouble": {
+          "description": "L/r of double lacing bars at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Lacingdouble",
+          "type": "number"
+        },
+        "lacingShear": {
+          "description": "Lacing shear: this × φc Pn of the member.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lacingshear",
+          "type": "number"
+        },
+        "lacingDoubleLength": {
+          "description": "Double lacing: L = this × the bar length.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Lacingdoublelength",
+          "type": "number"
+        },
+        "tiePlateEnd": {
+          "description": "End tie plate length >= this × line distance.",
+          "exclusiveMinimum": 0,
+          "title": "Tieplateend",
+          "type": "number"
+        },
+        "tiePlateIntermediate": {
+          "description": "Intermediate: >= this × the distance.",
+          "exclusiveMinimum": 0,
+          "title": "Tieplateintermediate",
+          "type": "number"
+        },
+        "tiePlateThickness": {
+          "description": "Tie plate t >= this × the line distance.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tieplatethickness",
+          "type": "number"
+        },
+        "method": {
+          "default": "alpha",
+          "description": "Welded or pretensioned connectors: ``alpha`` ((KL/r)m with α = h / 2rib and ``welded``) or ``ki`` ((KL/r)o up to a/ri = ``kiLimit``, above it √((KL/r)o² + (Ki a/ri)²) with Ki by the components, ``ki``).",
+          "enum": [
+            "alpha",
+            "ki"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "kiLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "``ki``: a/ri up to which (KL/r)m = (KL/r)o.",
+          "title": "Kilimit"
+        },
+        "ki": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "``ki``: Ki by the components: ``angles`` (back-to-back), ``channels`` (back-to-back), ``other``.",
+          "title": "Ki",
+          "type": "object"
+        }
+      },
+      "required": [
+        "welded",
+        "componentShare",
+        "componentK",
+        "plateSpacing",
+        "plateSpacingMax",
+        "plateStaggered",
+        "plateStaggeredMax",
+        "lacingSingle",
+        "lacingDouble",
+        "lacingShear",
+        "lacingDoubleLength",
+        "tiePlateEnd",
+        "tiePlateIntermediate",
+        "tiePlateThickness"
+      ],
+      "title": "SteelBuiltUp",
+      "type": "object"
+    },
+    "SteelConnectionData": {
+      "additionalProperties": false,
+      "description": "Bolts, holes, edges and fillet welds of steel connections.",
+      "properties": {
+        "boltGrades": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelBoltGrade"
+          },
+          "title": "Boltgrades",
+          "type": "object"
+        },
+        "boltAliases": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Other grade names taken as a grade of ``boltGrades`` (labelled in ``sources.boltAliases``).",
+          "title": "Boltaliases",
+          "type": "object"
+        },
+        "pretension": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "Minimum bolt pretension Tb [kN] by bolt family and diameter [mm].",
+          "title": "Pretension",
+          "type": "object"
+        },
+        "slip": {
+          "$ref": "#/$defs/SteelSlip"
+        },
+        "holes": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Standard hole diameter [mm] by bolt diameter.",
+          "title": "Holes",
+          "type": "object"
+        },
+        "holeOver": {
+          "description": "Larger bolts: standard hole d + this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Holeover",
+          "type": "number"
+        },
+        "netHoleAllowance": {
+          "description": "Hole width + this for net areas [mm].",
+          "minimum": 0,
+          "title": "Netholeallowance",
+          "type": "number"
+        },
+        "edgeRolled": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Minimum edge distance, rolled [mm].",
+          "title": "Edgerolled",
+          "type": "object"
+        },
+        "edgeSheared": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Minimum edge distance, sheared [mm].",
+          "title": "Edgesheared",
+          "type": "object"
+        },
+        "edgeOverRolled": {
+          "description": "Larger bolts, rolled edges: this × d.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeoverrolled",
+          "type": "number"
+        },
+        "edgeOverSheared": {
+          "description": "Larger bolts, sheared edges: this × d.",
+          "exclusiveMinimum": 0,
+          "title": "Edgeoversheared",
+          "type": "number"
+        },
+        "minSpacing": {
+          "description": "Least bolt spacing as a multiple of d.",
+          "exclusiveMinimum": 0,
+          "title": "Minspacing",
+          "type": "number"
+        },
+        "maxEdgeThickness": {
+          "description": "Largest edge distance: this × t ...",
+          "exclusiveMinimum": 0,
+          "title": "Maxedgethickness",
+          "type": "number"
+        },
+        "maxEdge": {
+          "description": "... and at most this [mm].",
+          "exclusiveMinimum": 0,
+          "title": "Maxedge",
+          "type": "number"
+        },
+        "longJointLength": {
+          "description": "Tension splices: bolt pattern longer than this [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Longjointlength",
+          "type": "number"
+        },
+        "longJointFactor": {
+          "description": "... has Fnv times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Longjointfactor",
+          "type": "number"
+        },
+        "filletMin": {
+          "description": "Minimum fillet weld leg by the thinner part: [[t up to (null: above), leg [mm]], ...].",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Filletmin",
+          "type": "array"
+        },
+        "filletMaxThin": {
+          "description": "Along edges thinner than this, the leg is at most the thickness [mm] ...",
+          "exclusiveMinimum": 0,
+          "title": "Filletmaxthin",
+          "type": "number"
+        },
+        "filletMaxReduce": {
+          "description": "... else the thickness less this [mm].",
+          "minimum": 0,
+          "title": "Filletmaxreduce",
+          "type": "number"
+        },
+        "concreteBearingFull": {
+          "description": "Pp / (f'c A1) on the full concrete area.",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingfull",
+          "type": "number"
+        },
+        "concreteBearingPartial": {
+          "description": "Pp / (f'c A1 √(A2/A1)) on part of the concrete area ...",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingpartial",
+          "type": "number"
+        },
+        "concreteBearingMax": {
+          "description": "... and Pp / (f'c A1) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Concretebearingmax",
+          "type": "number"
+        },
+        "methods": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Method ids where the code gives a requirement but no method (e.g. ``prying``: ``tStub``); a missing key: the check is not made.",
+          "title": "Methods",
+          "type": "object"
+        },
+        "references": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Alpha 9 C3: the clause references the connection notes are written with (the default pack's) -> this pack's references; empty: the notes as written.",
+          "title": "References",
+          "type": "object"
+        }
+      },
+      "required": [
+        "boltGrades",
+        "pretension",
+        "slip",
+        "holes",
+        "holeOver",
+        "netHoleAllowance",
+        "edgeRolled",
+        "edgeSheared",
+        "edgeOverRolled",
+        "edgeOverSheared",
+        "minSpacing",
+        "maxEdgeThickness",
+        "maxEdge",
+        "longJointLength",
+        "longJointFactor",
+        "filletMin",
+        "filletMaxThin",
+        "filletMaxReduce",
+        "concreteBearingFull",
+        "concreteBearingPartial",
+        "concreteBearingMax"
+      ],
+      "title": "SteelConnectionData",
+      "type": "object"
+    },
+    "SteelEffectiveWidthFactors": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3: the imperfection factors c1, c2 of the effective width of a slender element\nin compression, be = b (1 - c1 √(Fel/Fcr)) √(Fel/Fcr), Fel = (c2 λr/λ)² Fy.",
+      "properties": {
+        "c1": {
+          "exclusiveMinimum": 0,
+          "title": "C1",
+          "type": "number"
+        },
+        "c2": {
+          "exclusiveMinimum": 0,
+          "title": "C2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "c1",
+        "c2"
+      ],
+      "title": "SteelEffectiveWidthFactors",
+      "type": "object"
+    },
+    "SteelMemberMethods": {
+      "additionalProperties": false,
+      "description": "Alpha 9 C3: the member strength methods a pack chooses where its steel code differs from\nthe default pack's (each a method id of :mod:`saengine.design.steel.members`; a missing\ngroup: the default pack's methods).",
+      "properties": {
+        "compressionSlender": {
+          "default": "formFactor",
+          "description": "Slender elements in compression: ``formFactor`` (Q = Qs Qa, Fcr of Q Fy) or ``effectiveWidth`` (Pn = Fcr Ae with the effective widths of every slender element).",
+          "enum": [
+            "formFactor",
+            "effectiveWidth"
+          ],
+          "title": "Compressionslender",
+          "type": "string"
+        },
+        "effectiveWidth": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SteelEffectiveWidthFactors"
+          },
+          "description": "c1, c2 of ``effectiveWidth`` by element kind: ``stiffened`` (webs and other stiffened elements), ``hssWalls`` (walls of rectangular HSS), ``other`` (unstiffened elements: flanges, legs, stems).",
+          "title": "Effectivewidth",
+          "type": "object"
+        },
+        "roundEffectiveArea": {
+          "default": [
+            0.038,
+            0.6667
+          ],
+          "description": "Round HSS with a slender wall: Ae / Ag (or Q) = a E / (Fy D/t) + b: [a, b].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Roundeffectivearea",
+          "type": "array"
+        },
+        "webShear": {
+          "default": "cv",
+          "description": "Webs of I-shapes and channels without tension field action: ``cv`` (Cv with the elastic branch) or ``cv1`` (Cv1 = 1.10 √(kv E/Fy) / (h/tw) at most 1).",
+          "enum": [
+            "cv",
+            "cv1"
+          ],
+          "title": "Webshear",
+          "type": "string"
+        },
+        "kvUnstiffened": {
+          "default": 5.0,
+          "description": "kv of an unstiffened web (and of a/h beyond the limits).",
+          "exclusiveMinimum": 0,
+          "title": "Kvunstiffened",
+          "type": "number"
+        },
+        "tensionField": {
+          "default": "limited",
+          "description": "Panels outside the proportion limits of tension field action: ``limited`` (none counted) or ``reduced`` (the denominator 1.15 (a/h + √(1+(a/h)²))).",
+          "enum": [
+            "limited",
+            "reduced"
+          ],
+          "title": "Tensionfield",
+          "type": "string"
+        },
+        "teeFlexure": {
+          "default": "criticalMoment",
+          "description": "Tees about the major axis: ``criticalMoment`` (Mn the least of Mp and Mcr) or ``lengthLimits`` (Lp, Lr of the stem in tension, stem local buckling, flange local buckling by λp, λr).",
+          "enum": [
+            "criticalMoment",
+            "lengthLimits"
+          ],
+          "title": "Teeflexure",
+          "type": "string"
+        },
+        "teeCompression": {
+          "default": "twoStress",
+          "description": "Flexural-torsional buckling of tees: ``twoStress`` (Fcry, Fcrz, H) or ``general`` (Fe of singly symmetric members, then the flexural buckling curve).",
+          "enum": [
+            "twoStress",
+            "general"
+          ],
+          "title": "Teecompression",
+          "type": "string"
+        },
+        "hssLateralTorsional": {
+          "default": false,
+          "description": "Rectangular HSS about the major axis also checked for lateral-torsional buckling with Lp = a E ry √(J A) / Mp and Lr = b E ry √(J A) / (0.7 Fy Sx).",
+          "title": "Hsslateraltorsional",
+          "type": "boolean"
+        },
+        "hssLtb": {
+          "default": [
+            0.13,
+            2.0
+          ],
+          "description": "[a, b] of ``hssLateralTorsional``.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Hssltb",
+          "type": "array"
+        },
+        "teeStem": {
+          "default": [
+            0.84,
+            1.52,
+            1.43,
+            0.515,
+            1.52
+          ],
+          "description": "Tee stems in flexural compression: d/tw <= a √(E/Fy) Fcr = Fy; <= b √(E/Fy) Fcr = (c - d (d/tw) √(Fy/E)) Fy; above Fcr = e E / (d/tw)².",
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Teestem",
+          "type": "array"
+        },
+        "teeFlangeSlender": {
+          "default": 0.7,
+          "description": "Slender tee flange: Mn = this E Sxc / (bf/2tf)².",
+          "exclusiveMinimum": 0,
+          "title": "Teeflangeslender",
+          "type": "number"
+        },
+        "columnCurve": {
+          "default": "exponential",
+          "description": "Flexural buckling: ``exponential`` (Fcr = 0.658^(Fy/Fe) Fy, 0.877 Fe) or ``powerCurve`` (Fcr = Fy (1 + λ^2n)^(-1/n), λ = √(Fy/Fe), n by section family).",
+          "enum": [
+            "exponential",
+            "powerCurve"
+          ],
+          "title": "Columncurve",
+          "type": "string"
+        },
+        "curveExponent": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "n of ``powerCurve`` by section family (I, channel, rhs, chs, angle, tee, ...); 'default' for the rest.",
+          "title": "Curveexponent",
+          "type": "object"
+        },
+        "lateralTorsional": {
+          "default": "lengthLimits",
+          "description": "I-shapes about the major axis: ``lengthLimits`` (Lp, Lr, Cb) or ``criticalMoment`` (Mu = ω2 π/L √(E Iy G J + (π E/L)² Iy Cw); Mr = a Mp (1 - b Mp/Mu) <= Mp where Mu > c Mp, else Mu; ``ltbCurve`` [a, b, c]).",
+          "enum": [
+            "lengthLimits",
+            "criticalMoment"
+          ],
+          "title": "Lateraltorsional",
+          "type": "string"
+        },
+        "ltbCurve": {
+          "default": [
+            1.15,
+            0.28,
+            0.67
+          ],
+          "description": "[a, b, c] of ``criticalMoment``.",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Ltbcurve",
+          "type": "array"
+        },
+        "omega2Max": {
+          "default": 2.5,
+          "description": "ω2 (the member's moment gradient factor) at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Omega2Max",
+          "type": "number"
+        }
+      },
+      "title": "SteelMemberMethods",
+      "type": "object"
+    },
+    "SteelMembers": {
+      "additionalProperties": false,
+      "description": "B31: the member limit states beyond Secs 10.4-10.8.1, with their clause strings.",
+      "properties": {
+        "torsion": {
+          "$ref": "#/$defs/SteelTorsion"
+        },
+        "builtUp": {
+          "$ref": "#/$defs/SteelBuiltUp"
+        },
+        "bars": {
+          "$ref": "#/$defs/SteelBars"
+        },
+        "tensionField": {
+          "$ref": "#/$defs/SteelTensionField"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Clause references of the results, by key.",
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "torsion",
+        "builtUp",
+        "bars",
+        "tensionField"
+      ],
+      "title": "SteelMembers",
+      "type": "object"
+    },
+    "SteelPhi": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "maximum": 1,
+        "type": "number"
+      },
+      "description": "φ of structural steel (extra keys allowed for hooks, also 0 < φ <= 1).",
+      "properties": {
+        "tensionYield": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionyield",
+          "type": "number"
+        },
+        "tensionRupture": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Tensionrupture",
+          "type": "number"
+        },
+        "compression": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Compression",
+          "type": "number"
+        },
+        "flexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Flexure",
+          "type": "number"
+        },
+        "shear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shear",
+          "type": "number"
+        },
+        "bolt": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bolt",
+          "type": "number"
+        },
+        "bearing": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Bearing",
+          "type": "number"
+        },
+        "blockShear": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Blockshear",
+          "type": "number"
+        },
+        "weld": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Weld",
+          "type": "number"
+        },
+        "plateFlexure": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Plateflexure",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tensionYield",
+        "tensionRupture",
+        "compression",
+        "flexure",
+        "shear",
+        "bolt",
+        "bearing",
+        "blockShear",
+        "weld",
+        "plateFlexure"
+      ],
+      "title": "SteelPhi",
+      "type": "object"
+    },
+    "SteelPonding": {
+      "additionalProperties": false,
+      "description": "Roof ponding: the simplified stiffness limits and the digitised limit curves.",
+      "properties": {
+        "limit": {
+          "description": "Cp + secondary × Cs at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Limit",
+          "type": "number"
+        },
+        "secondary": {
+          "description": "Factor on Cs.",
+          "exclusiveMinimum": 0,
+          "title": "Secondary",
+          "type": "number"
+        },
+        "coefficient": {
+          "description": "C = this × Ls Lp⁴ / Ip (m, mm⁴).",
+          "exclusiveMinimum": 0,
+          "title": "Coefficient",
+          "type": "number"
+        },
+        "deck": {
+          "description": "Id at least this × S⁴ (mm⁴/m, m).",
+          "exclusiveMinimum": 0,
+          "title": "Deck",
+          "type": "number"
+        },
+        "trussFactor": {
+          "description": "Is of trusses and steel joists taken times this.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Trussfactor",
+          "type": "number"
+        },
+        "stressLimit": {
+          "description": "U = (this × Fy - fo) / fo.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Stresslimit",
+          "type": "number"
+        },
+        "primary": {
+          "description": "Limiting Cp by Up, one curve per Cs (the primary-system figure).",
+          "items": {
+            "$ref": "#/$defs/PondingCurve"
+          },
+          "title": "Primary",
+          "type": "array"
+        },
+        "secondaryCurves": {
+          "description": "Limiting Cs by Us, one curve per Cp (the secondary-system figure).",
+          "items": {
+            "$ref": "#/$defs/PondingCurve"
+          },
+          "title": "Secondarycurves",
+          "type": "array"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Alpha 9 C3b: the references of the check notes (``simplified``, ``deck``, ``primary``, ``secondary``, ``stress``); a missing key: the default pack's numbers.",
+          "title": "Clauses",
+          "type": "object"
+        }
+      },
+      "required": [
+        "limit",
+        "secondary",
+        "coefficient",
+        "deck",
+        "trussFactor",
+        "stressLimit",
+        "primary",
+        "secondaryCurves"
+      ],
+      "title": "SteelPonding",
+      "type": "object"
+    },
+    "SteelSlenderness": {
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "description": "KL/r limit of compression members.",
+          "exclusiveMinimum": 0,
+          "title": "Compression",
+          "type": "number"
+        },
+        "tension": {
+          "description": "L/r limit of tension members.",
+          "exclusiveMinimum": 0,
+          "title": "Tension",
+          "type": "number"
+        }
+      },
+      "required": [
+        "compression",
+        "tension"
+      ],
+      "title": "SteelSlenderness",
+      "type": "object"
+    },
+    "SteelSlip": {
+      "additionalProperties": false,
+      "description": "Slip-critical connections: Rn = μ Du hsc Tb Ns.",
+      "properties": {
+        "phiServiceability": {
+          "description": "φ, slip prevented as a serviceability limit.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phiserviceability",
+          "type": "number"
+        },
+        "phiStrength": {
+          "description": "φ, slip prevented at the required strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phistrength",
+          "type": "number"
+        },
+        "mu": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Mean slip coefficient by surface class.",
+          "title": "Mu",
+          "type": "object"
+        },
+        "Du": {
+          "description": "Mean installed / specified minimum pretension.",
+          "exclusiveMinimum": 0,
+          "title": "Du",
+          "type": "number"
+        },
+        "hsc": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Hole factor by hole type.",
+          "title": "Hsc",
+          "type": "object"
+        }
+      },
+      "required": [
+        "phiServiceability",
+        "phiStrength",
+        "mu",
+        "Du",
+        "hsc"
+      ],
+      "title": "SteelSlip",
+      "type": "object"
+    },
+    "SteelTensionField": {
+      "additionalProperties": false,
+      "description": "Stiffened webs: kv, tension field action and the transverse stiffeners.",
+      "properties": {
+        "kv": {
+          "description": "kv = this + this / (a/h)² of stiffened webs.",
+          "exclusiveMinimum": 0,
+          "title": "Kv",
+          "type": "number"
+        },
+        "aspectMax": {
+          "description": "a/h above this: kv of an unstiffened web, no TFA.",
+          "exclusiveMinimum": 0,
+          "title": "Aspectmax",
+          "type": "number"
+        },
+        "webLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "a/h above (this / (h/tw))²: likewise (null: no such limit, alpha 9 C3).",
+          "title": "Weblimit"
+        },
+        "webFlange": {
+          "description": "No TFA when 2 Aw / (Afc + Aft) exceeds this.",
+          "exclusiveMinimum": 0,
+          "title": "Webflange",
+          "type": "number"
+        },
+        "depthFlange": {
+          "description": "No TFA when h / bf exceeds this.",
+          "exclusiveMinimum": 0,
+          "title": "Depthflange",
+          "type": "number"
+        },
+        "factor": {
+          "description": "Vn = 0.6 Fy Aw (Cv + (1 - Cv) / (this √(1+(a/h)²))).",
+          "exclusiveMinimum": 0,
+          "title": "Factor",
+          "type": "number"
+        },
+        "stiffenerFree": {
+          "description": "No stiffeners needed: h/tw <= this √(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Stiffenerfree",
+          "type": "number"
+        },
+        "stiffenerJ": {
+          "description": "j = a / (a/h)² - b >= c of the stiffener inertia a tw³ j: [a, b, c].",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Stiffenerj",
+          "type": "array"
+        },
+        "stiffenerBt": {
+          "description": "(b/t)st <= this √(E/Fyst).",
+          "exclusiveMinimum": 0,
+          "title": "Stiffenerbt",
+          "type": "number"
+        },
+        "stiffenerArea": {
+          "description": "Ast >= Fy/Fyst [this Ds h tw (1-Cv) Vr/Vc ...",
+          "exclusiveMinimum": 0,
+          "title": "Stiffenerarea",
+          "type": "number"
+        },
+        "stiffenerWeb": {
+          "description": "... - this tw²].",
+          "exclusiveMinimum": 0,
+          "title": "Stiffenerweb",
+          "type": "number"
+        },
+        "Ds": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Ds by stiffener kind (pair, angle, plate).",
+          "title": "Ds",
+          "type": "object"
+        },
+        "stiffenerMethod": {
+          "default": "area",
+          "description": "Stiffeners of panels with tension field action: ``area`` (Ast of ``stiffenerArea``, ``stiffenerWeb``, ``Ds``) or ``inertia`` (Ist >= Ist2 + (Ist1 - Ist2) ρw, Ist2 = b tw³ j, Ist1 = h⁴ ρst^b / a (Fyw/E)^c of ``stiffenerInertia``).",
+          "enum": [
+            "area",
+            "inertia"
+          ],
+          "title": "Stiffenermethod",
+          "type": "string"
+        },
+        "stiffenerInertia": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "``inertia``: Ist1 = h⁴ ρst^b / a (Fyw/E)^c: [a, b, c].",
+          "title": "Stiffenerinertia"
+        }
+      },
+      "required": [
+        "kv",
+        "aspectMax",
+        "webLimit",
+        "webFlange",
+        "depthFlange",
+        "factor",
+        "stiffenerFree",
+        "stiffenerJ",
+        "stiffenerBt",
+        "stiffenerArea",
+        "stiffenerWeb",
+        "Ds"
+      ],
+      "title": "SteelTensionField",
+      "type": "object"
+    },
+    "SteelTorsion": {
+      "additionalProperties": false,
+      "description": "Torsion of steel members: HSS torsional strength Tn = Fcr C and the stress limits of\nother members.",
+      "properties": {
+        "phi": {
+          "description": "φT of the torsional strength.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Phi",
+          "type": "number"
+        },
+        "neglect": {
+          "description": "Tr at most this × Tc: HSS torsion is neglected.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Neglect",
+          "type": "number"
+        },
+        "shearYield": {
+          "description": "Shear yield stress as a share of Fy (Fcr cap, Fn).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shearyield",
+          "type": "number"
+        },
+        "normalYield": {
+          "description": "Normal-stress Fn as a multiple of Fy.",
+          "exclusiveMinimum": 0,
+          "title": "Normalyield",
+          "type": "number"
+        },
+        "roundLong": {
+          "description": "Round HSS Fcr = this E / (√(L/D) (D/t)^1.25).",
+          "exclusiveMinimum": 0,
+          "title": "Roundlong",
+          "type": "number"
+        },
+        "roundShort": {
+          "description": "Round HSS Fcr = this E / (D/t)^1.5.",
+          "exclusiveMinimum": 0,
+          "title": "Roundshort",
+          "type": "number"
+        },
+        "rectYield": {
+          "description": "Rectangular HSS: h/t <= this √(E/Fy) yields.",
+          "exclusiveMinimum": 0,
+          "title": "Rectyield",
+          "type": "number"
+        },
+        "rectInelastic": {
+          "description": "... <= this √(E/Fy): inelastic buckling.",
+          "exclusiveMinimum": 0,
+          "title": "Rectinelastic",
+          "type": "number"
+        },
+        "rectMaxRatio": {
+          "description": "... h/t at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Rectmaxratio",
+          "type": "number"
+        },
+        "rectElastic": {
+          "description": "Elastic Fcr = this π² E / (h/t)².",
+          "exclusiveMinimum": 0,
+          "title": "Rectelastic",
+          "type": "number"
+        },
+        "methods": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Method ids where the code says 'by analysis': ``openSection`` (the torsional stresses of open sections: ``warping``), ``buckling`` (Fcr of the buckling limit state: ``leastCritical``); a missing key: that check is not made.",
+          "title": "Methods",
+          "type": "object"
+        }
+      },
+      "required": [
+        "phi",
+        "neglect",
+        "shearYield",
+        "normalYield",
+        "roundLong",
+        "roundShort",
+        "rectYield",
+        "rectInelastic",
+        "rectMaxRatio",
+        "rectElastic"
+      ],
+      "title": "SteelTorsion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "phi": {
+      "$ref": "#/$defs/SteelPhi"
+    },
+    "slenderness": {
+      "$ref": "#/$defs/SteelSlenderness"
+    },
+    "netAreaMax": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Netareamax",
+      "type": "number"
+    },
+    "designMethod": {
+      "default": "LRFD",
+      "description": "LRFD (φ, strength combinations) or ASD (Ω, ASD combinations).",
+      "enum": [
+        "LRFD",
+        "ASD"
+      ],
+      "title": "Designmethod",
+      "type": "string"
+    },
+    "omega": {
+      "additionalProperties": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "description": "Ω by the limit state keys of ``phi`` (ASD).",
+      "title": "Omega",
+      "type": "object"
+    },
+    "omegaFromPhi": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ASD: Ω = this / φ for a limit state ``omega`` does not list (None: the pack does not cover ASD and the steel checks stay LRFD, with a note).",
+      "title": "Omegafromphi"
+    },
+    "memberMethods": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelMemberMethods"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "connections": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelConnectionData"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bracing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelBracing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ponding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelPonding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "members": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SteelMembers"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "phi",
+    "slenderness",
+    "netAreaMax"
+  ],
+  "title": "SteelTable",
+  "type": "object",
+  "$id": "saengine.codePack.steel/1"
+}

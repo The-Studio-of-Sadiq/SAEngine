@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/wallMethods.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.6.7 (part 1 p. 970, gazette p. 3551): walls as grade beams",
+    "BNBC 2020 Part 6 Sec 6.6.8, Eqs 6.6.90-6.6.99 (part 1 pp. 971-972, gazette pp. 3552-3553): alternative design of slender walls",
+    "BNBC 2020 Part 6 Sec 6.2.5.2, Eq 6.6.3 (part 1 p. 900, gazette p. 3481): modulus of rupture fr = 0.62 λ √f'c"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 6.6.7-6.6.8 (pp. 970-972)",
+  "sources": {
+    "slender": "BNBC 2020 Part 6 Sec 6.6.8.2-6.6.8.4 (pp. 971-972): simply supported panel, constant section, tension-controlled, φMn >= Mcr, Pu/Ag <= 0.06 f'c, Mu = Mua + Pu Δu with Δu = 5 Mu lc² / (0.75 × 48 Ec Icr), Icr by Eq 6.6.95 with Es/Ec >= 6, service Δs <= lc/150 by Eqs 6.6.96-6.6.99",
+    "slender.ruptureCoefficient": "BNBC 2020 Part 6 Eq 6.6.3 (p. 900): fr = 0.62 λ √f'c. Sec 6.6.8.2.4 refers to 'Eq. 6.6.91' for fr, which is the strength equation: a misprint, Eq 6.6.3 is the modulus of rupture of Chapter 6",
+    "slender.spreadSlope": "BNBC 2020 Part 6 Sec 6.6.8.2.5 (p. 971): concentrated loads spread at 2 vertical to 1 horizontal",
+    "gradeBeam": "BNBC 2020 Part 6 Sec 6.6.7.1-6.6.7.2 (p. 970): top and bottom steel for the moment by Sec 6.3.2-6.3.7, shear by Sec 6.4; the part exposed above grade also meets Sec 6.6.3"
+  },
+  "slender": {
+    "method": "midheightMoment",
+    "maxAxialShare": 0.06,
+    "deflectionFactor": 0.75,
+    "deflectionDivisor": 150,
+    "minModularRatio": 6,
+    "serviceCrackShare": 0.6666666667,
+    "ruptureCoefficient": 0.62,
+    "spreadSlope": 2.0
+  },
+  "gradeBeam": {
+    "method": "beam"
+  },
+  "clauses": {
+    "slender": "Part 6 Sec 6.6.8",
+    "slenderAxial": "Part 6 Sec 6.6.8.2.6",
+    "slenderCracking": "Part 6 Sec 6.6.8.2.4, Eq 6.6.90",
+    "slenderStrength": "Part 6 Sec 6.6.8.3, Eqs 6.6.91-6.6.95",
+    "slenderDeflection": "Part 6 Sec 6.6.8.4, Eqs 6.6.96-6.6.99",
+    "slenderTension": "Part 6 Sec 6.6.8.2.3",
+    "gradeBeam": "Part 6 Sec 6.6.7.1",
+    "gradeBeamExposed": "Part 6 Sec 6.6.7.2"
+  }
+}

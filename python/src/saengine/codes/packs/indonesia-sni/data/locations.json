@@ -1,0 +1,131 @@
+{
+  "$schema": "../../../schemas/locations.schema.json",
+  "$replace": true,
+  "$sources": [
+    "SNI 1726:2019 Pasal 6.1-6.2, Gambar 15-20 (SS, S1, TL maps); SNI 1727:2020 Pasal 26.5 (basic wind speed)"
+  ],
+  "source": "SNI 1726:2019: SS, S1 and TL of each city read from the national maps (to be checked against the maps or the national hazard tool, VERIFY.md I1-I3); SNI 1727:2020 gives no national wind map: V is a placeholder. Elsewhere a custom location: enter SS and S1 (or SDS and SD1) and V.",
+  "default": "jakarta",
+  "locations": {
+    "jakarta": {
+      "name": "Jakarta",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.77,
+      "s1": 0.34,
+      "tl": 20
+    },
+    "bandung": {
+      "name": "Bandung",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.45,
+      "s1": 0.55,
+      "tl": 20
+    },
+    "surabaya": {
+      "name": "Surabaya",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.73,
+      "s1": 0.3,
+      "tl": 20
+    },
+    "semarang": {
+      "name": "Semarang",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.87,
+      "s1": 0.34,
+      "tl": 20
+    },
+    "yogyakarta": {
+      "name": "Yogyakarta",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.12,
+      "s1": 0.47,
+      "tl": 20
+    },
+    "denpasar": {
+      "name": "Denpasar",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.98,
+      "s1": 0.38,
+      "tl": 20
+    },
+    "medan": {
+      "name": "Medan",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.65,
+      "s1": 0.37,
+      "tl": 20
+    },
+    "padang": {
+      "name": "Padang",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.55,
+      "s1": 0.65,
+      "tl": 20
+    },
+    "bandaAceh": {
+      "name": "Banda Aceh",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.4,
+      "s1": 0.62,
+      "tl": 20
+    },
+    "makassar": {
+      "name": "Makassar",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.47,
+      "s1": 0.18,
+      "tl": 20
+    },
+    "palu": {
+      "name": "Palu",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 2.0,
+      "s1": 0.8,
+      "tl": 20
+    },
+    "manado": {
+      "name": "Manado",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.3,
+      "s1": 0.55,
+      "tl": 20
+    },
+    "jayapura": {
+      "name": "Jayapura",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 1.6,
+      "s1": 0.6,
+      "tl": 20
+    },
+    "balikpapan": {
+      "name": "Balikpapan",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.13,
+      "s1": 0.1,
+      "tl": 20
+    },
+    "pontianak": {
+      "name": "Pontianak",
+      "zone": 0,
+      "windSpeed": 30.0,
+      "ss": 0.04,
+      "s1": 0.04,
+      "tl": 20
+    }
+  }
+}

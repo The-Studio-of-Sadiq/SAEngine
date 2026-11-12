@@ -1,0 +1,1675 @@
+{
+  "$defs": {
+    "Borings": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "countAndSpacing",
+          "description": "How the number, pattern and spacing of the borings are checked.",
+          "title": "Method",
+          "type": "string"
+        },
+        "minimum": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Least number of borings by building size.",
+          "title": "Minimum",
+          "type": "object"
+        },
+        "notInOneLine": {
+          "default": true,
+          "description": "The borings must not be in one line.",
+          "title": "Notinoneline",
+          "type": "boolean"
+        },
+        "spacing": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "Largest spacing [m] by building size and horizontal stratification.",
+          "title": "Spacing",
+          "type": "object"
+        },
+        "insideFootprint": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Least share of the borings under the building.",
+          "title": "Insidefootprint"
+        }
+      },
+      "required": [
+        "method",
+        "minimum",
+        "spacing"
+      ],
+      "title": "Borings",
+      "type": "object"
+    },
+    "ChlorideExposure": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "maxWaterCement": {
+          "title": "Maxwatercement",
+          "type": "number"
+        },
+        "maxWaterCementExtraCover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxwatercementextracover"
+        },
+        "extraCover": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "[mm]",
+          "title": "Extracover"
+        },
+        "lowPermeabilityWaterCement": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lowpermeabilitywatercement"
+        }
+      },
+      "required": [
+        "maxWaterCement"
+      ],
+      "title": "ChlorideExposure",
+      "type": "object"
+    },
+    "ClassBand": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Above"
+        },
+        "atLeast": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atleast"
+        },
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "atMost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atmost"
+        },
+        "siteClass": {
+          "title": "Siteclass",
+          "type": "string"
+        }
+      },
+      "required": [
+        "siteClass"
+      ],
+      "title": "ClassBand",
+      "type": "object"
+    },
+    "Collapsible": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "criticalVoidRatio": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "ec = a eL + b eP: {'liquidLimit': a, 'plasticLimit': b}.",
+          "title": "Criticalvoidratio",
+          "type": "object"
+        },
+        "saturationMax": {
+          "title": "Saturationmax",
+          "type": "number"
+        },
+        "voidIndexMax": {
+          "title": "Voidindexmax",
+          "type": "number"
+        },
+        "relativeSubsidence": {
+          "title": "Relativesubsidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "criticalVoidRatio",
+        "saturationMax",
+        "voidIndexMax",
+        "relativeSubsidence"
+      ],
+      "title": "Collapsible",
+      "type": "object"
+    },
+    "CorrosiveSite": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "chloride": {
+          "description": "Chloride from which the site is corrosive [ppm].",
+          "title": "Chloride",
+          "type": "number"
+        },
+        "sulphate": {
+          "description": "Sulphate from which the site is corrosive [ppm].",
+          "title": "Sulphate",
+          "type": "number"
+        },
+        "pHBelow": {
+          "title": "Phbelow",
+          "type": "number"
+        },
+        "steelPile": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Steelpile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "chloride",
+        "sulphate",
+        "pHBelow"
+      ],
+      "title": "CorrosiveSite",
+      "type": "object"
+    },
+    "Corrosivity": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "scores": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "items": {
+                  "$ref": "#/$defs/ScoreBand"
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "description": "Score of each parameter: by category, or by bands of its value.",
+          "title": "Scores",
+          "type": "object"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "ratings": {
+          "description": "Rating by the total score.",
+          "items": {
+            "$ref": "#/$defs/RatingBand"
+          },
+          "minItems": 1,
+          "title": "Ratings",
+          "type": "array"
+        },
+        "compositionFromUscs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Compositionfromuscs",
+          "type": "object"
+        },
+        "compositionFromSoilType": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Compositionfromsoiltype",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scores",
+        "ratings"
+      ],
+      "title": "Corrosivity",
+      "type": "object"
+    },
+    "DegreeBand": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Above"
+        },
+        "atLeast": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atleast"
+        },
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "atMost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atmost"
+        },
+        "degree": {
+          "title": "Degree",
+          "type": "string"
+        }
+      },
+      "required": [
+        "degree"
+      ],
+      "title": "DegreeBand",
+      "type": "object"
+    },
+    "Dispersive": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "pinhole": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Pinhole class -> dispersive, intermediate, ...",
+          "title": "Pinhole",
+          "type": "object"
+        },
+        "pHScreen": {
+          "title": "Phscreen",
+          "type": "number"
+        },
+        "espDispersive": {
+          "title": "Espdispersive",
+          "type": "number"
+        },
+        "espPlusEmgDispersive": {
+          "title": "Espplusemgdispersive",
+          "type": "number"
+        },
+        "espModerate": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Espmoderate",
+          "type": "array"
+        },
+        "espSerious": {
+          "title": "Espserious",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pinhole",
+        "pHScreen",
+        "espDispersive",
+        "espPlusEmgDispersive",
+        "espModerate",
+        "espSerious"
+      ],
+      "title": "Dispersive",
+      "type": "object"
+    },
+    "Expansive": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/ExpansiveCriterion"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
+        "degrees": {
+          "description": "The degrees of expansion, least first.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Degrees",
+          "type": "array"
+        },
+        "flagFrom": {
+          "description": "The degree from which the soil is flagged expansive.",
+          "title": "Flagfrom",
+          "type": "string"
+        }
+      },
+      "required": [
+        "criteria",
+        "degrees",
+        "flagFrom"
+      ],
+      "title": "Expansive",
+      "type": "object"
+    },
+    "ExpansiveCriterion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "parameter": {
+          "description": "The sample value the criterion reads.",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "default": "",
+          "title": "Source",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/DegreeBand"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "parameter",
+        "rows"
+      ],
+      "title": "ExpansiveCriterion",
+      "type": "object"
+    },
+    "ExplorationDepth": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "footingWidths",
+          "description": "Depth below a spread footing in footing widths by L/B; piles below the tip.",
+          "title": "Method",
+          "type": "string"
+        },
+        "spread": {
+          "description": "(L/B, depth below the bearing level in footing widths).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Spread",
+          "type": "array"
+        },
+        "minimum": {
+          "description": "Least depth of any boring [m].",
+          "minimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "buildingWidthFactor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Depth below the foundation in building widths.",
+          "title": "Buildingwidthfactor"
+        },
+        "buildingShare": {
+          "default": 0.5,
+          "description": "Share of the borings that go that deep.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Buildingshare",
+          "type": "number"
+        },
+        "belowPileTip": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Below the pile tip [m].",
+          "title": "Belowpiletip"
+        },
+        "pileGroupWidths": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Below the pile tip in largest group dimensions.",
+          "title": "Pilegroupwidths"
+        },
+        "rockCore": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rock core of piles on rock [m].",
+          "title": "Rockcore"
+        },
+        "shaftRockCoreDiameters": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rock core of an isolated shaft in diameters.",
+          "title": "Shaftrockcorediameters"
+        },
+        "shaftGroupRockCoreWidths": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rock core of a shaft group in group dimensions.",
+          "title": "Shaftgrouprockcorewidths"
+        },
+        "bedrockCore": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Core into bedrock of the boring taken to bedrock [m].",
+          "title": "Bedrockcore"
+        }
+      },
+      "required": [
+        "method",
+        "spread",
+        "minimum"
+      ],
+      "title": "ExplorationDepth",
+      "type": "object"
+    },
+    "GeoHazards": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "items": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "GeoHazards",
+      "type": "object"
+    },
+    "Liquefaction": {
+      "additionalProperties": false,
+      "description": "The code's own liquefaction procedure (the soil report's ``codePack`` method) and its\nscreening rule of thumb (applied with every method).",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "linearRdYoud",
+          "description": "Engine method: ``linearRdYoud``: CSR = csrFactor (amax/g) rd σv/σ'v with rd = 1 - rdSlope z, CRR of Youd et al. (2001) from the SPT, FL = CRR/CSR.",
+          "title": "Method",
+          "type": "string"
+        },
+        "rdSlope": {
+          "description": "rd = 1 - rdSlope z, z in m.",
+          "exclusiveMinimum": 0,
+          "title": "Rdslope",
+          "type": "number"
+        },
+        "csrFactor": {
+          "description": "CSR = csrFactor (amax/g) rd σv/σ'v.",
+          "exclusiveMinimum": 0,
+          "title": "Csrfactor",
+          "type": "number"
+        },
+        "fieldNLimit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Soil with a field N above this does not liquefy (rule of thumb); empty: the code gives none.",
+          "title": "Fieldnlimit"
+        }
+      },
+      "required": [
+        "method",
+        "rdSlope",
+        "csrFactor"
+      ],
+      "title": "Liquefaction",
+      "type": "object"
+    },
+    "Organic": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "ovenDriedRatio": {
+          "description": "LL oven-dried / LL not dried below which a fine soil is organic.",
+          "title": "Ovendriedratio",
+          "type": "number"
+        },
+        "peat": {
+          "description": "Organic content from which the soil is peat [%].",
+          "title": "Peat",
+          "type": "number"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/OrganicClass"
+          },
+          "minItems": 1,
+          "title": "Classes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ovenDriedRatio",
+        "peat",
+        "classes"
+      ],
+      "title": "Organic",
+      "type": "object"
+    },
+    "OrganicClass": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "min": {
+          "description": "Least organic content of the class [%].",
+          "minimum": 0,
+          "title": "Min",
+          "type": "number"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "min"
+      ],
+      "title": "OrganicClass",
+      "type": "object"
+    },
+    "RatingBand": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Above"
+        },
+        "atLeast": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atleast"
+        },
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "atMost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atmost"
+        },
+        "rating": {
+          "title": "Rating",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rating"
+      ],
+      "title": "RatingBand",
+      "type": "object"
+    },
+    "ScoreBand": {
+      "additionalProperties": false,
+      "properties": {
+        "above": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Above"
+        },
+        "atLeast": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atleast"
+        },
+        "below": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Below"
+        },
+        "atMost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Atmost"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "score"
+      ],
+      "title": "ScoreBand",
+      "type": "object"
+    },
+    "SiteClassification": {
+      "additionalProperties": false,
+      "description": "The site class of a borehole from the SPT and su over the top of the profile.",
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "method": {
+          "const": "harmonicMeans",
+          "description": "Engine method: harmonic means of N (field) and su over ``depth``, the softer class of the two.",
+          "title": "Method",
+          "type": "string"
+        },
+        "table": {
+          "default": "",
+          "description": "The table's short name used in the notes.",
+          "title": "Table",
+          "type": "string"
+        },
+        "depth": {
+          "description": "Depth classified [m].",
+          "exclusiveMinimum": 0,
+          "title": "Depth",
+          "type": "number"
+        },
+        "nMax": {
+          "description": "N counted at most this.",
+          "exclusiveMinimum": 0,
+          "title": "Nmax",
+          "type": "number"
+        },
+        "suMax": {
+          "description": "su counted at most this [kPa].",
+          "exclusiveMinimum": 0,
+          "title": "Sumax",
+          "type": "number"
+        },
+        "order": {
+          "description": "The classes, stiffest first.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Order",
+          "type": "array"
+        },
+        "byN": {
+          "items": {
+            "$ref": "#/$defs/ClassBand"
+          },
+          "minItems": 1,
+          "title": "Byn",
+          "type": "array"
+        },
+        "bySu": {
+          "items": {
+            "$ref": "#/$defs/ClassBand"
+          },
+          "minItems": 1,
+          "title": "Bysu",
+          "type": "array"
+        },
+        "rockClass": {
+          "description": "The class of rock near the surface without a Vs.",
+          "title": "Rockclass",
+          "type": "string"
+        },
+        "rockShallow": {
+          "description": "Rock within this depth [m] gives rockClass.",
+          "exclusiveMinimum": 0,
+          "title": "Rockshallow",
+          "type": "number"
+        },
+        "rockDeep": {
+          "description": "Rock-like material up to this depth [m] flags ...",
+          "exclusiveMinimum": 0,
+          "title": "Rockdeep",
+          "type": "number"
+        },
+        "rockDeepClass": {
+          "description": "... this class (it needs the Vs).",
+          "title": "Rockdeepclass",
+          "type": "string"
+        },
+        "rockVs": {
+          "description": "Vs [m/s] of rock (the stiffest class).",
+          "exclusiveMinimum": 0,
+          "title": "Rockvs",
+          "type": "number"
+        },
+        "soft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoftSiteRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "liquefiableClass": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class of a site with liquefiable soil (S2).",
+          "title": "Liquefiableclass"
+        },
+        "liquefiableAssumed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class used meanwhile for a liquefiable site.",
+          "title": "Liquefiableassumed"
+        }
+      },
+      "required": [
+        "method",
+        "depth",
+        "nMax",
+        "suMax",
+        "order",
+        "byN",
+        "bySu",
+        "rockClass",
+        "rockShallow",
+        "rockDeep",
+        "rockDeepClass",
+        "rockVs"
+      ],
+      "title": "SiteClassification",
+      "type": "object"
+    },
+    "SoftClay": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/SoftClayRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "nAtMost": {
+          "description": "Field N at or below which a clay is soft.",
+          "title": "Natmost",
+          "type": "number"
+        },
+        "cuRange": {
+          "description": "cu range of soft clays [kPa].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Curange",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows",
+        "nAtMost",
+        "cuRange"
+      ],
+      "title": "SoftClay",
+      "type": "object"
+    },
+    "SoftClayRow": {
+      "additionalProperties": false,
+      "properties": {
+        "consistency": {
+          "title": "Consistency",
+          "type": "string"
+        },
+        "nBelow": {
+          "title": "Nbelow",
+          "type": "number"
+        },
+        "cuBelow": {
+          "title": "Cubelow",
+          "type": "number"
+        }
+      },
+      "required": [
+        "consistency",
+        "nBelow",
+        "cuBelow"
+      ],
+      "title": "SoftClayRow",
+      "type": "object"
+    },
+    "SoftSiteRule": {
+      "additionalProperties": false,
+      "description": "A soft-clay site class (S1 of the default pack) the SPT can only flag.",
+      "properties": {
+        "siteClass": {
+          "title": "Siteclass",
+          "type": "string"
+        },
+        "suRange": {
+          "description": "su [kPa] of the soft clays.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Surange",
+          "type": "array"
+        },
+        "thickness": {
+          "description": "Least thickness of the layer [m].",
+          "exclusiveMinimum": 0,
+          "title": "Thickness",
+          "type": "number"
+        },
+        "pi": {
+          "description": "PI above which a clay counts.",
+          "exclusiveMinimum": 0,
+          "title": "Pi",
+          "type": "number"
+        }
+      },
+      "required": [
+        "siteClass",
+        "suRange",
+        "thickness",
+        "pi"
+      ],
+      "title": "SoftSiteRule",
+      "type": "object"
+    },
+    "Sulphate": {
+      "additionalProperties": false,
+      "properties": {
+        "clause": {
+          "default": "",
+          "description": "The clause (and page) the values come from.",
+          "title": "Clause",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "How the values are read, for the report.",
+          "title": "Note",
+          "type": "string"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "object"
+        },
+        "classes": {
+          "description": "Least severe first.",
+          "items": {
+            "$ref": "#/$defs/SulphateClass"
+          },
+          "minItems": 1,
+          "title": "Classes",
+          "type": "array"
+        },
+        "seaWater": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The class of sea water.",
+          "title": "Seawater"
+        }
+      },
+      "required": [
+        "classes"
+      ],
+      "title": "Sulphate",
+      "type": "object"
+    },
+    "SulphateClass": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "soilMin": {
+          "description": "Water-soluble SO4 in soil [% by weight].",
+          "minimum": 0,
+          "title": "Soilmin",
+          "type": "number"
+        },
+        "waterMin": {
+          "description": "SO4 in water [ppm].",
+          "minimum": 0,
+          "title": "Watermin",
+          "type": "number"
+        },
+        "exclusive": {
+          "default": false,
+          "description": "The lower bounds are exclusive.",
+          "title": "Exclusive",
+          "type": "boolean"
+        },
+        "cement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cement"
+        },
+        "maxWaterCement": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxwatercement"
+        },
+        "noCalciumChloride": {
+          "default": false,
+          "title": "Nocalciumchloride",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "soilMin",
+        "waterMin"
+      ],
+      "title": "SulphateClass",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Site investigation and soil chemistry: the number, spacing and depth of the borings, the\nidentification of problem soils (organic, expansive, collapsible, dispersive, soft), the\ncorrosivity of the soil for buried steel, and the concrete in the ground (sulphate classes,\nchloride exposure). The engine reads the bands; a pack without this table does not cover\nthe checks.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "borings": {
+      "$ref": "#/$defs/Borings"
+    },
+    "depth": {
+      "$ref": "#/$defs/ExplorationDepth"
+    },
+    "organic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Organic"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "expansive": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Expansive"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "collapsible": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Collapsible"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "dispersive": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Dispersive"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "softClay": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SoftClay"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "corrosivity": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Corrosivity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "steelCorrosion": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "description": "Steel corrosion rates [mm/side/year] by exposure.",
+      "title": "Steelcorrosion",
+      "type": "object"
+    },
+    "corrosiveSite": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CorrosiveSite"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "sulphate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sulphate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "chloride": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChlorideExposure"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "geoHazards": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GeoHazards"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "liquefaction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Liquefaction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "siteClassification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SiteClassification"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "borings",
+    "depth"
+  ],
+  "title": "SiteInvestigationTable",
+  "type": "object",
+  "$id": "saengine.codePack.siteInvestigation/1"
+}

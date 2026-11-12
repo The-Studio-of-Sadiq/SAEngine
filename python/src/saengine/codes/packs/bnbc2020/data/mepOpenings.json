@@ -1,0 +1,34 @@
+{
+  "$schema": "../../../schemas/mepOpenings.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 5.16.3 (p. 863), 6.4.1.1.1 (p. 921), 6.4.8 (p. 935), 6.4.10.6 (p. 942), 6.5.2.1 (p. 945), 6.5.4 (p. 949) and 6.6.3.4-6.6.3.7 (p. 969)"
+  ],
+  "source": "BNBC 2020 Part 6: the openings and sleeves MEP cuts through beams, slabs and walls; p = PDF page of bnbc-2020-part1.pdf. The slab strip shares are slabMethods.openings, the wall layers concrete.walls.",
+  "columnStripShare": 0.25,
+  "punchingDistance": 10,
+  "trimBar": 16,
+  "trimBars": [2, 1],
+  "clauses": {
+    "beam": "BNBC 2020 6.4.1.1.1",
+    "sleeves": "BNBC 5.16.3.3",
+    "embedded": "5.16.3.5",
+    "columnStrip": "BNBC 6.5.2.1",
+    "slabOpenings": "BNBC 6.5.4.2",
+    "middleStrips": "BNBC 6.5.4.2.1",
+    "crossStrips": "BNBC 6.5.4.2.2",
+    "columnMiddle": "BNBC 6.5.4.2.3",
+    "byAnalysis": "BNBC 6.5.4.1",
+    "punching": "BNBC 6.4.10.6",
+    "punchingPerimeter": "BNBC 6.4.10.6.1",
+    "wallShear": "BNBC 6.4.8",
+    "wallLayers": "BNBC 6.6.3.4",
+    "trimBars": "BNBC 6.6.3.7"
+  },
+  "sources": {
+    "columnStripShare": "BNBC 2020 Part 6 Sec 6.5.2.1 (p. 945): 0.25 l1 or 0.25 l2 each side of the column centreline, whichever is less",
+    "punchingDistance": "BNBC 2020 Part 6 Sec 6.4.10.6 (p. 942): openings nearer than 10 times the slab thickness to a concentrated load or reaction area, or in a column strip of a flat slab",
+    "trimBar": "BNBC 2020 Part 6 Sec 6.6.3.7 (p. 969): not less than two 16 mm bars in walls with two layers, one in walls with a single layer, around window, door and similar openings",
+    "trimBars": "BNBC 2020 Part 6 Sec 6.6.3.7 (p. 969)",
+    "clauses": "As the checks cite them (the short form the reports always printed)"
+  }
+}

@@ -9,7 +9,10 @@ import { Sequencer } from '../../../../../base/common/async.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive, ExplorerResourceProtectedContext } from '../../common/files.js';
+import { ALL_PARTS, ISaengineProjectService } from '../../../../services/saengineProject/common/saengineProject.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { PROJECT_FLOW_GAP, projectFlowPosition } from '../../../../services/saengineProject/common/projectFlow.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -187,6 +190,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private folderContext: IContextKey<boolean>;
 	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
+	private protectedContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
 	private rootContext: IContextKey<boolean>;
@@ -240,7 +244,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ISaengineProjectService private readonly saengineProjectService: ISaengineProjectService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -251,6 +256,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
+		this.protectedContext = ExplorerResourceProtectedContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
@@ -525,7 +531,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
-		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(item => projectFlowPosition(this.saengineProjectService.project, item.resource)), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource, this.filter, this.findProvider), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
@@ -595,6 +601,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// Update resource context based on focused element
 		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+
+		// A SAEngine project's part folders form a flowchart with arrows between them (see
+		// ExplorerDelegate); once the project is known, give them their taller rows.
+		this._register(this.saengineProjectService.onDidChangeProject(project => {
+			// Every part folder either project type has: a project's own parts are flow nodes, the
+			// other Part 5 folder (left after changing the project type) is a plain folder again.
+			const flow = this.saengineProjectService.parts.slice(1);
+			for (const part of project ? ALL_PARTS : []) {
+				const item = this.explorerService.findClosest(joinPath(project!.root, part.folder));
+				if (item && this.tree.hasNode(item) && item.resource.toString() === joinPath(project!.root, part.folder).toString()) {
+					this.tree.updateElementHeight(item, ExplorerDelegate.ITEM_HEIGHT + (flow.includes(part) ? PROJECT_FLOW_GAP : 0));
+				}
+			}
+			this.tree.rerender();
+		}));
 		this.onFocusChanged([]);
 		// Open when selecting via keyboard
 		this._register(this.tree.onDidOpen(async e => {
@@ -682,6 +703,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.protectedContext.set(!!resource && this.saengineProjectService.isProtected(resource));
 		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 

@@ -1,0 +1,201 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The project sidebar: small muted group headings over numbered part rows with a status dot. */
+
+/* Status dots, shared with the overview. */
+.monaco-workbench .sa-state-dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .sa-state-dot.sa-state-ok { background-color: var(--sa-ok, #2e8540); }
+.monaco-workbench .sa-state-dot.sa-state-info { background-color: var(--sa-info, #1a73c4); }
+.monaco-workbench .sa-state-dot.sa-state-warn { background-color: var(--sa-warn, #c2620e); }
+.monaco-workbench .sa-state-dot.sa-state-fail { background-color: var(--sa-fail, #c62f2f); }
+.monaco-workbench .sa-state-dot.sa-state-idle { border: 1.5px solid var(--sa-idle, #8a9099); }
+
+/* A project folder's path, cut in the middle: the head shrinks first, the last folders stay. */
+.monaco-workbench .sa-path {
+	display: flex;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.monaco-workbench .sa-path .sa-path-head {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* The tail never shrinks while the head has room to give; it is cut only when it alone is too wide. */
+.monaco-workbench .sa-path .sa-path-tail {
+	flex: 0 0 auto;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Headings and the entries under a part need no twistie; every part keeps one, so the parts
+   with entries line up with those without. */
+.saengine-project-navigator .monaco-list-row:has(.sa-nav-group, .sa-nav-section) .monaco-tl-twistie {
+	width: 0;
+	padding-right: 0;
+}
+
+.saengine-project-navigator .monaco-list-row:has(.sa-nav-group) {
+	cursor: default;
+	background: none !important;
+	outline: none !important;
+}
+
+.saengine-project-navigator .sa-nav-group {
+	display: flex;
+	align-items: flex-end;
+	height: 100%;
+	padding: 0 var(--sa-space-3, 12px) 3px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+.saengine-project-navigator .sa-nav-part {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	height: 100%;
+	padding: 0 var(--sa-space-3, 12px) 0 var(--sa-space-2, 8px);
+	border-radius: var(--sa-radius, 4px);
+}
+
+.saengine-project-navigator .sa-nav-number {
+	flex: none;
+	width: 18px;
+	text-align: right;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-variant-numeric: tabular-nums;
+}
+
+.saengine-project-navigator .sa-nav-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.saengine-project-navigator .sa-nav-part.active .sa-nav-name {
+	font-weight: 600;
+}
+
+.saengine-project-navigator .sa-nav-state {
+	flex: none;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-project-navigator .sa-nav-state:empty {
+	display: none;
+}
+
+.saengine-project-navigator .sa-nav-file {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 100%;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.saengine-project-navigator .sa-nav-file-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The versions line under the parts: what changed since the latest version; opens Versions. */
+.saengine-project-navigator .sa-nav-versions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 0 var(--sa-space-3, 12px);
+	border-top: 1px solid var(--sa-border);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+	outline-offset: -1px;
+}
+
+.saengine-project-navigator .sa-nav-versions.hidden {
+	display: none;
+}
+
+.saengine-project-navigator .sa-nav-versions:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.saengine-project-navigator .sa-nav-versions:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.saengine-project-navigator .sa-nav-versions-icon {
+	flex: none;
+}
+
+.saengine-project-navigator .sa-nav-versions.dirty .sa-nav-versions-icon {
+	color: var(--sa-warn);
+	font-size: 8px;
+}
+
+.saengine-project-navigator .sa-nav-versions.problem .sa-nav-versions-icon {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.saengine-project-navigator .sa-nav-versions-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The entries under a part (Settings: Seismic, Wind, ...; MEP: Plumbing, ...): lighter than the
+   parts, aligned with the part's name. */
+.saengine-project-navigator .sa-nav-section {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: 0 var(--sa-space-3, 12px) 0 38px; /* under the part's name: its twistie, number and gap less the indent */
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+}
+
+.saengine-project-navigator .sa-nav-section.active {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+/* The Overview row above the groups (N-N1): an icon where the parts have their number. */
+.saengine-project-navigator .sa-nav-overview .sa-nav-number {
+	display: inline-flex;
+	justify-content: center;
+}
+
+.saengine-project-navigator .sa-nav-overview .sa-state-dot.hidden {
+	display: none;
+}

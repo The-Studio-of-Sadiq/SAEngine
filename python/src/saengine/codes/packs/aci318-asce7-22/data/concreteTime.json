@@ -1,0 +1,74 @@
+{
+  "$schema": "../../../schemas/concreteTime.schema.json",
+  "$sources": [
+    "ACI 209R-92 Sec 2.2 (Eqs 2-1, 2-8, 2-10): strength in time, creep and shrinkage in time",
+    "ACI 209R-92 Sec 2.5 (Eqs 2-11 to 2-23): the correction factors of the ultimate creep coefficient and shrinkage strain",
+    "ASCE 7-22 Sec 2.3.4 and ACI 318-19 Sec 5.3.6: self-straining effects (creep, shrinkage) with a factor of at least 1.0"
+  ],
+  "source": "ACI 209R-92 Sec 2.2 and 2.5",
+  "sources": {
+    "analysis": "ACI 209R-92 Chapter 2: the creep and shrinkage of the members in the analysis",
+    "phased": "ACI 209R-92 Sec 2.2: the age at loading of each storey (construction sequence: SAEngine practice)",
+    "effects": "ASCE 7-22 Sec 2.3.4 and ACI 318-19 Sec 5.3.6: self-straining effects of creep and shrinkage",
+    "creep": "ACI 209R-92 Eq 2-8: φ(t, t0) = (t - t0)^0.6 / (10 + (t - t0)^0.6) φu, φu = 2.35 γc",
+    "creepFigure": "ACI 209R-92 Eqs 2-11 to 2-14, 2-21: loading age (moist cured), relative humidity and volume-to-surface factors",
+    "creepDevelopment": "ACI 209R-92 Eq 2-8: the time-ratio of creep",
+    "thickness": "ACI 209R-92 Eqs 2-14 and 2-21: volume-to-surface ratio V/S (= half the effective thickness 2A/u)",
+    "shrinkage": "ACI 209R-92 Eq 2-10: εsh(t) = (t - tc) / (35 + t - tc) εshu, εshu = 780 × 10⁻⁶ γsh (moist cured)",
+    "shrinkageFigure": "ACI 209R-92 Table 2.5.3 and Eqs 2-15, 2-22: curing, relative humidity and volume-to-surface factors",
+    "reinforced": "Age-adjusted effective modulus: the steel restrains the creep and shrinkage of the section (SAEngine practice)",
+    "modulus": "ACI 209R-92 Eq 2-1 (moist-cured Type I cement, a = 4.0, β = 0.85) and the pack's Ec rule at that strength"
+  },
+  "creep": {
+    "$replace": true,
+    "method": "aci209",
+    "ultimate": 2.35,
+    "timeExponent": 0.6,
+    "timeConstant": 10,
+    "loadingAge": [1.25, -0.118],
+    "humidity": [1.27, 0.67],
+    "humidityMin": 40,
+    "volumeSurface": [0.6667, 1.13, 0.0213],
+    "otherFactor": 1.0,
+    "source": "ACI 209R-92 Eqs 2-8, 2-11, 2-12, 2-14 and 2-21",
+    "note": "Standard conditions for the slump, fines and air factors (Eqs 2-17 to 2-19 at 1.0): otherFactor 1.0, SAEngine practice. The volume-to-surface ratio V/S is half the effective thickness 2A/u. Moist curing (the steam-cured loading age factor 1.13 t^-0.094 is not used)."
+  },
+  "shrinkage": {
+    "$replace": true,
+    "method": "aci209",
+    "ultimate": 0.00078,
+    "timeExponent": 1.0,
+    "timeConstant": 35,
+    "curing": [[1, 1.2], [3, 1.1], [7, 1.0], [14, 0.93], [28, 0.86], [60, 0.79], [90, 0.75]],
+    "humidity": [[80, 1.40, 1.02], [100, 3.00, 3.0]],
+    "humidityMin": 40,
+    "volumeSurface": [1.2, 0.00472],
+    "otherFactor": 1.0,
+    "source": "ACI 209R-92 Eqs 2-10, 2-15, 2-22 and Table 2.5.3",
+    "note": "Moist curing (f = 35 days); the curing factor interpolated linearly between the tabulated days. Slump, fines, cement content and air factors at 1.0 (standard conditions): SAEngine practice."
+  },
+  "exposure": {
+    "indoor": { "relativeHumidity": 50, "reinforcement": "internal" },
+    "outdoor": { "relativeHumidity": 70, "reinforcement": "external" },
+    "source": "SAEngine practice (ACI 209R-92 takes the project's ambient relative humidity)",
+    "note": "ACI 209R-92 gives no indoor and outdoor humidities: 50 % indoors and 70 % outdoors are SAEngine's defaults; enter the project's relative humidity to replace them."
+  },
+  "strengthGain": {
+    "$replace": true,
+    "method": "hyperbolic",
+    "a": 4.0,
+    "b": 0.85,
+    "source": "ACI 209R-92 Eq 2-1 and Table 2.2.1: moist-cured concrete with Type I cement",
+    "note": "Capped at f'c (SAEngine practice)."
+  },
+  "ageing": {
+    "chi": 0.8,
+    "source": "SAEngine practice: the usual ageing coefficient of the age-adjusted effective modulus method",
+    "note": "ACI 209R-92 does not tabulate χ; 0.8 is the usual value for loads applied at once."
+  },
+  "analysis": {
+    "method": "ageAdjusted",
+    "source": "SAEngine practice",
+    "note": "The steel restrains the creep and shrinkage by the age-adjusted effective modulus."
+  }
+}

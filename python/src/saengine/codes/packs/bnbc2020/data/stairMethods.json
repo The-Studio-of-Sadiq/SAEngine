@@ -1,0 +1,231 @@
+{
+  "$schema": "../../../schemas/stairMethods.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 6.7.1.3.1, Figures 6.6.26-6.6.27 (part 1 pp. 973-975, gazette pp. 3554-3556): stairs built into walls, stairs with open wells",
+    "BNBC 2020 Part 6 Sec 6.7, 6.7.1.5.1, 6.7.2 (part 1 pp. 972-974): stairs with and without stringer beams, special types by Appendix M",
+    "BNBC 2020 Part 6 Appendix M.1, Table 6.M.1, Figure 6.M.1 (part 2 pp. 571-574, gazette pp. 4352-4355): free-standing stairs",
+    "BNBC 2020 Part 6 Appendix M.2, Eq 6.M.1, Figure 6.M.4 (part 2 pp. 574-576, gazette pp. 4355-4357): sawtooth stairs (Figure 6.M.4 digitised)",
+    "BNBC 2020 Part 6 Appendix M.3, Eqs 6.M.2-6.M.10, Figures 6.M.5-6.M.9 (part 2 pp. 576-578, gazette pp. 4357-4359): helicoidal stairs (Figures 6.M.6-6.M.9 digitised)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 6.7 (pp. 972-975) and Appendix M (part 2 pp. 571-578)",
+  "sources": {
+    "builtIn": "BNBC 2020 Part 6 Sec 6.7.1.3.1 (p. 973): flights or landings built at least 110 mm into walls and spanning along the flight: a 150 mm strip deducted from the loaded area, the effective breadth increased by 75 mm",
+    "openWellShare": "BNBC 2020 Part 6 Sec 6.7.1.3.1, Figure 6.6.27 (pp. 973, 975): open wells, the load on areas common to two crossing spans one half in each direction",
+    "stringers": "BNBC 2020 Part 6 Sec 6.7.1.5.1 (p. 974): the rules for beams and one-way slabs (the steps span between the stringer beams)",
+    "freeStanding": "BNBC 2020 Part 6 Appendix M.1.3.1-M.1.3.4, Table 6.M.1 (part 2 pp. 572-574): service forces for 5.0 kN/m² live load and 23.56 kN/m³ concrete, scaled by (23.56 T + LL + 2.36)/(23.56 T + 7.36), factored by the combination's dead and live factors; MS steel 75 % in the outer half, MK steel 75 % in the inner half",
+    "freeStanding.Mo": "BNBC 2020 Part 6 Table 6.M.1 row 5 (part 2 p. 572) prints (H - 2.04) where every other row has (H - 2.44): the printed value is kept (it gives the larger Mo, owner decision 1)",
+    "sawtooth": "BNBC 2020 Part 6 Appendix M.2.3-M.2.4, Figure 6.M.4 (part 2 pp. 575-576): support moment coefficients by treads j and k = stiffness of tread / stiffness of riser, digitised to about ±0.0003; free moment n l²/8 (× (j² + 1)/j² for odd j); twice the steel at the re-entrant corners. Eq 6.M.1 is garbled in the gazette (it gives zero at j = 2 where the figure gives 0.093), so the figure is used",
+    "helicoidal": "BNBC 2020 Part 6 Appendix M.3.5, Eqs 6.M.2-6.M.10, Figures 6.M.6-6.M.9 (part 2 pp. 577-578): k1, k2, k3 by β for φ = 20°, 25°, 30°, digitised at 45° steps to about ±0.03 from low-resolution figures; where the figure draws one k1 or k3 curve for all φ it is given for 20° and 30° alike, φ = 25° curves of k1 and k3 are not drawn and are interpolated"
+  },
+  "builtIn": {
+    "embedmentMin": 110,
+    "deductedStrip": 150,
+    "addedBreadth": 75
+  },
+  "openWellShare": 0.5,
+  "stringers": true,
+  "freeStanding": {
+    "method": "empiricalTable",
+    "expressions": [
+      {
+        "id": "deflection", "name": "Deflection at the landing corner", "unit": "m", "factor": 0.002,
+        "terms": [
+          {"variable": "A", "base": 1, "coefficient": 3.6, "offset": 0.125, "exponent": 0.94},
+          {"variable": "B", "base": 1, "coefficient": 2.275, "offset": 0.915, "exponent": 1.1},
+          {"variable": "C", "base": 1, "coefficient": 1.017, "offset": 0.914, "exponent": 0.93},
+          {"variable": "L", "base": 1, "coefficient": -0.00787, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": -0.2, "offset": 2.44},
+          {"variable": "T", "base": 1, "coefficient": -1.617, "offset": 0.1, "exponent": 0.334},
+          {"variable": "fc", "base": 1, "coefficient": -1.074e-6, "offset": 14, "exponent": 0.93}
+        ]
+      },
+      {
+        "id": "MS", "name": "Support moment", "unit": "kN·m", "factor": 4.712,
+        "terms": [
+          {"variable": "A", "base": 1.555, "coefficient": 0.787, "offset": 0.05},
+          {"variable": "B", "base": 1.06, "coefficient": -0.22, "offset": 0.86},
+          {"variable": "C", "base": 1.2, "coefficient": 2.76, "offset": 0.864},
+          {"variable": "L", "base": 1, "coefficient": 0.748, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": 0.0059, "offset": 2.44},
+          {"variable": "T", "base": 0.39, "coefficient": 1.73, "offset": 0.09}
+        ]
+      },
+      {
+        "id": "MF", "name": "Flight mid-span moment", "unit": "kN·m", "factor": 1.526,
+        "terms": [
+          {"variable": "A", "base": 1.1, "coefficient": -1.143, "offset": 0.15, "exponent": 1.52},
+          {"variable": "B", "base": 1, "coefficient": -0.872, "offset": 0.915, "exponent": 1.365},
+          {"variable": "L", "base": 1, "coefficient": 12.22, "offset": 2.03, "exponent": 2.66},
+          {"variable": "H", "base": 1, "coefficient": 0.184, "offset": 2.44, "exponent": 2.77},
+          {"variable": "T", "base": 1, "coefficient": -5.34, "offset": 0.1, "exponent": 1.17}
+        ]
+      },
+      {
+        "id": "MK", "name": "Moment at the flight-landing junction", "unit": "kN·m", "factor": 3.447,
+        "terms": [
+          {"variable": "A", "base": 1.23, "coefficient": 0.512, "offset": 0.125},
+          {"variable": "B", "base": 1.01, "coefficient": 3.23, "offset": 0.915},
+          {"variable": "C", "base": 0.85, "coefficient": 0.709, "offset": 0.915},
+          {"variable": "T", "base": 0.95, "coefficient": 5.5, "offset": 0.1, "exponent": 1.03}
+        ]
+      },
+      {
+        "id": "Mo", "name": "Moment at the mid-landing section", "unit": "kN·m", "factor": 6.14,
+        "terms": [
+          {"variable": "A", "base": 1, "coefficient": 0.303, "offset": 0.15},
+          {"variable": "B", "base": 1, "coefficient": 1.18, "offset": 0.915},
+          {"variable": "C", "base": 1, "coefficient": 1.06, "offset": 0.915},
+          {"variable": "L", "base": 1, "coefficient": 0.409, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": 0.02637, "offset": 2.04},
+          {"variable": "T", "base": 1, "coefficient": 1.85, "offset": 0.1}
+        ]
+      },
+      {
+        "id": "AF", "name": "Axial force in the flights", "unit": "kN", "factor": 34.69,
+        "terms": [
+          {"variable": "A", "base": 1, "coefficient": 0.236, "offset": 0.125},
+          {"variable": "B", "base": 1, "coefficient": 0.787, "offset": 0.915},
+          {"variable": "C", "base": 1, "coefficient": 0.827, "offset": 0.915},
+          {"variable": "L", "base": 1, "coefficient": 0.354, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": -0.157, "offset": 2.44},
+          {"variable": "T", "base": 1, "coefficient": 2.76, "offset": 0.1}
+        ]
+      },
+      {
+        "id": "TF", "name": "Torsion in the flights", "unit": "kN·m", "factor": 2.312,
+        "terms": [
+          {"variable": "A", "base": 1, "coefficient": 1.77, "offset": 0.125},
+          {"variable": "B", "base": 1, "coefficient": 0.63, "offset": 0.915},
+          {"variable": "C", "base": 1, "coefficient": 2.68, "offset": 0.915},
+          {"variable": "L", "base": 1, "coefficient": -0.001423, "offset": 2.03, "exponent": 0.75},
+          {"variable": "T", "base": 1, "coefficient": 3.58, "offset": 0.1}
+        ]
+      },
+      {
+        "id": "MI", "name": "In-plane moment in the flights", "unit": "kN·m", "factor": 14.35,
+        "terms": [
+          {"variable": "A", "base": 1.1, "coefficient": 0.866, "offset": 0.15},
+          {"variable": "B", "base": 1, "coefficient": 0.984, "offset": 0.915},
+          {"variable": "C", "base": 1, "coefficient": 1.57, "offset": 0.915},
+          {"variable": "L", "base": 1, "coefficient": 0.59, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": -0.197, "offset": 2.44},
+          {"variable": "T", "base": 1, "coefficient": 2.6, "offset": 0.1}
+        ]
+      },
+      {
+        "id": "Vo", "name": "Lateral shear at the mid-landing section", "unit": "kN", "factor": 30.17,
+        "terms": [
+          {"variable": "A", "base": 1, "coefficient": -0.276, "offset": 0.15},
+          {"variable": "B", "base": 1, "coefficient": 1.38, "offset": 0.915},
+          {"variable": "C", "base": 1, "coefficient": 0.709, "offset": 0.915},
+          {"variable": "L", "base": 1, "coefficient": 0.669, "offset": 2.03},
+          {"variable": "H", "base": 1, "coefficient": -0.24, "offset": 2.44},
+          {"variable": "T", "base": 1, "coefficient": 6.092, "offset": 0.1, "exponent": 1.3}
+        ]
+      }
+    ],
+    "ranges": {
+      "A": [0.15, 1.0],
+      "B": [0.92, 1.9],
+      "C": [0.92, 1.9],
+      "L": [2.0, 3.6],
+      "H": [2.44, 4.32],
+      "T": [0.1, 0.28],
+      "fc": [14, 40]
+    },
+    "referenceLive": 5.0,
+    "unitWeight": 23.56,
+    "liveScale": [23.56, 2.36, 7.36],
+    "outerShareSupport": 0.75,
+    "innerShareJunction": 0.75
+  },
+  "sawtooth": {
+    "method": "supportChart",
+    "treads": [2, 3, 4, 5, 6, 10, 12, 14, 16, 18, 20],
+    "curves": [
+      {"k": 0, "coefficients": [0.0930, 0.0877, 0.0858, 0.0849, 0.0844, 0.0837, 0.0836, 0.0835, 0.0835, 0.0834, 0.0834]},
+      {"k": 0.5, "coefficients": [0.0990, 0.0934, 0.0908, 0.0892, 0.0883, 0.0862, 0.0858, 0.0854, 0.0852, 0.0849, 0.0848]},
+      {"k": 1.0, "coefficients": [0.1032, 0.0967, 0.0935, 0.0915, 0.0902, 0.0875, 0.0869, 0.0863, 0.0859, 0.0857, 0.0855]},
+      {"k": 1.5, "coefficients": [0.1059, 0.0990, 0.0952, 0.0930, 0.0915, 0.0883, 0.0875, 0.0869, 0.0865, 0.0861, 0.0859]},
+      {"k": 2.0, "coefficients": [null, 0.1006, 0.0964, 0.0939, 0.0923, 0.0889, 0.0880, 0.0873, 0.0869, 0.0864, 0.0862]},
+      {"k": 3.0, "coefficients": [null, 0.1029, 0.0982, 0.0953, 0.0935, 0.0896, 0.0886, 0.0879, 0.0873, 0.0868, 0.0865]},
+      {"k": 5.0, "coefficients": [null, 0.1052, 0.0999, 0.0967, 0.0946, 0.0903, 0.0892, 0.0883, 0.0877, 0.0872, 0.0869]},
+      {"k": 10.0, "coefficients": [null, 0.1075, 0.1015, 0.0979, 0.0956, 0.0909, 0.0897, 0.0888, 0.0881, 0.0876, 0.0872]},
+      {"k": null, "coefficients": [null, null, 0.1036, 0.0996, 0.0969, 0.0916, 0.0903, 0.0894, 0.0886, 0.0880, 0.0876]}
+    ],
+    "freeDivisor": 8.0,
+    "reentrantFactor": 2.0
+  },
+  "helicoidal": {
+    "method": "redundantCharts",
+    "charts": [
+      {
+        "source": "Figure 6.M.6",
+        "radiusRatio": 1.05, "widthRatio": 5,
+        "betas": [90, 135, 180, 225, 270, 315, 360],
+        "curves": [
+          {"k": "k1", "phi": 20, "values": [0.065, 0.046, 0.007, -0.059, -0.179, -0.356, -0.555]},
+          {"k": "k1", "phi": 30, "values": [0.065, 0.046, 0.007, -0.059, -0.179, -0.356, -0.555]},
+          {"k": "k2", "phi": 20, "values": [0.45, 0.898, 1.30, 1.61, 1.875, 2.105, 2.32]},
+          {"k": "k2", "phi": 25, "values": [0.45, 0.827, 1.138, 1.371, 1.564, 1.749, 1.94]},
+          {"k": "k2", "phi": 30, "values": [0.45, 0.749, 0.989, 1.18, 1.334, 1.506, 1.68]},
+          {"k": "k3", "phi": 20, "values": [-0.19, -0.254, -0.322, -0.39, -0.576, -0.96, -1.53]},
+          {"k": "k3", "phi": 30, "values": [-0.14, -0.173, -0.213, -0.288, -0.518, -0.96, -1.47]}
+        ]
+      },
+      {
+        "source": "Figure 6.M.7",
+        "radiusRatio": 1.05, "widthRatio": 13,
+        "betas": [90, 135, 180, 225, 270, 315, 360],
+        "curves": [
+          {"k": "k1", "phi": 20, "values": [-0.01, -0.02, -0.043, -0.10, -0.207, -0.40, -0.66]},
+          {"k": "k1", "phi": 30, "values": [-0.01, -0.02, -0.043, -0.10, -0.207, -0.40, -0.66]},
+          {"k": "k2", "phi": 20, "values": [1.16, 1.43, 1.694, 1.90, 2.077, 2.28, 2.48]},
+          {"k": "k2", "phi": 25, "values": [1.017, 1.20, 1.379, 1.54, 1.694, 1.87, 2.05]},
+          {"k": "k2", "phi": 30, "values": [0.892, 1.024, 1.16, 1.31, 1.431, 1.60, 1.76]},
+          {"k": "k3", "phi": 20, "values": [-0.07, -0.08, -0.097, -0.18, -0.41, -0.85, -1.41]},
+          {"k": "k3", "phi": 30, "values": [-0.05, -0.07, -0.097, -0.18, -0.41, -0.82, -1.34]}
+        ]
+      },
+      {
+        "source": "Figure 6.M.8",
+        "radiusRatio": 1.1, "widthRatio": 5,
+        "betas": [90, 135, 180, 225, 270, 315, 360],
+        "curves": [
+          {"k": "k1", "phi": 20, "values": [0.05, 0.007, -0.042, -0.119, -0.255, -0.455, -0.69]},
+          {"k": "k1", "phi": 30, "values": [0.05, 0.007, -0.042, -0.119, -0.255, -0.455, -0.69]},
+          {"k": "k2", "phi": 20, "values": [0.44, 0.913, 1.357, 1.676, 1.916, 2.118, 2.31]},
+          {"k": "k2", "phi": 25, "values": [0.44, 0.85, 1.19, 1.44, 1.614, 1.79, 1.97]},
+          {"k": "k2", "phi": 30, "values": [0.44, 0.773, 1.044, 1.238, 1.389, 1.545, 1.71]},
+          {"k": "k3", "phi": 20, "values": [-0.205, -0.281, -0.355, -0.412, -0.594, -0.97, -1.55]},
+          {"k": "k3", "phi": 30, "values": [-0.16, -0.193, -0.23, -0.307, -0.532, -0.97, -1.48]}
+        ]
+      },
+      {
+        "source": "Figure 6.M.9",
+        "radiusRatio": 1.1, "widthRatio": 13,
+        "betas": [90, 135, 180, 225, 270, 315, 360],
+        "curves": [
+          {"k": "k1", "phi": 20, "values": [0.012, -0.018, -0.079, -0.153, -0.274, -0.467, -0.71]},
+          {"k": "k1", "phi": 30, "values": [0.012, -0.018, -0.079, -0.17, -0.31, -0.577, -0.91]},
+          {"k": "k2", "phi": 20, "values": [1.096, 1.448, 1.762, 1.99, 2.15, 2.32, 2.50]},
+          {"k": "k2", "phi": 25, "values": [1.08, 1.291, 1.492, 1.665, 1.847, 2.042, 2.24]},
+          {"k": "k2", "phi": 30, "values": [0.991, 1.212, 1.437, 1.605, 1.762, 1.921, 2.09]},
+          {"k": "k3", "phi": 20, "values": [-0.084, -0.084, -0.123, -0.255, -0.546, -1.011, -1.58]},
+          {"k": "k3", "phi": 30, "values": [-0.084, -0.084, -0.123, -0.2, -0.431, -0.854, -1.38]}
+        ]
+      }
+    ]
+  },
+  "clauses": {
+    "builtIn": "Part 6 Sec 6.7.1.3.1",
+    "openWell": "Part 6 Sec 6.7.1.3.1, Figure 6.6.27",
+    "stringers": "Part 6 Sec 6.7.1.5.1",
+    "special": "Part 6 Sec 6.7.2",
+    "freeStanding": "Part 6 Appendix M.1, Table 6.M.1",
+    "freeStandingDetailing": "Part 6 Appendix M.1.3.4",
+    "sawtooth": "Part 6 Appendix M.2, Figure 6.M.4",
+    "sawtoothCorners": "Part 6 Appendix M.2.4",
+    "helicoidal": "Part 6 Appendix M.3, Eqs 6.M.2-6.M.10, Figures 6.M.6-6.M.9"
+  }
+}

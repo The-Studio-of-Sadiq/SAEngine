@@ -1,0 +1,104 @@
+{
+  "additionalProperties": false,
+  "description": "Embedded retaining walls of an excavation, per metre run: Rankine earth pressures of\nthe nearest borehole's layers (drained c'-φ', undrained cu, water on both sides), active\nbehind, passive in front below the dig level (lowered by the overdig).\n\n- ``factoredPassive``: the passive pressure divided by ``passiveFactor``, the other\n  pressures and the surcharge as they are;\n- ``partialFactors``: tan φ', c' and cu divided by the pack's ``geotechnicalMethods``\n  materials set ``materials``, the surcharge × ``variableFactor``.\n\nCantilever walls and propped walls on fixed earth support take the embedment d0 of the\nmoment balance (about the toe, Blum's simplification; for the fixed earth support, the\nequivalent beam below the point of zero net pressure) × ``embedmentIncrease``; propped\nwalls on free earth support the d0 of moments about the prop × ``freeEarthIncrease``.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "enum": [
+        "factoredPassive",
+        "partialFactors"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "passiveFactor": {
+      "default": 1.0,
+      "description": "factoredPassive: Kp / this.",
+      "exclusiveMinimum": 0,
+      "title": "Passivefactor",
+      "type": "number"
+    },
+    "materials": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "partialFactors: the geotechnicalMethods materials set.",
+      "title": "Materials"
+    },
+    "variableFactor": {
+      "default": 1.0,
+      "description": "On the surcharge.",
+      "exclusiveMinimum": 0,
+      "title": "Variablefactor",
+      "type": "number"
+    },
+    "embedmentIncrease": {
+      "description": "d = this × d0 (cantilever, fixed earth).",
+      "exclusiveMinimum": 0,
+      "title": "Embedmentincrease",
+      "type": "number"
+    },
+    "freeEarthIncrease": {
+      "default": 1.0,
+      "description": "d = this × d0 (free earth).",
+      "exclusiveMinimum": 0,
+      "title": "Freeearthincrease",
+      "type": "number"
+    },
+    "minimumSurcharge": {
+      "description": "Least surcharge behind the wall [kPa].",
+      "minimum": 0,
+      "title": "Minimumsurcharge",
+      "type": "number"
+    },
+    "overdigShare": {
+      "description": "Unplanned excavation: this × the retained height ...",
+      "exclusiveMaximum": 1,
+      "minimum": 0,
+      "title": "Overdigshare",
+      "type": "number"
+    },
+    "overdigMax": {
+      "description": "... at most this [m].",
+      "minimum": 0,
+      "title": "Overdigmax",
+      "type": "number"
+    }
+  },
+  "required": [
+    "method",
+    "embedmentIncrease",
+    "minimumSurcharge",
+    "overdigShare",
+    "overdigMax"
+  ],
+  "title": "EmbeddedWallsTable",
+  "type": "object",
+  "$id": "saengine.codePack.embeddedWalls/1"
+}

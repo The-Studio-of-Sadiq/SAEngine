@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/cranes.schema.json",
+  "$replace": true,
+  "$sources": [
+    "ASCE/SEI 7-22 Sec 4.9 (crane loads): vertical impact Sec 4.9.3, lateral force Sec 4.9.4, longitudinal force Sec 4.9.5"
+  ],
+  "source": "ASCE/SEI 7-22 Sec 4.9 (crane loads)",
+  "impact": {
+    "monorail": 0.25,
+    "cabOperated": 0.25,
+    "remoteOperated": 0.25,
+    "pendantOperated": 0.1,
+    "handGeared": 0.0
+  },
+  "lateral": 0.2,
+  "longitudinal": 0.1,
+  "horizontalScale": {
+    "handGeared": 0.0
+  },
+  "combination": {
+    "factorOf": "L",
+    "gravity": [["V", "T"], ["V", "B"]],
+    "lateral": [["V"]],
+    "note": "SAEngine practice: ASCE 7-22 Sec 4.9 gives the crane forces but not which act together; the vertical load acts with the transverse or the longitudinal force (each both ways) in the combinations without wind or earthquake, and alone in those with them. Crane loads take the live load factor (Sec 4.9 is in Chapter 4, live loads)."
+  },
+  "sources": {
+    "impact": "ASCE 7-22 Sec 4.9.3: powered monorail cranes and cab-operated or remotely operated powered bridge cranes 25 %, pendant-operated powered bridge cranes 10 %, bridge or monorail cranes with hand-geared bridge, trolley and hoist 0 % of the maximum wheel loads",
+    "lateral": "ASCE 7-22 Sec 4.9.4: on runway beams with electrically powered trolleys, 20 % of the rated capacity plus the weights of the hoist and trolley, at the top of the rails, both directions normal to the runway",
+    "longitudinal": "ASCE 7-22 Sec 4.9.5: 10 % of the maximum wheel loads at the top of the rail, except bridge cranes with hand-geared bridges",
+    "horizontalScale": "ASCE 7-22 Sec 4.9.4-4.9.5: no lateral force for hand-geared trolleys and no longitudinal force for hand-geared bridges (taken as 0 for a hand-geared crane)",
+    "combination": "ASCE 7-22 Sec 4.9 (crane loads are live loads)"
+  },
+  "notes": {
+    "monorail": "A powered monorail crane: ASCE 7-22 Sec 4.9.3, 25 %",
+    "handGeared": "A crane with hand-geared bridge, trolley and hoist: no impact (Sec 4.9.3) and no horizontal forces (Sec 4.9.4-4.9.5)"
+  }
+}

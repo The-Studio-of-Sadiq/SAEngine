@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../schemas/mepFabrication.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 8 Sec 5.17.2 and Table 8.5.14 (p1063): hanger spacing of horizontal and vertical piping by material",
+    "BNBC 2020 Part 8 Sec 2.11.4.8(b) (p911): spacing of supports of exhaust system ducts, applied to all ducts as SAEngine practice (the code gives no other duct support spacing)",
+    "BNBC 2020 Part 4 Sec 4.2.3.14 (part 1 p330): hangers of horizontal standpipes; Sec 4.2.10.6 (part 1 p332): hangers of sprinkler systems"
+  ],
+  "source": "BNBC 2020 Part 8 Sec 5.17.2, Table 8.5.14 and Sec 2.11.4.8(b); Part 4 Sec 4.2.3.14 and 4.2.10.6",
+  "pipeSupports": [
+    { "material": "GI", "label": "Galvanized steel pipe", "horizontal": 3500, "vertical": 4500, "source": "Table 8.5.14 (p1063)" },
+    { "material": "copper", "label": "Copper pipe or copper-alloy tubing, larger than 38 mm", "minDiameter": 38, "horizontal": 3500, "vertical": 3000, "source": "Table 8.5.14 (p1063)" },
+    { "material": "copper", "label": "Copper pipe or copper-alloy tubing, up to 38 mm", "maxDiameter": 38, "horizontal": 2000, "vertical": 3000, "source": "Table 8.5.14 (p1063); the table's '< 38 mm' row is taken to include 38 mm" },
+    { "material": "uPVC", "label": "PVC pipe and tubing", "horizontal": 1000, "vertical": 1000, "source": "Table 8.5.14 (p1063)" },
+    { "material": "aluminium", "label": "Aluminium tubing", "horizontal": 3000, "vertical": 4500, "source": "Table 8.5.14 (p1063)" },
+    { "material": "brass", "label": "Brass pipe", "horizontal": 3000, "vertical": 3000, "source": "Table 8.5.14 (p1063)" }
+  ],
+  "ductSupports": [
+    { "maxSize": 200, "spacing": 3700, "source": "Part 8 Sec 2.11.4.8(b) (p911): 200 mm ducts" },
+    { "spacing": 6000, "source": "Part 8 Sec 2.11.4.8(b) (p911): larger ducts" }
+  ],
+  "fireMains": { "spacing": 5000, "loadFactor": 5, "extraMass": 110 },
+  "sprinklerHangers": { "loadFactor": 5, "extraMass": 110 },
+  "sources": {
+    "pipeSupports": "BNBC 2020 Part 8 Sec 5.17.2, Table 8.5.14 (p1063)",
+    "ductSupports": "BNBC 2020 Part 8 Sec 2.11.4.8(b) (p911), written for exhaust system ducts; SAEngine practice applies it to every duct",
+    "fireMains": "BNBC 2020 Part 4 Sec 4.2.3.14 (part 1 p330): hangers at most 5 m apart, each carrying five times the weight of the water-filled pipe plus 110 kg",
+    "sprinklerHangers": "BNBC 2020 Part 4 Sec 4.2.10.6 (part 1 p332): five times the weight of the water-filled pipe plus 110 kg"
+  },
+  "clauses": {
+    "pipeSupports": "Part 8 Table 8.5.14",
+    "ductSupports": "Part 8 Sec 2.11.4.8(b)",
+    "fireMains": "Part 4 Sec 4.2.3.14",
+    "sprinklerHangers": "Part 4 Sec 4.2.10.6"
+  }
+}

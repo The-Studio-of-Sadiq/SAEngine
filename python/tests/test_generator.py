@@ -1,0 +1,781 @@
+"""The building generator (:mod:`saengine.library.generator`): a whole building in one step."""
+
+from __future__ import annotations
+
+import itertools
+import json
+import math
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from saengine.fem.end_zones import element_offsets
+from saengine.library import FloorPlan, MaterialLibrary, ObjectLibrary
+from saengine.library.bim import generate
+from saengine.library.generator import (
+    BuildingSpec,
+    building_texts,
+    flat_divisor,
+    generate_building,
+    stiffness_estimate,
+    wilbur_flexibility,
+    write_building,
+)
+from saengine.library.settings import LoadCombination, ProjectSettings
+from saengine.library.substructure import Substructure
+
+GAMMA = 2400 * 9.80665 / 1000  # kN/m³ of C24.1
+SPEC = {
+    "name": "Ten storeys",
+    "gridsX": [6000, 6000, 6000],
+    "gridsY": [5000, 5000],
+    "storyCount": 10,
+    "groundHeight": 3500,
+    "typicalHeight": 3000,
+    # The hand checks below are of the gravity sizing; the lateral (P-M) sizing of Category C
+    # and D and the stiffness check have their own tests at the end.
+    "lateralSizing": "gravity",
+    # The hand checks keep the former span/15 rule of thumb (the default is span/12 now: see
+    # test_default_beams_are_span_over_12_and_set_the_slabs).
+    "beamSpanDepth": 15,
+}
+
+
+@pytest.fixture(scope="module")
+def frame() -> dict:
+    return generate_building(SPEC)
+
+
+def parts(result: dict) -> tuple[FloorPlan, ObjectLibrary, MaterialLibrary, ProjectSettings]:
+    return (
+        FloorPlan.model_validate(result["floorPlan"]),
+        ObjectLibrary.model_validate(result["objects"]),
+        MaterialLibrary.model_validate(result["materials"]),
+        ProjectSettings.model_validate(result["settings"]),
+    )
+
+
+def types(result: dict) -> dict:
+    return {o["id"]: o for o in result["objects"]["objects"]}
+
+
+def test_three_by_two_bays_ten_storeys_validates_and_counts(frame: dict) -> None:
+    plan, objects, materials, settings = parts(frame)
+    Substructure.model_validate(frame["substructure"])
+    assert plan.check_objects(objects) == []
+    assert objects.check_materials(materials) == []
+    # 4 x 3 grid points, one column per storey: 12 x 10.
+    assert len(plan.columns) == 120
+    # Per floor 3 Y lines x 3 spans + 4 X lines x 2 spans = 17 beams; 10 floors.
+    assert len(plan.beams) == 170
+    # One slab per bay (3 x 2) per floor.
+    assert len(plan.slabs) == 60
+    assert plan.walls == [] and plan.footings == []
+    assert len(frame["substructure"]["foundations"]) == 12
+    assert [g.label for g in plan.grids.x] == ["A", "B", "C", "D"]
+    assert [g.position for g in plan.grids.y] == [0, 5000, 10000]
+    assert [s.elevation for s in plan.stories] == [0, 3500] + [
+        3500 + 3000 * k for k in range(1, 10)
+    ]
+    # Columns run from the base to the roof storey by storey.
+    a1 = [c for c in plan.columns if (c.at.x, c.at.y) == ("A", "1")]
+    assert [(c.base, c.top) for c in a1] == [
+        (b.id, t.id) for b, t in zip(plan.stories, plan.stories[1:], strict=False)
+    ]
+    # Dhaka, site class SD, category II: Seismic Design Category D, special moment frames.
+    assert frame["summary"]["sdc"] == "D"
+    assert settings.seismic.system == "rcSmf"
+    assert frame["settingsPatch"]["seismic"] == {"system": "rcSmf"}
+
+
+def test_typical_floors_are_similar_within_column_groups(frame: dict) -> None:
+    plan, *_ = parts(frame)
+    similar = {s.id: s.similarTo for s in plan.stories}
+    # Column groups L1-L3, L4-L6, L7-L8, L9-L10; L1 (the first suspended floor) stays its own.
+    assert similar == {
+        "BASE": None,
+        "L1": None,
+        "L2": None,
+        "L3": "L2",
+        "L4": None,
+        "L5": "L4",
+        "L6": "L4",
+        "L7": None,
+        "L8": "L7",
+        "L9": None,
+        "L10": "L9",
+    }
+
+    # Every similar story has the master's plan: same places and types (as floorPlanTypical.ts
+    # compares them).
+    def plan_of(story: str) -> list[tuple]:
+        def key(member_id: str) -> str:
+            return member_id.rsplit("-", 1)[0]
+
+        return sorted(
+            [("c", key(c.id), c.type) for c in plan.columns if c.top == story]
+            + [("b", key(b.id), b.type) for b in plan.beams if b.story == story]
+            + [("s", key(s.id), s.type) for s in plan.slabs if s.story == story]
+        )
+
+    for story, master in similar.items():
+        if master:
+            assert plan_of(story) == plan_of(master)
+    assert plan_of("L2") != plan_of("L4")
+    assert not generate_building({**SPEC, "typical": False})["summary"]["families"]
+
+
+def test_beam_sizes_by_hand(frame: dict) -> None:
+    beam = {b.id: b.type for b in parts(frame)[0].beams}
+    # 6 m spans: span/15 = 400 governs Table 6.6.1 (l/18.5 = 324, l/21 = 286); b = max(250,
+    # 0.3 x 400 = 120) = 250.
+    assert beam["B-A1-B1-L1"] == beam["B-B1-C1-L1"] == "B250x400"
+    # 5 m spans: 5000/15 = 333 -> 350.
+    assert beam["B-A1-A2-L1"] == "B250x350"
+    # Deflection minimum only: end span 6000/18.5 = 324.3 -> 325; interior 6000/21 = 285.7 ->
+    # the 300 mm floor; 5 m end spans 270 -> 300.
+    table = {
+        b["id"]: b["type"]
+        for b in generate_building({**SPEC, "beamSpanDepth": None})["floorPlan"]["beams"]
+    }
+    assert table["B-A1-B1-L1"] == "B250x325"
+    assert table["B-B1-C1-L1"] == "B250x300"
+    assert table["B-A1-A2-L1"] == "B250x300"
+    # fy 500: Table 6.6.1 note (b) x (0.4 + 500/700) = 1.114: 6000/18.5 x 1.114 = 361 -> 375.
+    b500 = generate_building({**SPEC, "beamSpanDepth": None, "rebar": "B500DWR"})
+    assert {b["id"]: b["type"] for b in b500["floorPlan"]["beams"]}["B-A1-B1-L1"] == "B250x375"
+
+
+def test_slab_thickness_by_hand(frame: dict) -> None:
+    slab = {s.id: s.type for s in parts(frame)[0].slabs}
+    # Corner panel A1: 6000 x 5000, beams 250 wide: ln = 5750, beta = 5750/4750 = 1.21. At
+    # h = 200: alpha_f = Ib / Is with Ib = b h^3/12 and Is over the strip each beam carries:
+    # 250x400 on the edge (strip 2500): 1.333e9 / (2500 x 6.667e5) = 0.80; inside (5000): 0.40;
+    # 250x350 on the edge (3000): 8.93e8 / (3000 x 6.667e5) = 0.45; inside (6000): 0.22.
+    # alpha_fm = 0.47: eq. 6.6.5 h = 5750 (0.8 + 420/1400) / (36 + 5 x 1.21 x 0.27) = 168 mm,
+    # x 1.1 for the 0.45 edge beam (6.2.5.3.3(d)) = 185 -> 200.
+    ln, beta = 5750, 5750 / 4750
+    afm = (0.8 + 0.4 + 8.932e8 / (3000 * 200**3 / 12) + 8.932e8 / (6000 * 200**3 / 12)) / 4
+    h = ln * (0.8 + 420 / 1400) / (36 + 5 * beta * (afm - 0.2)) * 1.1
+    assert h == pytest.approx(185, abs=1)
+    assert slab["S-A1-L1"] == "S200"
+    assert types(frame)["S200"]["system"] == "twoWay"
+    # The middle panel B1 has beams on both long sides inside the building: 175.
+    assert slab["S-B1-L1"] == "S175"
+
+
+def test_column_size_by_hand(frame: dict) -> None:
+    plan, *_ = parts(frame)
+    column = {c.id: c.type for c in plan.columns}
+    # Interior column B2 at L1: 4 quarter panels of 7.5 m² (two 200 mm, two 175 mm slabs).
+    slab = 7.5 * (0.2 + 0.175 + 0.2 + 0.175) * GAMMA
+    # Beams below the thinnest slab (175): 2 x 3 m of 250x400 and 2 x 2.5 m of 250x350.
+    beams = (2 * 3 * 0.25 * (0.4 - 0.175) + 2 * 2.5 * 0.25 * (0.35 - 0.175)) * GAMMA
+    # Finish, partitions (1.2 kN/m², the code minimum of Sec 2.3.6 since B1, 2520e35e), live.
+    floor = slab + 30 * (1.2 + 1.2 + 2.0) + beams
+    roof = slab + 30 * (1.5 + 1.0) + beams  # finish, roof live
+    # Its own weight: 550 (L1-L3), 500 (L4-L6; 450 with the earlier 1.0 kN/m² partitions), 400
+    # (L7-L8), 350 (L9-L10). The upper two were 350 and 300 by the axial rule; N-N4's step cap
+    # (each group at least 0.8 x the one below, rounded up to 50 mm) raises them.
+    assert column["C-B2-L4"] == "C500x500"
+    own = (0.55**2 * 9.5 + 0.5**2 * 9 + 0.4**2 * 6 + 0.35**2 * 6) * GAMMA
+    p = 9 * floor + roof + own
+    assert p == pytest.approx(2878, abs=2)
+    assert frame["summary"]["baseServiceLoads"]["B2"] == pytest.approx(p, abs=1)
+    # Ag = P / (0.4 f'c), interior k = 1.0: sqrt(2814e3 / 9.64) = 540 -> 550.
+    side = math.ceil(math.sqrt(p * 1000 / (0.4 * 24.1)) / 50) * 50
+    assert side == 550
+    assert column["C-B2-L1"] == column["C-C2-L3"] == "C550x550"
+    # Corner columns of the top group: the 300 mm least dimension of Sec 8.3.5.1(a).
+    assert column["C-A1-L10"] == "C300x300"
+    # Never larger above than below.
+    sizes = [types(frame)[column[f"C-B2-L{k}"]]["profile"]["xDim"] for k in range(1, 11)]
+    assert sizes == sorted(sizes, reverse=True)
+
+
+def test_isolated_footing_by_hand(frame: dict) -> None:
+    footing = {f["id"]: f for f in frame["substructure"]["foundations"]}["F-B2"]
+    assert footing["columns"] == ["C-B2-L1"]
+    assert footing["center"] == [6000, 5000]
+    # Service load 2878 kN (above), qa 100 kPa: sqrt(1.1 x 2878 / 100) = 5.63 m -> 5700;
+    # thickness 5700 / 4 = 1425 -> 1450.
+    assert (footing["length"], footing["width"], footing["thickness"]) == (5700, 5700, 1450)
+
+
+def test_flat_slab_variant() -> None:
+    result = generate_building({**SPEC, "system": "flatSlab"})
+    plan, objects, _, settings = parts(result)
+    assert plan.beams == []
+    assert len(plan.slabs) == 60
+    slab_types = {o.id: o for o in objects.objects if o.kind == "slab"}
+    assert list(slab_types) == ["S200-FP"]
+    assert slab_types["S200-FP"].system == "flat"
+    # No beams take the slab loads, so the flat slab is meshed as shells (cross-check finding).
+    assert settings.analysis.slabs == "shells"
+    assert parts(generate_building(SPEC))[3].analysis.slabs == "loadsToBeams"
+    # Table 6.6.3: exterior panel without edge beams ln/30 at fy 420; ln = 6000 - 300 (the
+    # smallest columns) = 5700 -> 190 -> 200 mm.
+    assert flat_divisor(420, 0) == 30
+    assert flat_divisor(350, 2) == pytest.approx(1 / (0.5 / 36 + 0.5 / 33))
+    # Category D: a flat plate frame is no special moment frame, so core walls are added round
+    # the middle bay (B2-C3) and the system is a building frame with special walls.
+    assert settings.seismic.system == "rcSpecialWallFrame"
+    assert len(plan.walls) == 4 * 10
+    assert {(w.start.x, w.start.y, w.end.x, w.end.y) for w in plan.walls if w.top == "L1"} == {
+        ("B", "2", "C", "2"),
+        ("B", "3", "C", "3"),
+        ("B", "2", "B", "3"),
+        ("C", "2", "C", "3"),
+    }
+    # In Category C (Rajshahi, zone 1, site class SD) the frame alone is enough (IMF).
+    c = generate_building({**SPEC, "system": "flatSlab", "location": "rajshahi"})
+    assert (c["summary"]["sdc"], c["settings"]["seismic"]["system"]) == ("C", "rcImf")
+    assert c["floorPlan"]["walls"] == []
+
+
+def test_frame_with_core_walls_and_mat() -> None:
+    result = generate_building(
+        {
+            **SPEC,
+            "system": "rcFrameWithWalls",
+            "coreBay": {"x": "A", "y": "1"},
+            "footing": "mat",
+            "occupancy": "office",
+        }
+    )
+    plan = parts(result)[0]
+    assert result["settings"]["seismic"]["system"] == "rcDualSpecial"
+    # The core's four sides carry walls instead of beams: 17 - 4 = 13 beams a floor.
+    assert len(plan.beams) == 130 and len(plan.walls) == 40
+    assert not any(b.id.startswith("B-A1-B1-") for b in plan.beams)
+    mat = result["substructure"]["foundations"]
+    assert len(mat) == 1 and mat[0]["type"] == "raft" and mat[0]["thickness"] == 1000
+    assert mat[0]["outline"][0] == [-1000, -1000] and mat[0]["outline"][2] == [19000, 11000]
+    # Office: the floor area load takes the office live load (Table 6.2.3, 2.4 kN/m²).
+    floor = next(a for a in result["settings"]["areaLoads"] if a["id"] == "FL")
+    assert (floor["use"], floor["live"]) == ("office", 2.4)
+
+
+def test_occupancy_category_default_by_use_and_explicit() -> None:
+    small = {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 5, "location": "rajshahi"}
+    # Health care without a category: IV assumed (Table 6.1.1), so Rajshahi SD gives
+    # Category D: special moment frames and the 300 mm column minimum.
+    hospital = generate_building({**small, "occupancy": "healthcare"})
+    # cycloneShelter: no live load reduction for cyclone shelters (B1, 2520e35e).
+    assert hospital["settings"]["occupancy"] == {
+        "use": "healthcare",
+        "cycloneShelter": False,
+        "category": "IV",
+    }
+    assert (hospital["summary"]["sdc"], hospital["settings"]["seismic"]["system"]) == (
+        "D",
+        "rcSmf",
+    )
+    sides = [o["profile"]["xDim"] for o in hospital["objects"]["objects"] if o["kind"] == "column"]
+    assert min(sides) >= 300
+    assert any("Occupancy category IV assumed" in n for n in hospital["notes"])
+    # Given explicitly: used as given, no assumption note.
+    given = generate_building({**small, "occupancy": "healthcare", "occupancyCategory": "II"})
+    assert given["settings"]["occupancy"]["category"] == "II"
+    assert given["summary"]["sdc"] == "C"
+    assert not any("assumed for" in n for n in given["notes"])
+    # Schools III; residential II, noted as assumed; never below the settings' own category.
+    school = generate_building({**small, "occupancy": "educational"})
+    assert school["settings"]["occupancy"]["category"] == "III"
+    home = generate_building(small)
+    assert home["settings"]["occupancy"]["category"] == "II"
+    assert any("Occupancy category II assumed" in n for n in home["notes"])
+    kept = generate_building(small, settings=hospital["settings"])
+    assert kept["settings"]["occupancy"]["category"] == "IV"
+
+
+def check_references(result: dict) -> None:
+    """Every foundation reference resolves against 6 BIM (walls only on strips)."""
+    from saengine.library.substructure import check
+
+    bim = generate(parts(result)[0], "s")
+    sub = Substructure.model_validate(result["substructure"])
+    assert check(sub, bim, MaterialLibrary.model_validate(result["materials"])) == []
+
+
+def test_core_walls_get_strip_footings() -> None:
+    result = generate_building({**SPEC, "storyCount": 4, "system": "rcFrameWithWalls"})
+    plan = parts(result)[0]
+    found = {f["id"]: f for f in result["substructure"]["foundations"]}
+    # Core bay B2-C3: its four columns move from isolated footings onto the core strips.
+    assert not {"F-B2", "F-C2", "F-B3", "F-C3"} & set(found)
+    assert sum(f["type"] == "isolated" for f in found.values()) == 8
+    strips = {k: f for k, f in found.items() if f["type"] == "strip"}
+    assert set(strips) == {"F-B2-B3", "F-C2-C3", "F-B2-C2", "F-B3-C3"}
+    carried = {c for f in found.values() for c in f["columns"]}
+    assert {w.id for w in plan.walls if w.base == "BASE"} <= carried
+    assert {"C-B2-L1", "C-B3-L1"} <= set(strips["F-B2-B3"]["columns"])
+    check_references(result)
+    # Y strip on line B by hand: P = two core columns + the wall (200 x 5000 x 12500 mm);
+    # B^2 + 5000 B = 1.1 P / qa, rounded up to 100 mm; the path extends B/2 past the columns.
+    wall = 0.2 * 5.0 * 12.5 * GAMMA
+    p = float(strips["F-B2-B3"]["note"].split("load ")[1].split(" kN")[0])  # rounded to 1 kN
+    assert p > wall
+
+    def width(load: float) -> float:
+        area = 1.1 * load / 100 * 1e6
+        return math.ceil((-5000 + math.sqrt(5000**2 + 4 * area)) / 2 / 100) * 100
+
+    b = strips["F-B2-B3"]["width"]
+    assert b in (width(p - 0.5), width(p + 0.5))
+    assert strips["F-B2-B3"]["path"] == [[6000, 5000 - b / 2], [6000, 10000 + b / 2]]
+    # X strips lie between the Y strips, not over them; the X wall's weight 200 x 6000 x
+    # 12500 mm over the strip's length.
+    x_strip = strips["F-B2-C2"]
+    x0, x1 = x_strip["path"][0][0], x_strip["path"][1][0]
+    assert (x0, x1) == (6000 + b / 2, 12000 - b / 2)
+    x_wall = 0.2 * 6.0 * 12.5 * GAMMA
+    assert x_strip["width"] == max(600, math.ceil(1.1 * x_wall / 100 * 1e6 / (x1 - x0) / 100) * 100)
+    assert any("OVERTURNING" in n for n in result["notes"])
+
+
+def test_core_walls_get_a_core_raft_when_strips_would_fill_the_core() -> None:
+    result = generate_building({**SPEC, "system": "rcFrameWithWalls"})
+    found = {f["id"]: f for f in result["substructure"]["foundations"]}
+    assert not any(f["type"] == "strip" for f in found.values())
+    raft = found["F-CORE"]
+    assert raft["type"] == "raft" and raft["thickness"] == 1000
+    assert raft["columns"] == ["C-B2-L1", "C-B3-L1", "C-C2-L1", "C-C3-L1"]
+    # The outline covers every core wall.
+    (x0, y0), _, (x1, y1), _ = raft["outline"]
+    assert x0 < 6000 and x1 > 12000 and y0 < 5000 and y1 > 10000
+    check_references(result)
+    assert any("F-CORE" in n and "OVERTURNING" in n for n in result["notes"])
+    # No foundations at all: the notes ask for the core's own foundation; a mat: its note.
+    none = generate_building({**SPEC, "system": "rcFrameWithWalls", "footing": "none"})
+    assert any("core walls need their own foundation" in n for n in none["notes"])
+    mat = generate_building({**SPEC, "system": "rcFrameWithWalls", "footing": "mat"})
+    assert any("Core walls stand on the mat" in n for n in mat["notes"])
+
+
+def test_summary_lists_only_placed_beam_types() -> None:
+    one_bay = generate_building(
+        {"gridsX": [6000], "gridsY": [6000], "storyCount": 3, "system": "rcFrameWithWalls"}
+    )
+    assert one_bay["summary"]["counts"]["beams"] == 0
+    assert one_bay["summary"]["beamTypes"] == []
+    frame = generate_building({**SPEC, "storyCount": 2})
+    placed = {b["type"] for b in frame["floorPlan"]["beams"]}
+    assert frame["summary"]["beamTypes"] == sorted(placed)
+
+
+def test_steel_free_by_default_and_template_bars_on_request(frame: dict) -> None:
+    assert all("reinforcement" not in o for o in frame["objects"]["objects"])
+    barred = generate_building({**SPEC, "storyCount": 2, "reinforcement": True})
+    objects = ObjectLibrary.model_validate(barred["objects"])
+    assert all(o.reinforcement is not None for o in objects.objects)
+    assert {o.reinforcement.material for o in objects.objects} == {"B420DWR"}
+
+
+def test_spec_errors() -> None:
+    with pytest.raises(ValueError, match="storyCount"):
+        BuildingSpec.model_validate({"gridsX": [6000], "gridsY": [5000]})
+    with pytest.raises(ValueError, match="not a concrete"):
+        generate_building({**SPEC, "concrete": "B420DWR"})
+    with pytest.raises(ValueError, match="core bay"):
+        generate_building({**SPEC, "system": "rcFrameWithWalls", "coreBay": {"x": "D", "y": "1"}})
+    named = generate_building(
+        {
+            "gridsX": [5000],
+            "gridsY": [4000],
+            "stories": [{"name": "First", "height": 3200}, {"name": "Roof", "height": 2800}],
+        }
+    )
+    assert [s["name"] for s in named["floorPlan"]["stories"]] == ["Base", "First", "Roof"]
+    assert named["floorPlan"]["stories"][-1]["elevation"] == 6000
+
+
+def test_write_building(tmp_path: Path) -> None:
+    result = generate_building({**SPEC, "storyCount": 3})
+    written = write_building(result, tmp_path)
+    names = {p.relative_to(tmp_path).as_posix() for p in written}
+    assert "05 Floor Plan/floor-plan.json" in names and "06 BIM/bim.json" in names
+    assert "09 Substructure/substructure.json" in names and "Ten storeys.saengine" in names
+    bim = json.loads((tmp_path / "06 BIM" / "bim.json").read_text(encoding="utf-8"))
+    assert len(bim["elements"]) == 12 * 3 + 17 * 3 + 6 * 3
+    assert set(building_texts(result)) <= names
+
+
+# ───────────────────────────────── analysis of a generated building ─────────────────────────────
+
+
+def applied(project: dict, name: str) -> np.ndarray:
+    """Total applied force of a pattern, element loads turned back to global axes."""
+    coords = {n["id"]: np.array(n["coords"]) for n in project["nodes"]}
+    elements = {e["id"]: e for e in project["elements"]}
+    pattern = next(p for p in project["load_patterns"] if p["name"] == name)
+    total = sum((np.array(n["forces"][:3]) for n in pattern["nodal_loads"]), np.zeros(3))
+    for load in pattern["element_loads"]:
+        a, b = (coords[n] for n in elements[load["element_id"]]["nodes"])
+        # Element loads act on the flexible length (rigid end zones, saengine.fem.end_zones).
+        span = np.linalg.norm(b - a) - sum(element_offsets(elements[load["element_id"]]))
+        x = (b - a) / np.linalg.norm(b - a)
+        vecxz = np.array([1.0, 0, 0]) if abs(x[2]) > abs(x[0]) else np.array([0, 0, 1.0])
+        y = np.cross(vecxz, x)
+        y /= np.linalg.norm(y)
+        total = total + (load["wx"] * x + load["wy"] * y + load["wz"] * np.cross(x, y)) * span
+    return total
+
+
+def test_generated_building_analyses_and_reactions_balance_gravity(tmp_path: Path) -> None:
+    from saengine.fem.combinations import combination_results
+    from saengine.fem.derive import derive_fem
+
+    result = generate_building(
+        {"gridsX": [6000, 5000], "gridsY": [5000], "storyCount": 3, "footing": "none"}
+    )
+    plan, objects, materials, settings = parts(result)
+    settings = settings.model_copy(update={"combinations": [LoadCombination(name="D", D=1.0)]})
+    d = derive_fem(generate(plan, "s"), objects, materials, settings)
+    # Superimposed dead load by hand: 2 floors x 55 m² x 1.2 (finish) + the roof 55 m² x 1.5.
+    # The partition allowance is live load (owner decision 2026-11-02, 635b7040), in L.
+    sd = applied(d.project, "SD")[2]
+    assert -sd / 1000 == pytest.approx(2 * 55 * 1.2 + 55 * 1.5, rel=1e-6)
+    assert -applied(d.project, "L")[2] / 1000 == pytest.approx(2 * 55 * (2.0 + 1.2), rel=1e-6)
+    model = tmp_path / "08 FEM" / "model.osmodel"
+    model.parent.mkdir()
+    model.write_text(json.dumps(d.project), encoding="utf-8")
+    out = tmp_path / "08 FEM" / "model.results"
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "opensees_studio.run",
+            "--project",
+            str(model),
+            "--cases",
+            "1",
+            "2",
+            "--out",
+            str(out),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert run.returncode == 0, run.stderr[-2000:]
+    entries = {e["caseName"]: e for e in combination_results(out, d.project, settings)}
+    reaction = entries["D"]["tables"][0]["rows"][-1][3]
+    gravity = -(applied(d.project, "D")[2] + sd)
+    assert reaction == pytest.approx(gravity, rel=0.005)
+
+
+def test_gravity_only_columns_are_flagged_in_category_c_and_d() -> None:
+    """Review: the default Dhaka building is Category D with gravity-only column sizes; the
+    notes must say so first."""
+    small = {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 6}
+    gravity = {**small, "lateralSizing": "gravity"}
+    for extra in ({}, {"location": "rajshahi", "occupancy": "healthcare"}):
+        result = generate_building({**gravity, **extra})
+        sdc = result["summary"]["sdc"]
+        warned = result["notes"][0].startswith(f"WARNING - Seismic Design Category {sdc}")
+        assert warned == (sdc in ("C", "D"))
+        if sdc == "D":
+            assert "GRAVITY ONLY" in result["notes"][0]
+    assert generate_building(gravity)["summary"]["sdc"] == "D"  # the wizard's default case
+
+
+@pytest.fixture(scope="module")
+def six_storeys() -> tuple[dict, dict]:
+    """The wizard's default case (3 x 6 m by 2 x 5 m, 6 storeys, Dhaka: Category D, special
+    moment frame), sized for gravity only and with the lateral (P-M) sizing."""
+    small = {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 6}
+    return generate_building({**small, "lateralSizing": "gravity"}), generate_building(small)
+
+
+def test_lateral_sizing_in_category_d_enlarges_the_columns(six_storeys) -> None:
+    gravity, lateral = six_storeys
+    assert lateral["summary"]["sdc"] == "D"
+    # No gravity-only warning; the method is stated instead.
+    assert not any(n.startswith("WARNING - Seismic Design Category") for n in lateral["notes"])
+    method = next(n for n in lateral["notes"] if "PRELIMINARY P-M sizing" in n)
+    for words in ("portal method", "strong column / weak beam", "Sec 8.3.5.2", "δs"):
+        assert words in method
+    info = lateral["summary"]["lateralSizing"]
+    assert info["baseShear"]["E"] > 0 and info["baseShear"]["WX"] > 0
+    assert gravity["summary"]["lateralSizing"] is None
+
+    def sides(result: dict) -> dict[str, float]:
+        kinds = types(result)
+        return {
+            c["id"]: kinds[c["type"]]["profile"]["xDim"] for c in result["floorPlan"]["columns"]
+        }
+
+    before, after = sides(gravity), sides(lateral)
+    assert all(after[c] >= before[c] for c in before)
+    # The corner and edge columns, gravity-sized at 300-350 mm, are enlarged most.
+    assert after["C-A1-L1"] > before["C-A1-L1"] and after["C-A2-L4"] > before["C-A2-L4"]
+    # Special moment frame: least dimension 300 mm (8.3.5.1); never larger above than below;
+    # grouped into types by storey group and position as before.
+    assert min(after.values()) >= 300
+    for i in "ABCD":
+        for j in "123":
+            column = [after[f"C-{i}{j}-L{k}"] for k in range(1, 7)]
+            assert column == sorted(column, reverse=True)
+    assert len({c["type"] for c in lateral["floorPlan"]["columns"]}) <= 6
+    # The footings carry the heavier columns' weight: the base loads grew.
+    assert sum(lateral["summary"]["baseServiceLoads"].values()) > sum(
+        gravity["summary"]["baseServiceLoads"].values()
+    )
+
+
+def test_lateral_sizing_uses_the_analysis_seismic_weight_and_the_sway_limit(six_storeys) -> None:
+    """W of the static method as fem.derive counts it (dead, 25 % of the floor live load, the
+    beams at full depth), and every storey's δs within the design's 1.5 (Sec 6.3.10.7.3)."""
+    import re
+
+    from saengine.design.slender import DELTA_S_MAX
+    from saengine.library import code_data
+
+    _gravity, lateral = six_storeys
+    note = next(n for n in lateral["notes"] if "Earthquake: T =" in n)
+    assert f"{code_data.SEISMIC_LIVE_SHARE:.0%} of the floor live load" in note
+    w = float(re.search(r"W = (\d+) kN", note).group(1))
+    v = float(re.search(r"V = (\d+) kN", note).group(1))
+    # 18 m x 10 m: the floors' live load share alone (2 kPa offices, 5 floors) is 450 kN, so W
+    # is well above the dead-only weight; V = Sa W with Sa = 0.05625 g (T = 0.63 s, SD, Dhaka).
+    dead_base = sum(lateral["summary"]["baseServiceLoads"].values())
+    assert w > 0.25 * 2.0 * 180 * 5
+    assert v == pytest.approx(0.05625 * w, rel=0.01)
+    assert w < dead_base  # the base loads carry the full live load and the footings
+    sway = lateral["summary"]["lateralSizing"]["swayFactor"]
+    assert all(value <= DELTA_S_MAX + 1e-3 for value in sway.values())
+    assert not any("however stiff the columns are" in n for n in lateral["notes"])
+
+
+def test_lateral_sizing_stiffens_storeys_for_the_sway_limit_or_says_why_not() -> None:
+    """Ten storeys: along X the columns are made stiff enough for δs <= 1.5; along Y (one 5 m
+    beam per frame line, sized for gravity) no column size gets there: the notes say the design
+    will ask for a second-order analysis and to deepen the beams."""
+    from saengine.design.slender import DELTA_S_MAX
+
+    tall = generate_building({"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 10,
+                              "columnGroupStoreys": 5})  # fmt: skip
+    sway = tall["summary"]["lateralSizing"]["swayFactor"]
+    assert sway["X"] <= DELTA_S_MAX + 1e-3
+    if sway["Y"] > DELTA_S_MAX + 1e-3:
+        flexible = next(n for n in tall["notes"] if "however stiff the columns are" in n)
+        assert "Sec 6.3.10.7.3" in flexible and "deepen the beams" in flexible
+    method = next(n for n in tall["notes"] if "PRELIMINARY P-M sizing" in n)
+    assert "δs ≤ 1.5" in method
+
+
+def test_lateral_sizing_prunes_points_and_uses_the_design_surface() -> None:
+    """The demand pruning keeps the governing points, and the capacity is the design's own
+    column search (interaction surface of :mod:`saengine.design.rc`)."""
+    from saengine.design.required import ColumnSearch, Options
+    from saengine.library.generator import _prune, _template
+    from saengine.library.objects import Column
+
+    # _prune keeps the governing points: the largest and least Pu and the moment envelope.
+    points = [(p * 1e4, m, 1e6 - m, "U", "c") for p in range(30) for m in (0.0, 5e5, 1e6)]
+    points += [(p * 1e4 + 3e3, 2e5, 2e5, "U", "c") for p in range(30)]  # dominated
+    kept = _prune(points)
+    assert len(kept) < len(points)
+    assert max(p[0] for p in kept) == max(p[0] for p in points)
+    assert min(p[0] for p in kept) == min(p[0] for p in points)
+    for p in points:  # every dropped point is within PRUNE_STEP of a kept one at least as big
+        assert (
+            any(abs(q[0] - p[0]) <= 1e4 and q[1] >= p[1] and q[2] >= p[2] for q in kept)
+            or p in kept
+        )
+    # The search the sizing uses is the design's own (ColumnSearch on the interaction surface).
+    obj = Column.model_validate(
+        _template("Column", id="C400x400", material="C24.1",
+                  profile={"shape": "rectangle", "xDim": 400, "yDim": 400})
+    )  # fmt: skip
+    search = ColumnSearch(obj, 24.1, 420, 200000, None, Options(rho_max=0.025))
+    last = len(search.layouts) - 1
+    assert search.utilisation(last, [(1000e3, 100e6, 0.0)]) < 1.0
+    assert search.utilisation(last, [(1000e3, 400e6, 0.0)]) > 1.0
+
+
+def test_lateral_sizing_off_and_in_low_categories() -> None:
+    # Rajshahi on site class SC: Category B, where only the wind moments are added (the
+    # earthquake is left to the analysis, as the gravity sizing did).
+    small = {"gridsX": [6000] * 2, "gridsY": [5000], "storyCount": 2, "location": "rajshahi",
+             "siteClass": "SC"}  # fmt: skip
+    wind = generate_building(small)
+    assert wind["summary"]["sdc"] == "B"
+    assert set(wind["summary"]["lateralSizing"]["baseShear"]) == {"WX", "WY"}
+    assert any(n.startswith("Columns for wind (Seismic Design Category B)") for n in wind["notes"])
+    off = generate_building({**small, "lateralSizing": "gravity"})
+    assert off["summary"]["lateralSizing"] is None
+    assert not any("P-M sizing" in n for n in off["notes"])
+
+
+# ─────────────────────────── stiffness: beams span/12, drift and period ───────────────────────────
+
+
+def test_default_beams_are_span_over_12_and_set_the_slabs() -> None:
+    """Gravity sizing (no stiffness pass): frame beams span/12 by default; with them the
+    panels' alpha_fm exceeds 2 and eq. 6.6.6 gives 150 mm, not the 175-200 mm of span/15."""
+    result = generate_building({**SPEC, "beamSpanDepth": 12, "storyCount": 3})
+    assert BuildingSpec.model_fields["beamSpanDepth"].default == 12
+    beam = {b["id"]: b["type"] for b in result["floorPlan"]["beams"]}
+    # 6000/12 = 500; 5000/12 = 417 -> 425; b = max(250, 0.3 h) = 250.
+    assert beam["B-A1-B1-L1"] == beam["B-B1-C1-L1"] == "B250x500"
+    assert beam["B-A1-A2-L1"] == "B250x425"
+    # Corner panel A1 at h = 150: alpha_f = Ib / Is over the strip each beam carries:
+    # 250x500 on the edge (strip 2500) 3.70, inside (5000) 1.85; 250x425 on the edge (3000)
+    # 1.90, inside (6000) 0.95: alpha_fm = 2.10 > 2, so eq. 6.6.6: h = 5750 (0.8 + 420/1400) /
+    # (36 + 9 x 1.21) = 135 -> 150 mm.
+    ib_x, ib_y = 250 * 500**3 / 12, 250 * 425**3 / 12
+    afm = (
+        ib_x / (2500 * 150**3 / 12)
+        + ib_x / (5000 * 150**3 / 12)
+        + ib_y / (3000 * 150**3 / 12)
+        + ib_y / (6000 * 150**3 / 12)
+    ) / 4
+    assert afm == pytest.approx(2.10, abs=0.01)
+    h = 5750 * (0.8 + 420 / 1400) / (36 + 9 * 5750 / 4750)
+    assert h == pytest.approx(135, abs=1)
+    assert result["summary"]["slabTypes"] == ["S150"]
+    slabs = next(n for n in result["notes"] if n.startswith("Slabs with beams"))
+    assert "eq. 6.6.6" in slabs and "Sec 6.2.5.3.3 (p. 903)" in slabs
+    # Gravity sizing makes no stiffness estimate.
+    assert result["summary"]["stiffness"] is None
+    assert not any(n.startswith("Stiffness") for n in result["notes"])
+
+
+def test_stiffness_estimate_by_hand() -> None:
+    """One bay each way, one storey, no rigid zones: Wilbur's first storey on a fixed base,
+    a one-mass period and the design drift Cd δe / I against Table 6.2.21."""
+    from saengine.fem import loads as fl
+    from saengine.library.settings import default_project_settings
+
+    settings = default_project_settings("Hand")
+    settings = settings.model_copy(
+        update={"analysis": settings.analysis.model_copy(update={"endOffsets": False})}
+    )
+    side = {(i, j, 1): 400.0 for i in range(2) for j in range(2)}
+    beams = {((0, 0), (1, 0)): (250.0, 500.0), ((0, 1), (1, 1)): (250.0, 500.0),
+             ((0, 0), (0, 1)): (250.0, 500.0), ((1, 0), (1, 1)): (250.0, 500.0)}  # fmt: skip
+    ec, w = 25000.0, 1000.0
+    est = stiffness_estimate(
+        settings, "D", xs=[0.0, 6000.0], ys=[0.0, 5000.0], heights=[0.0, 3000.0],
+        side_of=side, beams=beams, slab_t=150.0, ec=ec, weights=[w],
+    )  # fmt: skip
+    # ΣKc = 4 x 0.7 x 400^4/12 / 3000; ΣKb (X) = 2 x 0.35 x 250 x 500^3/12 / 6000.
+    kc = 4 * 0.7 * 400**4 / 12 / 3000
+    kb = 2 * 0.35 * 250 * 500**3 / 12 / 6000
+    bracket = 4 * 3000 / kc + (3000 + 3000) / (kb + kc / 12)
+    flex = 3000 / (48 * ec) * bracket * 1e3  # mm/kN
+    assert wilbur_flexibility([0.0, 3000.0], 1, kc, kb, ec) == pytest.approx(
+        (flex, 4 * 3000 / kc / bracket)
+    )
+    # One mass: T = 2π √(W δ / (g F)) with δ / F = flex.
+    assert est.period["X"] == pytest.approx(2 * math.pi * math.sqrt(w * flex / 1000 / 9.80665))
+    ta = fl.approximate_period(3.0, settings.seismic.system)
+    assert est.ta == pytest.approx(ta) and est.periodLimit == pytest.approx(1.4 * ta)
+    # Dhaka, SD, category II, the default system's Cd and R; I = 1.0: V = Sa W at Ta.
+    from saengine.library.settings import derived
+
+    values = derived(settings)
+    sa = fl.design_acceleration(ta, "SD", values["Z"], 1.0, values["R"])
+    assert est.driftLimit == 0.02 and est.cd == values["Cd"]
+    assert est.seismicRatio["X"][0] == pytest.approx(values["Cd"] * sa * w * flex / (0.02 * 3000))
+    # Y: the 5 m beams are stiffer, so the storey is too.
+    assert est.period["Y"] < est.period["X"]
+
+
+@pytest.fixture(scope="module")
+def walkthrough() -> dict:
+    """The walkthrough's building: 3 x 6 m by 2 x 5 m, 3600 mm ground and 5 x 3200 mm
+    storeys, Dhaka (Category D, special moment frame), the default (lateral) sizing."""
+    stories = [{"name": "L1", "height": 3600}] + [
+        {"name": f"L{k}", "height": 3200} for k in range(2, 7)
+    ]
+    return generate_building(
+        {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "stories": stories, "location": "dhaka"}
+    )
+
+
+def test_walkthrough_frame_is_stiff_enough(walkthrough: dict) -> None:
+    from saengine.fem import loads as fl
+    from saengine.library.generator import PERIOD_TARGET, STIFF_BEAM_SPAN_DEPTH
+
+    result = walkthrough
+    kinds = types(result)
+    # Beams about span/12: at least span/12 (rounded up to 25 mm), at most the span/10 the
+    # stiffness pass may deepen them to.
+    for beam in result["floorPlan"]["beams"]:
+        span = 6000 if beam["start"]["y"] == beam["end"]["y"] else 5000
+        depth = kinds[beam["type"]]["profile"]["yDim"]
+        assert math.ceil(span / 12 / 25) * 25 <= depth <= span / STIFF_BEAM_SPAN_DEPTH
+    # The estimated period: Ta = 0.0466 x 19.6^0.9 = 0.68 s (Table 6.2.20, RC moment frame),
+    # Cu Ta = 0.95 s; the frame comes out within 1.5 Cu Ta (with the span/12 beams and the
+    # gravity columns it was over 2 Cu Ta; the walkthrough's span/15 frame had T1 = 2.1 s).
+    info = result["summary"]["stiffness"]
+    ta = fl.approximate_period(19.6, "rcSmf")
+    assert info["ta"] == pytest.approx(ta, abs=1e-3)
+    assert info["periodLimit"] == pytest.approx(1.4 * ta, abs=1e-3)
+    assert info["met"]
+    for axis in ("X", "Y"):
+        assert info["period"][axis] <= PERIOD_TARGET * info["periodLimit"] + 1e-3
+        assert info["seismicDriftRatio"][axis] <= 1.0 + 1e-3
+        assert info["windDriftRatio"][axis] <= 1.0 + 1e-3
+        assert info["period"][axis] <= info["before"]["period"][axis]
+    # The span/12 beams and gravity columns alone were too flexible (two 5 m bays a line in Y).
+    assert info["before"]["period"]["Y"] > PERIOD_TARGET * info["periodLimit"]
+    assert info["before"]["seismicDriftRatio"]["Y"] > 1.0
+    # Slabs: eq. 6.6.6 with the stiffer beams, 150 mm (they were 175-200).
+    assert result["summary"]["slabTypes"] == ["S150"]
+    note = next(n for n in result["notes"] if n.startswith("Stiffness (PRELIMINARY"))
+    for words in (
+        "Table 6.2.21, p. 648",
+        "Sec 2.5.7.2 (a), p. 627",
+        "Sec 2.5.7.7, p. 631",
+        "Sec 6.3.10.4.1, p. 912",
+        "H/500",
+        "Before: T X",
+        "All three met.",
+        "Assumed (not checked here)",
+    ):
+        assert words in note, words
+
+
+def test_column_groups_step_down_at_most_a_fifth(frame: dict) -> None:
+    """N-N4: a storey group's columns are at most MAX_COLUMN_STEP (20 %) smaller than the
+    group's below, rounded up to 50 mm (walkthrough 2 had 1050 at L1-L3 over 700 at L4)."""
+    from saengine.library.generator import MAX_COLUMN_STEP, ceil_to
+
+    assert MAX_COLUMN_STEP == 0.2
+    sides: dict[str, list[tuple[int, float]]] = {}
+    for what, size in frame["summary"]["columnTypes"].items():
+        storeys, kind = what.split(" ")
+        sides.setdefault(kind, []).append(
+            (int(storeys.split("-")[0][1:]), float(size[1:].split("x")[0]))
+        )
+    for kind, groups in sides.items():
+        groups.sort()
+        for (_, below), (_, above) in itertools.pairwise(groups):
+            assert above >= ceil_to(0.8 * below, 50), kind
+
+
+@pytest.mark.slow
+def test_drift_not_met_is_a_warning_with_core_walls_offered() -> None:
+    """N-N4: a 10-storey Dhaka frame that fails the preliminary drift in Y says so first (the
+    wizard's warning box), offers core walls, and lists the overlapping footings."""
+    result = generate_building(
+        {"gridsX": [6000] * 3, "gridsY": [5000] * 2, "storyCount": 10, "groundHeight": 3500,
+         "typicalHeight": 3000, "location": "dhaka"}
+    )  # fmt: skip
+    summary = result["summary"]
+    assert summary["stiffness"]["met"] is False
+    assert (
+        summary["warnings"][0].startswith("Drift or period NOT met")
+        and "along Y" in (summary["warnings"][0])
+    )
+    assert any("pairs of footings overlap" in w for w in summary["warnings"])
+    assert summary["suggestCoreWalls"] is True
+    assert set(summary["columnReasons"]) <= set(summary["columnTypes"])

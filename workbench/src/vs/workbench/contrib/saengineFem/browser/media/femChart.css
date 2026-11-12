@@ -1,0 +1,176 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The FEM results' SVG charts (femChart.ts). Colours only from the theme's chart colours and
+ * text colours, so light, dark and high-contrast themes follow. */
+
+.fem-chart {
+	--fem-chart-blue: var(--vscode-charts-blue);
+	--fem-chart-orange: var(--vscode-charts-orange);
+	--fem-chart-green: var(--vscode-charts-green);
+	--fem-chart-red: var(--vscode-charts-red);
+	--fem-chart-purple: var(--vscode-charts-purple);
+	--fem-chart-yellow: var(--vscode-charts-yellow);
+	--fem-chart-foreground: var(--vscode-foreground);
+	--fem-chart-grid: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--fem-chart-axis: color-mix(in srgb, var(--vscode-foreground) 45%, transparent);
+	margin: 0;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1, 4px);
+}
+
+.fem-chart-title {
+	font-weight: 600;
+	font-size: var(--sa-font-m, 13px);
+}
+
+.fem-chart-svg {
+	width: 100%;
+	height: auto;
+	overflow: visible;
+	font-family: var(--vscode-font-family);
+}
+
+.fem-chart-grid line {
+	stroke: var(--fem-chart-grid);
+	stroke-width: 1;
+}
+
+.fem-chart-axis line,
+.fem-chart-frame {
+	stroke: var(--fem-chart-axis);
+	stroke-width: 1;
+	fill: none;
+}
+
+.fem-chart-tick,
+.fem-chart-label {
+	fill: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+}
+
+.fem-chart-label {
+	font-size: 11px;
+}
+
+.fem-chart-blue { color: var(--fem-chart-blue); }
+.fem-chart-orange { color: var(--fem-chart-orange); }
+.fem-chart-green { color: var(--fem-chart-green); }
+.fem-chart-red { color: var(--fem-chart-red); }
+.fem-chart-purple { color: var(--fem-chart-purple); }
+.fem-chart-yellow { color: var(--fem-chart-yellow); }
+.fem-chart-foreground { color: var(--fem-chart-foreground); }
+
+.fem-chart-line {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linejoin: round;
+}
+
+.fem-chart-series.dashed .fem-chart-line {
+	stroke-dasharray: 5 3;
+}
+
+.fem-chart-fill {
+	fill: currentColor;
+	fill-opacity: 0.18;
+	stroke: none;
+}
+
+.fem-chart-series.bars rect {
+	fill: currentColor;
+	fill-opacity: 0.8;
+}
+
+.fem-chart-marker {
+	fill: currentColor;
+	stroke: var(--vscode-editor-background);
+	stroke-width: 1;
+}
+
+.fem-chart-series.line .fem-chart-marker,
+.fem-chart-series.dashed .fem-chart-marker,
+.fem-chart-series.area .fem-chart-marker {
+	fill-opacity: 0;
+	stroke: currentColor;
+	stroke-opacity: 0;
+}
+
+.fem-chart-series .fem-chart-marker:hover {
+	fill-opacity: 1;
+	stroke-opacity: 1;
+}
+
+.fem-chart-guide line {
+	stroke: currentColor;
+	stroke-width: 1.25;
+	stroke-dasharray: 6 3;
+}
+
+.fem-chart-guide-text,
+.fem-chart-mark text {
+	fill: currentColor;
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	paint-order: stroke;
+	stroke: var(--vscode-editor-background);
+	stroke-width: 3px;
+}
+
+.fem-chart-mark circle {
+	fill: currentColor;
+}
+
+.fem-chart-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1, 4px) var(--sa-space-3, 12px);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.fem-chart-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1, 4px);
+}
+
+.fem-chart-swatch {
+	display: inline-block;
+	width: 14px;
+	height: 0;
+	border-top: 2px solid currentColor;
+}
+
+.fem-chart-swatch.dashed,
+.fem-chart-swatch.guide {
+	border-top-style: dashed;
+}
+
+.fem-chart-swatch.bars,
+.fem-chart-swatch.area {
+	height: 10px;
+	border: none;
+	border-radius: 2px;
+	background: currentColor;
+	opacity: 0.8;
+}
+
+.fem-chart-swatch.points {
+	width: 8px;
+	height: 8px;
+	border: none;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.fem-chart-caption {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: var(--sa-font-s, 12px);
+	line-height: 1.4;
+}

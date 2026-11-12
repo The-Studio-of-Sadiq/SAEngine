@@ -1,0 +1,281 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The layer-mapping step of "Import Architect's DWG/DXF...", over the Architecture drawing. */
+.sa-drawing-import {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	background: var(--sa-surface);
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-m);
+}
+
+.sa-drawing-import .sa-di-form {
+	display: flex;
+	flex-direction: column;
+	width: clamp(380px, 38%, 520px);
+	min-width: 0;
+	border-right: 1px solid var(--sa-border);
+	background: var(--sa-surface-alt);
+}
+
+.sa-drawing-import .sa-di-heading {
+	padding: var(--sa-space-3) var(--sa-space-4) var(--sa-space-2);
+}
+
+.sa-drawing-import h2 {
+	margin: 0;
+	font-size: var(--sa-font-l);
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sa-drawing-import .sa-di-sub,
+.sa-drawing-import .sa-di-note {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	line-height: 1.4;
+}
+
+.sa-drawing-import .sa-di-sub {
+	margin-top: var(--sa-space-1);
+}
+
+.sa-drawing-import .sa-di-message {
+	padding: 0 var(--sa-space-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-1);
+}
+
+.sa-drawing-import .sa-di-message:empty {
+	display: none;
+}
+
+.sa-drawing-import .sa-di-problem {
+	color: var(--vscode-errorForeground);
+	font-size: var(--sa-font-s);
+}
+
+.sa-drawing-import .sa-di-fields {
+	flex: 1;
+	overflow-y: auto;
+	padding: 0 var(--sa-space-4) var(--sa-space-3);
+}
+
+.sa-drawing-import h3 {
+	margin: var(--sa-space-3) 0 var(--sa-space-1);
+	font-size: var(--sa-font-s);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--sa-muted);
+}
+
+.sa-drawing-import .sa-di-layers {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius);
+}
+
+.sa-drawing-import .sa-di-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 118px;
+	align-items: center;
+	gap: var(--sa-space-2);
+	padding: 3px var(--sa-space-2);
+	border-top: 1px solid var(--sa-border);
+}
+
+.sa-drawing-import .sa-di-row:first-child {
+	border-top: none;
+}
+
+.sa-drawing-import .sa-di-row.head {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.sa-drawing-import .sa-di-row:not(.head):hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.sa-drawing-import .sa-di-row > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sa-drawing-import .sa-di-row .what {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.sa-drawing-import .sa-di-field {
+	display: grid;
+	grid-template-columns: 128px minmax(0, 1fr);
+	align-items: center;
+	gap: var(--sa-space-1) var(--sa-space-2);
+	margin: var(--sa-space-1) 0;
+}
+
+.sa-drawing-import .sa-di-field > .sa-di-note {
+	grid-column: 2;
+}
+
+.sa-drawing-import .sa-di-field .control {
+	display: flex;
+	gap: var(--sa-space-1);
+	min-width: 0;
+	align-items: center;
+}
+
+.sa-drawing-import .sa-di-field .control > .monaco-select-box,
+.sa-drawing-import .sa-di-field .control > .monaco-inputbox {
+	flex: 1;
+	min-width: 0;
+}
+
+.sa-drawing-import .sa-di-field .control > .monaco-inputbox.coord {
+	flex: 1 1 60px;
+}
+
+.sa-drawing-import .monaco-button.pick {
+	flex: 0 0 auto;
+	width: auto;
+	padding: 2px var(--sa-space-2);
+}
+
+.sa-drawing-import .monaco-button.pick.active {
+	outline: 1px solid var(--sa-accent);
+	outline-offset: 1px;
+}
+
+.sa-drawing-import .sa-di-actions {
+	display: flex;
+	gap: var(--sa-space-2);
+	padding: var(--sa-space-3) var(--sa-space-4);
+	border-top: 1px solid var(--sa-border);
+}
+
+.sa-drawing-import .sa-di-actions .monaco-button {
+	width: auto;
+	padding: 4px var(--sa-space-4);
+}
+
+.sa-drawing-import .sa-di-preview {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.sa-drawing-import .sa-di-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-1) var(--sa-space-3);
+	padding: var(--sa-space-2) var(--sa-space-3);
+	font-size: var(--sa-font-s);
+	border-bottom: 1px solid var(--sa-border);
+}
+
+.sa-drawing-import .sa-di-key {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+}
+
+.sa-drawing-import .sa-di-key .swatch {
+	width: 14px;
+	height: 3px;
+	background: var(--sa-di-colour);
+}
+
+.sa-drawing-import .sa-di-svg {
+	flex: 1;
+	width: 100%;
+	min-height: 0;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.sa-drawing-import .sa-di-svg.picking {
+	cursor: crosshair;
+}
+
+.sa-drawing-import .sa-di-svg polyline,
+.sa-drawing-import .sa-di-svg line {
+	fill: none;
+	stroke: var(--sa-di-colour);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+
+.sa-drawing-import .sa-di-svg text {
+	fill: var(--sa-di-colour);
+	font-family: var(--vscode-font-family);
+}
+
+.sa-drawing-import .role-walls { --sa-di-colour: var(--vscode-editor-foreground); }
+.sa-drawing-import .role-doors { --sa-di-colour: var(--sa-warn); }
+.sa-drawing-import .role-windows { --sa-di-colour: var(--sa-info); }
+.sa-drawing-import .role-rooms { --sa-di-colour: var(--sa-ok); }
+.sa-drawing-import .role-ignore { --sa-di-colour: var(--sa-idle); }
+
+.sa-drawing-import .sa-di-svg g.role-ignore {
+	opacity: 0.45;
+}
+
+.sa-drawing-import .sa-di-svg g.role-walls polyline {
+	stroke-width: 1.5;
+}
+
+.sa-drawing-import .sa-di-svg g.highlight polyline {
+	stroke: var(--sa-accent);
+	stroke-width: 3;
+}
+
+.sa-drawing-import .sa-di-svg g.highlight {
+	opacity: 1;
+}
+
+.sa-drawing-import .sa-di-svg .marker {
+	--sa-di-colour: var(--sa-fail);
+}
+
+.sa-drawing-import .sa-di-svg .marker.second {
+	--sa-di-colour: var(--sa-accent);
+}
+
+.sa-drawing-import .sa-di-svg .marker circle {
+	fill: none;
+	stroke: var(--sa-di-colour);
+	stroke-width: 2;
+	vector-effect: non-scaling-stroke;
+}
+
+.sa-drawing-import .sa-di-svg .marker line {
+	stroke-width: 2;
+}
+
+.sa-drawing-import .sa-di-hint {
+	position: absolute;
+	left: var(--sa-space-3);
+	bottom: var(--sa-space-2);
+	padding: 2px var(--sa-space-2);
+	border-radius: var(--sa-radius);
+	background: var(--vscode-editorWidget-background);
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+	pointer-events: none;
+}

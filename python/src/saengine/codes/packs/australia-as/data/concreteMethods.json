@@ -1,0 +1,316 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "AS 3600:2018 8.2.1-8.2.6, 8.2.8 (shear of beams)",
+    "AS 3600:2018 8.3 (torsion), 9.3 (punching), 11.5, 11.6 (walls, simplified method)",
+    "AS 3600:2018 10.4 (slender columns), 13.1, 13.2 (anchorage, laps), Chapters 7 and 12 (strut-and-tie, deep beams, corbels), Clause 14 and Appendix C (earthquake detailing)"
+  ],
+  "source": "AS 3600:2018 8.2: beam shear Vu = Vuc + Vus by the general method's kv and θv (8.2.4.2) with the simplified kv and θv (8.2.4.3) in the design run; φ = 0.75 on both terms; the rest of the concrete design is the strength design with φ (no ultimate group: AS 3600 designs by capacity reduction factors on the members)",
+  "shear": {
+    "method": "compressionField",
+    "variant": "simplified",
+    "phiC": 0.75,
+    "phiS": 0.75,
+    "depthShares": [
+      0.9,
+      0.72
+    ],
+    "rootMax": 8.0,
+    "betaWithStirrups": 0.15,
+    "betaNoStirrups": [
+      153.846,
+      769.231
+    ],
+    "betaNoStirrupsMax": 0.1,
+    "thetaDeg": 36.0,
+    "general": {
+      "beta": [
+        0.4,
+        1500.0,
+        1300.0,
+        1000.0
+      ],
+      "theta": [
+        29.0,
+        7000.0
+      ],
+      "crackSpacing": [
+        32.0,
+        16.0,
+        0.8
+      ],
+      "stirrupSpacingParameter": 300.0
+    },
+    "strainLimits": [
+      -0.0002,
+      0.003
+    ],
+    "aggregate": 20.0,
+    "vrMaxShare": 0.2615,
+    "minCoefficient": 0.08,
+    "fyMax": 500.0,
+    "simplifiedFyMax": 500.0,
+    "spacing": [
+      0.9,
+      500.0
+    ],
+    "closeSpacing": [
+      0.6,
+      300.0
+    ],
+    "closeShare": 0.1
+  },
+  "clauses": {
+    "shear": "8.2.4",
+    "shearMinimum": "8.2.1.7, 8.2.8",
+    "shearSpacing": "8.2.12.2",
+    "torsion": "8.3",
+    "punching": "9.3",
+    "simplifiedWalls": "11.5.1, 11.4",
+    "simplifiedWallAxial": "11.5.2, 11.5.3",
+    "simplifiedWallShear": "11.6",
+    "slenderness": "10.4",
+    "anchorage": "13.1.2",
+    "anchorageHooks": "13.1.2.7",
+    "anchorageCompression": "13.1.5",
+    "laps": "13.2.2",
+    "lapsCompression": "13.2.4",
+    "strutAndTie": "Chapter 7",
+    "strutAndTie.minAngle": "7.2.2",
+    "deepBeams": "12.1",
+    "corbels": "12.2",
+    "seismicDetailing": "Clause 14, Appendix C",
+    "seismicBeams": "C4.2",
+    "seismicHinges": "C4.2",
+    "seismicColumns": "C4.3",
+    "seismicConfinement": "C4.3",
+    "seismicJoints": "C4.4",
+    "strongColumn": "C4.4",
+    "capacityDesign": "C4.2",
+    "seismicWalls": "C5",
+    "seismicWallBoundary": "C5",
+    "seismicCoupling": "C5"
+  },
+  "sources": {
+    "shear": "AS 3600:2018 8.2.4.1: Vuc = kv √f'c bv dv (√f'c <= 8 MPa), dv = max(0.9 d, 0.72 D); 8.2.5: Vus = Asv fsy.f dv cot θv / s; 8.2.3.3: Vu.max = 0.55 f'c bv dv (cot θv + cot αv)/(1 + cot² θv) = 0.2615 f'c bv dv at θv 36°, αv 90°; φ = 0.75 (Table 2.2.2)",
+    "shear.simplified": "AS 3600:2018 8.2.4.3: θv = 36°, kv = 0.15 with at least Asv.min, else 200/(1000 + 1.3 dv) <= 0.10 (written 153.846/(769.231 + dv)); valid for f'c <= 65 MPa, fsy <= 500 MPa, aggregate >= 10 mm",
+    "shear.general": "AS 3600:2018 8.2.4.2: kv = 0.4/(1 + 1500 εx) × 1300/(1000 + kdg dv), kdg = 32/(16 + dg) >= 0.8 (written sze = 32 dv/(16 + dg) >= 0.8 dv), 300 with at least Asv.min; θv = 29 + 7000 εx; εx = (M*/dv + V* + 0.5 N*)/(2 Es Ast) within -0.2e-3 and 3e-3 (the general method needs M* at the section: its terms are reported by saengine.design.compression_field_shear.general_terms; the design run uses the simplified values)",
+    "shear.minCoefficient": "AS 3600:2018 8.2.1.7: Asv.min = 0.08 √f'c bv s / fsy.f",
+    "shear.spacing": "AS 3600:2018 8.2.12.2: s <= min(0.75 D, 500 mm), min(0.5 D, 300 mm) where V* > φVu.min; SAEngine writes them on dv (0.9 dv, 0.6 dv) and takes the close spacing where V* > 0.1 φ f'c bv dv (SAEngine practice for φVu.min)",
+    "torsion": "AS 3600:2018 8.3: Jt = 0.33 x² y (8.3.3), Tuc = 0.3 Jt √f'c (8.3.5), torsion neglected where T* < 0.25 φTuc and no torsion reinforcement where T*/(φTuc) + V*/(φVuc) <= 0.5 (8.3.4(a)); web crushing T*/(φTu.max) + V*/(φVu.max) <= 1.0, Tu.max = 0.2 f'c Jt (8.3.3); Tus = fsy.f (Asw/s) 2 At cot θv (8.3.5(b)), θv = 36° (cot 1.376) as the shear's simplified method; closed ties at most min(0.12 ut, 300 mm) apart (8.3.8); the longitudinal steel ΔAl = T* ut cot θv / (2 φ At fsy) (8.3.6, written as the space truss force; to verify); φ = 0.75. SAEngine shares the links linearly between the shear beyond φVuc and the torsion (the code adds the torsion links to the shear's); the slab cast with the beam is not counted in Jt (on the safe side)",
+    "punching": "AS 3600:2018 9.3.3: Vuo = u dom (fcv + 0.3 σcp) with fcv = 0.17 (1 + 2/βh) √f'c <= 0.34 √f'c (σcp = 0, no prestress); 9.3.4: Vu = Vuo / (1 + u M*v / (8 V* a dom)) without shear reinforcement, a the critical perimeter's side parallel to M*v; φ = 0.75. Both directions' moments added (SAEngine practice, on the safe side). Closed fitments and shearheads (9.3.4(b)-(d), 9.3.5) not laid out",
+    "simplifiedWalls": "AS 3600:2018 11.5: φNu = φ (tw - 1.2 e - 2 ea) 0.6 f'c per unit length, ea = Hwe²/(2500 tw), e >= 0.05 tw, the resultant within the middle third, Hwe/tw <= 30 (11.5.1, 11.4: Hwe = 0.75 Hw braced and restrained at both ends, 1.0 Hw otherwise in SAEngine's bracing factors); φ = 0.65 (Table 2.2.2, to verify). 11.6: Vu = Vuc + Vus <= 0.2 f'c (0.8 Lw) tw; Vuc = (0.66 √f'c - 0.21 (Hw/Lw) √f'c) 0.8 Lw tw for Hw/Lw <= 1, else the lesser of that and (0.05 √f'c + 0.1 √f'c / (Hw/Lw - 1)) 0.8 Lw tw, at least 0.17 √f'c 0.8 Lw tw; Vus = ρw fsy 0.8 Lw tw, ρw the lesser of the vertical and horizontal ratios for Hw/Lw <= 1, the horizontal one above; φ = 0.75",
+    "slenderness": "AS 3600:2018 10.3-10.5: short columns Le/r <= 25 braced (SAEngine takes the fixed 25, not the larger α(38 - f'c/15)(1 + M1*/M2*) of 10.3.1(b): on the safe side), <= 22 unbraced; M* >= N* 0.05 D (10.1.2); δb = km/(1 - N*/Nc) >= 1, km = 0.6 - 0.4 M1*/M2* >= 0.4 (1.0 with transverse loads); Nc = (π²/Le²) 182 do φ Mub/(1 + βd) with φ = 0.6 (10.4.4, φ to verify); unbraced δ the larger of δb and δs, δs the storey's (the project's sway magnifier option, sumPc for ΣN*/ΣNc of 10.4.3); Le/r <= 120 (10.5.? to verify)",
+    "anchorage": "AS 3600:2018 13.1.2.2: Lsy.tb = 0.5 k1 k3 fsy db/(k2 √f'c) >= 0.058 fsy k1 db, k1 = 1.3 for horizontal bars with more than 300 mm of concrete cast below, k2 = (132 - db)/100, k3 = 1 - 0.15 (cd - db)/db within 0.7-1.0, √f'c with f'c <= 65 MPa; 13.1.2.7: hooks and cogs 0.5 Lsy.tb; 13.1.5: Lsy.c = 0.22 fsy db/√f'c >= 0.0435 fsy db and 200 mm",
+    "laps": "AS 3600:2018 13.2.2: Lsy.t.lap = k7 Lsy.t >= 29 k1 db with k7 = 1.25 (1.0 where As >= 2 As,req and at most half the bars spliced: not taken, on the safe side); 13.2.4: compression laps Lsy.c at least 40 db and 300 mm (to verify)",
+    "strutAndTie": "AS 3600:2018 Chapter 7 and Table 2.2.2: struts and nodes on φst 0.9 f'c with φst = 0.6, prismatic struts βs = 1.0, bottle-shaped βs = 1/(1 + 0.66 cot² θt) within 0.3-1.0 (7.2.4), nodes βn 1.0 (C-C-C), 0.8 (C-C-T), 0.6 (C-T-T) (7.4.2), ties φ = 0.8 As fsy (7.3); the strut-tie angle at least 30° (7.2.2); deep beams Lo/D below 3 (12.1.1: 3 simply supported, 4 continuous: SAEngine takes 3 for both); the deep beams' web mesh 0.001 Ac per face, at least 150 mm²/m, at most min(2 b, 300 mm) apart (SAEngine practice: to verify against 12.1.2); corbels (12.2): z0 = 0.8 d, tan θ 0.577-2.5, horizontal force at least 0.2 V*, closed links 0.5 As,main (SAEngine practice where not given: to verify)",
+    "seismic": "AS 3600:2018 Clause 14 and Appendix C: moderately ductile (intermediate, μ 3) moment frames and the ductile walls: beams b >= 200 mm, b/D >= 0.3, ln >= 4 D, at least 2 N12 top and bottom, ρ >= 0.25 √f'c/fsy, <= 0.025, the bottom's strength >= 1/3 of the top's at the face and any section >= 1/5 of the most, closed ties over 2 D from the faces at <= min(d/4, 8 db, 300 mm), the first within 50 mm, elsewhere <= d/2; the capacity shear on Mn = φMn/0.85; columns: least dimension 200 mm, ρ 1-4 %, ties over max(D, clear/6, 450 mm) at <= min(b/2, 8 db, 300 mm), Ash by the ACI 318 type 0.3 (Ag/Ach - 1) f'c/fyt and 0.09 f'c/fyt (SAEngine practice: AS 3600 10.7.3 writes the confinement in its own form, to verify), ties elsewhere at most the least dimension; joints Vj on fy ΣAs against 1.7/1.25/1.0 √f'c bj hc (the ACI 318 type, SAEngine practice); walls ρ >= 0.0025, two layers above 200 mm, boundary elements where σ > 0.2 f'c; coupling beams diagonal bars where v* > 0.1 (ln/D) √f'c and ln/D < 2. Ordinary (limited ductile, μ 2) frames: the members' general rules (no Appendix C rows). Fully ductile (μ 4) frames are detailed as moderately ductile here: AS 3600 does not give them (a special study); every value of this group is to verify against the printed Appendix C"
+  },
+  "torsion": {
+    "method": "torsionInteraction",
+    "torsionModulus": 0.33,
+    "crackingCoefficient": 0.3,
+    "neglectShare": 0.25,
+    "plainInteraction": 0.5,
+    "maxCoefficient": 0.2,
+    "crushingInteraction": 1.0,
+    "cotTheta": 1.376,
+    "linkSpacing": [
+      0.12,
+      300.0
+    ],
+    "fyMax": 500.0
+  },
+  "punching": {
+    "method": "momentTransfer",
+    "coefficient": 0.17,
+    "maxCoefficient": 0.34,
+    "momentDivisor": 8.0
+  },
+  "simplifiedWalls": {
+    "method": "simplifiedWall",
+    "phi": 0.65,
+    "strengthShare": 0.6,
+    "eccentricityFactor": 1.2,
+    "additionalDivisor": 2500.0,
+    "minEccentricityShare": 0.05,
+    "slendernessMax": 30.0,
+    "restrainedK": 0.75,
+    "shearDepthShare": 0.8,
+    "squatShear": [
+      0.66,
+      0.21
+    ],
+    "slenderShear": [
+      0.05,
+      0.1
+    ],
+    "shearLeast": 0.17,
+    "shearMaxShare": 0.2,
+    "phiShear": 0.75
+  },
+  "slenderness": {
+    "method": "bucklingMagnifier",
+    "bracedLimit": 25.0,
+    "unbracedLimit": 22.0,
+    "kmBase": 0.6,
+    "kmSlope": 0.4,
+    "kmMin": 0.4,
+    "stiffnessCoefficient": 182.0,
+    "phiBuckling": 0.6,
+    "minEccentricityShare": 0.05,
+    "slendernessMax": 120.0,
+    "ultimateStrain": 0.003
+  },
+  "anchorage": {
+    "method": "developmentFactors",
+    "coefficient": 0.5,
+    "minCoefficient": 0.058,
+    "topFactor": 1.3,
+    "topDepth": 300.0,
+    "barFactor": [
+      132.0,
+      100.0
+    ],
+    "coverFactor": [
+      0.15,
+      0.7,
+      1.0
+    ],
+    "fcMax": 65.0,
+    "hookShare": 0.5,
+    "compression": [
+      0.22,
+      0.0435,
+      200.0
+    ],
+    "lapFactor": 1.25,
+    "lapMinCoefficient": 29.0,
+    "compressionLap": [
+      40.0,
+      300.0
+    ]
+  },
+  "strutAndTie": {
+    "method": "designStressLimits",
+    "basis": "capacityFactor",
+    "phiStrut": 0.6,
+    "phiTie": 0.8,
+    "concreteShare": 0.9,
+    "strutUncracked": 1.0,
+    "strutCracked": 0.3,
+    "bottleStrut": [
+      0.66,
+      0.3,
+      1.0
+    ],
+    "nodeCCC": 1.0,
+    "nodeCCT": 0.8,
+    "nodeCTT": 0.6,
+    "minAngle": 30.0,
+    "tieArm": 0.8,
+    "deepSpanRatio": 3.0,
+    "deepMeshRatio": 0.001,
+    "deepMeshMin": 150.0,
+    "deepMeshSpacing": [
+      2.0,
+      300.0
+    ],
+    "corbelLeverShare": 0.8,
+    "corbelTanTheta": [
+      0.577,
+      2.5
+    ],
+    "corbelShortShare": 0.5,
+    "corbelHorizontalLinks": 0.5,
+    "corbelVerticalLinks": 0.5,
+    "corbelHorizontalForce": 0.2
+  },
+  "seismic": {
+    "method": "ductileDetailing",
+    "basis": "capacityFactor",
+    "frames": [
+      "intermediate",
+      "special"
+    ],
+    "beams": {
+      "minWidth": 200.0,
+      "minRatio": 0.3,
+      "depthShare": 0.25,
+      "minBars": 2,
+      "minBarDia": 12.0,
+      "rhoMinRoot": 0.25,
+      "rhoMax": 0.025,
+      "positiveShare": 0.33,
+      "anyShare": 0.2,
+      "hoopZoneDepths": 2.0,
+      "hoopZoneOnDepth": true,
+      "hoopSpacing": [
+        0.25,
+        8.0,
+        300.0
+      ],
+      "firstHoop": 50.0,
+      "elsewhereShare": 0.5,
+      "hoopMinDia": 10.0,
+      "overstrength": 1.18
+    },
+    "columns": {
+      "axialShare": 0.1,
+      "minDimension": 200.0,
+      "minRatio": 0.4,
+      "rho": [
+        0.01,
+        0.04
+      ],
+      "strongColumn": 1.0,
+      "confinedLength": [
+        1.0,
+        6.0,
+        450.0
+      ],
+      "confinedSpacing": [
+        0.5,
+        8.0,
+        300.0
+      ],
+      "ash": [
+        0.3,
+        0.09
+      ],
+      "spiral": [
+        0.45,
+        0.12
+      ],
+      "hxMax": 350.0,
+      "outsideShare": 1.0,
+      "lapHoopSpacing": 150.0
+    },
+    "joints": {
+      "gamma": {
+        "4": 1.7,
+        "3": 1.25,
+        "other": 1.0
+      },
+      "overstrength": 1.0,
+      "widthShare": 0.5
+    },
+    "walls": {
+      "minThickness": 150.0,
+      "rhoMin": 0.0025,
+      "twoCurtainThickness": 200.0,
+      "twoCurtainRoot": 0.17,
+      "barDiaShare": 0.1,
+      "spacing": [
+        5.0,
+        2.5,
+        350.0
+      ],
+      "boundaryStress": 0.2,
+      "boundaryStop": 0.15,
+      "couplingRoot": 0.1,
+      "couplingSpanRatio": 2.0,
+      "couplingPhi": 0.85
+    }
+  }
+}

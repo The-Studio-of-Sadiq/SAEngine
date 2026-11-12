@@ -1,0 +1,259 @@
+{
+  "$defs": {
+    "SlopePartialFactors": {
+      "additionalProperties": false,
+      "description": "The ``partialFactors`` verification on the pack's ``geotechnicalMethods`` sets.",
+      "properties": {
+        "approach": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Design approach (a key of geotechnicalMethods.approaches); empty: the pack's designApproach.",
+          "title": "Approach"
+        },
+        "resistances": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "γR;e of overall stability by the combination's resistance set (R1, R2, R3).",
+          "title": "Resistances",
+          "type": "object"
+        },
+        "soilWeight": {
+          "description": "Factor on the soil's own weight (1.0: the single-source principle; the set M's γγ still divides it).",
+          "exclusiveMinimum": 0,
+          "title": "Soilweight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "resistances",
+        "soilWeight"
+      ],
+      "title": "SlopePartialFactors",
+      "type": "object"
+    },
+    "SlopeReinforcement": {
+      "additionalProperties": false,
+      "description": "Soil nails and ground anchors as resisting forces on the slip surface.",
+      "properties": {
+        "standard": {
+          "description": "Shown in the report, e.g. 'FHWA-NHI-14-007'.",
+          "title": "Standard",
+          "type": "string"
+        },
+        "tendonFactor": {
+          "description": "Tensile capacity / this.",
+          "exclusiveMinimum": 0,
+          "title": "Tendonfactor",
+          "type": "number"
+        },
+        "bondFactor": {
+          "description": "Pull-out (grout-ground bond) resistance / this.",
+          "exclusiveMinimum": 0,
+          "title": "Bondfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "standard",
+        "tendonFactor",
+        "bondFactor"
+      ],
+      "title": "SlopeReinforcement",
+      "type": "object"
+    },
+    "SlopeRequired": {
+      "additionalProperties": false,
+      "description": "Least factors of safety of the ``factorOfSafety`` verification.",
+      "properties": {
+        "permanent": {
+          "description": "Permanent slopes (long term).",
+          "exclusiveMinimum": 0,
+          "title": "Permanent",
+          "type": "number"
+        },
+        "temporary": {
+          "description": "Temporary slopes (end of construction, cuts).",
+          "exclusiveMinimum": 0,
+          "title": "Temporary",
+          "type": "number"
+        },
+        "seismic": {
+          "description": "Under the pseudo-static seismic coefficients.",
+          "exclusiveMinimum": 0,
+          "title": "Seismic",
+          "type": "number"
+        }
+      },
+      "required": [
+        "permanent",
+        "temporary",
+        "seismic"
+      ],
+      "title": "SlopeRequired",
+      "type": "object"
+    },
+    "SlopeSeismic": {
+      "additionalProperties": false,
+      "description": "Pseudo-static seismic coefficients.",
+      "properties": {
+        "method": {
+          "const": "pseudoStatic",
+          "default": "pseudoStatic",
+          "title": "Method",
+          "type": "string"
+        },
+        "khFactor": {
+          "description": "kh = this × the peak ground acceleration [g] of the project.",
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Khfactor",
+          "type": "number"
+        },
+        "kvRatio": {
+          "description": "kv = ± this × kh (both signs are checked).",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Kvratio",
+          "type": "number"
+        },
+        "materials": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Partial factors: the set M of the seismic case (a key of geotechnicalMethods.materials); empty: the characteristic strengths.",
+          "title": "Materials"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Partial factors: the least factor of safety of the seismic case; empty: required.seismic.",
+          "title": "Required"
+        }
+      },
+      "required": [
+        "khFactor",
+        "kvRatio"
+      ],
+      "title": "SlopeSeismic",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Limit equilibrium of slopes and their strength reduction (see the module).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "methods": {
+      "description": "The limit equilibrium methods run (each reported).",
+      "items": {
+        "enum": [
+          "bishop",
+          "janbu",
+          "spencer",
+          "morgensternPrice"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Methods",
+      "type": "array"
+    },
+    "checked": {
+      "description": "The methods whose factor of safety is checked against the required one.",
+      "items": {
+        "enum": [
+          "bishop",
+          "janbu",
+          "spencer",
+          "morgensternPrice"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Checked",
+      "type": "array"
+    },
+    "verification": {
+      "enum": [
+        "factorOfSafety",
+        "partialFactors"
+      ],
+      "title": "Verification",
+      "type": "string"
+    },
+    "required": {
+      "$ref": "#/$defs/SlopeRequired"
+    },
+    "partialFactors": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SlopePartialFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "seismic": {
+      "$ref": "#/$defs/SlopeSeismic"
+    },
+    "reinforcement": {
+      "$ref": "#/$defs/SlopeReinforcement"
+    }
+  },
+  "required": [
+    "methods",
+    "checked",
+    "verification",
+    "required",
+    "seismic",
+    "reinforcement"
+  ],
+  "title": "SlopeStabilityTable",
+  "type": "object",
+  "$id": "saengine.codePack.slopeStability/1"
+}

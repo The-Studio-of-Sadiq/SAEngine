@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../schemas/timber.schema.json",
+  "$sources": [
+    "IS 883:1994 Design of structural timber in building - code of practice"
+  ],
+  "source": "IS 883:1994: permissible stress design of structural timber by strength groups A, B and C, the grade, durability and modification factors (slope of grain, duration of load, depth and form factors, bearing), flexural members, solid, box and spaced columns, combined stresses, nailed and bolted joints. The values equal those of BNBC 2020 Part 6 Chapter 11 (the pack this one extends), which follows IS 883; the species rows are the parent's list (design an Indian species by its strength group where it is not listed).",
+  "clauses": {
+    "chapter": "IS 883:1994",
+    "species": "IS 883:1994 5.1 (species; the parent's list)",
+    "groups": "IS 883:1994 5.2-6.1 (strength groups A, B, C)",
+    "grade": "IS 883:1994 6.2 (grades)",
+    "slope": "IS 883:1994 6.3 (slope of grain, K1)",
+    "duration": "IS 883:1994 6.3 (duration of load, K2)",
+    "bending": "IS 883:1994 7.3 (flexural members; depth and form factors K3-K6)",
+    "width": "IS 883:1994 7.3 (width of flexural members)",
+    "depth": "IS 883:1994 7.3 (depth of flexural members)",
+    "restraint": "IS 883:1994 7.3 (lateral restraint)",
+    "shear": "IS 883:1994 7.3 (horizontal shear)",
+    "shearSupport": "IS 883:1994 7.3 (shear near supports)",
+    "shearAlong": "IS 883:1994 6.1 (shear along the grain)",
+    "notch": "IS 883:1994 7.3 (notched beams)",
+    "notchLimits": "IS 883:1994 7.3 (notch limits)",
+    "bearing": "IS 883:1994 7.3 (bearing, K7)",
+    "minBearing": "IS 883:1994 7.3 (least bearing length)",
+    "deflection": "IS 883:1994 7.3 (deflection)",
+    "column": "IS 883:1994 7.4 (solid columns, K8)",
+    "boxColumn": "IS 883:1994 7.4 (box columns, K9)",
+    "spacedColumn": "IS 883:1994 7.4 (spaced columns, K10)",
+    "tension": "IS 883:1994 6.1 (tension parallel to the grain)",
+    "combinedCompression": "IS 883:1994 7.5 (bending and axial compression)",
+    "combinedTension": "IS 883:1994 7.5 (bending and axial tension)",
+    "nails": "IS 883:1994 8 (nailed joints)",
+    "nailSpacing": "IS 883:1994 8 (nail spacing)",
+    "nailRules": "IS 883:1994 8 (nailed joint rules)",
+    "bolts": "IS 883:1994 9 (bolted joints)",
+    "boltRules": "IS 883:1994 9 (bolted joint rules)",
+    "boltSpacing": "IS 883:1994 9 (bolt spacing)",
+    "fastenerDuration": "IS 883:1994 6.3 (duration of load on fasteners)",
+    "rings": "IS 883:1994 10 (connectors)",
+    "dowels": "IS 883:1994 10 (disc dowels)",
+    "holding": "IS 883:1994 (nail and screw holding)"
+  },
+  "sources": {
+    "isTimber": "IS 883:1994: the strength groups A (E above 12.6 GPa: fb 18.0, fc parallel 11.7, fc perpendicular 4.0, shear 1.05 MPa inside), B (9.8 GPa: 12.0, 7.8, 2.5, 0.64), C (5.6 GPa: 8.5, 4.9, 1.1, 0.49), outside and wet 5/6 and 2/3; grades select 1.16, II 0.84; duration of load 1.0 / 1.15 / 1.25 / 1.33 / 2.0; the depth factor and the column formulas as BNBC 2020 Chapter 11 states them (the same values; clause numbers of IS 883 to verify)"
+  }
+}

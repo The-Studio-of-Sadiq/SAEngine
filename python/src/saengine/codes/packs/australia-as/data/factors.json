@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../schemas/factors.schema.json",
+  "$sources": [
+    "AS 3600:2018 Table 2.2.2"
+  ],
+  "source": "AS 3600:2018 Table 2.2.2: capacity reduction factors φ for Class N reinforcement",
+  "phi": {
+    "$replace": true,
+    "tension": 0.85,
+    "compressionTied": 0.65,
+    "compressionSpiral": 0.65,
+    "shear": 0.75,
+    "punching": 0.75,
+    "shearSeismic": 0.75,
+    "diagonalCoupling": 0.75,
+    "joint": 0.75,
+    "strutAndTie": 0.6,
+    "stiffnessReduction": 0.6,
+    "bearing": 0.6,
+    "plain": 0.6
+  },
+  "phiTransition": {
+    "method": "neutralAxisDepth",
+    "intercept": 1.24,
+    "slope": 1.0833333,
+    "clause": "AS 3600:2018 Table 2.2.2"
+  },
+  "sources": {
+    "tension": "AS 3600:2018 Table 2.2.2: bending without axial tension, Class N bars, φ = 1.24 - 13 kuo/12 within 0.65-0.85 (phiTransition: 0.85 up to kuo 0.36, 0.65 from kuo 0.545)",
+    "compressionTied": "AS 3600:2018 Table 2.2.2: members in compression, φ = 0.65 (no spiral distinction)",
+    "shear": "AS 3600:2018 Table 2.2.2: shear and torsion φ = 0.75 (Class N, the 2018 value; 0.7 in the 2009 edition)",
+    "punching": "AS 3600:2018 Table 2.2.2 / 9.3: φ = 0.75 (uncertain: to be checked)",
+    "shearSeismic": "AS 3600 has no reduced φ for seismic shear: 0.75 (SAEngine practice)",
+    "diagonalCoupling": "Not an AS 3600 factor: 0.75 (SAEngine practice)",
+    "joint": "Not an AS 3600 factor: 0.75 (SAEngine practice)",
+    "strutAndTie": "AS 3600:2018 Table 2.2.2: struts φst = 0.6 (ties 0.8): 0.6 for the whole model (SAEngine practice, safe side)",
+    "stiffnessReduction": "AS 3600:2018 10.4.4: the buckling load Nc with φ = 0.6 (the nearest of the moment magnifier's factor)",
+    "bearing": "AS 3600:2018 Table 2.2.2: bearing φ = 0.6",
+    "plain": "AS 3600:2018 Table 2.2.2 / Section 20: unreinforced concrete φ = 0.6",
+    "axialCap": "AS 3600 has no axial cap; it asks for a minimum eccentricity 0.05 D (10.1.2): SAEngine keeps the parent's 0.80 φ P0 cap in its place (SAEngine practice)"
+  }
+}

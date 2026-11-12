@@ -1,0 +1,129 @@
+{
+  "$schema": "../../../schemas/concrete.schema.json",
+  "$sources": [
+    "ACI 318-19 Chapters 6-11, 19-24 (members, analysis, concrete, strength, serviceability)"
+  ],
+  "source": "ACI 318-19 (SI values of ACI 318M-19) and SAEngine practice (see sources)",
+  "barDiameters": {
+    "all": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0, 29.0, 32.0, 36.0],
+    "main": [13.0, 16.0, 19.0, 22.0, 25.0, 29.0, 32.0, 36.0],
+    "column": [16.0, 19.0, 22.0, 25.0, 29.0, 32.0, 36.0],
+    "slab": [10.0, 13.0, 16.0],
+    "stirrup": [10.0, 13.0],
+    "wall": [10.0, 13.0, 16.0, 19.0],
+    "boundary": [16.0, 19.0, 22.0, 25.0, 29.0, 32.0],
+    "hoop": [10.0, 13.0],
+    "lintel": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0],
+    "tank": [10.0, 13.0, 16.0, 19.0, 22.0, 25.0],
+    "foundation": [13, 16, 19, 22, 25]
+  },
+  "barNames": {
+    "10": "#3", "13": "#4", "16": "#5", "19": "#6", "22": "#7",
+    "25": "#8", "29": "#9", "32": "#10", "36": "#11"
+  },
+  "barMasses": {
+    "10": 0.560, "13": 0.994, "16": 1.552, "19": 2.235, "22": 3.042,
+    "25": 3.973, "29": 5.060, "32": 6.404, "36": 7.907
+  },
+  "slabStrainMin": 0.005,
+  "fytShearMax": 413.7,
+  "spacingStep": 25.4,
+  "cover": {
+    "lintel": 40.0,
+    "stair": 20.0,
+    "pileCap": 75.0
+  },
+  "deflection": {
+    "effectiveInertia": "bischoff"
+  },
+  "aggregates": {
+    "brick": { "modulus": "normal", "lambda": 1.0, "shrinkageFactor": 1.0 }
+  },
+  "modulus": {
+    "brick": 4700.0
+  },
+  "shrinkage": {
+    "ratioLow": 0.0018,
+    "referenceFy": 413.7,
+    "ratioReference": 0.0018,
+    "ratioMin": 0.0018
+  },
+  "prestress": {
+    "punchingMethod": "precompression",
+    "note": "ACI 318-19 values (the same numbers as the ACI-based Chapter 9 of the pack this one extends). Two-way shear of prestressed slabs by 22.6.5.5 (punchingMethod 'precompression': vc = βp λ √f'c + 0.3 fpc + Vp/(b0 d), βp the lesser of 0.29 and 0.083 (1.5 + αs d/b0), √f'c at most 5.8 MPa, fpc 0.9 to 3.5 MPa). transferBonded (stressShare 0.5 fy, endRegion 1.0 h) and the integrity core inset 40 mm are SAEngine practice. Bursting by the simplified equations of AASHTO LRFD Art. 5.10.9.6.3, which ACI R25.9.4.4 refers to: SAEngine practice."
+  },
+  "clauses": {
+    "modulus": "19.2.2.1(b)",
+    "modulusBrick": "19.2.2.1(b) (no brick aggregate rule: normal weight)",
+    "modulusDensity": "19.2.2.1(a)",
+    "lambda": "19.2.4.1, Table 19.2.4.2",
+    "shrinkage": "24.4.3.2, Table 24.4.3.2",
+    "shrinkageBrick": "24.4.3.2 (no brick aggregate rule)",
+    "shrinkageSpacing": "24.4.3.3, 7.7.6.2.1, 8.7.2.2",
+    "prestressClass": "24.5.2.1, Table 24.5.2.1",
+    "prestressModulus": "19.2.2.1, 20.3.2.1",
+    "prestressRupture": "19.2.3.1",
+    "prestressTransfer": "24.5.3.1, 24.5.3.2",
+    "prestressService": "24.5.4.1, Table 24.5.4.1",
+    "prestressSpacingClassC": "24.3.2, 24.3.2.2",
+    "prestressJacking": "20.3.2.5.1, Table 20.3.2.5.1",
+    "prestressSteelTransfer": "20.3.2.5.1, Table 20.3.2.5.1",
+    "prestressAnchors": "20.3.2.5.1, Table 20.3.2.5.1",
+    "prestressElastic": "20.3.2.6.1",
+    "prestressSet": "20.3.2.6.1",
+    "prestressRelaxation": "20.3.2.6.1",
+    "prestressCreep": "20.3.2.6.1",
+    "prestressShrinkage": "20.3.2.6.1",
+    "prestressFriction": "20.3.2.6.1",
+    "prestressDeflection": "24.2.3.8, 24.2.4.2, Table 24.2.2",
+    "prestressLongDeflection": "24.2.4.2",
+    "prestressFps": "20.3.2.3, 20.3.2.4, Tables 20.3.2.3.1, 20.3.2.4.1",
+    "prestressPhi": "21.2.1, 21.2.2",
+    "prestressCracking": "7.6.2.1, 8.6.2.2, 9.6.2.1",
+    "prestressBondedOneWay": "7.6.2.3",
+    "prestressBondedPositive": "8.6.2.3, Table 8.6.2.3",
+    "prestressBondedNegative": "8.6.2.3, Table 8.6.2.3, 8.7.5.3",
+    "prestressBondedLength": "8.7.5.5",
+    "prestressHyperstatic": "5.3.11",
+    "prestressCompression": "10.6.1.2, 10.7.6.4, 25.7.3",
+    "prestressPunching": "22.6.5.5",
+    "prestressSlab": "8.6.2.1, 8.7.5.4",
+    "prestressIntegrity": "8.7.5.6",
+    "prestressIntegrityBars": "8.7.5.6.3",
+    "prestressAnchorage": "5.3.12, 21.2.1(h)",
+    "prestressSpalling": "25.9.4.4.6",
+    "prestressTransferStrength": "25.9.2.3",
+    "prestressSlabAnchorage": "25.9.4.4.2, 25.9.4.4.3",
+    "prestressBursting": "25.9.4.4, R25.9.4.4 (AASHTO LRFD Art. 5.10.9.6.3)",
+    "crackedStiffness": "6.6.3.1.1, Table 6.6.3.1.1(a)",
+    "patternLive": "6.4.2",
+    "patternAdjacent": "6.4.3.2 (a)",
+    "patternAdjacentFloor": "6.4.3.2 (a) with 6.4.3.1",
+    "patternAlternate": "6.4.3.2 (b)"
+  },
+  "sources": {
+    "aggregates": "ACI 318-19 19.2.4.1, Table 19.2.4.2: λ = 0.85 sand-lightweight, 0.75 all-lightweight, 1.0 normal weight; ACI has no brick aggregate rule: brick aggregate concrete is taken as normal weight (Ec 4700 √f'c, shrinkage steel × 1.0)",
+    "modulus": "ACI 318-19 19.2.2.1: Ec = 0.043 wc^1.5 √f'c for wc 1440-2560 kg/m³ (a), 4700 √f'c for normal weight (b)",
+    "shrinkage": "ACI 318-19 24.4.3.2, Table 24.4.3.2: 0.0018 for deformed bars and welded wire of every grade (the 0.0020 of grades below 420 MPa and the 420/fy reduction of earlier editions are gone)",
+    "barMasses": "ASTM A615/A615M Table 1: nominal masses of bars No. 10-36 (No. 3-11), 0.560-7.907 kg/m (alpha 9 C26; the soft-metric number is not the nominal diameter: No. 10 is 9.5 mm)",
+    "barNames": "ASTM A615/A615M Table 1: inch-pound bar designations No. 3-11 of the soft-metric sizes No. 10-36 (C13, printed in US customary units)",
+    "barDiameters": "ASTM A615/A706 bar sizes as soft-metric diameters (No. 10, 13, 16, 19, 22, 25, 29, 32, 36): SAEngine practice for US projects",
+    "spacingStep": "SAEngine practice for US projects: bar and hoop spacings in whole inches (1 in = 25.4 mm), rounded down",
+    "minSlabSpacing": "SAEngine practice (site), not a code limit",
+    "columnRho": "ACI 318-19 10.6.1.1",
+    "beamRatioMax": "SAEngine practice (congestion), not a code clause",
+    "slabStrainMin": "ACI 318-19 7.3.3.1, 8.3.3.1: nonprestressed slabs tension-controlled, εt >= εty + 0.003 (0.005 for Grade 420 rounded)",
+    "fytShearMax": "ACI 318-19 Table 20.2.2.4(a): stirrups and ties for shear, 60,000 psi (413.7 MPa; 420 MPa in ACI 318M)",
+    "twoWayThickness": "ACI 318-19 Table 8.3.1.1, without drop panels",
+    "twoWayThicknessDrop": "ACI 318-19 Table 8.3.1.1, with drop panels (8.2.4)",
+    "oneWaySlabThickness": "ACI 318-19 Table 7.3.1.1, by continuous ends 0, 1, 2",
+    "beamThickness": "ACI 318-19 Table 9.3.1.1, by continuous ends 0, 1, 2",
+    "cover": "SAEngine assumptions when no reinforcement is entered, from ACI 318-19 Table 20.5.1.3.1 (beams 40 mm, slabs 20 mm, cast against earth 75 mm)",
+    "crackedStiffness": "ACI 318-19 6.6.3.1.1, Table 6.6.3.1.1(a)",
+    "slender": "ACI 318-19 6.2.5.1 (34 - 12 M1/M2 <= 40, klu/r <= 22 sway), 6.6.4.3 (Q <= 0.05), 6.2.5.3 and 6.6.4.6.2 (δs <= 1.5), 6.2.6 (second-order moments at most 1.4 times first-order)",
+    "walls": "ACI 318-19 Table 11.6.1 (ρl and ρt by bar size and fy), 11.6.2 (ρl and ρt 0.0025 where Vu > 0.5 φ Vc), 11.7.2.1 (spacing 3h and 450 mm), 11.7.2.3 (two layers above 250 mm)",
+    "torsion": "ACI 318-19 22.7.6.1.2 (θ 45°), 22.7.6.1.1 (Ao = 0.85 Aoh), Table 20.2.2.4(a) (fy and fyt for torsion 420 MPa), 9.7.6.3.3 (spacing ph/8 and 300 mm), 9.7.5.1-9.7.5.2 (longitudinal bars 300 mm apart, db >= 0.042 s and No. 10)",
+    "prestress": "ACI 318-19: 24.5.2.1 classes U, T, C (0.62 and 1.0 √f'c), 8.3.4.1 two-way slabs Class U at 0.50 √f'c; 19.2.3.1 fr = 0.62 λ √f'c; 24.5.3.1-24.5.3.2 transfer 0.60 f'ci, 0.70 f'ci at ends of simply supported members, tension 0.25 / 0.50 √f'ci; 24.5.4.1 service 0.45 f'c sustained, 0.60 f'c total; Table 20.3.2.5.1 jacking min(0.94 fpy, 0.80 fpu), after transfer min(0.82 fpy, 0.74 fpu), at anchors 0.70 fpu; Table 20.3.2.3.1 γp 0.55, 0.40, 0.28; 20.3.2.4.1 unbonded fps; 7.6.2.1, 8.6.2.2, 9.6.2.1 1.2 Mcr; 7.6.2.3 0.004 Act; 8.6.2.3 0.00075 Acf and Nc / (0.5 fy) above 0.17 √f'c; 8.7.5.5 bar lengths; 10.7.6.4 1.6 MPa; 8.6.2.1 0.9 MPa, 8.7.5.4 8h and 1.5 m; 8.7.5.6 integrity tendons; 22.6.5.5 prestressed two-way shear; 5.3.12 Ppu = 1.2 Pjack, 21.2.1(h) φ 0.85; 25.9 anchorage zones",
+    "deflection": "ACI 318-19 Table 24.2.2 (l/180, l/360, l/480, l/240), Table 24.2.4.1.3 (ξ), Tables 7.3.1.1 and 9.3.1.1 (cantilevers l/10 slabs, l/8 beams); Ie by 24.2.3.5, Table 24.2.3.5 (effectiveInertia 'bischoff')"
+  }
+}

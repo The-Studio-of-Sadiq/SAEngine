@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../schemas/stairMethods.schema.json",
+  "$sources": [
+    "IS 456:2000 Clause 33 (stairs)"
+  ],
+  "source": "IS 456:2000 Clause 33: the effective spans (33.1), stairs built into walls and open wells (33.2), the depth of section (33.3) are the same rules as the parent's; the special stairs (free-standing, sawtooth, helicoidal) stay the parent's (IS 456 has no method for them). Entered from knowledge of the code (VERIFY.md of the pack).",
+  "sources": {
+    "builtIn": "IS 456:2000 33.2: flights or landings embedded at least 110 mm into walls and spanning along the flight: a 150 mm strip deducted from the loaded area, the effective breadth increased by 75 mm",
+    "openWellShare": "IS 456:2000 33.2: open wells, the load on areas common to two crossing spans one half in each direction"
+  },
+  "builtIn": {
+    "embedmentMin": 110,
+    "deductedStrip": 150,
+    "addedBreadth": 75
+  },
+  "openWellShare": 0.5,
+  "clauses": {
+    "builtIn": "IS 456:2000 33.2",
+    "openWell": "IS 456:2000 33.2"
+  }
+}

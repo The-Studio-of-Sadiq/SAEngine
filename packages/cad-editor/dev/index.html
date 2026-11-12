@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>cad-editor dev</title>
+	<style>html, body { margin: 0; height: 100%; } #cad { position: absolute; inset: 0; }</style>
+</head>
+<body>
+	<div id="cad"></div>
+	<script type="module">
+		import { createCadEditor } from '../dist/cad-editor.js';
+		const editor = createCadEditor({ container: document.getElementById('cad'), workerBaseUrl: new URL('../dist/', location.href).href, assetBaseUrl: new URL('../dist/assets/', location.href).href });
+		window.editor = editor;
+		window.ready = editor.newDrawing().then(ok => { window.opened = ok; return ok; });
+	</script>
+</body>
+</html>

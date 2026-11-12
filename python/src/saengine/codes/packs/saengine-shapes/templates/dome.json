@@ -1,0 +1,12 @@
+{
+  "name": "Dome 40 m",
+  "description": "Ribbed dome, base radius 20 m, rise 8 m, 6 rings and 24 ribs.",
+  "shape": {
+    "kind": "dome",
+    "radius": 20000.0,
+    "rise": 8000.0,
+    "rings": 6,
+    "segments": 24,
+    "memberType": "MEMBER"
+  }
+}

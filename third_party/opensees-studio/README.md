@@ -1,0 +1,477 @@
+<p align="center">
+  <img src="docs/logo.svg" alt="OpenSees Studio" width="640">
+</p>
+
+<p align="center">
+  A modern, SAP2000-style desktop GUI for
+  <a href="https://openseespydoc.readthedocs.io/">OpenSeesPy</a> —
+  built for structural and earthquake engineers who want a visual
+  modeling environment without leaving the OpenSees ecosystem.
+</p>
+
+<p align="center">
+  <em>Status: Pre-alpha. Active development. APIs and file formats will change.</em>
+</p>
+
+---
+
+![OpenSees Studio main window](docs/screenshots/main_window.png)
+
+## Why
+
+OpenSees is the gold-standard nonlinear FEM solver for earthquake
+engineering, but its native interface is Tcl/Python scripts.
+OpenSees Studio adds a visual front-end so you can:
+
+- Click to draw nodes, frames, supports, and loads on a snapped grid.
+- Assign materials, sections, and load patterns through dialogs.
+- Run static, modal, pushover, and time-history analyses with progress
+  and cancel support.
+- Inspect results visually — deformed shape, mode shapes, force
+  diagrams, pushover curves, time-history plots, hysteresis loops.
+- Save the model as a single `.osmodel` JSON file that round-trips
+  cleanly (diff-able in Git, scriptable from Python).
+
+Behind the GUI, the same `core` Pydantic model is fully usable from a
+script or Jupyter notebook — the GUI is one frontend, not the only one.
+
+## What works today
+
+- **Modeling** — grids, nodes, frames (elastic + force-based), trusses,
+  quads, zero-length sections, restraints, equalDOF constraints,
+  distributed loads, ground motions (`PathTimeSeries` /
+  `UniformExcitation`).
+- **Materials and sections** — `Steel01`, `Steel02`, `Concrete01`,
+  `Concrete02`, `ElasticPP`, `Hysteretic`, `Hardening`, fiber sections
+  (rectangular / circular patches + rebar layers, a W-shape template),
+  `SectionAggregator`, `BeamWithHinges`.
+- **Analyses** — static (load- or displacement-controlled), modal,
+  displacement-controlled pushover, transient time-history with
+  mode-1 Rayleigh damping. Chained workflows: gravity preload →
+  `loadConst -time 0.0` → pushover or transient.
+- **Post-processing** — deformed shape (with scale slider), animated
+  mode shapes, axial / shear / moment diagrams, pushover curves
+  (in display units), time-history plots, hysteresis loops,
+  response-spectrum SRSS / CQC, snapshot + video export.
+- **Persistence** — projects save as a single JSON `.osmodel` file
+  (Pydantic-validated, round-trip-clean).
+- **Examples** — 20+ verified examples bundled, including the OpenSees
+  Wiki Examples-1 through Example-4 family and a fiber-section RC frame
+  pushover. See [`examples/README.md`](examples/README.md).
+
+## Tech stack
+
+| Layer        | Library                              |
+| ------------ | ------------------------------------ |
+| GUI          | PySide6 (Qt 6)                       |
+| 3D viewport  | PyVista + pyvistaqt (VTK)            |
+| 2D plots     | pyqtgraph                            |
+| Solver       | OpenSeesPy 3.8.0.0                   |
+| Numerics     | NumPy                                |
+| Storage      | Pydantic v2 (model), h5py (results)  |
+| Tests        | pytest, pytest-qt                    |
+| Lint / type  | ruff, mypy                           |
+
+## Architecture
+
+Strict MVVM + service layer. The `core` package is pure Python — no Qt,
+no OpenSeesPy imports — and is fully unit-testable in isolation.
+
+```
+views (Qt)  →  viewmodels  →  services (OpenSeesRunner, Persistence)  →  core (model)
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for the long form,
+including the canonical OpenSeesPy command sequence the runner emits.
+
+Analyses run in a child process. Before every run the project is written
+to `<stem>.run-snapshot.osmodel` next to the project file (your own
+`.osmodel` is never touched), and `python -m opensees_studio.run` solves
+that snapshot while the window stays responsive. The Run dialog shows the
+step progress and has a Cancel button that stops the solver and leaves
+the model unchanged. If OpenSees exits hard, the application survives and
+shows the exit code with the solver's last messages. If the application
+itself is killed mid-run, the next File > Open of that project offers
+"Restore unsaved changes from the last analysis run?"; the snapshot is
+removed by a normal save or close.
+
+### Modal analysis: deterministic results
+
+ARPACK, the OpenSees default eigen solver, keeps its random start vector
+across `eigen` calls, so only the first eigen call of a process is
+reproducible: a second call flips mode signs and rotates the basis of a
+repeated eigenvalue pair. OpenSees Studio makes modal results independent
+of that history:
+
+- The modal case solver `Auto` (the default) uses the dense `fullGenLapack`
+  solver at or below 500 free DOF (a direct method, bit-identical on every
+  call; about 1 s at 500 DOF) and `genBandArpack` above it. The threshold
+  is `core.modal.DENSE_EIGEN_MAX_FREE_DOF`; the environment variable
+  `OPENSEES_STUDIO_DENSE_EIGEN_MAX_DOF` overrides it. Above the threshold
+  the analysis CLI runs every ARPACK case that follows an earlier eigen
+  call in a fresh child process, so each ARPACK eigen call is the first of
+  its process. The solver actually used and the free DOF count are shown
+  in the results panel, the spectrum dock and the run log, and stored in
+  the results manifest, so a model crossing the threshold is visible (the
+  two solvers agree to about 1e-13 relative on the examples; the two
+  storey shear frame differs by 6.3e-7).
+- An explicit `genBandArpack` or `fullGenLapack` is honoured.
+  `symmBandLapack` is refused with a message (it needs a positive definite
+  mass matrix; lumped masses leave rotational DOF massless). Other solver
+  names that this OpenSeesPy build silently maps to ARPACK are not offered;
+  a saved case carrying one loads with a notice and runs with `Auto`.
+  Projects saved before this change store `genBandArpack` explicitly and
+  keep it; set the case to `Auto` to get the routing.
+- Mode shapes have a deterministic sign (largest absolute component
+  positive; components within 1e-9 of the maximum are tied and the lowest
+  DOF index wins, which matters on symmetric frames), and the modes of a
+  repeated eigenvalue are made mass-orthogonal (the dense solver returns a
+  mass-oblique pair there).
+- `OPENSEES_STUDIO_IN_PROCESS=1` (debugging) runs the previous threaded
+  in-process worker: below the threshold it is deterministic too, above it
+  a second ARPACK call in the GUI process stays history dependent.
+
+### Response spectrum: combination rules
+
+- **CQC** (Complete Quadratic Combination, Der Kiureghian correlation,
+  equal or per-mode damping) is the default for new response spectrum
+  cases. Inside a repeated or near-repeated mode pair the eigen solver
+  returns an arbitrary basis of the eigenspace; CQC gives the same combined
+  response for every such basis (correlation 1 inside the pair), SRSS does
+  not. On `space_frame_3d` (two sway modes with one eigenvalue) the SRSS
+  roof displacement differs by 12 percent between the dense and the ARPACK
+  basis, the CQC one by 3e-10.
+- **SRSS** is still available, and saved cases keep their stored rule. When
+  the rule is SRSS and any two included modes have a frequency ratio (lower
+  over higher) at or above 0.9 (`closely_spaced_ratio` on the case), the
+  result carries a warning naming the modes and ratios; it shows in the
+  results panel, the spectrum dock and the run log.
+- The CQC damping is the case's modal damping ratio; 0 or empty means the
+  spectrum's own damping ratio (stored as "none", default 0.05). A CQC run
+  never uses zero damping: if case and spectrum would both give zero, 0.05
+  is used and a warning is issued. The damping field of the case dialog is
+  enabled for CQC only.
+- The participation factor and effective mass of a mode use the full modal
+  mass (every DOF that carries mass), so the cumulative mass participation
+  of a complete set of modes is 100 percent, never more.
+
+## Install (development)
+
+**Desktop GUI** (includes Qt, PyVista, pyqtgraph, imageio):
+
+```bash
+git clone https://github.com/ogunc/opensees-studio.git
+cd opensees-studio
+
+python -m venv .venv
+.venv\Scripts\activate              # Windows
+source .venv/bin/activate           # Linux / macOS
+
+pip install -e ".[gui,dev]"
+```
+
+**Headless / web reuse** (core + services only, no Qt pulled in):
+
+```bash
+pip install -e .
+```
+
+This installs only the headless base set (pydantic, numpy, h5py, openseespy).
+It is the correct install for web backends, scripts, and Jupyter notebooks that
+reuse `opensees_studio.core` or `opensees_studio.services` without the GUI.
+
+Python 3.12 is required: the `openseespywin` and `openseespylinux` 3.8.0.0
+wheels declare `Requires-Python >=3.12`, and the Windows `opensees.pyd` links
+against `python312.dll` (so use 3.12 exactly on Windows). Pin both
+`openseespy==3.8.0.0` and `openseespywin==3.8.0.0` (already pinned
+in `pyproject.toml`).
+
+## Quick start — the 60-second tour
+
+```bash
+python -m opensees_studio
+```
+
+Then:
+
+1. **File → Open** → pick `examples/cantilever.osmodel`.
+2. **Analyze → Cases** → run `Tip-Load`.
+3. **Display → Show Force Diagram** → component **M3** → linear moment
+   peaking at 50 kN·m at the fixed end. Component **V2** → constant
+   -10 kN.
+4. **Display → Show Deformed Shape** → the classic cantilever curve.
+
+For a nonlinear walkthrough, open `examples/portal_pushover.osmodel`,
+run the `Push-X` case, then **Display → Show Pushover Curve** — you'll
+see the elastic ramp followed by a yield plateau as the fiber-section
+hinges form at the column bases.
+
+### Material Tester
+
+**Define → Material Tester…** (Ctrl+Shift+T) opens a non-modal dialog that
+drives one uniaxial material of the current project through a strain history
+in an isolated zero-length model and plots stress against strain.
+
+Protocols (all start in compression, the OpenSees sign convention):
+
+- **Monotonic to amplitude**: 0 to -amplitude.
+- **Symmetric cyclic, fixed amplitude**: N cycles of 0, -amplitude,
+  +amplitude, 0.
+- **Cyclic, increasing amplitude**: one such cycle per peak in a list of
+  increasing peaks, for example `0.0025 0.005 0.01 0.02`.
+
+*Steps per half-cycle* splits every branch (0 to peak, peak to opposite
+peak, peak back to 0) into that many equal strain increments, so a cyclic run
+records 3 × steps points per cycle.
+
+Derived values under the plot:
+
+- **Peak stress**: the stress of largest magnitude and the strain where it
+  occurs.
+- **Secant stiffness at peak**: peak stress divided by that strain.
+- **Energy dissipated per cycle** (cyclic protocols): the area enclosed by
+  each cycle, the integral of stress d(strain), in stress units (energy per
+  unit volume).
+
+**Export CSV…** writes two comment lines (`# material: …`, `# protocol: …`),
+a header `strain,stress [<stress unit>]`, then one `strain,stress` row per
+point with a point decimal separator. Only materials the tester can drive are
+listed (nD `ElasticIsotropic` and `HystereticSM` are not); if a run still
+fails, the dialog shows the error message instead of a curve.
+
+### Precision, frame options and analysis settings
+
+- **Numeric input**: every floating-point field accepts scientific notation
+  (`1e-10`, `2.9e4`), keeps the full double and shows the shortest text that
+  reads back to it. Out-of-range text is refused; the value commits on Enter
+  or focus-out.
+- **Results panel**: *Significant digits* (default 6, up to 15) changes the
+  display only. *Export CSV...* writes the current table at full precision
+  with the units in the header. Tables: static displacements, reactions and
+  element forces, the pushover curve, modal frequencies, response spectrum
+  peaks and modes, and the time history of a chosen node.
+- **Assign > Frame > Geometric Transformation...**: Linear, PDelta or
+  Corotational for the selected frames (vecxz in 3D as before). Also editable
+  in the Properties dock. Default Linear.
+- **Assign > Frame > Beam Integration...**: Lobatto, Legendre, NewtonCotes,
+  Radau or Trapezoidal with 2 to 10 points for force and displacement
+  beam-columns. Also in the Properties dock. Default Lobatto with 5 points.
+- **Analysis cases**: Static, Transient and Pushover forms have *Numberer*
+  (Plain, RCM, AMD; default RCM) and *System* (BandGeneral, BandSPD,
+  ProfileSPD, SparseGeneral, UmfPack, FullGeneral). SparseGeneral notes that
+  partial pivoting is always on in this build, so `-piv` is not offered; a
+  saved project that carries it loads with a notice and runs without it.
+- **Hardening material**: `uniaxialMaterial Hardening` (E, sigmaY, H_iso,
+  H_kin, optional eta) in the material library and the Material Tester.
+- **Fiber Section Editor, Add Template, W-shape (wide flange)**: d, bf, tf,
+  tw, fibres across the web depth and through each flange (WFSection2d Nfw
+  and Nff), one material. The three patches reproduce `WFSection2d`.
+
+### Ground motions
+
+**Define → Ground Motions…** (Ctrl+Shift+G) manages the project's catalog of
+acceleration records: import, metadata (PGA, D5-95 significant duration,
+Arias intensity), an acceleration trace preview, remove, and relink.
+
+Supported formats, auto-detected from content with an explicit override:
+
+- **PEER AT2 / NGA**: header lines with `NPTS, DT` in either the new NGA or
+  the old SMD spelling, values row-wise.
+- **Two columns**: `time acceleration` pairs, whitespace or comma separated.
+  The time step must be uniform; a non-uniform column is rejected.
+- **Values only**: a bare list of accelerations (any number per line, read
+  row-wise) plus a dt you provide.
+
+Records are referenced, not embedded: the project file stores a path
+relative to the `.osmodel` plus a sha256 content hash, and the sample values
+are re-read from the record file on load. This keeps project files small and
+diffable, and it respects the record providers' terms: PEER NGA records may
+not be redistributed, so neither this repository nor your `.osmodel` files
+carry them. Move a project together with its record files; if a file is
+missing or its content changed, the catalog marks the record and analysis
+refuses to run that case until you relink the file. A record imported into a
+project that has never been saved keeps an absolute path until the first
+save, which rewrites it relative to the new `.osmodel`.
+
+**Spectra.** Selecting records plots their elastic response spectra
+(pseudo-acceleration, 5 % damping, log period axis) in g. The oscillator
+response uses the Nigam-Jennings piecewise-exact recurrence, so the spectrum
+depends only on the record's own sampling. A record's samples are converted
+to g from its **Units** (g or project units, set in the dialog; a PEER header
+that says `IN UNITS OF G` sets it on import). Records with unknown units are
+not plotted or scaled until you set them.
+
+**Target spectrum.** Either the TBDY 2018 horizontal design spectrum
+(TA = 0.2 SD1/SDS, TB = SD1/SDS, TL = 6 s) or a user table of `period  Sa[g]`
+rows interpolated log-log. The TBDY spectrum takes SDS and SD1 directly, or
+the mapped Ss and S1 of the AFAD TDTH map with the site class (ZA to ZE; ZF
+needs a site-specific study and is refused) and the earthquake level DD-1 to
+DD-4 as a label: SDS = Ss Fs and SD1 = S1 F1 with Fs and F1 from Tablo 2.1
+and 2.2 (linear between the breakpoints, clamped outside), and the project
+stores both the inputs and the derived values. The editor shows the derived
+SDS, SD1 and corner periods read-only, and the **Vertical spectrum** option
+builds SaeD of Md. 2.3.5 instead (TAD = TA/3, TBD = TB/3, plateau 0.8 SDS,
+TLD = TL/2). The vertical spectrum is defined only up to TLD: the overlay
+stops there and period-range or Sa(T1) scaling against it refuses periods
+beyond TLD with a message. The target is stored in the project and overlaid
+on the spectrum plot.
+
+**Scaling.** Three methods, previewed before Apply:
+
+- **PGA**: factor so the record's PGA equals a target PGA in g.
+- **Sa(T1)**: factor so the record's Sa at the structure's period T1 equals
+  the target's.
+- **Period range**: factors for the selected set so the mean spectrum of the
+  scaled set is not below alpha times the target over [a T1, b T1], either
+  one uniform factor or individual factors (each record first fitted to the
+  target shape, then the same uniform step); consecutive selections can be
+  paired as H1, H2 with the SRSS of the pair. The preset "TBDY 2018 (engineer
+  to confirm)" uses a = 0.2, b = 1.5 and alpha = 1.3 for pairs; confirm it
+  against the standard before relying on it. The preview reports the
+  governing period and the minimum mean-to-target ratio. The criterion is a
+  mean over the set, and TBDY 2018 applies it to at least 11 records (11
+  pairs in SRSS mode): with fewer the Scale panel shows a warning, because
+  the mean of a small set is not the one the criterion has in mind; the
+  factors are still computed and can be applied.
+
+Scale factors live on the time series: Apply writes `PathTimeSeries.factor`
+(which also carries the g to project-unit conversion) through one undoable
+command, and the catalog record itself is never changed.
+
+**Generated inputs.** **Generate…** in the same dialog builds a synthetic
+excitation and stores it as a time series, never as a catalog record: a
+continuous sine (amplitude, frequency, duration, optional linear ramp-in and
+ramp-out given in cycles) or a sine-beat train (cycles per beat, number of
+beats, pause between beats; each beat is a sine under a half-sine envelope,
+scaled so its peak equals the amplitude). A plain sine becomes a native
+OpenSees `Trig` series; a ramped sine or a sine-beat becomes an embedded
+`Path` series with `file_path="generated:<kind>"` and its parameters stored
+in the `generator` field, so **Edit…** reopens the generator with the stored
+values and swaps the series in place (undoable). The amplitude is given in g
+or in project units and the conversion lives in the series factor. The
+preview shows the trace and its response spectrum over the current target.
+The preset "IEEE 693 style (engineer to confirm)" (5 beats of 10 cycles,
+2 s pause) is a starting point to be confirmed against the standard's text;
+every value stays editable.
+
+### Seismic isolators (elastomeric and sliding bearings)
+
+**Assign → Joint → Bearing…** connects two selected joints
+(bottom, then top; coincident or separated by the bearing height) with an
+OpenSees `elastomericBearingPlasticity` (bilinear shear with return-mapping
+plasticity), `elastomericBearingBoucWen` (smooth Bouc-Wen shear),
+`flatSliderBearing` (friction, no restoring stiffness) or `singleFPBearing`
+(single friction pendulum) element.
+Shear parameters: `Kinit` (initial stiffness), `Qd` (characteristic
+strength), `alpha1` (post-yield stiffness ratio, 0 <= alpha1 < 1), `alpha2`
+and `mu` (nonlinear hardening `alpha2 Kinit |u|^mu`, 0 for a plain bilinear
+loop) and, for Bouc-Wen, `eta`, `beta`, `gamma`. The axial (`-P`) and moment
+(`-Mz`) responses are uniaxial materials picked from the material library;
+a 3D project also asks for the torsion (`-T`) and `-My` materials. Optional
+`-shearDist`, `-doRayleigh` and `-mass` are exposed; the runner always
+writes the `-orient` vectors (the element axis, or the vertical for
+coincident nodes, with the shear along global X, or the user's six values),
+because OpenSees 3.8 aborts on a zero-length bearing without them.
+The dialog shows the derived yield displacement `u_y = Qd / (Kinit (1 -
+alpha1))`, the yield force `Qd / (1 - alpha1)` and the secant stiffness at a
+displacement you type. Bearings draw with the line style of the other
+zero-length elements, are selectable, show a hover tooltip with the key
+parameters and list their parameters in the property editor. The runner's
+loops were verified against the closed-form bilinear loop (energy per cycle
+`4 Qd (u_max - u_y)`) in `tests/integration/test_elastomeric_bearing.py`,
+and `examples/isolated_portal2d.py` puts the Example 1b frame on two
+isolators under BM68elc.
+
+The sliding bearings reference a friction model from **Define → Friction
+Models…** (the Material Library pattern: `Coulomb` with `mu`, `VelDependent`
+with `muSlow`, `muFast`, `transRate`, and `VelNormalFrcDep` with `aSlow`,
+`nSlow`, `aFast`, `nFast`, `alpha0`, `alpha1`, `alpha2`, `maxMuFact`; every
+edit is undoable and a model in use by a bearing cannot be deleted). The
+bearing dialog then takes `Kinit` (stick stiffness), for the pendulum
+`Reff`, the same `-P`, `-Mz`, `-T`, `-My` materials and optional flags plus
+`-iter`, and shows, for an axial load you type, the slip displacement
+`mu W / Kinit`, the restoring stiffness `W / Reff` and the isolated period
+`2 pi sqrt(Reff / g)` in the project units. Validation mirrors every input
+that makes OpenSees 3.8 terminate the process (zero or negative friction
+coefficients, negative transition rate, zero `aSlow` or `aFast`, missing or
+degenerate `-orient`) or fail the analysis (zero `Reff` or `Kinit`, zero
+iterations). `tests/integration/test_friction_bearing.py` verifies the
+rectangular flat-slider loop at `mu W`, the sloped pendulum loop with
+stiffness `W / Reff`, the energy `4 mu W (u_max - u_y)` per cycle, the
+velocity dependence of `VelDependent`, and the pendulum period;
+`examples/isolated_portal2d_fp.py` is the isolated frame on single FP
+bearings under the same record. The triple friction pendulum is the next
+roadmap item (ISO-3).
+
+## Run the test suite
+
+```bash
+pytest tests/unit          # pure-logic tests, milliseconds, no Qt platform needed
+pytest tests/gui           # Qt event-loop tests (pytest-qt)
+pytest tests/integration   # real OpenSeesPy runs on bundled examples
+```
+
+CI runs lint + the non-`slow` subset on Linux / macOS / Windows
+× Python 3.12.
+
+## Roadmap
+
+See [`docs/roadmap.md`](docs/roadmap.md) for the phase-by-phase plan.
+Phases 0–7 (modeling, analysis, post-processing) are largely done.
+Phase 8 (earthquake-engineering primitives — isolators, ground-motion
+library, IDA, fiber-section editor polish) is the active edge.
+
+## We're looking for collaborators
+
+This project is most useful to researchers and engineers who already
+work with OpenSees and want a faster path from "idea" to "model" —
+**and who would rather build that path together than alone.**
+
+If any of the following sounds like you, please open an issue or
+say hi:
+
+- 🌉 **Structural / earthquake engineers** comfortable with OpenSees Tcl
+  or OpenSeesPy who can spot when a feature is "almost right but not
+  quite" — that calibration feedback is gold.
+- 🧪 **Researchers** running pushover, IDA, or response-spectrum studies
+  who want to validate the GUI against their hand-built scripts.
+- 🐍 **Python / Qt developers** interested in scientific desktop apps,
+  PyVista / VTK rendering, or Pydantic-driven schema design.
+- 📚 **Students** who want to learn structural FEM and modern GUI
+  architecture at the same time — example walkthroughs and tests are
+  designed to read as documentation.
+- 🎨 **UX / icon designers** willing to help shape the dialog set,
+  toolbar icons, and overall visual language.
+
+Open issues, bug reports, and reproducible test cases are just as
+valuable as code. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev
+setup and the architectural rules enforced in review.
+
+**Sending a pull request?** Branch from `develop` and open the pull
+request against `develop`; `main` only holds released versions. For a
+larger change, open an issue to agree on the scope first, then send it
+as small, focused pull requests.
+
+## License
+
+OpenSees Studio is released under the **GNU Affero General Public
+License v3.0** ([`LICENSE`](LICENSE)).
+
+Plain-language summary (not legal advice — read the license itself):
+
+- ✅ Use it for **research, education, and personal projects** with no
+  obligation other than keeping the copyright notice intact.
+- ✅ Modify and fork it freely.
+- ⚠️ If you **distribute** it, modified or not, you must release your
+  full source under AGPL-3.0.
+- ⚠️ If you **run it as a network service** (e.g. host a modified
+  version as a SaaS), you must release your modifications under
+  AGPL-3.0.
+
+In other words: anyone is free to learn from and build on this code,
+but commercial forks and proprietary derivatives must contribute their
+changes back to the community. If your use case needs a different
+arrangement (e.g. a closed-source commercial license), please open an
+issue to discuss.
+
+Copyright © 2026 Ozan and contributors.

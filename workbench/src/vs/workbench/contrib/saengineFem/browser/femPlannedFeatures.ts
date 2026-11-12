@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, append } from '../../../../base/browser/dom.js';
+import { combinedDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { appendPropertyHeading } from '../../saengineProject/browser/editorFrame.js';
+import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
+
+/**
+ * Ids of the FEM part's planned features: analyses and designs from guides other than BNBC
+ * 2020, shown in this MVP without computing anything. They are registered in
+ * `saengineFem.contribution.ts`; the panels show chips to their pages where they will appear.
+ */
+export const FemPlanned = {
+	/** T17 / B25 / P2: what stays planned of staged construction: construction loads and shoring (the creep and shrinkage forces case and wall shortening are built). */
+	stagedConstructionLoads: 'fem.stagedConstructionLoads',
+	/** T21 / B20 / P3: what stays planned of the pushover: walls with openings. */
+	fibreWalls: 'fem.fibreWalls',
+	/** T22 / P4: what stays planned of existing buildings: masonry buildings (RC and steel are built). */
+	existingMasonry: 'fem.existingMasonry',
+	/** T35 / B36 / P5: what stays planned of the time histories: searching open record databases and time-domain wavelet matching (scaling, frequency-domain matching and the NLTH design are built). */
+	recordSearch: 'fem.recordSearch',
+	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
+	crackedSlabDeflection: 'fem.crackedSlabDeflection',
+	crackWidths: 'fem.crackWidths',
+	/** T15: automatic tendon layout and time-step long-term losses of PT slabs. */
+	tendonLayout: 'fem.tendonLayout',
+	tendonLongTermLosses: 'fem.tendonLongTermLosses',
+	/** Timber wood-screw joints and steel side plates (nails, bolts, rings and dowels: B6). */
+	timberConnections: 'fem.timberConnections',
+	/** T27: base plate thickness, end-plate moment connections (anchors in concrete and moment-base rod tension: built in B26). */
+	basePlateDesign: 'fem.basePlateDesign',
+	endPlateMoment: 'fem.endPlateMoment',
+	/** T30: cold-formed purlins and girts (AISI S100). */
+	coldFormedSteel: 'fem.coldFormedSteel',
+	/** T44 / P8: what stays planned of composite members: their fire resistance (beams, columns and slabs on deck are built). */
+	compositeFire: 'fem.compositeFire',
+	/** Alpha 9 L7: what stays planned of the special members: US aluminium (Aluminum Design Manual) and membrane cutting patterns. */
+	aluminiumAdm: 'fem.aluminiumAdm',
+	membranePatterns: 'fem.membranePatterns',
+	/** Alpha 9 L9: what stays planned of the bridges and special structures (the core is built: Project Settings, Bridges and Special Structures). */
+	bridgeStages: 'fem.bridgeStages',
+	specialStructuresMore: 'fem.specialStructuresMore',
+} as const;
+
+/** The planned steel connection features, shown with the steel members' checks. */
+export const STEEL_CONNECTIONS_PLANNED: readonly string[] = [FemPlanned.basePlateDesign, FemPlanned.endPlateMoment];
+
+/** The planned steel shed features (cold-formed purlins and girts), shown with the steel members' checks. */
+export const STEEL_SHEDS_PLANNED: readonly string[] = [FemPlanned.coldFormedSteel];
+
+/** The planned composite member features (fire resistance), shown with the steel members' checks. */
+export const STEEL_COMPOSITE_PLANNED: readonly string[] = [FemPlanned.compositeFire];
+
+/**
+ * A row of "Planned" chips, under a Properties panel heading when `heading` is given. The
+ * caller registers the returned disposable with the panel's contents.
+ */
+export function appendPlannedChips(parent: HTMLElement, heading: string | undefined, ids: readonly string[], commandService: ICommandService): IDisposable {
+	// B10-28 / FL-6: folded under their heading, so the chips do not push the results down.
+	let host = parent;
+	if (heading) {
+		host = append(parent, $('details.fem-planned'));
+		const summary = append(host, $('summary'));
+		appendPropertyHeading(summary, `${heading} (${ids.length})`);
+	}
+	const row = append(host, $('.fem-planned-chips'));
+	return combinedDisposable(...ids.map(id => appendPlannedFeatureChip(row, id, commandService)));
+}

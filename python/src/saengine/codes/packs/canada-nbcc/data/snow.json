@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/snow.schema.json",
+  "$replace": true,
+  "$sources": [
+    "NBCC 2020 4.1.6.2: S = Is [Ss (Cb Cw Cs Ca) + Sr]; Cb 0.8 (4.1.6.2(2)), Cw 1.0 or 0.75 / 0.5 for exposed roofs (4.1.6.2(3)), Cs by the slope (4.1.6.2(5)), Ca 1.0 (uniform load); Is of Table 4.1.6.2-A"
+  ],
+  "source": "NBCC 2020 4.1.6.2 (the uniform roof snow load; drifts, sliding and the other shape factors Ca are not covered)",
+  "method": "shapeCoefficient",
+  "factor": 0.8,
+  "shape": [[0.0, 1.0], [30.0, 1.0], [70.0, 0.0]],
+  "exposures": {
+    "sheltered": {"description": "Roof not exposed to the wind (Cw = 1.0)", "Ce": 1.0},
+    "exposed": {"description": "Roof fully exposed to the wind, Low and Normal importance (Cw = 0.75)", "Ce": 0.75},
+    "exposedNorth": {"description": "Roof fully exposed to the wind, north of the tree line (Cw = 0.5)", "Ce": 0.5}
+  },
+  "defaultExposure": "sheltered",
+  "thermal": 1.0,
+  "importance": {"I": 0.8, "II": 1.0, "III": 1.15, "IV": 1.25},
+  "loadCase": "Lr",
+  "withRoofLive": "envelope",
+  "rainShare": 1.0,
+  "seismicShare": 0.25,
+  "seismicThreshold": 0.001,
+  "sources": {
+    "factor": "NBCC 2020 4.1.6.2(2): the basic roof snow load factor Cb = 0.8 (roofs whose smaller plan dimension is small enough; larger roofs take a larger Cb: not covered)",
+    "shape": "NBCC 2020 4.1.6.2(5): the slope factor Cs = 1.0 up to 30°, linear to 0 at 70° (roofs other than unobstructed slippery roofs; those take 15° to 60°: not covered, on the safe side)",
+    "exposures": "NBCC 2020 4.1.6.2(3): the wind exposure factor Cw (in the program's Ce); 0.75 and 0.5 only for Low and Normal importance roofs fully exposed",
+    "thermal": "Ca = 1.0 (the uniform load; drifts and other accumulations not covered)",
+    "importance": "NBCC 2020 Table 4.1.6.2-A: IS (ULS) 0.8 Low, 1.0 Normal, 1.15 High, 1.25 Post-disaster",
+    "loadCase": "NBCC 2020 4.1.5.3 and 4.1.6: the roof takes the larger of the snow and the roof live load (case Lr, the envelope)",
+    "rainShare": "NBCC 2020 4.1.6.2(1): + Sr (the town's associated rain load) × Is",
+    "seismicShare": "NBCC 2020 4.1.8.2 (W): 25 % of the design snow load in the seismic weight"
+  },
+  "clauses": {
+    "roof": "4.1.6.2(1)",
+    "minimum": "4.1.6.2"
+  }
+}

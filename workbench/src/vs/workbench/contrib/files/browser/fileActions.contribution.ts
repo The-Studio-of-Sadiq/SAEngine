@@ -14,7 +14,7 @@ import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMA
 import { CommandsRegistry, ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceWritableContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerResourceAvailableEditorIdsContext, FoldersViewVisibleContext } from '../common/files.js';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceWritableContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerResourceNotProtectedContext, ExplorerResourceAvailableEditorIdsContext, FoldersViewVisibleContext } from '../common/files.js';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from '../../../browser/actions/workspaceCommands.js';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, REOPEN_WITH_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { AutoSaveAfterShortDelayContext } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -52,7 +52,7 @@ const RENAME_ID = 'renameFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: RENAME_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceWritableContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceWritableContext, ExplorerResourceNotProtectedContext),
 	primary: KeyCode.F2,
 	mac: {
 		primary: KeyCode.Enter
@@ -64,7 +64,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceMoveableToTrash),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceMoveableToTrash, ExplorerResourceNotProtectedContext),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -77,7 +77,7 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: FilesExplorerFocusCondition,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotProtectedContext),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
@@ -88,7 +88,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceMoveableToTrash.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceMoveableToTrash.toNegated(), ExplorerResourceNotProtectedContext),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -100,7 +100,7 @@ const CUT_FILE_ID = 'filesExplorer.cut';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CUT_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceWritableContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceWritableContext, ExplorerResourceNotProtectedContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyX,
 	handler: cutFileHandler,
 });
@@ -542,7 +542,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: CUT_FILE_ID,
 		title: nls.localize('cut', "Cut"),
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceWritableContext)
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceWritableContext, ExplorerResourceNotProtectedContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -642,7 +642,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		title: TRIGGER_RENAME_LABEL,
 		precondition: ExplorerResourceWritableContext,
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceNotProtectedContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -656,7 +656,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: DELETE_FILE_ID,
 		title: nls.localize('deleteFile', "Delete Permanently")
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash)
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash, ExplorerResourceNotProtectedContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -666,7 +666,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: DELETE_FILE_ID,
 		title: nls.localize('deleteFile', "Delete Permanently")
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash.toNegated())
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash.toNegated(), ExplorerResourceNotProtectedContext)
 });
 
 // Empty Editor Group / Editor Tabs Container Context Menu

@@ -1,0 +1,11 @@
+{
+  "name": "Arch 30 m",
+  "description": "Circular arch, rise 7.5 m, 12 straight members.",
+  "shape": {
+    "kind": "arch",
+    "span": 30000.0,
+    "rise": 7500.0,
+    "segments": 12,
+    "memberType": "MEMBER"
+  }
+}

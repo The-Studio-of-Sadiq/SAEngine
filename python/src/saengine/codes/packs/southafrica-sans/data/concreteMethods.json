@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../schemas/concreteMethods.schema.json",
+  "$sources": [
+    "SANS 10100-1:2000 3.3.3 (partial safety factors γm: 1.5 concrete in flexure and axial load, 1.15 reinforcement) and 4.3.4 (the rectangular stress block 0.67 fcu/γm)"
+  ],
+  "source": "SANS 10100-1 partial factors on the parent's EN 1992-1-1 methods: γc 1.5, γs 1.15 (the parent's, the same), αcc 0.85 in place of EN 1992-1-1's recommended 1.0 (SANS 10100-1's 0.67 fcu/γm with fcu ≈ 1.25 fck is 0.84 fck/γm: SAEngine practice). The project's concrete strength is read as the cylinder fck of the parent's classes.",
+  "ultimate": {
+    "alphaCC": 0.85
+  },
+  "sources": {
+    "ultimate.alphaCC": "SANS 10100-1 4.3.4: 0.67 fcu/γm on the cube strength; as a share of the cylinder fck (fcu/fck about 1.25 for C20-C50) 0.84: 0.85 taken (SAEngine practice, VERIFY.md Z9)"
+  }
+}

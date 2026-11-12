@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "CraneCombination": {
+      "additionalProperties": false,
+      "description": "Which crane load cases act together in the load combinations.",
+      "properties": {
+        "factorOf": {
+          "default": "L",
+          "description": "Factor kind of a combination row the crane cases take (crane loads are live loads).",
+          "title": "Factorof",
+          "type": "string"
+        },
+        "gravity": {
+          "description": "Parts that act together in rows without wind or earthquake: V vertical with impact, T transverse (lateral, both signs), B longitudinal (both signs).",
+          "items": {
+            "items": {
+              "enum": [
+                "V",
+                "T",
+                "B"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Gravity",
+          "type": "array"
+        },
+        "lateral": {
+          "description": "Parts that act together in rows with wind or earthquake (none: the crane is left out of those rows).",
+          "items": {
+            "items": {
+              "enum": [
+                "V",
+                "T",
+                "B"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Lateral",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "CraneCombination",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Crane loads: the vertical impact by kind of crane, the transverse (lateral) force on the\nrunway beams, the longitudinal force, the share of these horizontal forces by kind of crane,\nand which crane load cases the combinations take together.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "impact": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Vertical impact: share of the maximum wheel loads added, by crane kind.",
+      "title": "Impact",
+      "type": "object"
+    },
+    "lateral": {
+      "description": "Transverse force: share of the lifted load plus the trolley (and hoist).",
+      "exclusiveMinimum": 0,
+      "title": "Lateral",
+      "type": "number"
+    },
+    "longitudinal": {
+      "description": "Longitudinal force: share of the wheel loads.",
+      "exclusiveMinimum": 0,
+      "title": "Longitudinal",
+      "type": "number"
+    },
+    "horizontalScale": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Factor on the transverse and longitudinal forces by crane kind (default 1).",
+      "title": "Horizontalscale",
+      "type": "object"
+    },
+    "notes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Labels of entries that are not the code's own text: {key: note}.",
+      "title": "Notes",
+      "type": "object"
+    },
+    "combination": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CraneCombination"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Crane load cases in the combinations (none: no crane cases)."
+    }
+  },
+  "required": [
+    "impact",
+    "lateral",
+    "longitudinal"
+  ],
+  "title": "CranesTable",
+  "type": "object",
+  "$id": "saengine.codePack.cranes/1"
+}

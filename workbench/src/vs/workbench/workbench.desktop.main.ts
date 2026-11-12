@@ -84,6 +84,8 @@ import '../platform/remote/electron-browser/sharedProcessTunnelService.js';
 import './services/tunnel/electron-browser/tunnelService.js';
 import '../platform/diagnostics/electron-browser/diagnosticsService.js';
 import '../platform/profiling/electron-browser/profilingService.js';
+import '../platform/saengine/electron-browser/femSolverService.js';
+import '../platform/saengine/electron-browser/packagesService.js';
 import '../platform/telemetry/electron-browser/customEndpointTelemetryService.js';
 import '../platform/remoteTunnel/electron-browser/remoteTunnelService.js';
 import './services/files/electron-browser/elevatedFileService.js';
@@ -175,6 +177,15 @@ import './contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import './contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/saengineFem/electron-browser/saengineFem.contribution.js';
+import './contrib/saengineFem/electron-browser/runAll.contribution.js';
+import './contrib/saengineProject/electron-browser/projectBackend.contribution.js';
+import './contrib/saengineUpdate/electron-browser/saengineUpdate.contribution.js';
+import './contrib/saengineLibrary/electron-browser/packages.contribution.js';
+import './contrib/saengineAi/electron-browser/saengineAi.contribution.js';
+import './contrib/saengineAi/electron-browser/aiAssistant.contribution.js';
+import './contrib/saengineAutomation/electron-browser/automation.contribution.js';
+import './contrib/saengineFeedback/electron-browser/feedback.contribution.js';
 
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';

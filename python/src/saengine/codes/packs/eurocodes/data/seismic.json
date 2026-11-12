@@ -1,0 +1,295 @@
+{
+  "$schema": "../../../schemas/seismic.schema.json",
+  "$replace": true,
+  "$sources": [
+    "EN 1998-1:2004 Sec 3 (ground types, elastic and design spectra), Sec 4 (importance, mass, lateral force and modal analysis, torsion, drift, second order), Tables 5.1, 6.2 and 9.1 (behaviour factors), recommended values"
+  ],
+  "source": "EN 1998-1:2004 Sec 3, 4, 5.2.2.2, 6.3.2, 9.3 with the recommended values (National Annexes may set others)",
+  "spectrumType": "1",
+  "spectra": {
+    "1": {
+      "SA": { "description": "Ground type A: rock or rock-like formation, at most 5 m of weaker material at the surface (vs,30 > 800 m/s)", "S": 1.0, "TB": 0.15, "TC": 0.4, "TD": 2.0 },
+      "SB": { "description": "Ground type B: very dense sand, gravel or very stiff clay (vs,30 360-800 m/s, NSPT > 50, cu > 250 kPa)", "S": 1.2, "TB": 0.15, "TC": 0.5, "TD": 2.0 },
+      "SC": { "description": "Ground type C: dense or medium-dense sand, gravel or stiff clay (vs,30 180-360 m/s, NSPT 15-50, cu 70-250 kPa)", "S": 1.15, "TB": 0.2, "TC": 0.6, "TD": 2.0 },
+      "SD": { "description": "Ground type D: loose-to-medium cohesionless soil or soft-to-firm cohesive soil (vs,30 < 180 m/s, NSPT < 15, cu < 70 kPa)", "S": 1.35, "TB": 0.2, "TC": 0.8, "TD": 2.0 },
+      "SE": { "description": "Ground type E: surface alluvium of type C or D, 5-20 m thick, over material with vs > 800 m/s", "S": 1.4, "TB": 0.15, "TC": 0.5, "TD": 2.0 }
+    },
+    "2": {
+      "SA": { "description": "Ground type A: rock or rock-like formation, at most 5 m of weaker material at the surface (vs,30 > 800 m/s)", "S": 1.0, "TB": 0.05, "TC": 0.25, "TD": 1.2 },
+      "SB": { "description": "Ground type B: very dense sand, gravel or very stiff clay (vs,30 360-800 m/s, NSPT > 50, cu > 250 kPa)", "S": 1.35, "TB": 0.05, "TC": 0.25, "TD": 1.2 },
+      "SC": { "description": "Ground type C: dense or medium-dense sand, gravel or stiff clay (vs,30 180-360 m/s, NSPT 15-50, cu 70-250 kPa)", "S": 1.5, "TB": 0.1, "TC": 0.25, "TD": 1.2 },
+      "SD": { "description": "Ground type D: loose-to-medium cohesionless soil or soft-to-firm cohesive soil (vs,30 < 180 m/s, NSPT < 15, cu < 70 kPa)", "S": 1.8, "TB": 0.1, "TC": 0.3, "TD": 1.2 },
+      "SE": { "description": "Ground type E: surface alluvium of type C or D, 5-20 m thick, over material with vs > 800 m/s", "S": 1.6, "TB": 0.05, "TC": 0.25, "TD": 1.2 }
+    }
+  },
+  "siteClasses": {
+    "SA": { "description": "Ground type A (Type 1 spectrum)", "S": 1.0, "TB": 0.15, "TC": 0.4, "TD": 2.0 },
+    "SB": { "description": "Ground type B (Type 1 spectrum)", "S": 1.2, "TB": 0.15, "TC": 0.5, "TD": 2.0 },
+    "SC": { "description": "Ground type C (Type 1 spectrum)", "S": 1.15, "TB": 0.2, "TC": 0.6, "TD": 2.0 },
+    "SD": { "description": "Ground type D (Type 1 spectrum)", "S": 1.35, "TB": 0.2, "TC": 0.8, "TD": 2.0 },
+    "SE": { "description": "Ground type E (Type 1 spectrum)", "S": 1.4, "TB": 0.15, "TC": 0.5, "TD": 2.0 }
+  },
+  "designSpectrum": {
+    "method": "behaviourFactor",
+    "plateau": 2.5,
+    "lowerBound": 0.2,
+    "clause": "EN 1998-1 Sec 3.2.2.5, Eqs 3.13-3.16"
+  },
+  "lateralForce": {
+    "correction": 0.85,
+    "periodTcFactor": 2.0,
+    "minStoreys": 3,
+    "distribution": "linear",
+    "clause": "EN 1998-1 Sec 4.3.3.2.2 (λ) and 4.3.3.2.3 (Eq 4.11)"
+  },
+  "driftAmplification": "displacementFactor",
+  "stability": {
+    "method": "designDrift",
+    "ignoreBelow": 0.1,
+    "amplifyUpTo": 0.2,
+    "thetaCap": 0.3,
+    "clause": "EN 1998-1 Sec 4.4.2.2(2)-(4), Eq 4.28"
+  },
+  "systems": {
+    "rcSmf": { "name": "RC frame system, DCH (q = 4.5 αu/α1, αu/α1 = 1.3)", "R": 5.85, "Omega0": 1.3, "Cd": 5.85, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5)", "frame": "special", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame" },
+    "rcImf": { "name": "RC frame system, DCM (q = 3.0 αu/α1, αu/α1 = 1.3)", "R": 3.9, "Omega0": 1.3, "Cd": 3.9, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5)", "frame": "intermediate", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame" },
+    "rcOmf": { "name": "RC frame system, DCL (low seismicity only, q = 1.5)", "R": 1.5, "Omega0": 1.0, "Cd": 1.5, "row": "EN 1998-1 Sec 5.3.3", "frame": "ordinary", "concrete": true, "momentFrame": true, "periodFamily": "concreteMomentFrame", "group": "momentFrame" },
+    "rcSpecialWallFrame": { "name": "RC uncoupled wall system, DCH (q = 4.0 αu/α1, αu/α1 = 1.1, kw = 1)", "R": 4.4, "Omega0": 1.1, "Cd": 4.4, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5), (11)", "specialWalls": true, "concrete": true, "group": "buildingFrame" },
+    "rcOrdinaryWallFrame": { "name": "RC uncoupled wall system, DCM (q = 3.0, kw = 1)", "R": 3.0, "Omega0": 1.1, "Cd": 3.0, "row": "EN 1998-1 Table 5.1, 5.2.2.2(11)", "concrete": true, "group": "buildingFrame" },
+    "rcSpecialBearingWall": { "name": "RC uncoupled wall system carrying the gravity loads, DCH (q = 4.0 αu/α1, αu/α1 = 1.1, kw = 1)", "R": 4.4, "Omega0": 1.1, "Cd": 4.4, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5), (11)", "specialWalls": true, "concrete": true, "group": "bearingWall" },
+    "rcOrdinaryBearingWall": { "name": "RC uncoupled wall system carrying the gravity loads, DCM (q = 3.0, kw = 1)", "R": 3.0, "Omega0": 1.1, "Cd": 3.0, "row": "EN 1998-1 Table 5.1, 5.2.2.2(11)", "concrete": true, "group": "bearingWall" },
+    "rcDualSpecial": { "name": "RC dual system, wall-equivalent, DCH (q = 4.5 αu/α1, αu/α1 = 1.2)", "R": 5.4, "Omega0": 1.2, "Cd": 5.4, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5)", "frame": "special", "specialWalls": true, "concrete": true, "group": "dualSpecial", "dual": true },
+    "rcDualDcm": { "name": "RC dual system, wall-equivalent, DCM (q = 3.0 αu/α1, αu/α1 = 1.2)", "R": 3.6, "Omega0": 1.2, "Cd": 3.6, "row": "EN 1998-1 Table 5.1, 5.2.2.2(5)", "frame": "intermediate", "concrete": true, "group": "dualIntermediate", "dual": true },
+    "steelSmf": { "name": "Steel moment resisting frame, DCH (q = 5 αu/α1, αu/α1 = 1.3)", "R": 6.5, "Omega0": 1.3, "Cd": 6.5, "row": "EN 1998-1 Table 6.2, 6.3.2(3)", "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame" },
+    "steelImf": { "name": "Steel moment resisting frame, DCM (q = 4)", "R": 4.0, "Omega0": 1.3, "Cd": 4.0, "row": "EN 1998-1 Table 6.2", "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame" },
+    "steelOmf": { "name": "Steel frame, DCL (low dissipative, q = 1.5)", "R": 1.5, "Omega0": 1.0, "Cd": 1.5, "row": "EN 1998-1 Sec 6.1.2, Table 6.1", "concrete": false, "momentFrame": true, "periodFamily": "steelMomentFrame", "group": "momentFrame" },
+    "steelScbf": { "name": "Steel frame with concentric diagonal bracings, DCH (q = 4)", "R": 4.0, "Omega0": 1.0, "Cd": 4.0, "row": "EN 1998-1 Table 6.2", "concrete": false, "group": "buildingFrame" },
+    "steelOcbf": { "name": "Steel frame with concentric diagonal bracings, DCM (q = 4)", "R": 4.0, "Omega0": 1.0, "Cd": 4.0, "row": "EN 1998-1 Table 6.2", "concrete": false, "group": "buildingFrame" },
+    "steelEbf": { "name": "Steel frame with eccentric bracings, DCH (q = 5 αu/α1, αu/α1 = 1.2)", "R": 6.0, "Omega0": 1.2, "Cd": 6.0, "row": "EN 1998-1 Table 6.2, 6.3.2(3)", "concrete": false, "periodFamily": "eccentricallyBracedSteelFrame", "group": "buildingFrame" },
+    "steelDualSmfScbf": { "name": "Steel moment resisting frame with concentric bracing, DCH (q = 4 αu/α1, αu/α1 = 1.2)", "R": 4.8, "Omega0": 1.2, "Cd": 4.8, "row": "EN 1998-1 Table 6.2, 6.3.2(3)", "concrete": false, "group": "dualSpecial", "dual": true },
+    "steelNotDetailed": { "name": "Steel structure, DCL (low dissipative, q = 1.5)", "R": 1.5, "Omega0": 1.0, "Cd": 1.5, "row": "EN 1998-1 Sec 6.1.2, Table 6.1", "concrete": false, "group": "steelNotDetailed" },
+    "masonryOrdinaryPlain": { "name": "Unreinforced masonry (q = 1.5)", "R": 1.5, "Omega0": 1.0, "Cd": 1.5, "row": "EN 1998-1 Table 9.1", "concrete": false, "masonry": true, "group": "bearingWall" },
+    "masonryConfined": { "name": "Confined masonry (q = 2.0)", "R": 2.0, "Omega0": 1.0, "Cd": 2.0, "row": "EN 1998-1 Table 9.1", "concrete": false, "masonry": true, "group": "bearingWall" },
+    "masonryOrdinaryReinforced": { "name": "Reinforced masonry (q = 2.5)", "R": 2.5, "Omega0": 1.0, "Cd": 2.5, "row": "EN 1998-1 Table 9.1", "concrete": false, "masonry": true, "group": "bearingWall" }
+  },
+  "periodCoefficients": {
+    "concreteMomentFrame": { "Ct": 0.075, "m": 0.75 },
+    "steelMomentFrame": { "Ct": 0.085, "m": 0.75 },
+    "eccentricallyBracedSteelFrame": { "Ct": 0.075, "m": 0.75 },
+    "other": { "Ct": 0.05, "m": 0.75 }
+  },
+  "designCategories": {
+    "occupancyGroups": { "I": "I-III", "II": "I-III", "III": "I-III", "IV": "IV" },
+    "bySiteClass": {
+      "SA": { "I-III": ["B", "C", "D", "D"], "IV": ["C", "D", "D", "D"] },
+      "SB": { "I-III": ["B", "C", "D", "D"], "IV": ["C", "D", "D", "D"] },
+      "SC": { "I-III": ["B", "C", "D", "D"], "IV": ["C", "D", "D", "D"] },
+      "SD": { "I-III": ["C", "D", "D", "D"], "IV": ["C", "D", "D", "D"] },
+      "SE": { "I-III": ["C", "D", "D", "D"], "IV": ["C", "D", "D", "D"] }
+    },
+    "aliases": { "S1": "SE", "S2": "SE" }
+  },
+  "siteSpecificStudy": {
+    "classes": ["S1", "S2"],
+    "assumedClass": "SE",
+    "clause": "EN 1998-1 Sec 3.1.2(4) and Table 3.1",
+    "warning": "Ground type {classes} (flagged by the soil report): {code} {clause} asks for special studies of the seismic action on this ground (and of liquefaction, S2), and gives no spectrum for it. Until they are made, the design spectrum uses ground type {used} and the category of the seismic action uses {assumed}: an assumption, not a value of the code."
+  },
+  "requiredDetailing": { "D": "intermediate", "C": "ordinary", "B": "ordinary" },
+  "allowableDrift": { "I": 0.01, "II": 0.01, "III": 0.0125, "IV": 0.0125 },
+  "allowableDriftLabel": "Buildings with brittle non-structural elements attached to the structure (dr·ν ≤ 0.005 h, ν = 0.5 for importance classes I and II, 0.4 for III and IV)",
+  "driftLimits": [
+    { "id": "ductileFinishes", "label": "Ductile non-structural elements, or finishes designed for the drift (dr·ν ≤ 0.0075 h)", "driftTolerantFinishes": true, "limits": { "I": 0.015, "II": 0.015, "III": 0.01875, "IV": 0.01875 } }
+  ],
+  "dampingEta": 1.0,
+  "dampingCorrection": { "method": "squareRoot", "referenceDamping": 0.05, "numerator": 10.0, "offset": 5.0, "minimum": 0.55 },
+  "systemCombination": { "R": "min", "Cd": "max", "Omega0": "max", "heightLimit": "min" },
+  "separation": { "propertyLineFactor": 1.0, "sameProperty": "srss", "equalFloorLevelsFactor": 0.7 },
+  "dynamicAnalysis": {
+    "periodTcFactor": 4.0,
+    "periodMax": 2.0,
+    "verticalIrregularity": true,
+    "clause": "EN 1998-1 Sec 4.3.3.2.1(2)",
+    "staticClause": "EN 1998-1 Sec 4.3.3.2.1(2)"
+  },
+  "liveShare": 0.3,
+  "heavyLiveLimit": 5.0,
+  "heavyLiveShare": 0.8,
+  "partitionWeight": "withLiveShare",
+  "minimumScale": 0.0,
+  "accidentalEccentricity": 0.05,
+  "orthogonalShare": 0.3,
+  "massParticipation": 0.9,
+  "torsionIrregular": 1.2,
+  "torsionExtreme": 1.4,
+  "torsionAmplificationMax": 1.0,
+  "pgaFactor": 1.0,
+  "verticalFactor": 0.0,
+  "irregularities": {
+    "offsets": true,
+    "inPlaneOffset": 1.0,
+    "soft": { "storeyAbove": 0.7 },
+    "mass": { "adjacent": 1.5, "topExempt": true },
+    "labels": {
+      "torsion": { "group": "plan", "label": "Torsional sensitivity indicator: drift at one end over the mean (reported)" },
+      "extremeTorsion": { "group": "plan", "label": "Torsional sensitivity indicator, high (reported)" },
+      "planRegularity": { "group": "plan", "label": "Not regular in plan" },
+      "elevationRegularity": { "group": "vertical", "label": "Not regular in elevation" },
+      "outOfPlaneOffset": { "group": "vertical", "label": "Lateral system not continuous to the base" },
+      "inPlaneDiscontinuity": { "group": "vertical", "label": "Wall offset in its plane" },
+      "soft": { "group": "vertical", "label": "Abrupt change of the storey stiffness" },
+      "mass": { "group": "vertical", "label": "Abrupt change of the storey mass" }
+    },
+    "clauses": {
+      "plan": "EN 1998-1 Sec 4.2.3.2",
+      "vertical": "EN 1998-1 Sec 4.2.3.3",
+      "torsion": "EN 1998-1 Sec 4.2.3.2 (indicator only)",
+      "extremeTorsion": "EN 1998-1 Sec 4.2.3.2 (indicator only)",
+      "planRegularity": "EN 1998-1 Sec 4.2.3.2(2)-(8)",
+      "elevationRegularity": "EN 1998-1 Sec 4.2.3.3(2)-(5), Figure 4.1",
+      "outOfPlaneOffset": "EN 1998-1 Sec 4.2.3.3(2)",
+      "inPlaneDiscontinuity": "EN 1998-1 Sec 4.2.3.3(2)",
+      "soft": "EN 1998-1 Sec 4.2.3.3(3) (SAEngine indicator: 70 % of the storey above)",
+      "mass": "EN 1998-1 Sec 4.2.3.3(3) (SAEngine indicator: 150 % of an adjacent storey)"
+    }
+  },
+  "regularity": {
+    "method": "criteria",
+    "slendernessMax": 4.0,
+    "compactnessShare": 0.05,
+    "eccentricityShare": 0.30,
+    "torsionalRadius": true,
+    "setbackShare": 0.20,
+    "baseHeightShare": 0.15,
+    "baseSetbackShare": 0.50,
+    "unsymmetricShare": 0.10,
+    "unsymmetricTotal": 0.30,
+    "symmetryTolerance": 0.25,
+    "elevationFactor": 0.8,
+    "planAverage": true,
+    "clauses": {
+      "plan": "EN 1998-1 Sec 4.2.3.2, 5.2.2.2(6)",
+      "elevation": "EN 1998-1 Sec 4.2.3.3, 4.2.3.1(7)"
+    }
+  },
+  "torsionalEffects": { "method": "deltaFactor", "coefficient": 0.6, "planarCoefficient": 1.2, "step": 0.05 },
+  "modalCombination": { "method": "independence", "ratio": 0.9 },
+  "verticalComponent": {
+    "method": "verticalSpectrum",
+    "threshold": 0.25,
+    "ratio": { "1": 0.90, "2": 0.45 },
+    "plateau": 3.0,
+    "behaviour": 1.5,
+    "combinationShare": 0.30,
+    "members": "horizontal members spanning 20 m or more, cantilevers longer than 5 m, prestressed horizontal members, beams supporting columns and base-isolated structures"
+  },
+  "foundationCapacity": { "method": "overstrengthFactor", "qLimit": 3.0, "gammaLow": 1.0, "gammaHigh": 1.2 },
+  "spectrumTypeGuidance": {
+    "type": "2",
+    "magnitude": 5.5,
+    "text": "override seismic.spectrumType; a National Annex may use both or give its own rule"
+  },
+  "timeHistory": {
+    "method": "periodRange",
+    "minimumRecords": 3,
+    "periodLower": 0.2,
+    "periodUpper": 2.0,
+    "spectrumDamping": 0.05,
+    "singleRatio": 0.9,
+    "pairRatio": 0.9,
+    "meanFrom": 7,
+    "baseShearShare": 1.0,
+    "scaleDrifts": true,
+    "simultaneousPairs": true,
+    "pairCombination": "eachComponent",
+    "periodBasis": "governing",
+    "targets": {
+      "linear": {"R": null, "I": null},
+      "nonlinear": {"R": 1.0, "I": null, "spectrum": "elastic", "modification": "amplitude"}
+    },
+    "matching": {
+      "method": "frequencyDomain",
+      "lowerShare": 0.8,
+      "upperShare": 1.25,
+      "tolerance": 0.1,
+      "iterations": 20,
+      "points": 40,
+      "baselineOrder": 3,
+      "note": "EN 1998-1 Sec 3.2.3.1.2 allows artificial accelerograms matching the elastic spectrum; the matching range, tolerance, iterations and the baseline polynomial are SAEngine practice."
+    },
+    "clauses": {
+      "linear": "EN 1998-1 Sec 3.2.3.1 and 4.3.3.4.3 (time-history representation of the seismic action)",
+      "records": "EN 1998-1 Sec 3.2.3.1.2 (at least 3 accelerograms; from 0.2T1 to 2T1 no value of the mean 5 %-damped spectrum below 90 % of the elastic spectrum)",
+      "response": "EN 1998-1 Sec 4.3.3.4.3(3) (at least 7 analyses: the mean, otherwise the most unfavourable value)",
+      "drift": "EN 1998-1 Sec 4.4.3.2 (damage limitation)",
+      "pairs": "EN 1998-1 Sec 3.2.3.1.1 and 4.3.3.5.1 (the horizontal components applied simultaneously, each meeting the spectrum criterion)",
+      "nonlinearRecords": "EN 1998-1 Sec 3.2.3.1.2 and 4.3.3.4.3 (the elastic response spectrum, q = 1, with the importance factor in ag)"
+    }
+  },
+  "sources": {
+    "timeHistory": "EN 1998-1 Sec 3.2.3.1.2: at least 3 accelerograms, the mean of their zero-period spectral values not below ag S, from 0.2T1 to 2T1 the mean 5 %-damped spectrum at least 90 % of the elastic spectrum; Sec 4.3.3.4.3: the most unfavourable response below 7 analyses, the mean from 7. Each horizontal component of a pair is checked (eachComponent). The zero-period (ag S) condition is not checked by SAEngine; the scaling to the equivalent static base shear for linear analyses (baseShearShare, not in EN 1998-1) and the scaling method (each record fitted in log space, then one factor on the suite) are SAEngine practice; check against the printed code and the National Annex",
+    "spectra": "EN 1998-1 Tables 3.2 (Type 1) and 3.3 (Type 2), recommended values; Type 2 where the earthquakes that contribute most have Ms ≤ 5.5 (Sec 3.2.2.2(2)): override seismic.spectrumType",
+    "siteClasses": "EN 1998-1 Table 3.1 ground types A-E: SAEngine keeps the site class ids SA-SE (the soil report classes the ground by the same vs,30, NSPT and cu limits)",
+    "designSpectrum": "EN 1998-1 Sec 3.2.2.5, Eqs 3.13-3.16, β = 0.2 recommended (3.2.2.5(5)); ag = γI·agR (3.2.1(3)), the settings' Z is agR in g",
+    "lateralForce": "EN 1998-1 Sec 4.3.3.2.2(1) Eq 4.5: λ = 0.85 if T1 ≤ 2·TC and more than two storeys; Sec 4.3.3.2.3(3) Eq 4.11 with the linear mode shape",
+    "periodCoefficients": "EN 1998-1 Sec 4.3.3.2.2(3) Eq 4.6: T1 = Ct·H^(3/4), Ct 0.085 steel moment frames, 0.075 RC moment frames and steel eccentric bracings, 0.050 others",
+    "systems": "EN 1998-1 Table 5.1 (q0 of RC systems), 5.2.2.2(5) (αu/α1), (11) (kw = 1 for frame and frame-equivalent systems, walls with hw/lw ≥ 2 assumed), Table 6.2 (steel), Table 9.1 (masonry, the lower recommended values); R stands for q, Cd for qd = q (4.3.4(1)), Ω0 for αu/α1 (SAEngine practice: EN 1998-1 has no Ω0)",
+    "designCategories": "SAEngine practice: EN 1998-1 has no Seismic Design Category. The zones of zoneCoefficients are bands of agR; category B: very low seismicity (ag·S ≤ 0.05 g, Sec 3.2.1(5)), C: low seismicity (ag·S ≤ 0.10 g, Sec 3.2.1(4), DCL permitted), D: otherwise (DCM or DCH)",
+    "requiredDetailing": "EN 1998-1 Sec 5.3.1 and 3.2.1(4): DCL only in low seismicity; else DCM (intermediate) at least",
+    "allowableDrift": "EN 1998-1 Sec 4.4.3.2(1)a and (2): dr·ν ≤ 0.005 h with ν = 0.5 (classes I, II) and 0.4 (III, IV), recommended",
+    "driftLimits": "EN 1998-1 Sec 4.4.3.2(1)b: dr·ν ≤ 0.0075 h with ductile non-structural elements; (1)c 0.010 h with no interfering elements is not offered (override seismic.allowableDrift)",
+    "driftAmplification": "EN 1998-1 Sec 4.3.4(1) Eq 4.23: ds = qd·de, qd = q",
+    "stability": "EN 1998-1 Sec 4.4.2.2(2)-(4) Eq 4.28: θ = Ptot·dr/(Vtot·h); θ ≤ 0.10 no second order effects; 0.1 < θ ≤ 0.2 by 1/(1 - θ); θ ≤ 0.3",
+    "liveShare": "EN 1998-1 Sec 3.2.4(2) Eq 3.17 and 4.2.4 Table 4.2: ψE = φ·ψ2 with ψ2 = 0.3 (EN 1990 Table A1.1, categories A and B) and φ = 1.0 (SAEngine takes the roof's and the largest value: storeys may take 0.5-0.8, override seismic.liveShare)",
+    "heavyLiveLimit": "SAEngine practice: imposed loads above 5.0 kN/m² taken as category E (storage), ψ2 = 0.8, φ = 1.0",
+    "partitionWeight": "EN 1991-1-1 Sec 6.3.1.2(8): the movable partition allowance is an imposed load, so it counts with ψE",
+    "minimumScale": "EN 1998-1 has no lower bound of the modal base shear relative to the lateral force method: no scaling",
+    "accidentalEccentricity": "EN 1998-1 Sec 4.3.2(1) Eq 4.3: eai = ±0.05·Li",
+    "orthogonalShare": "EN 1998-1 Sec 4.3.3.5.1(3) Eqs 4.18-4.19: EEdx + 0.30 EEdy",
+    "massParticipation": "EN 1998-1 Sec 4.3.3.3.1(3): modes with at least 90 % of the total mass (and every mode over 5 %)",
+    "torsionIrregular": "SAEngine practice: EN 1998-1 Sec 4.2.3.2 judges plan regularity by the torsional radius (rx ≥ ls, e0 ≤ 0.30 r), not by the drift ratio; the 1.2 / 1.4 drift ratios are reported only",
+    "torsionAmplificationMax": "EN 1998-1 has no torsional amplification Ax: 1.0, no amplification (Sec 4.3.3.2.4's δ is torsionalEffects)",
+    "pgaFactor": "a_h = ag·S (EN 1998-1 Sec 3.2.1, 3.2.2.2)",
+    "verticalFactor": "EN 1998-1 Sec 4.3.3.5.2: not a fixed share of a_h; the vertical component is verticalComponent",
+    "dynamicAnalysis": "EN 1998-1 Sec 4.3.3.2.1(2): the lateral force method needs T1 ≤ 4·TC and ≤ 2.0 s and regularity in elevation",
+    "separation": "EN 1998-1 Sec 4.4.2.7(2)-(3): SRSS of the peak displacements; 0.7 where the floors are at the same elevations",
+    "dampingCorrection": "EN 1998-1 Sec 3.2.2.2(3) Eq 3.6: η = √(10/(5 + ξ)) ≥ 0.55 (elastic spectrum only; the design spectrum has the damping in q)",
+    "siteSpecificStudy": "EN 1998-1 Sec 3.1.2(4): ground types S1 and S2 need special studies",
+    "irregularities": "SAEngine practice: the checks of the analysis that tell about EN 1998-1 4.2.3.3 (continuity of the lateral systems; the storey stiffness at least 70 % of the storey above and the mass at most 150 % of an adjacent one as indicators of an abrupt change: the code gives no numbers); the drift ratio of the ends is reported only",
+    "regularity": "EN 1998-1 Sec 4.2.3.2(4) Note (λ = Lmax/Lmin <= 4), (5) (the floor within its convex envelope: the area between at most 5 % of the floor's), (6) Eqs 4.1a-4.1b, 4.2 (e0 <= 0.30 r, r >= ls), (8) (the stiffness centre and r from the moments of inertia of the vertical elements: the approximate definition for buildings that meet its conditions); 4.2.3.3(2) (lateral systems continuous to the top), (5) Figure 4.1 (setbacks: symmetric each <= 20 % of the dimension below, a single one in the lower 15 % of the height <= 50 %, unsymmetric each <= 10 % and together <= 30 % of the base's); 4.2.3.1(7) (not regular in elevation: q0 × 0.8), 5.2.2.2(6) (not regular in plan: αu/α1 the mean of 1.0 and the system's), Table 4.1 (models and methods); SAEngine practice: the centre of mass at the floor's centroid, a setback symmetric when its two sides differ by at most 25 % of it",
+    "torsionalEffects": "EN 1998-1 Sec 4.3.3.2.4(1) Eq 4.12 (δ = 1 + 0.6 x/Le), (2) (1.2 x/Le for planar models): applied where the analysis has no accidental eccentricity cases (4.3.2(1), 4.3.3.3.3 otherwise); SAEngine practice: the centre of mass at the plan's centre, the larger of the two directions' δ, rounded up to 0.05",
+    "modalCombination": "EN 1998-1 Sec 4.3.3.3.2(1)-(3): modes i, j independent when Tj <= 0.9 Ti; SRSS where every pair is independent, else CQC (all the analysis's modes compared, on the safe side)",
+    "verticalComponent": "EN 1998-1 Sec 4.3.3.5.2(1) (only where avg > 0.25 g, for the members listed), Table 3.4 (avg/ag 0.90 Type 1, 0.45 Type 2), 3.2.2.5(4)-(5) (vertical design spectrum, plateau 3.0 avg/q with q <= 1.5), 4.3.3.5.2(4) Eqs 4.22 (0.30 combination); SAEngine practice: the plateau value (short vertical periods) and every member (on the safe side)",
+    "foundationCapacity": "EN 1998-1 Sec 4.4.2.6(2) Eq 4.30 (EFd = EF,G + γRd Ω EF,E), (2) Note (γRd = 1.0 for q <= 3, 1.2 otherwise), (3)-(4) (Ω = Rdi/Edi <= q); SAEngine practice: Ω = q (the elastic response, the bound 4.4.2.6(2) allows), overridable by seismic.foundationCapacity.omega",
+    "spectrumTypeGuidance": "EN 1998-1 Sec 3.2.2.2(2) Note 1: Type 2 where the earthquakes that contribute most to the hazard have Ms <= 5.5 (recommended)"
+  },
+  "clauses": {
+    "scale": "EN 1998-1 Sec 4.3.3.3",
+    "torsion": "EN 1998-1 Sec 4.3.2 and 4.3.3.3.3",
+    "orthogonal": "EN 1998-1 Sec 4.3.3.5.1",
+    "vertical": "EN 1998-1 Sec 4.3.3.5.2",
+    "combinations": "EN 1990 Sec 6.4.3.4, Eq 6.12b",
+    "drift": "EN 1998-1 Sec 4.3.4 and 4.4.3.2",
+    "sdc": "EN 1998-1 Sec 3.2.1(4)-(5) (SAEngine's category of the seismic action)",
+    "modes": "EN 1998-1 Sec 4.3.3.3.1",
+    "irregularity": "EN 1998-1 Sec 4.2.3 (regularity criteria; the drift ratio reported only)",
+    "amplification": "EN 1998-1 Sec 4.3.3.2.4",
+    "systems": "EN 1998-1 Tables 5.1, 6.2, 9.1",
+    "combinationDirections": "EN 1998-1 Sec 4.3.1(1)",
+    "damping": "EN 1998-1 Sec 3.2.2.2(3), Eq 3.6",
+    "separation": "EN 1998-1 Sec 4.4.2.7",
+    "displacement": "EN 1998-1 Sec 4.3.4, Eq 4.23",
+    "orthogonalOneShift": "EN 1998-1 Sec 4.3.2(1)",
+    "dynamicAnalysis": "EN 1998-1 Sec 4.3.3.2.1",
+    "diaphragmPhi": "EN 1998-1 Sec 4.4.2.5 (γd)",
+    "period": "EN 1998-1 Sec 4.3.3.2.2(3), Eq 4.6",
+    "weight": "EN 1998-1 Sec 3.2.4, Eq 3.17",
+    "pDelta": "EN 1998-1 Sec 4.4.2.2",
+    "stability": "EN 1998-1 Eq 4.28",
+    "spectrum": "EN 1998-1 Sec 3.2.2.5",
+    "lateralForce": "EN 1998-1 Sec 4.3.3.2",
+    "regularity": "EN 1998-1 Sec 4.2.3",
+    "foundationCapacity": "EN 1998-1 Sec 4.4.2.6",
+    "spectrumType": "EN 1998-1 Sec 3.2.2.2(2)"
+  }
+}

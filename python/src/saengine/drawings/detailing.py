@@ -1,0 +1,4454 @@
+"""Reinforcement detailing: the bars of every member with their marks, shapes, lengths, laps and
+transverse zones, from the building model (06 BIM), the object types (04 Objects), the
+foundations (09 Substructure) and, when given, the design report. The detailing model is what
+the bar bending schedules (:mod:`saengine.drawings.bbs`) and the drawing sheets
+(:mod:`saengine.drawings.sheets`) draw from.
+
+Code basis: the numbers of the bar detailing rules (hook tails, bend diameters, development and
+lap factors and minima, splice zones, bar extents) are read when used from the code pack in force
+(its ``detailing`` table's ``bars``, :func:`bar_rules`); the clause each rule prints comes from its
+``citations``. A pack without them reads the generic defaults (``codes/generic``: ACI 318-19
+values, named in the report as generic defaults). The rules
+below are given as the default pack states them (BNBC 2020 Part 6 Chapter 8 "Detailing of
+Reinforcement in Concrete Structures"; the page is the PDF page of its part 1):
+
+- Standard hooks (8.1.2.1, pp 1065-1066): 180° + max(4 db, 65 mm); 90° + 12 db; stirrups and
+  ties: 90° + 6 db (db <= 16), 90° + 12 db (19-25 mm), 135° + 6 db (db <= 25); closed ties
+  135° + max(6 db, 75 mm); seismic hooks 135° (circular hoops 90°) + max(6 db, 75 mm)
+  (8.1.2.1(d)); cross ties 135° + max(6 db, 75 mm) at one end, 90° + 6 db at the other (8.1.1.1,
+  p 1062). Least inside bend diameters (8.1.2.2, Table 6.8.1, p 1066): 6 db for 10-25 mm, 8 db
+  over 25 to 40 mm, 10 db over 40 to 57 mm; stirrups and ties of 16 mm and smaller 4 db
+  (8.1.2.2(b)). Bars below 10 mm are not in Table 6.8.1: 6 db is taken.
+- Development in tension (8.2.3, pp 1076-1078): ld >= 300 mm (8.2.3.1); the simplified form of
+  8.2.3.2 (fy ψt ψe / (2.1 λ √f'c) db for 19 mm and smaller bars, / (1.7 ...) for 20 mm and
+  larger when the clear spacing is at least db, the cover at least db and the stirrups at least
+  the code minimum, or the spacing 2 db and the cover db; "other cases" / (1.1 ...) for 20 mm
+  and larger. The table's cell for 19 mm and smaller bars in "other cases" is blank in the
+  gazette: 1.4, the value of ACI 318 25.4.2.3 that the table follows, is taken and said so), or
+  the general form Eq. 6.8.1 fy ψt ψe ψs / (1.1 λ √f'c (cb + Ktr)/db) db with (cb + Ktr)/db <=
+  2.5 and Ktr = 40 Atr / (s n) (Eq. 6.8.2, Ktr = 0 permitted). ψt = 1.3 for bars with more than
+  300 mm of fresh concrete below (8.2.3.4(a)); ψe 1.5 / 1.2 epoxy, 1.0 uncoated, ψt ψe <= 1.7
+  (b); ψs = 0.8 for 19 mm and smaller, 1.0 above (c); λ (d). √f'c <= 8.3 MPa (8.2.2, p 1076).
+  Excess reinforcement As,req / As,prov (8.2.3.5, p 1078).
+- Development in compression (8.2.4, p 1078): ldc = max(0.24 fy db / (λ √f'c), 0.043 fy db) >=
+  200 mm, × As,req/As,prov, × 0.75 inside spirals or 12 mm ties at 100 mm.
+- Standard hooks in tension (8.2.6, p 1079): ldh = 0.24 ψe fy db / (λ √f'c) × the factors of
+  8.2.6.3 (0.7 for side cover >= 65 mm and, for 90° hooks, 50 mm cover on the tail; 0.8 inside
+  ties at <= 3 db; As,req/As,prov), >= max(8 db, 150 mm); the value is
+  :func:`saengine.design.ductile_joints.hooked_development`. Hooks do not develop bars in
+  compression (8.2.6.5). Hooked beam bars in the joints of special moment frames:
+  max(8 db, 150 mm, fy db / (5.4 √f'c)) (8.3.7.4(a), p 1111):
+  :func:`saengine.design.ductile_joints.hooked_anchorage_seismic`.
+- Flexural bars (8.2.7-8.2.9, pp 1080-1081): bars extend max(d, 12 db) beyond the point where
+  they are no longer needed (8.2.7.3); continuing bars have ld beyond the point where the
+  terminated bars are no longer needed (8.2.7.4); at least 1/3 (simple members) and 1/4
+  (continuous members) of the positive steel extends into the support, in beams at least 150 mm
+  (8.2.8.1), anchored for fy at the face in members of the lateral system (8.2.8.2); at least
+  1/3 of the negative steel at a support extends beyond the point of inflection by max(d,
+  ln/16, 12 db) (8.2.9.3).
+- Splices (8.2.12-8.2.15, pp 1083-1085): no laps of 36 mm bars and larger (8.2.12.2(a));
+  tension laps class A 1.0 ld and class B 1.3 ld, ld without the 300 mm minimum and without
+  the excess factor, >= 300 mm (8.2.13.1); class B unless As,prov >= 2 As,req over the lap and
+  at most half the bars are spliced there (8.2.13.2); bars of different sizes: the larger of ld
+  of the larger bar and the lap of the smaller (8.2.13.5); compression laps 0.071 fy db (fy <=
+  420 MPa) or (0.13 fy - 24) db, >= 300 mm, + 1/3 when f'c < 21 MPa (8.2.14.1); columns
+  (8.2.15.2): compression laps when the bars are in compression, class B tension laps when the
+  bar stress exceeds 0.5 fy in tension or more than half the bars are spliced at a section,
+  × 0.83 with ties of 0.0015 h s (d), × 0.75 inside spirals (e), >= 300 mm. Spiral laps 48 db
+  (72 db for others), >= 300 mm, and 1.5 extra turns at each end (8.1.9.3(d), (e), p 1073).
+- Structural integrity (8.1.12.2, pp 1075-1076): perimeter beams' top steel spliced at mid-span
+  and bottom steel at or near the supports, class B.
+- Earthquake (8.3): beams of special moment frames have at least two continuous bars top and
+  bottom and no laps within the joints or within 2 h of the joint faces, hoops over laps at
+  <= min(d/4, 100 mm) (8.3.4.2(a), (b), p 1091); special-frame column laps only within the
+  centre half of the member, as tension splices (8.3.5.3(b), p 1096, Figure 6.8.7 p 1097);
+  special walls develop their bars for 1.25 ld where they may yield (8.3.6.2(c), pp
+  1100-1101); column bars into the foundation with 90° hooks at the bottom turned towards the
+  column's centre (8.3.11.2(a), (b), p 1120: :func:`saengine.design.ductile_joints.
+  column_dowel_checks`). The end zones (lo, so) are the design's (the design report's
+  ``detailing.zones``, else the object type's ``transverse.zone``, else the rule of
+  :func:`saengine.design.ductile_members.beam_need` / ``column_need``).
+- Slab bars (Figure 6.6.20, p 948, slabs without beams, used for all slabs): top bars at
+  supports to 0.30 ln from the face (the column strip value, which governs; the longer span at
+  a support between unequal spans, 6.5.3.8.2), bottom bars at least 150 mm into the supports.
+
+Practice where the default pack (BNBC) gives no figure (office practice): the extra top bars of beams
+over a support run to 0.30 ln from the face (as Figure 6.6.20 for slabs; ACI SP-66's typical
+beam details use 0.30-0.33 ln), but never less than ld from the face; all bottom bars of beams
+run into the supports (no bottom cut-off, which satisfies 8.2.8.1 and is safe); the continuous
+top bars are max(2, ⌈n/3⌉) of the top bars (8.3.4.2(a), 8.2.9.3), more when the design
+requires hogging steel at mid-span; stirrups start 50 mm from the face (8.3.4.3(b) for
+seismic beams, used for all); column ties start at half the spacing from the floor
+(8.1.9.4(d), p 1074); horizontal wall bars end in 90° hooks at the wall ends (8.3.6.6(d)(v),
+(e)(ii), p 1104); stair main bars run ld past the kink into the landing or the support; the
+extra top bars of beams stay within the bar ends of the line, and those of two supports that
+meet in a short span are one bar across it; column bars without a partner in a smaller column
+above stop 40 mm below the floor's top with a 90° hook, and the extra bars of a larger column
+above start on dowels anchored ld below the floor.
+
+Splices of beam bars (8.2.12.2(a), 8.2.13, 8.1.12.2, 8.3.4.2(b)): a continuous bar longer than a
+stock length (12 m) is cut into bars of at most a stock length (hooks included), lapped class B
+(all the bars of a layer lap at one place, so more than half are spliced there, 8.2.13.2), each
+lap as far along as the stock length reaches: top bars in the middle third of a span, bottom bars
+near the supports (from the face, or 2 h from it in special frames, to a third of the clear span),
+a window shorter than the lap widened to hold it but never into the joints or the 2 h zones of
+special frames; over the laps of special-frame beams hoops at the type's splice spacing, else at
+min(d/4, 100 mm) rounded down to 25 mm. Bars of 36 mm and larger are not lapped: a run longer
+than a stock length is noted for mechanical couplers (columns: coupled where the lap would be).
+
+Anchorage read from the default pack (BNBC): top bars of slabs at discontinuous edges bend down into the edge
+support with a standard 90° hook (8.1.2.1(b), p 1065) when it is deep enough, ldh checked on
+the support's width (8.2.9.1, p 1081: negative steel anchored in or through the support);
+otherwise as deep as the support allows and their straight length in it checked against ld.
+Footing bars are checked from the face of every column on the footing at its real position.
+
+Marks (:func:`assign_marks`): ``<type code>-<role><n>``, e.g. ``B1-T1``: the type code is a
+kind letter (B beams, C columns, S slabs, W walls, ST stairs, F footings, PC pile caps) and the
+type's number among the types of that kind (by id). Foundations of 9 Substructure have no
+types: the foundations with the same definition (form, size, reinforcement, concrete) are one
+type named after the first of them, and that label (F1, PC2) is the code when free. The role
+letters are T top, B bottom, F side face, S stirrups, X cross ties (beams); V vertical, D
+dowels (starter bars), H ties or hoops, P spirals (columns); BX, BY, TX, TY bottom and top
+bars along x and y (slabs, footings); V, H, E end bars, K boundary hoops, G coupling beam
+diagonals, J their hoops and Y crossties, W hoops around each group, U coupling beam
+longitudinal bars, Q wall pier hoops and Z their crossties (walls), LB, LT, LS
+the bottom bars, top hangers and stirrups of the lintels over a wall's openings; M main, N
+distribution, T top, L landing, LN landing distribution (stairs). Identical bars of the same type (same diameter, shape and dimensions)
+share a mark across members. Marks are deterministic, and ``previous`` (the ``marks`` of an
+earlier model) keeps every unchanged bar's mark even when other types or bars change.
+
+How it is called::
+
+    model = detailing_model(project_root)                      # reads the project's files
+    model = detailing_model(texts={"bim": ..., "objects": ..., "materials": ...,
+                                   "settings": ..., "substructure": ...},
+                            design_report=report,              # design.check.design_report()
+                            required=required,                 # design.required.design_required()
+                            options={...}, previous=old_model["marks"])
+
+Returns ``{"schema", "elements", "marks", "notes", "options", "code"}``; per element ``{"id",
+"kind" (beam, column, slab, wall, staircase, footing, pileCap), "type" (the 04 Objects
+type; foundations of 9 Substructure: see the marks), "form"? (foundations: isolated,
+combined, strip, pileCap, raft), "member" (the label),
+"members" (the BIM ids a beam line spans), "story", "count" (1), "bars", "transverse",
+"laps", "checks", "notes"}``; per bar ``{"mark", "role", "dia", "grade", "shape" (straight,
+L, U, crank, stirrup, helix, special: names :mod:`saengine.drawings.bbs` maps to the shape
+codes of the pack's schedule standard, BS 8666 in the default pack), "count" (in this member),
+"dims" (outside dimensions A, B, C ... as the schedules give them), "segments" (the same in order), "bendDia" (the least inside bend diameter),
+"length" (developed length along the bar's centreline, from that bend diameter), "at"
+(where it lies: line coordinates or levels, face, layer and world end points),
+"zone"?, "lap"? (lap length at its ends), "curtailed"? (a cut-off bar), "remarks"?}``;
+transverse rows ``{"mark", "from", "to", "spacing", "count", "zone"}`` (lo end zones,
+middle, splice, joint); laps ``{"marks", "from", "to", "length", "class" (A, B,
+compression, coupler), "clause", "face"?, "dia"?, "count"? (beams), "with"? (columns)}``;
+checks ``{"name", "required", "provided", "unit", "ok", "clause"}``. ``marks``: per mark
+``{"mark", "type", "kind", "role", "dia", "shape", "dims", "length", "count" (in the project),
+"elements", "signature"}``. Units: mm, MPa.
+"""
+
+from __future__ import annotations
+
+import itertools
+import json
+import math
+import re
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from saengine.fem.end_zones import profile_extent
+
+SCHEMA_ID = "saengine.detailing/1"
+#: Computed lengths (development, laps, extents, hook tails) are rounded up to this [mm].
+ROUND = 25.0
+#: The longest bar delivered [mm] (as the bill of quantities, saengine.boq.quantities).
+STOCK_LENGTH = 12_000.0
+#: Extra top bars of beams over supports, from the face, as a share of ln (practice, see notes).
+BEAM_TOP_EXTENT = 0.30
+#: Hoop spacings over laps worked out here are rounded down to this [mm] (as the design's).
+SPLICE_STEP = 25.0
+TOL = 50.0  # mm: geometric tolerance when matching members
+
+DEFAULT_OPTIONS: dict[str, Any] = {
+    "curtail": True,  # beams: cut the extra top bars; False: all bars full length (as the BOQ)
+    "beamTopExtent": BEAM_TOP_EXTENT,
+    "slabTopExtent": None,  # None: the code pack's (bar_rules().extents.slabTopExtent)
+    "slabTop": "supports",  # "supports": top bars over supports; "full": the mesh all over
+    "stockLength": STOCK_LENGTH,
+    "round": ROUND,
+    "columnLaps": "tension",  # "tension" (class B) or "compression" (8.2.14.1)
+    "method": "simplified",  # development length form: "simplified" (8.2.3.2) or "general"
+}
+
+
+class NotCovered(ValueError):
+    """No bar detailing rules at all: neither the code pack in force nor the generic defaults
+    give ``detailing.bars`` (never another code's numbers)."""
+
+
+def bar_rules() -> Any:
+    """The bar detailing rules of the code pack in force (its ``detailing`` table's ``bars``:
+    ``hooks``, ``bends``, ``development``, ``laps``, ``splices``, ``extents``, ``notes``), read
+    when used; the generic defaults (``codes/generic``) when the pack gives none.
+    :class:`NotCovered` when neither gives them."""
+    from saengine.codes import context as code_context
+
+    bars = code_context.pack_table("detailing").bars
+    if bars is None:
+        raise NotCovered(
+            f"bar detailing is not covered by the code pack {code_context.code_name()} "
+            "(its detailing table gives no 'bars' rules)"
+        )
+    return bars
+
+
+def no_lap(db: float) -> bool:
+    """True when bars of size ``db`` are not lapped (the code pack's ``laps.noLapDb``: 36 mm and
+    larger in the default pack, 8.2.12.2(a))."""
+    return db >= bar_rules().laps.noLapDb
+
+
+def _note(key: str, before: str = " (", after: str = ")") -> str:
+    """The pack's formula note ``key`` (``bars.notes``) between ``before`` and ``after``; ''
+    when the pack gives none."""
+    text = bar_rules().notes.get(key, "")
+    return f"{before}{text}{after}" if text else ""
+
+
+def _cite(key: str) -> str:
+    """The reference ``key`` of the code pack in force (its ``citations`` table, with the code's
+    name); '' when the pack gives none."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("citations", key)
+
+
+def _cite_after(key: str, sep: str = ", ") -> str:
+    """``sep`` + :func:`_cite`, or '' when the pack gives no such reference."""
+    text = _cite(key)
+    return f"{sep}{text}" if text else ""
+
+
+def up(value: float, step: float = ROUND) -> float:
+    """``value`` rounded up to a multiple of ``step`` (a hair of float noise ignored)."""
+    if step <= 0:
+        return value
+    return math.ceil(value / step - 1e-9) * step
+
+
+@dataclass(frozen=True)
+class Rule:
+    """A detailing length [mm] with the formula and clause it comes from."""
+
+    value: float
+    formula: str
+    clause: str
+
+    def rounded(self, step: float = ROUND) -> float:
+        return up(self.value, step)
+
+
+# ─────────────────────────────────────── hooks and bends ───────────────────────────────────────
+
+
+def _development_factors() -> Any | None:
+    """Alpha 9 C18c: :mod:`saengine.design.development_factors` when the pack in force picks
+    that anchorage method (None: the parent's rules or the bond stress method)."""
+    from saengine.design import development_factors
+
+    return development_factors if development_factors.rules() is not None else None
+
+
+def _bar_shapes() -> Any | None:
+    """Alpha 9 C5c: the pack's ``concreteMethods.barShapes`` when it picks that method (bends,
+    hooks and links' bends, compression laps; None: the parent's rules)."""
+    from saengine.codes import context as code_context
+    from saengine.design import method_selection
+
+    if not method_selection.uses("barShapes", "barShapes"):
+        return None
+    return code_context.table("concreteMethods").barShapes
+
+
+def _shapes_cite(key: str = "barShapes") -> str:
+    """Alpha 9 C5c: the pack's ``concreteMethods`` clause ``key``."""
+    from saengine.codes import context as code_context
+
+    return code_context.cite("concreteMethods", key)
+
+
+def bend_diameter(db: float, transverse: bool = False) -> Rule:
+    """Least inside bend diameter [mm] (8.1.2.2, Table 6.8.1, p 1066): 6 db (10-25 mm), 8 db
+    (over 25 to 40 mm), 10 db (over 40 to 57 mm); stirrups and ties of 16 mm and smaller 4 db
+    (8.1.2.2(b)). Bars below 10 mm: 6 db (4 db as ties). Alpha 9 C5c: the pack's mandrel
+    diameters by bar size (bars and links alike) where it picks ``barShapes``."""
+    shapes = _bar_shapes()
+    if shapes is not None:
+        factor = next((f for size, f in shapes.mandrel if db <= size), shapes.mandrel[-1][1])
+        return Rule(factor * db, f"{factor:g} φ", _shapes_cite())
+    bends = bar_rules().bends
+    if transverse and db <= bends.transverseMax:
+        return Rule(bends.transverse * db, f"{bends.transverse:g} db", _cite("barBendStirrup"))
+    factor = next((f for size, f in bends.steps if db <= size), bends.steps[-1][1])
+    return Rule(factor * db, f"{factor:g} db", _cite("barBend"))
+
+
+@dataclass(frozen=True)
+class Hook:
+    """A hook: bend ``angle`` [°], straight ``tail`` beyond the bend [mm], inside bend diameter,
+    and ``leg``: the hook's outside dimension measured from the outer face of the bar before the
+    bend (tail + inside radius + db, for a 90° hook the B of a BS 8666 L bar)."""
+
+    angle: float
+    tail: float
+    bend_dia: float
+    db: float
+    clause: str
+
+    @property
+    def leg(self) -> float:
+        return self.tail + self.bend_dia / 2 + self.db
+
+    @property
+    def arc(self) -> float:
+        """Length of the bend along the bar's centreline [mm]."""
+        return math.radians(self.angle) * (self.bend_dia / 2 + self.db / 2)
+
+
+def standard_hook(
+    db: float, angle: float = 90, *, transverse: bool = False, closed: bool = False
+) -> Hook:
+    """The standard hook of 8.1.2.1 (pp 1065-1066). Main bars: 180° + max(4 db, 65 mm) (a), 90° +
+    12 db (b). ``transverse`` (stirrups and ties, (c)): 90° + 6 db for db <= 16 mm, 90° + 12 db
+    for 19-25 mm, 135° + 6 db for db <= 25 mm; ``closed`` ties, and seismic hooks (d), 135° +
+    max(6 db, 75 mm)."""
+    bend = bend_diameter(db, transverse).value
+    shapes = _bar_shapes()
+    if shapes is not None:  # Alpha 9 C5c: the pack's bends, hooks and links' bends
+        clause = _shapes_cite()
+        if not transverse:
+            n, mm = shapes.bendTail
+            return Hook(180 if angle >= 180 else 90, max(n * db, mm), bend, db, clause)
+        n, mm = shapes.link135 if angle >= 135 else shapes.link90
+        return Hook(135 if angle >= 135 else 90, max(n * db, mm), bend, db, clause)
+    h = bar_rules().hooks
+    if not transverse:
+        if angle >= 180:
+            return Hook(180, max(h.main180Db * db, h.main180Min), bend, db, _cite("barHook180"))
+        return Hook(90, h.main90Db * db, bend, db, _cite("barHook90"))
+    if angle >= 135:
+        tail = max(h.tie135Db * db, h.closedMin) if closed else h.tie135Db * db
+        clause = _cite("barTieHook135Closed" if closed else "barTieHook135")
+        return Hook(135, tail, bend, db, clause)
+    tail = h.tie90SmallDb * db if db <= h.tieSmallMax else h.tie90LargeDb * db
+    return Hook(90, tail, bend, db, _cite("barTieHook90"))
+
+
+def seismic_hook(db: float) -> Hook:
+    """Hook of a hoop, stirrup or cross tie in a seismic member: 135°, max(6 db, 75 mm)
+    (8.1.2.1(d), p 1066)."""
+    return standard_hook(db, 135, transverse=True, closed=True)
+
+
+# ───────────────────────────────────────── development ─────────────────────────────────────────
+
+
+def sqrt_fc(fc: float) -> float:
+    """√f'c for Sec 8.2, at most 8.3 MPa (8.2.2, p 1076)."""
+    return min(math.sqrt(fc), bar_rules().development.sqrtFcMax)
+
+
+def psi_s(db: float) -> float:
+    """Bar size factor (8.2.3.4(c), p 1078): 0.8 for 19 mm and smaller, 1.0 above."""
+    dev = bar_rules().development
+    return dev.psiSSmall if db <= dev.smallBarMax else 1.0
+
+
+def psi_t(top: bool) -> float:
+    """Casting position (8.2.3.4(a), p 1077): 1.3 with more than 300 mm of fresh concrete below."""
+    return bar_rules().development.psiTop if top else 1.0
+
+
+def _standard_lengths() -> dict[str, float]:
+    """R4AC-4: the rounding and the stock length of the pack's bar schedule standard (ACI 315:
+    1 in and 60 ft; BS 8666 and the default pack: 25 mm and 12 m), so the lengths and the
+    notes take the values the pack gives for its units; {} (the defaults) without one."""
+    try:
+        from saengine.drawings import bbs
+
+        std = bbs.standard()
+    except Exception:  # noqa: BLE001 - no bar schedule standard: SAEngine's defaults
+        return {}
+    out: dict[str, float] = {}
+    if getattr(std, "roundTo", None):
+        out["round"] = float(std.roundTo)
+    if getattr(std, "stockLength", None):
+        out["stockLength"] = float(std.stockLength)
+    return out
+
+
+def psi_g(fy: float) -> float:
+    """C2: the grade factor ψg of ld (the pack's ``development.psiG``: the factor of the first
+    step whose fy reaches ``fy``, the last one's above); 1.0 when the pack gives none. The
+    steps are grades: a bar within the pack's ``materials.gradeTolerance`` above one is of that
+    grade (R4AC-4: Grade 60 at 413.7 MPa, also entered as 420 MPa)."""
+    from saengine.codes import context as code_context
+
+    steps = getattr(bar_rules().development, "psiG", None)
+    if not steps:
+        return 1.0
+    tolerance = 0.0
+    try:
+        tolerance = float(getattr(code_context.table("materials"), "gradeTolerance", 0.0) or 0.0)
+    except Exception:  # noqa: BLE001 - a pack without the materials table: the steps as given
+        tolerance = 0.0
+    for limit, factor in steps:
+        if fy <= limit * (1 + tolerance) + 1e-9:
+            return float(factor)
+    return float(steps[-1][1])
+
+
+def ktr(atr: float, s: float, n: int) -> float:
+    """Transverse reinforcement index Ktr = 40 Atr / (s n) [mm] (Eq. 6.8.2, p 1077)."""
+    return bar_rules().development.ktr * atr / (s * n)
+
+
+def development_tension(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    lam: float = 1.0,
+    top: bool = False,
+    psi_e: float = 1.0,
+    method: str = "simplified",
+    spacing_ok: bool = True,
+    cb: float | None = None,
+    k_tr: float = 0.0,
+    excess: float = 1.0,
+    minimum: bool = True,
+) -> Rule:
+    """ld [mm] of a deformed bar in tension (8.2.3, pp 1076-1078).
+
+    ``method`` "simplified" (8.2.3.2): ``spacing_ok`` the first row of the table (clear spacing
+    >= db, cover >= db and code minimum stirrups, or spacing >= 2 db and cover >= db).
+    "general" (8.2.3.3, Eq. 6.8.1): ``cb`` the smaller of the cover to the bar's centre and half
+    the bars' centre spacing [mm], ``k_tr`` (Eq. 6.8.2, 0 permitted). ``excess`` As,req/As,prov
+    (8.2.3.5); ``minimum`` False leaves out the 300 mm of 8.2.3.1 (for laps, 8.2.13.1)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.tb with k1-k3 (AS 3600 13.1.2 type)
+        cd = None if cb is None else max(cb - db / 2, 0.0)
+        found = factored.tension_length(db, fy, fc, top, cd)
+        return Rule(
+            found["length"] * excess,
+            factored.tension_text(found) + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite(),
+        )
+    dev = bar_rules().development
+    pt = psi_t(top)
+    te = min(pt * psi_e, dev.psiTEMax)  # 8.2.3.4(b): ψt ψe need not exceed 1.7
+    root = sqrt_fc(fc)
+    # C2: the grade factor ψg of the packs that give one (shown only then).
+    pg = psi_g(fy)
+    g_name, g_value = (" ψg", f"·{pg:g}") if getattr(dev, "psiG", None) else ("", "")
+    if method == "general":
+        if cb is None:
+            raise ValueError("the general form needs cb")
+        confinement = min((cb + k_tr) / db, dev.confinementMax)
+        ps = psi_s(db)
+        g = dev.general
+        raw = fy * te * ps * pg / (g * lam * root * confinement) * db
+        formula = (
+            f"fy ψt ψe ψs{g_name} / ({g:g} λ √f'c (cb + Ktr)/db) db = {fy:g}·{te:g}·{ps:g}"
+            f"{g_value} / ({g:g}·{lam:g}·{root:.2f}·{confinement:.2f})·{db:g}"
+        )
+        clause = _cite("barDevelopmentGeneral")
+    else:
+        small, large = dev.simplifiedGood if spacing_ok else dev.simplifiedOther
+        k = small if db <= dev.smallBarMax else large
+        raw = fy * te * pg / (k * lam * root) * db
+        formula = (
+            f"fy ψt ψe{g_name} / ({k:g} λ √f'c) db = {fy:g}·{te:g}{g_value} / ({k:g}·{lam:g}·"
+            f"{root:.2f})·{db:g}"
+        )
+        clause = _cite("barDevelopmentSimplified")
+        if not spacing_ok and db <= dev.smallBarMax:
+            clause += _note("simplifiedOther")
+    value = raw * excess
+    if excess != 1.0:
+        formula += f" × As,req/As,prov {excess:.2f}{_note('excess')}"
+    if minimum and value < dev.ldMin:
+        value = dev.ldMin
+        formula += f", at least {dev.ldMin:g} mm{_note('ldMin')}"
+    return Rule(value, formula, clause)
+
+
+def development_compression(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    lam: float = 1.0,
+    confined: bool = False,
+    excess: float = 1.0,
+) -> Rule:
+    """ldc [mm] (8.2.4, p 1078): max(0.24 fy db / (λ √f'c), 0.043 fy db) × As,req/As,prov × 0.75
+    inside spirals or 12 mm ties at 100 mm (``confined``), at least 200 mm. Alpha 9 C5c: with
+    the pack's bar shapes and bond stress, lbd in compression (α = 1, lb,min of compression)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.c (AS 3600 13.1.5 type)
+        found = factored.compression_length(db, fy, fc)
+        a, b, mm = factored.rules().compression
+        return Rule(
+            found["length"] * excess,
+            f"Lsy.c = {a:g} fsy db / √f'c at least {b:g} fsy db and {mm:g} mm"
+            + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite("anchorageCompression"),
+        )
+    if _bar_shapes() is not None and _bond_stress():
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.anchorage_length(db, fc, fy, compression=True)
+        return Rule(
+            found["lbd"] * excess,
+            f"lbd = lb,rqd = {found['lbrqd']:.0f} mm in compression, at least "
+            f"{found['lbmin']:.0f} mm" + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            _shapes_cite("compressionLaps"),
+        )
+    dev = bar_rules().development
+    a, b = dev.compression
+    basic = max(a * fy * db / (lam * sqrt_fc(fc)), b * fy * db)
+    value = basic * excess * (dev.compressionConfined if confined else 1.0)
+    return Rule(
+        max(value, dev.ldcMin),
+        f"max({a:g} fy db / (λ √f'c), {b:g} fy db)"
+        + (f" × {dev.compressionConfined:g}" if confined else "")
+        + (f" × {excess:.2f}" if excess != 1.0 else "")
+        + f", at least {dev.ldcMin:g} mm",
+        _cite("barDevelopmentCompression"),
+    )
+
+
+def hook_development(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    lam: float = 1.0,
+    psi_e: float = 1.0,
+    cover: bool = False,
+    confined: bool = False,
+    excess: float = 1.0,
+) -> Rule:
+    """ldh [mm] of a standard hook in tension (8.2.6, p 1079): 0.24 ψe fy db / (λ √f'c) ×
+    0.7 when the side cover is at least 65 mm (and 50 mm on a 90° hook's tail, ``cover``) × 0.8
+    inside ties at <= 3 db (``confined``) × As,req/As,prov, at least max(8 db, 150 mm). The
+    value is :func:`saengine.design.ductile_joints.hooked_development` (√f'c capped, 8.2.2)."""
+    from saengine.design.ductile_joints import hooked_development
+
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: a hook or cog, a share of Lsy.tb (AS 3600 13.1.2.7)
+        found = factored.hook_length(db, fy, fc)
+        return Rule(
+            found["length"] * excess,
+            f"{factored.rules().hookShare:g} Lsy.tb, " + factored.tension_text(found)
+            + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            factored.cite("anchorageHooks"),
+        )  # fmt: skip
+    if _bar_shapes() is not None and _bond_stress():
+        # Alpha 9 C5c: a bent or hooked bar by the pack's anchorage, lb,eq = α1 lb,rqd with α1
+        # of bent bars where the side cover is enough (``cover``), else 1 (on the safe side).
+        from saengine.design import bar_rules as rules_of_bars
+
+        cd = 4 * db if cover else None
+        found = rules_of_bars.anchorage_length(db, fc, fy, cd=cd, bent=True)
+        return Rule(
+            found["lbd"] * excess,
+            f"lb,eq = α1 lb,rqd, α1 = {found['alpha1']:g}, lb,rqd = {found['lbrqd']:.0f} mm, at "
+            f"least {found['lbmin']:.0f} mm" + (f" × {excess:.2f}" if excess != 1.0 else ""),
+            _shapes_cite("anchorage"),
+        )
+    dev = bar_rules().development
+    if getattr(dev, "hookMethod", "linear") == "powerDiameter":
+        return _power_development(
+            dev.hook, "hook", db, fy, fc, lam, psi_e, cover, confined, excess,
+            _cite("barDevelopmentHooked"),
+        )  # fmt: skip
+    factor = (dev.hookCover if cover else 1.0) * (dev.hookConfined if confined else 1.0) * excess
+    fc_used = min(fc, dev.sqrtFcMax**2)
+    value = hooked_development(db, fy, fc_used, lam, psi_e, factor)
+    return Rule(
+        value,
+        f"0.24 ψe fy db / (λ √f'c) × {factor:.2f}, at least max(8 db, 150 mm)",
+        _cite("barDevelopmentHooked"),
+    )
+
+
+def hook_term() -> str:
+    """R4AC-7: the name of a hooked bar's anchorage length as :func:`hook_development` finds it
+    under the pack in force: "Lsy.tb" (a share of it), "lb,eq" (the bond stress method of the
+    pack's anchorage) or "ldh"."""
+    if _development_factors() is not None:
+        return "Lsy.tb"
+    if _bar_shapes() is not None and _bond_stress():
+        return "lb,eq"
+    return "ldh"
+
+
+@dataclass(frozen=True)
+class HookDetailing:
+    """2026-11-10: how hooked bars are detailed where they anchor, for the pack's credits
+    (:func:`hook_credits`) [mm, mm²]; None: not known (that credit is not taken)."""
+
+    side_cover: float  # the clear cover normal to the plane of the hook
+    tail_cover: float | None = None  # the cover beyond a 90° hook's tail
+    bar_spacing: float | None = None  # the least centre-to-centre spacing of the hooked bars
+    tie_spacing: float | None = None  # ties perpendicular to the bars, apart along ldh
+    tie_area: float | None = None  # one set of those ties' legs
+    bar_area: float | None = None  # Ahs, the hooked bars together
+
+
+def hook_credits(
+    db: float, detail: HookDetailing | None, ldh: float = 0.0
+) -> tuple[bool, bool, str]:
+    """2026-11-10 (column-top anchorage): ``(cover, confined, why)``, whether the detailing
+    earns the pack's side and end cover credit and its confinement credit of a hooked bar's
+    anchorage (the ``cover`` and ``confined`` of :func:`hook_development`), with the reasons.
+    The conditions are the pack's: ``development.hookQualify`` (side cover normal to the hook's
+    plane, tail cover, ties along ldh, bar spacing, Ath / Ahs), or with its bond stress
+    anchorage cd = min(a / 2, c1) > the pack's hookCover φ for α1 (no confinement credit). A
+    pack that gives neither: no credit. ``ldh``: the length the ties are counted over."""
+    if detail is None or _development_factors() is not None:
+        return False, False, ""
+    if _bar_shapes() is not None and _bond_stress():
+        from saengine.codes import context as code_context
+
+        a = code_context.table("concreteMethods").anchorage
+        half = (detail.bar_spacing - db) / 2 if detail.bar_spacing else math.inf
+        cd = min(half, detail.side_cover)
+        cover = cd > a.hookCover * db
+        sign = ">" if cover else "<="
+        return cover, False, f"cd = {cd:.0f} mm {sign} {a.hookCover:g} φ"
+    q = getattr(bar_rules().development, "hookQualify", None)
+    if q is None or (q.maxDb is not None and db > q.maxDb + 1e-9):
+        return False, False, ""
+    why: list[str] = []
+    side = [v for v in (q.sideCover, (q.sideCoverDb or 0) * db or None) if v]
+    cover = bool(side) and detail.side_cover >= min(side) - 1e-6
+    if side:
+        least = " or ".join(
+            ([f"{q.sideCover:g} mm"] if q.sideCover else [])
+            + ([f"{q.sideCoverDb:g} db"] if q.sideCoverDb else [])
+        )
+        why.append(f"side cover {detail.side_cover:.0f} mm {'>=' if cover else '<'} {least}")
+    if cover and q.tailCover is not None:
+        tail = detail.tail_cover
+        cover = tail is not None and tail >= q.tailCover - 1e-6
+        if tail is not None:
+            why.append(f"tail cover {tail:.0f} mm {'>=' if cover else '<'} {q.tailCover:g} mm")
+    confined = False
+    if q.tieSpacingDb is not None and detail.tie_spacing:
+        confined = detail.tie_spacing <= q.tieSpacingDb * db + 1e-6
+        why.append(
+            f"ties @ {detail.tie_spacing:g} mm {'<=' if confined else '>'} {q.tieSpacingDb:g} db"
+        )
+    if not confined and q.barSpacingDb is not None and detail.bar_spacing:
+        confined = detail.bar_spacing >= q.barSpacingDb * db - 1e-6
+        why.append(
+            f"bars {detail.bar_spacing:.0f} mm apart {'>=' if confined else '<'} "
+            f"{q.barSpacingDb:g} db"
+        )
+    if (
+        not confined
+        and q.tieAreaRatio is not None
+        and detail.tie_spacing
+        and detail.tie_area
+        and detail.bar_area
+        and ldh > 0
+    ):
+        ath = (math.floor(ldh / detail.tie_spacing + 1e-9) + 1) * detail.tie_area
+        confined = ath >= q.tieAreaRatio * detail.bar_area - 1e-6
+        why.append(
+            f"Ath {ath:.0f} mm² {'>=' if confined else '<'} {q.tieAreaRatio:g} Ahs "
+            f"({detail.bar_area:.0f} mm²)"
+        )
+    return cover, confined, "; ".join(why)
+
+
+def credited_hook(
+    db: float, fy: float, fc: float, detail: HookDetailing | None, **development: Any
+) -> Rule:
+    """:func:`hook_development` with the credits the detailing earns (:func:`hook_credits`,
+    the confinement judged over the length with it), the reasons and the pack's clause in the
+    formula."""
+    if detail is None:
+        return hook_development(db, fy, fc, **development)
+    shortest = hook_development(db, fy, fc, cover=True, confined=True, **development).value
+    cover, confined, why = hook_credits(db, detail, shortest)
+    rule = hook_development(db, fy, fc, cover=cover, confined=confined, **development)
+    if not why:
+        return rule
+    credits = [n for n, on in (("cover", cover), ("confinement", confined)) if on]
+    taken = f"credits for {' and '.join(credits)}" if credits else "no credits"
+    return replace(rule, formula=f"{rule.formula} ({taken}: {why}{_cite_after('barHookCredits')})")
+
+
+def psi_c(fc: float) -> float:
+    """C2: the concrete strength factor ψc of hooked and headed bars (the pack's ``development.
+    hook``): f'c / psiCDivisor + psiCBase below psiCFcMax, else 1.0; 1.0 without the values."""
+    hook = getattr(bar_rules().development, "hook", None)
+    if hook is None or fc >= hook.psiCFcMax:
+        return 1.0
+    return min(fc / hook.psiCDivisor + hook.psiCBase, 1.0)
+
+
+def _power_development(
+    rules: Any,
+    kind: str,
+    db: float,
+    fy: float,
+    fc: float,
+    lam: float,
+    psi_e: float,
+    cover: bool,
+    confined: bool,
+    excess: float,
+    clause: str,
+) -> Rule:
+    """C2: ldh (``kind`` "hook") or ldt ("headed") = fy ψe ψr ψo ψc db^n / (k λ √f'c) ×
+    As,req/As,prov, at least max(minDb db, min): ψr (ψp of headed bars) 1.0 with the confining
+    ties (``confined``) else the pack's, ψo 1.0 with the side cover inside the core (``cover``)
+    else the pack's (see :class:`saengine.codes.tables.HookDevelopment`)."""
+    psi_r = 1.0 if confined else (rules.psiR if kind == "hook" else rules.psiP)
+    psi_o = 1.0 if cover else rules.psiO
+    pc = psi_c(fc)
+    root = sqrt_fc(fc)
+    raw = fy * psi_e * psi_r * psi_o * pc * db**rules.exponent / (rules.coefficient * lam * root)
+    least = max(rules.minDb * db, rules.min)
+    r_name = "ψr" if kind == "hook" else "ψp"
+    formula = (
+        f"fy ψe {r_name} ψo ψc db^{rules.exponent:g} / ({rules.coefficient:g} λ √f'c) = "
+        f"{fy:g}·{psi_e:g}·{psi_r:g}·{psi_o:g}·{pc:.3f}·{db:g}^{rules.exponent:g} / "
+        f"({rules.coefficient:g}·{lam:g}·{root:.2f})"
+    )
+    if excess != 1.0:
+        formula += f" × As,req/As,prov {excess:.2f}"
+    formula += f", at least max({rules.minDb:g} db, {rules.min:g} mm)"
+    return Rule(max(raw * excess, least), formula, clause)
+
+
+def headed_development(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    lam: float = 1.0,
+    psi_e: float = 1.0,
+    cover: bool = False,
+    confined: bool = False,
+    excess: float = 1.0,
+) -> Rule:
+    """C2: ldt [mm] of a headed deformed bar in tension (the pack's ``development.headed``, e.g.
+    ACI 318-19 25.4.4.2); :class:`NotCovered` when the pack gives no headed bar rule."""
+    rules = getattr(bar_rules().development, "headed", None)
+    if rules is None:
+        from saengine.codes import context as code_context
+
+        raise NotCovered(f"headed bars are not covered by the code pack {code_context.code_name()}")
+    return _power_development(
+        rules, "headed", db, fy, fc, lam, psi_e, cover, confined, excess,
+        _cite("barDevelopmentHeaded"),
+    )  # fmt: skip
+
+
+def hook_development_seismic(db: float, fy: float, fc: float, lam: float = 1.0) -> Rule:
+    """ldh [mm] of a 90° hooked beam bar in a joint of a special moment frame (8.3.7.4(a), Eq.
+    6.8.12, p 1111): :func:`saengine.design.ductile_joints.hooked_anchorage_seismic`."""
+    from saengine.design.ductile_joints import hooked_anchorage_seismic
+
+    return Rule(
+        hooked_anchorage_seismic(db, fy, fc, lam),
+        "max(8 db, 150 mm, fy db / (5.4 √f'c))",
+        _cite("barDevelopmentJoint"),
+    )
+
+
+# ──────────────────────────────────────────── splices ────────────────────────────────────────────
+
+
+def splice_class(provided_over_required: float, spliced_share: float) -> str:
+    """Class of a tension lap (8.2.13.2, p 1084): "A" when As,prov >= 2 As,req over the lap and
+    at most half the bars are spliced within the lap length, else "B"."""
+    laps = bar_rules().laps
+    a = provided_over_required >= laps.classAProvided and spliced_share <= laps.classAShare
+    return "A" if a else "B"
+
+
+def lap_tension(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    cls: str = "B",
+    other_db: float | None = None,
+    factor: float = 1.0,
+    **development: Any,
+) -> Rule:
+    """Tension lap [mm] (8.2.13.1, p 1083): class A 1.0 ld, class B 1.3 ld, ld by 8.2.3 without
+    its 300 mm minimum and without the excess factor, at least 300 mm. ``other_db``: the bar
+    lapped with, when of another size (8.2.13.5, p 1084: the larger of ld of the larger bar and
+    the lap of the smaller). ``factor`` multiplies ld (1.25 for special walls, 8.3.6.2(c));
+    ``development``: the arguments of :func:`development_tension` (top, psi_e, method, ...)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: the lap by k7 Lsy.t (AS 3600 13.2.2 type)
+        cb = development.get("cb")
+        cd = None if cb is None else max(float(cb) - db / 2, 0.0)
+        big = max(db, other_db or db)
+        found = factored.lap_tension(big, fy, fc, bool(development.get("top")), cd)
+        r = factored.rules()
+        return Rule(
+            found["lap"] * factor,
+            f"{r.lapFactor:g} Lsy.t at least {r.lapMinCoefficient:g} k1 db, "
+            + factored.tension_text(found)
+            + (f" (× {factor:g})" if factor != 1.0 else ""),
+            factored.cite("laps"),
+        )
+    laps = bar_rules().laps
+    if db >= laps.noLapDb:
+        raise ValueError(
+            f"lap splices are not used for {laps.noLapDb:g} mm bars and larger"
+            + _cite_after("barNoLap", " (")
+            + (")" if _cite("barNoLap") else "")
+        )
+    development.pop("excess", None)
+    development.pop("minimum", None)
+    small, large = (db, other_db) if other_db and other_db > db else (other_db or db, db)
+    ld = development_tension(small, fy, fc, minimum=False, **development).value * factor
+    k = laps.classA if cls == "A" else laps.classB
+    value = max(k * ld, laps.min)
+    formula = f"{k:g} ld = {k:g} × {ld:.0f}"
+    if other_db and other_db != db:
+        ld_large = development_tension(large, fy, fc, minimum=True, **development).value
+        if ld_large > value:
+            value, formula = ld_large, f"ld of the larger bar Ø{large:g} = {ld_large:.0f}"
+    if factor != 1.0:
+        formula += f" (ld × {factor:g})"
+    return Rule(value, formula + f", at least {laps.min:g} mm", _cite(f"barLapClass{cls}"))
+
+
+def lap_compression(db: float, fy: float, fc: float, *, factor: float = 1.0) -> Rule:
+    """Compression lap [mm] (8.2.14.1, p 1084): 0.071 fy db for fy <= 420 MPa, (0.13 fy - 24) db
+    above, + 1/3 when f'c < 21 MPa; ``factor`` 0.83 for tied columns with ties of 0.0015 h s
+    (8.2.15.2(d)) or 0.75 inside spirals (8.2.15.2(e)); at least 300 mm. Alpha 9 C5c: with the
+    pack's bar shapes and bond stress, l0 = α6 lb,rqd in compression (α1 = α2 = 1) with a
+    transverse bar outside each end of the lap (the parent's ``factor`` does not apply)."""
+    factored = _development_factors()
+    if factored is not None:  # Alpha 9 C18c: Lsy.c, at least the pack's n db (AS 3600 13.2.4)
+        found = factored.lap_compression(db, fy, fc)
+        n, mm = factored.rules().compressionLap
+        return Rule(
+            found["lap"],
+            f"Lsy.c = {found['length']:.0f} mm, at least {n:g} db and {mm:g} mm",
+            factored.cite("lapsCompression"),
+        )
+    shapes = _bar_shapes()
+    if shapes is not None and _bond_stress():
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.lap_length(db, fc, fy, shapes.columnLapShare, compression=True)
+        return Rule(
+            found["l0"],
+            f"l0 = α6 lb,rqd = {found['alpha6']:g} × {found['lbrqd']:.0f} mm in compression, at "
+            f"least {found['l0min']:.0f} mm; a transverse bar outside each end within "
+            f"{shapes.compressionLapEnd:g} φ",
+            _shapes_cite("compressionLaps"),
+        )
+    laps = bar_rules().laps
+    a, b = laps.compressionHigh
+    low = fy <= laps.compressionFyLimit
+    basic = laps.compression * fy * db if low else (a * fy - b) * db
+    formula = f"{laps.compression:g} fy db" if low else f"({a:g} fy - {b:g}) db"
+    if fc < laps.lowFc:
+        basic *= laps.lowFcFactor
+        formula += f" × {_fraction(laps.lowFcFactor)} (f'c < {laps.lowFc:g} MPa)"
+    if factor != 1.0:
+        formula += f" × {factor:g}"
+    return Rule(
+        max(basic * factor, laps.min),
+        formula + f", at least {laps.min:g} mm",
+        _cite("barLapCompression"),
+    )
+
+
+def _fraction(value: float) -> str:
+    """``value`` as a short fraction when it is one (4/3), else as a number."""
+    from fractions import Fraction
+
+    f = Fraction(value).limit_denominator(12)
+    if f.denominator != 1 and abs(float(f) - value) < 1e-12:
+        return f"{f.numerator}/{f.denominator}"
+    return f"{value:g}"
+
+
+def column_lap(
+    db: float,
+    fy: float,
+    fc: float,
+    *,
+    stress: str = "tension",
+    spliced_share: float = 1.0,
+    factor: float = 1.0,
+    **development: Any,
+) -> Rule:
+    """Lap of column bars (8.2.15.2, p 1085): ``stress`` "compression" (the bars are in
+    compression under every factored combination): a compression lap (a), × ``factor`` (0.83 or
+    0.75, (d), (e)); "low" (tension not over 0.5 fy): class B when more than half the bars are
+    spliced at a section, class A when half or fewer and staggered by ld (b); "tension" (above
+    0.5 fy, and the laps of special moment frames, 8.3.5.3(b)): class B (c)."""
+    if _development_factors() is not None:
+        # Alpha 9 C18c: the pack's laps with their own clauses (AS 3600 13.2 type): every
+        # column bar lapped by the tension lap unless in compression throughout.
+        if stress == "compression":
+            return lap_compression(db, fy, fc)
+        return lap_tension(db, fy, fc, **development)
+    if stress == "compression":
+        rule = lap_compression(db, fy, fc, factor=factor)
+        if _bar_shapes() is not None and _bond_stress():  # Alpha 9 C5c: its own clause
+            return rule
+        return Rule(rule.value, rule.formula, _cite("barLapColumnCompression"))
+    shapes = _bar_shapes()
+    if shapes is not None and _bond_stress():
+        # Alpha 9 C5c: a column's tension lap by the pack's laps, α6 of the share lapped at one
+        # section (all of them by the pack's practice value).
+        from saengine.design import bar_rules as rules_of_bars
+
+        found = rules_of_bars.lap_length(db, fc, fy, max(spliced_share, shapes.columnLapShare))
+        return Rule(
+            found["l0"],
+            f"l0 = α1 α2 α6 lb,rqd, α6 = {found['alpha6']:g}, lb,rqd = {found['lbrqd']:.0f} mm, "
+            f"at least {found['l0min']:.0f} mm",
+            _shapes_cite("laps"),
+        )
+    cls = "A" if stress == "low" and spliced_share <= 0.5 else "B"
+    rule = lap_tension(db, fy, fc, cls=cls, **development)
+    return Rule(
+        rule.value,
+        rule.formula,
+        _cite("barLapColumnLow" if stress == "low" else "barLapColumnHigh"),
+    )
+
+
+def spiral_lap(db: float, plain: bool = False) -> Rule:
+    """Lap of a spiral (8.1.9.3(e), p 1073): 48 db for deformed uncoated bars, 72 db for others,
+    at least 300 mm."""
+    laps = bar_rules().laps
+    k = laps.spiralOther if plain else laps.spiralDeformed
+    return Rule(max(k * db, laps.min), f"{k:g} db, at least {laps.min:g} mm", _cite("barSpiralLap"))
+
+
+# ────────────────────────────────────────── curtailment ──────────────────────────────────────────
+
+
+def extension_beyond_cutoff(d: float, db: float) -> Rule:
+    """Bars extend beyond the point where they are no longer needed by max(d, 12 db), except at
+    the supports of simple spans and the free ends of cantilevers (8.2.7.3, p 1080)."""
+    k = bar_rules().extents.cutoffDb
+    return Rule(max(d, k * db), f"max(d, {k:g} db)", _cite("barExtensionBeyondCutoff"))
+
+
+def negative_extension(d: float, db: float, ln: float) -> Rule:
+    """At least 1/3 of the negative steel at a support extends beyond the point of inflection by
+    max(d, ln/16, 12 db) (8.2.9.3, p 1081)."""
+    ext = bar_rules().extents
+    k, n = ext.cutoffDb, ext.negativeSpan
+    return Rule(
+        max(d, ln / n, k * db), f"max(d, ln/{n:g}, {k:g} db)", _cite("barNegativeExtension")
+    )
+
+
+def positive_into_support(count: int, continuous: bool) -> int:
+    """Bars of the positive steel that extend along the same face into the support, at least
+    150 mm in beams: 1/3 in simple members, 1/4 in continuous ones (8.2.8.1, p 1080)."""
+    ext = bar_rules().extents
+    share = ext.positiveContinuous if continuous else ext.positiveSimple
+    return max(1, math.ceil(count / share - 1e-9))
+
+
+def continuous_top_bars(count: int, required_share: float = 0.0) -> int:
+    """Top bars made continuous along a beam: at least two (8.3.4.2(a), p 1091; 8.1.12.2(b)),
+    at least 1/3 of them (so the 1/3 of 8.2.9.3 runs past every point of inflection), and at
+    least ``required_share`` of them (the share the design needs at mid-span)."""
+    return min(count, max(2, math.ceil(count / 3 - 1e-9), math.ceil(count * required_share - 1e-9)))
+
+
+def uniform_moment(x: float, ln: float, w: float, m_left: float, m_right: float) -> float:
+    """Moment [N·mm] at ``x`` [mm] from the left face of a span ``ln`` under a uniform load ``w``
+    [N/mm] with hogging end moments ``m_left``, ``m_right`` (magnitudes, N·mm); sagging
+    positive: w x (ln - x)/2 - mL (1 - x/ln) - mR x/ln."""
+    return w * x * (ln - x) / 2 - m_left * (1 - x / ln) - m_right * x / ln
+
+
+def _roots(ln: float, w: float, m_left: float, m_right: float, level: float) -> list[float]:
+    """The x in [0, ln] where :func:`uniform_moment` equals ``level``, ascending."""
+    # -w/2 x² + (w ln/2 + (mL - mR)/ln) x - mL - level = 0
+    a = -w / 2
+    b = w * ln / 2 + (m_left - m_right) / ln
+    c = -m_left - level
+    if abs(a) < 1e-12:
+        return [x for x in ([-c / b] if abs(b) > 1e-12 else []) if 0 <= x <= ln]
+    disc = b * b - 4 * a * c
+    if disc < 0:
+        return []
+    r = math.sqrt(disc)
+    xs = sorted(((-b - r) / (2 * a), (-b + r) / (2 * a)))
+    return [x for x in xs if -1e-9 <= x <= ln + 1e-9]
+
+
+def inflection_points(
+    ln: float, w: float, m_left: float, m_right: float
+) -> tuple[float | None, float | None]:
+    """Points of inflection [mm from the left face] of :func:`uniform_moment`: (left, right);
+    None where the moment does not change sign on that side."""
+    xs = _roots(ln, w, m_left, m_right, 0.0)
+    left = xs[0] if xs and m_left > 0 else None
+    right = xs[-1] if xs and m_right > 0 else None
+    return left, right
+
+
+def beam_cutoffs(
+    ln: float,
+    w: float,
+    m_left: float,
+    m_right: float,
+    *,
+    share: float,
+    d: float,
+    db: float,
+    ld: float,
+) -> dict[str, Any]:
+    """The general rule for the top bars of a uniformly loaded span (8.2.7.3, 8.2.7.4, 8.2.9.3):
+    the continuing bars (``share`` of the support steel, taken to carry that share of the
+    support moment) leave the extra bars unneeded where the hogging moment has dropped to that
+    share; the extra bars end max(d, 12 db) beyond that point and at least ``ld`` from the face;
+    the continuing bars run at least max(d, ln/16, 12 db) past the point of inflection. Returns
+    per side ``{"inflection", "notNeeded", "extra", "continuing"}`` [mm from that side's face]
+    (None where there is no hogging)."""
+    beyond = extension_beyond_cutoff(d, db).value
+    out: dict[str, Any] = {}
+    left_pi, right_pi = inflection_points(ln, w, m_left, m_right)
+    for side, moment, pi in (("left", m_left, left_pi), ("right", m_right, right_pi)):
+        if moment <= 0 or pi is None:
+            out[side] = None
+            continue
+        level = -share * moment
+        xs = _roots(ln, w, m_left, m_right, level)
+        if side == "left":
+            point = xs[0] if xs else 0.0
+            pi_from = pi
+        else:
+            point = ln - xs[-1] if xs else 0.0
+            pi_from = ln - pi
+        out[side] = {
+            "inflection": pi_from,
+            "notNeeded": point,
+            "extra": max(point + beyond, ld),
+            "continuing": pi_from + negative_extension(d, db, ln).value,
+        }
+    return out
+
+
+def standard_top_extent(ln: float, ld: float, fraction: float = BEAM_TOP_EXTENT) -> Rule:
+    """Extra top bars of a beam over a support, from the face: ``fraction`` ln (practice, 0.30
+    ln), at least ld (8.2.7.4, 8.2.9.2)."""
+    value = max(fraction * ln, ld)
+    return Rule(
+        value,
+        f"max({fraction:g} ln, ld) = max({fraction * ln:.0f}, {ld:.0f})",
+        f"practice (not in the code); ld: {_cite('barTopDevelopment')}",
+    )
+
+
+def slab_top_extent(ln: float, fraction: float | None = None) -> Rule:
+    """Top bars of a slab at a support, from the face: the code pack's share of ln (0.30 ln in
+    the default pack, Figure 6.6.20, p 948; ln the longer clear span at a support between unequal
+    spans, 6.5.3.8.2) unless ``fraction`` is given."""
+    if fraction is None:
+        fraction = bar_rules().extents.slabTopExtent
+    return Rule(fraction * ln, f"{fraction:g} ln", _cite("barSlabTopExtent"))
+
+
+def seismic_splice_exclusion(h: float) -> Rule:
+    """No laps in beams of special moment frames within the joint or within 2 h of its faces
+    (8.3.4.2(b), p 1091)."""
+    k = bar_rules().splices.beamExclusionDepths
+    return Rule(k * h, f"{k:g} h", _cite("barSpliceExclusion"))
+
+
+def column_splice_region(clear_height: float) -> tuple[float, float]:
+    """Laps of special-frame columns only within the centre half of the clear height: (from,
+    to) above the floor [mm] (8.3.5.3(b), p 1096; Figure 6.8.7, p 1097)."""
+    lo, hi = bar_rules().splices.columnRegion
+    return clear_height * lo, clear_height * hi
+
+
+# ──────────────────────────────────────────── shapes ────────────────────────────────────────────
+
+
+def _bar(
+    role: str,
+    letter: str,
+    dia: float,
+    shape: str,
+    count: int,
+    dims: dict[str, float],
+    length: float,
+    at: dict[str, Any],
+    *,
+    bend: float,
+    grade: str | None,
+    **extra: Any,
+) -> dict[str, Any]:
+    clean = {k: round(float(v), 1) for k, v in dims.items()}
+    bar = {
+        "mark": None,
+        "role": role,
+        "dia": float(dia),
+        "grade": grade,
+        "shape": shape,
+        "count": int(count),
+        "dims": clean,
+        "segments": [clean[k] for k in sorted(clean) if k in "ABCDE"],
+        "bendDia": round(bend, 1),
+        "length": round(length, 1),
+        "at": at,
+        "_letter": letter,
+    }
+    for key, value in extra.items():
+        if value is not None:
+            bar[key] = value
+    return bar
+
+
+def straight_length(a: float) -> float:
+    return a
+
+
+def l_length(a: float, b: float, db: float, bend_dia: float) -> float:
+    """Centreline length of an L bar of outside dimensions A, B with one 90° bend."""
+    r = bend_dia / 2
+    return a + b - 2 * (r + db) + math.pi / 2 * (r + db / 2)
+
+
+def u_length(a: float, b: float, c: float, db: float, bend_dia: float) -> float:
+    """Centreline length of a U bar of outside dimensions A, B, C with two 90° bends."""
+    r = bend_dia / 2
+    return a + b + c - 4 * (r + db) + math.pi * (r + db / 2)
+
+
+def stirrup_length(a: float, b: float, db: float, hook: Hook) -> float:
+    """Centreline length of a closed stirrup or tie of outside dimensions A x B with two 135°
+    hooks at one corner: 2 (a' + b') - 8 R + 3 π R + 2 tails, a' = A - db, b' = B - db, R the
+    centreline bend radius (three 90° corners and two 135° hook bends)."""
+    big_r = hook.bend_dia / 2 + db / 2
+    return 2 * ((a - db) + (b - db)) - 8 * big_r + 3 * math.pi * big_r + 2 * hook.tail
+
+
+def crosstie_length(a: float, db: float, hook135: Hook, hook90: Hook) -> float:
+    """Centreline length of a cross tie over an outside width A: a 135° hook at one end, 90° at
+    the other (8.1.1.1)."""
+    r = hook135.bend_dia / 2
+    return a - 2 * (r + db) + hook135.arc + hook90.arc + hook135.tail + hook90.tail
+
+
+# ────────────────────────────────────────── transverse ──────────────────────────────────────────
+
+
+def space(
+    start: float,
+    end: float,
+    default: float,
+    zones: list[tuple[float, float, float, str]],
+    first: float,
+) -> list[dict[str, Any]]:
+    """Hoops or stirrups from ``start + first`` to ``end - first``: ``zones`` (from, to, spacing,
+    name) set a closer spacing where they cover (the closest wins), ``default`` elsewhere
+    ("middle"). Rows ``{"from", "to", "spacing", "count", "zone"}``: the first row counts the
+    first hoop too, so the counts add up to the hoops placed."""
+    a0, a1 = start + first, end - first
+    if a1 <= a0 + 1e-6:
+        return [{"from": round(a0, 1), "to": round(a0, 1), "spacing": default, "count": 1,
+                 "zone": "middle"}]  # fmt: skip
+    cuts = {a0, a1}
+    for z0, z1, _, _ in zones:
+        for c in (z0, z1):
+            if a0 < c < a1:
+                cuts.add(c)
+    points = sorted(cuts)
+    pieces: list[list[Any]] = []
+    for p0, p1 in itertools.pairwise(points):
+        mid = (p0 + p1) / 2
+        cover = [z for z in zones if z[0] - 1e-6 <= mid <= z[1] + 1e-6]
+        if cover:
+            best = min(cover, key=lambda z: (z[2], z[3]))
+            s, name = best[2], best[3]
+        else:
+            s, name = default, "middle"
+        if pieces and pieces[-1][2] == s and pieces[-1][3] == name:
+            pieces[-1][1] = p1
+        else:
+            pieces.append([p0, p1, s, name])
+    rows = []
+    for k, (p0, p1, s, name) in enumerate(pieces):
+        n = max(1, math.ceil((p1 - p0) / s - 1e-9))
+        rows.append(
+            {
+                "from": round(p0, 1),
+                "to": round(p1, 1),
+                "spacing": float(s),
+                "count": n + (1 if k == 0 else 0),
+                "zone": name,
+            }
+        )
+    return rows
+
+
+def split_run(
+    s0: float,
+    s1: float,
+    lap: float,
+    windows: list[tuple[float, float]],
+    stock: float = STOCK_LENGTH,
+    extra: tuple[float, float] = (0.0, 0.0),
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]], bool]:
+    """Pieces [(from, to)] of a bar running ``s0`` to ``s1`` no longer than ``stock`` (with
+    ``extra`` [mm] of hooks at the two ends), lapped by ``lap`` wholly inside one of
+    ``windows`` [(from, to)]: each lap as far along as the stock length reaches. Returns
+    (pieces, laps, ok); ok False when a piece is left longer than the stock length (no window
+    in reach)."""
+    # the lap furthest along each time leaves the most reach for the next one: greedy is best
+    pieces: list[tuple[float, float]] = []
+    laps: list[tuple[float, float]] = []
+    a, head = s0, extra[0]
+    while True:
+        if s1 - a + head + extra[1] <= stock + 1e-6:
+            pieces.append((a, s1))
+            return pieces, laps, True
+        reach = a + stock - head
+        best: tuple[float, float] | None = None
+        for w0, w1 in windows:
+            hi = min(w1, reach, s1 - 1.0)
+            lo = max(w0, a + 1.0)
+            if hi - lap >= lo and (best is None or hi > best[1]):
+                best = (hi - lap, hi)
+        if best is None:
+            pieces.append((a, s1))
+            return pieces, laps, False
+        pieces.append((a, best[1]))
+        laps.append(best)
+        a, head = best[0], 0.0
+
+
+# ─────────────────────────────────────────── the model ───────────────────────────────────────────
+
+
+@dataclass
+class _Ctx:
+    building: Any
+    types: dict[str, Any]
+    materials: Any
+    settings: Any
+    substructure: Any
+    report: dict[str, dict[str, Any]]
+    required: dict[str, dict[str, Any]]
+    frames: dict[str, tuple[str, bool]]
+    wall_level: str | None
+    options: dict[str, Any]
+    notes: list[str] = field(default_factory=list)
+    joints: list[Any] = field(default_factory=list)
+    lintels: list[dict[str, Any]] | None = None  # designed here when no report was given
+    # T33: {joint id: {beam id: drop mm}} of the top bars in the second layer at the joints
+    # (saengine.design.rc_detailing.joint_top_layers)
+    top_layers: dict[str, dict[str, float]] = field(default_factory=dict)
+    # {joint id: {beam id: rise mm}} of the bottom bars a main bar diameter higher at the
+    # joints (saengine.design.rc_detailing.joint_bottom_layers)
+    bottom_layers: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    def fc(self, material_id: str) -> float:
+        m = self.materials.get(material_id) if self.materials is not None else None
+        conc = getattr(m, "concrete", None)
+        return float(conc.fc) if conc is not None else 25.0
+
+    def fy(self, material_id: str) -> float:
+        m = self.materials.get(material_id) if self.materials is not None else None
+        steel = getattr(m, "steel", None)
+        return float(steel.fy) if steel is not None else 420.0
+
+    def grade(self, material_id: str) -> str:
+        m = self.materials.get(material_id) if self.materials is not None else None
+        steel = getattr(m, "steel", None)
+        return str(getattr(steel, "grade", None) or material_id)
+
+    @property
+    def step(self) -> float:
+        return float(self.options["round"])
+
+    @property
+    def stock(self) -> float:
+        return float(self.options["stockLength"])
+
+    def _form(self, db: float, cb: float | None) -> dict[str, Any]:
+        """The development-length form of the options: "simplified" (8.2.3.2) or "general"
+        (Eq. 6.8.1 with Ktr = 0, which 8.2.3.3 permits; ``cb`` the smaller of the cover to the
+        bar's centre and half the bars' centre spacing, db when not known: conservative)."""
+        if self.options.get("method") == "general":
+            return {"method": "general", "cb": float(cb) if cb else db, "k_tr": 0.0}
+        return {"method": "simplified"}
+
+    def ld(
+        self,
+        db: float,
+        fy: float,
+        fc: float,
+        top: bool = False,
+        minimum: bool = True,
+        cb: float | None = None,
+    ) -> float:
+        if _bond_stress():
+            # Alpha 9 C5b: the pack's anchorage method (lbd = α1 α2 lb,rqd, top bars in poor
+            # bond, cd the cover to the bar or half the clear spacing; bar_rules).
+            from saengine.design import bar_rules
+
+            cd = None if cb is None else max(cb - db / 2, 0.0)
+            found = bar_rules.anchorage_length(db, fc, fy, good_bond=not top, cd=cd)
+            return up(found["lbd"], self.step) if minimum else found["lbd"]
+        return development_tension(db, fy, fc, top=top, minimum=minimum, **self._form(db, cb)).value
+
+    def lap(
+        self,
+        db: float,
+        fy: float,
+        fc: float,
+        top: bool = False,
+        factor: float = 1.0,
+        cb: float | None = None,
+    ) -> float:
+        if _bond_stress():
+            # Alpha 9 C5b: the pack's laps (l0 = α1 α2 α6 lb,rqd, all bars lapped at one
+            # section: α6 of 100 %, on the safe side; bar_rules).
+            from saengine.design import bar_rules
+
+            cd = None if cb is None else max(cb - db / 2, 0.0)
+            found = bar_rules.lap_length(db, fc, fy, 1.0, good_bond=not top, cd=cd)
+            return up(found["l0"] * factor, self.step)
+        rule = lap_tension(db, fy, fc, cls="B", top=top, factor=factor, **self._form(db, cb))
+        return up(rule.value, self.step)
+
+    @property
+    def method_text(self) -> str:
+        factored = _development_factors()
+        if factored is not None:  # Alpha 9 C18c
+            return factored.method_text()
+        if _bond_stress():  # Alpha 9 C5b
+            from saengine.codes import context as code_context
+
+            return "lbd = α1 α2 lb,rqd and l0 = α1 α2 α6 lb,rqd from fbd ({})".format(
+                code_context.cite("concreteMethods", "anchorage")
+            )
+        if self.options.get("method") == "general":
+            return "the general form of 8.2.3.3 (Eq. 6.8.1, Ktr = 0)"
+        return "the simplified form of 8.2.3.2"
+
+
+def _bond_stress() -> bool:
+    """Alpha 9 C5b: True when the pack in force gives anchorage and laps by the design bond
+    stress (:mod:`saengine.design.method_selection`, area ``anchorage``)."""
+    from saengine.design import method_selection
+
+    return method_selection.uses("anchorage", "bondStress")
+
+
+def _cb(cover_to_bar: float, db: float, spacing: float | None) -> float:
+    """cb of Eq. 6.8.1 (8.2.3.3, p 1077): the smaller of the cover to the bar's centre and half
+    the bars' centre-to-centre spacing [mm]."""
+    side = cover_to_bar + db / 2
+    return min(side, spacing / 2) if spacing and spacing > 0 else side
+
+
+def _check(name: str, required: float, provided: float, clause: str, unit: str = "mm") -> dict:
+    return {
+        "name": name,
+        "required": round(float(required), 1),
+        "provided": round(float(provided), 1),
+        "unit": unit,
+        "ok": bool(provided + 1e-6 >= required),
+        "clause": clause,
+    }
+
+
+def _story_at(building: Any, level: float) -> str | None:
+    best = None
+    for s in building.stories:
+        if abs(s.elevation - level) <= TOL:
+            best = s.id
+    return best
+
+
+def _point(origin: np.ndarray, u: np.ndarray, s: float, z: float) -> list[float]:
+    p = origin + u * s
+    return [round(float(p[0]), 1), round(float(p[1]), 1), round(float(z), 1)]
+
+
+def _frame_of(ctx: _Ctx, element_id: str) -> tuple[str | None, bool]:
+    entry = ctx.report.get(element_id)
+    info = (entry or {}).get("detailing") or {}
+    if info.get("frameType"):
+        return str(info["frameType"]), info.get("role", "lateral") == "lateral"
+    found = ctx.frames.get(element_id)
+    if found:
+        return found
+    return None, False
+
+
+_LEVELS = {"special": 3, "intermediate": 2, "ordinary": 1, None: 0}
+
+
+def _report_notes(ctx: _Ctx, element_id: str) -> list[str]:
+    entry = ctx.report.get(element_id)
+    if entry and entry.get("ok") is False:
+        return [
+            (
+                f"the design check of {element_id} fails (utilisation "
+                f"{float(entry.get('utilisation') or 0):.2f}): detailed as entered"
+            )
+        ]
+    return []
+
+
+# ─────────────────────────────────────────── beams ───────────────────────────────────────────
+
+
+@dataclass
+class _Support:
+    s: float  # along the line from its origin [mm]
+    width: float  # c1, along the line
+    kind: str  # column | wall | beam
+    ref: str
+    cover: float = 40.0  # to the support's outer bars (its cover + ties)
+
+
+def _precast_piece(t: Any) -> Any | None:
+    """The type's precast piece when it is a precast beam (W4C-16), else None."""
+    piece = getattr(t, "precast", None)
+    return piece if piece is not None and getattr(piece, "element", None) == "beam" else None
+
+
+def _precast_beam(ctx: _Ctx, element: dict[str, Any], line: dict[str, Any]) -> None:
+    """W4C-16: a precast beam takes its bars from its precast piece
+    (:func:`saengine.design.precast.piece_bars`, the piece's own bar list): straight bars over
+    the piece less the end covers, no continuity, laps or anchorage into the supports across
+    the joints; its stirrups (and cross ties) keep their detailed shape, spaced over the piece.
+    The piece (the type's length, else the member's) is centred on the member."""
+    from saengine.design.precast import piece_bars
+
+    t = ctx.types[line["type"]]
+    r = t.reinforcement
+    if r is None or not element["bars"]:
+        return
+    length = float(t.precast.length or line["length"])
+    s0 = (float(line["length"]) - length) / 2
+    at = element.get("at") or {}
+    elev = float(at.get("elevation", line["elevation"]))
+    h = float(at.get("depth", getattr(t.profile, "yDim", 0.0)))
+    tdia = float(r.transverse.dia) if r.transverse else 0.0
+    inset = float(r.cover) + tdia
+    drop = float(at.get("topDrop") or 0.0)
+    rise = float(at.get("bottomRise") or 0.0)
+    origin, u = line["origin"], line["u"]
+    grade = ctx.grade(r.material)
+    kept = [b for b in element["bars"] if b["role"] in ("stirrup", "crosstie")]
+    stirrup = next((b for b in kept if b["role"] == "stirrup"), None)
+    old = int(stirrup["count"]) if stirrup is not None else 0
+    bars: list[dict[str, Any]] = []
+    letters = {"top": ("top", "T"), "bottom": ("bottom", "B"), "sides": ("side", "F")}
+    for row in piece_bars(t, length):
+        if row["where"] == "links":
+            if stirrup is not None:
+                rows = [
+                    {**x, "from": round(x["from"] + s0, 1), "to": round(x["to"] + s0, 1)}
+                    for x in row["rows"]
+                ]
+                for x in rows:
+                    x["_bar"] = stirrup
+                element["transverse"] = rows
+                for b in kept:
+                    share = int(b["count"]) / old if old else 1.0
+                    b["count"] = round(int(row["count"]) * share)
+            continue
+        role, letter = letters.get(row["where"], ("side", "F"))
+        db = float(row["dia"])
+        if role == "top":
+            z = elev - inset - db / 2 - drop
+        elif role == "bottom":
+            z = elev - h + inset + db / 2 + rise
+        else:
+            z = elev - h / 2
+        p0, p1 = s0 + float(row["from"]), s0 + float(row["to"])
+        bars.append(
+            _bar(
+                role,
+                letter,
+                db,
+                "straight",
+                int(row["count"]),
+                {"A": float(row["length"])},
+                float(row["length"]),
+                {
+                    "from": round(p0, 1),
+                    "to": round(p1, 1),
+                    "face": role,
+                    "layer": 2 if (role == "top" and drop) or (role == "bottom" and rise) else 1,
+                    "members": list(line["members"]),
+                    "start": _point(origin, u, p0, z),
+                    "end": _point(origin, u, p1, z),
+                    "hooks": [None, None],
+                },
+                bend=bend_diameter(db).value,
+                grade=grade,
+                remarks="precast piece: straight, no continuity across the joints",
+            )
+        )
+    element["bars"] = bars + kept
+    element["laps"] = []
+    element["precast"] = {"length": round(length, 1), "from": round(s0, 1)}
+    element["notes"].append(
+        f"precast piece {length:.0f} mm long: its bars are the piece's (straight, the cover "
+        "short of its ends, no continuity or laps across the joints); the connections to the "
+        "supports are the precast connections' (dowels, bearing)"
+    )
+    if abs(length - float(line["length"])) > 1.0:
+        element["notes"].append(
+            f"the precast piece ({length:.0f} mm) is not the member's length "
+            f"({float(line['length']):.0f} mm): see the precast checks (fit on the bay)"
+        )
+
+
+def _beam_lines(ctx: _Ctx) -> list[dict[str, Any]]:
+    """Collinear beams of one type and elevation that meet end to end, as continuous lines."""
+    from saengine.library.bim import BeamElement
+    from saengine.library.objects import RectangleProfile
+
+    beams = [e for e in ctx.building.elements if isinstance(e, BeamElement)]
+    groups: dict[tuple[str, int], list[Any]] = {}
+    for b in beams:
+        t = ctx.types.get(b.type)
+        if t is None or getattr(t, "kind", None) != "beam":
+            continue
+        if not isinstance(t.profile, RectangleProfile):
+            ctx.notes.append(f"{b.id}: beams of {t.profile.shape} profiles are not detailed")
+            continue
+        if math.dist(b.start, b.end) <= 1:
+            continue
+        groups.setdefault((b.type, round(b.elevation)), []).append(b)
+    lines: list[dict[str, Any]] = []
+    for (_type_id, _level), members in sorted(groups.items()):
+        members = sorted(members, key=lambda e: e.id)
+
+        def ends(e: Any) -> tuple[np.ndarray, np.ndarray]:
+            return np.asarray(e.start, float), np.asarray(e.end, float)
+
+        def collinear(a: Any, b: Any) -> bool:
+            a0, a1 = ends(a)
+            u = (a1 - a0) / np.linalg.norm(a1 - a0)
+            for p in ends(b):
+                v = p - a0
+                if abs(v[0] * u[1] - v[1] * u[0]) > 1.0:
+                    return False
+            return True
+
+        def touch(a: Any, b: Any) -> bool:
+            return any(np.linalg.norm(p - q) <= 1.0 for p in ends(a) for q in ends(b))
+
+        links: dict[str, list[str]] = {m.id: [] for m in members}
+        by_id = {m.id: m for m in members}
+        # W4C-16: precast beams are pieces jointed at the supports: no line runs on
+        joined = _precast_piece(ctx.types.get(_type_id)) is None
+        for i, a in enumerate(members):
+            for b in members[i + 1 :]:
+                if joined and touch(a, b) and collinear(a, b):
+                    links[a.id].append(b.id)
+                    links[b.id].append(a.id)
+        seen: set[str] = set()
+        for m in members:
+            if m.id in seen:
+                continue
+            # walk to one end of the chain, then along it
+            chain = [m.id]
+            seen.add(m.id)
+            for direction in (0, 1):
+                current = m.id
+                while True:
+                    nxt = [n for n in links[current] if n not in seen]
+                    if not nxt:
+                        break
+                    current = nxt[0]
+                    seen.add(current)
+                    if direction == 0:
+                        chain.insert(0, current)
+                    else:
+                        chain.append(current)
+            pts = np.array([p for mid in chain for p in ends(by_id[mid])])
+            first = ends(by_id[chain[0]])
+            u = first[1] - first[0]
+            u = u / np.linalg.norm(u)
+            if u[0] < -1e-9 or (abs(u[0]) <= 1e-9 and u[1] < 0):
+                u = -u
+            ss = pts @ u
+            origin = pts[int(np.argmin(ss))]
+            length = float(ss.max() - ss.min())
+            spans = []
+            for mid in chain:
+                a, b = ends(by_id[mid])
+                sa, sb = float((a - origin) @ u), float((b - origin) @ u)
+                spans.append((min(sa, sb), max(sa, sb), mid))
+            spans.sort()
+            lines.append(
+                {
+                    "members": [s[2] for s in spans],
+                    "type": by_id[chain[0]].type,
+                    "elevation": float(by_id[chain[0]].elevation),
+                    "origin": origin,
+                    "u": u,
+                    "length": length,
+                    "pieces": spans,
+                }
+            )
+    return lines
+
+
+def _line_supports(ctx: _Ctx, line: dict[str, Any]) -> list[_Support]:
+    from saengine.design.ductile_joints import column_frame
+    from saengine.design.rc import DesignError
+    from saengine.library.bim import BeamElement, ColumnElement, WallElement
+
+    origin, u, elevation = line["origin"], line["u"], line["elevation"]
+    found: list[_Support] = []
+    columns = {e.id: e for e in ctx.building.elements if isinstance(e, ColumnElement)}
+    members = set(line["members"])
+    for joint in ctx.joints:
+        if not any(b.id in members for b in joint.beams) or abs(joint.level - elevation) > TOL:
+            continue
+        column = columns.get(joint.below)
+        t = ctx.types.get(column.type) if column else None
+        if t is None:
+            continue
+        try:
+            frame = column_frame(t.profile, float(column.rotation or 0.0), u)
+        except DesignError:
+            continue
+        s = float((np.asarray(joint.position, float) - origin) @ u)
+        reinforcement = getattr(t, "reinforcement", None)
+        cover = 40.0
+        if reinforcement is not None:
+            tie = reinforcement.transverse
+            cover = reinforcement.cover + (tie.dia if tie else 0.0)
+        found.append(_Support(s, frame.along, "column", column.id, cover))
+    normal = np.array([-u[1], u[0]])
+    for e in ctx.building.elements:
+        if isinstance(e, WallElement) and e.bottom - TOL < elevation <= e.top + TOL:
+            t = ctx.types.get(e.type)
+            a, b = np.asarray(e.start, float), np.asarray(e.end, float)
+            w = b - a
+            wl = float(np.linalg.norm(w))
+            if t is None or wl <= 0 or abs(float(w / wl @ u)) > 0.5:
+                continue  # a wall along the beam is not a support of it
+            s_hit = _cross(origin, u, a, b)
+            if s_hit is None or not (-TOL <= s_hit <= line["length"] + TOL):
+                continue
+            cover = float(t.reinforcement.cover) if getattr(t, "reinforcement", None) else 25.0
+            found.append(_Support(s_hit, float(t.thickness), "wall", e.id, cover))
+        elif isinstance(e, BeamElement) and e.id not in members:
+            if abs(e.elevation - elevation) > TOL:
+                continue
+            t = ctx.types.get(e.type)
+            a, b = np.asarray(e.start, float), np.asarray(e.end, float)
+            w = b - a
+            wl = float(np.linalg.norm(w))
+            if t is None or wl <= 0 or abs(float(w / wl @ u)) > 0.5:
+                continue
+            s_hit = _cross(origin, u, a, b)
+            if s_hit is None:
+                continue
+            # only where this line ends on the other beam (a secondary beam on a girder)
+            if min(abs(s_hit), abs(s_hit - line["length"])) > TOL:
+                continue
+            width = float(getattr(t.profile, "xDim", 0.0) or 0.0)
+            cover = 40.0
+            if getattr(t, "reinforcement", None):
+                tr = t.reinforcement.transverse
+                cover = t.reinforcement.cover + (tr.dia if tr else 0.0)
+            found.append(_Support(s_hit, width, "beam", e.id, cover))
+        _ = normal
+    found.sort(key=lambda x: x.s)
+    merged: list[_Support] = []
+    for sup in found:
+        if merged and abs(sup.s - merged[-1].s) <= TOL:
+            if sup.width > merged[-1].width:
+                merged[-1] = sup
+            continue
+        merged.append(sup)
+    return merged
+
+
+def _cross(origin: np.ndarray, u: np.ndarray, a: np.ndarray, b: np.ndarray) -> float | None:
+    """Where the line origin + s u crosses the segment a-b (within TOL beyond its ends): s."""
+    w = b - a
+    den = u[0] * (-w[1]) - u[1] * (-w[0])
+    if abs(den) < 1e-9:
+        return None
+    rhs = a - origin
+    s = (rhs[0] * (-w[1]) - rhs[1] * (-w[0])) / den
+    t = (u[0] * rhs[1] - u[1] * rhs[0]) / den
+    wl = float(np.linalg.norm(w))
+    if t * wl < -TOL or t * wl > wl + TOL:
+        return None
+    return float(s)
+
+
+def _groups(reinforcement: Any, position: str) -> list[tuple[int, float]]:
+    return [(g.count, float(g.dia)) for g in reinforcement.longitudinal if g.position == position]
+
+
+def _beam_required_share(ctx: _Ctx, members: list[str], area_top: float) -> float:
+    """The share of the top bars the design requires at mid-span (``required`` rows)."""
+    share = 0.0
+    for mid in members:
+        for row in ctx.required.get(mid, {}).get("rows", []):
+            if row.get("location") == "middle" and str(row.get("quantity", "")).startswith("top"):
+                need = float(row.get("required") or 0.0)
+                if area_top > 0:
+                    share = max(share, need / area_top)
+    return share
+
+
+def _detail_beam_line(ctx: _Ctx, line: dict[str, Any]) -> dict[str, Any]:
+    from saengine.design import ductile_members as dm
+    from saengine.design.rc import bar_area
+
+    t = ctx.types[line["type"]]
+    element: dict[str, Any] = {
+        "id": "+".join(line["members"]),
+        "kind": "beam",
+        "type": t.id,
+        "member": " + ".join(line["members"]),
+        "members": line["members"],
+        "story": _story_at(ctx.building, line["elevation"]),
+        "count": 1,
+        "bars": [],
+        "transverse": [],
+        "laps": [],
+        "checks": [],
+        "notes": [],
+    }
+    for mid in line["members"]:
+        element["notes"] += _report_notes(ctx, mid)
+    r = t.reinforcement
+    if r is None or not r.longitudinal:
+        element["notes"].append(f"{t.id} has no reinforcement: not detailed")
+        return element
+    b, h = float(t.profile.xDim), float(t.profile.yDim)
+    fc, fy = ctx.fc(t.material), ctx.fy(r.material)
+    grade = ctx.grade(r.material)
+    tr = r.transverse
+    tdia = float(tr.dia) if tr else 0.0
+    inset = float(r.cover) + tdia
+    origin, u, elev = line["origin"], line["u"], line["elevation"]
+    length = line["length"]
+    step = ctx.step
+    # T33: the line's top bars in the second layer, under the crossing beams' at its joints
+    # (the design took the same drop for its hogging d: saengine.design.rc_detailing)
+    members_set = set(line["members"])
+    second = {
+        joint.below: drop
+        for joint in ctx.joints
+        if abs(joint.level - elev) <= TOL
+        for beam_id, drop in ctx.top_layers.get(joint.id, {}).items()
+        if beam_id in members_set
+    }
+    top_drop = max(second.values(), default=0.0)
+    # The mirror at the bottom (owner decision 2026-11-11): the line's bottom bars a main bar
+    # diameter higher, over the crossing beams' at its joints (the design's sagging d allows it)
+    raised = {
+        joint.below: rise
+        for joint in ctx.joints
+        if abs(joint.level - elev) <= TOL
+        for beam_id, rise in ctx.bottom_layers.get(joint.id, {}).items()
+        if beam_id in members_set
+    }
+    bottom_rise = max(raised.values(), default=0.0)
+    level, lateral = None, False
+    for mid in line["members"]:
+        lv, lat = _frame_of(ctx, mid)
+        if _LEVELS[lv] > _LEVELS[level]:
+            level = lv
+        lateral = lateral or lat
+    special = level == "special"
+    supports = _line_supports(ctx, line)
+    if not supports:
+        element["notes"].append("no supports found along the beam: detailed as free at both ends")
+    # an end is supported when the line ends within the support's width (a column centre need
+    # not be at the beam's end)
+    start_free = not supports or supports[0].s - supports[0].width / 2 > TOL
+    end_free = not supports or supports[-1].s + supports[-1].width / 2 < length - TOL
+    # clear spans between consecutive supports: (face_left, face_right)
+    spans: list[tuple[float, float]] = []
+    for s1, s2 in itertools.pairwise(supports):
+        spans.append((s1.s + s1.width / 2, s2.s - s2.width / 2))
+    if start_free and supports:
+        spans.insert(0, (0.0, supports[0].s - supports[0].width / 2))
+    if end_free and supports:
+        spans.append((supports[-1].s + supports[-1].width / 2, length))
+    if not supports:
+        spans = [(0.0, length)]
+    clear = [max(f2 - f1, 0.0) for f1, f2 in spans]
+    # bar ends along the line
+    s_start = (
+        (supports[0].s - supports[0].width / 2 + supports[0].cover) if not start_free else (r.cover)
+    )
+    s_end = (
+        (supports[-1].s + supports[-1].width / 2 - supports[-1].cover)
+        if not end_free
+        else (length - r.cover)
+    )
+    element["at"] = {
+        "origin": [round(float(origin[0]), 1), round(float(origin[1]), 1)],
+        "direction": [round(float(u[0]), 6), round(float(u[1]), 6)],
+        "length": round(length, 1),
+        "elevation": elev,
+        "width": b,
+        "depth": h,
+        "cover": float(r.cover),
+        "supports": [
+            {"s": round(x.s, 1), "width": x.width, "kind": x.kind, "ref": x.ref}
+            | ({"topLayer": 2} if x.ref in second else {})
+            | ({"bottomLayer": 2} if x.ref in raised else {})
+            for x in supports
+        ],
+        "topDrop": top_drop,
+        "bottomRise": bottom_rise,
+        "spans": [{"from": round(a, 1), "to": round(c, 1)} for a, c in spans],
+    }
+    if top_drop:
+        element["notes"].append(
+            f"top bars in the second layer, {top_drop:g} mm under the crossing beams' at "
+            f"{', '.join(sorted(second))} (SAEngine practice; the design's hogging d allows it)"
+        )
+    if bottom_rise:
+        element["notes"].append(
+            f"bottom bars {bottom_rise:g} mm higher, over the crossing beams' at "
+            f"{', '.join(sorted(raised))} (SAEngine practice; the design's sagging d allows it)"
+        )
+
+    def z_of(face: str, db: float) -> float:
+        if face == "top":
+            return elev - inset - db / 2 - top_drop
+        return elev - h + inset + db / 2 + bottom_rise
+
+    tops = _groups(r, "top")
+    bottoms = _groups(r, "bottom")
+    sides = _groups(r, "sides")
+    n_top = sum(c for c, _ in tops)
+    area_top = sum(c * bar_area(d) for c, d in tops)
+    share = _beam_required_share(ctx, line["members"], area_top)
+    n_cont = continuous_top_bars(n_top, share) if ctx.options["curtail"] else n_top
+    if n_top and n_cont < n_top:
+        element["notes"].append(
+            f"top bars: {n_cont} of {n_top} continuous (at least two, 8.3.4.2(a); at least 1/3, "
+            "8.2.9.3), the others over the supports to max(0.30 ln, ld) from the face "
+            "(practice, not a rule of the code)"
+        )
+    db_main = max([d for _, d in tops + bottoms] or [16.0])
+    d_eff = h - inset - db_main / 2
+
+    def cb_of(face: str, db: float) -> float:
+        """cb (8.2.3.3) of a bar on ``face``: side cover or half the spacing of that layer."""
+        n = sum(c for c, _ in (tops if face == "top" else bottoms if face == "bottom" else sides))
+        spacing = (b - 2 * inset - db) / (n - 1) if n > 1 else None
+        return _cb(inset, db, spacing)
+
+    # splice windows: top bars in the middle third, bottom bars near the supports (8.1.12.2(b),
+    # p 1075); in special frames none within the joints or 2 h of their faces (8.3.4.2(b),
+    # p 1091). A window shorter than the lap is widened to hold it (the middle third about the
+    # mid-span, the end zones away from the support), never into the 2 h zones.
+    offset = seismic_splice_exclusion(h).value if special else 0.0
+
+    def top_windows(lap: float) -> list[tuple[float, float]]:
+        out = []
+        for f1, f2 in spans:
+            lo = f1 + offset if f1 > 0 or not start_free else f1
+            hi = f2 - offset if f2 < length or not end_free else f2
+            third = (f2 - f1) / 3
+            w0, w1 = f1 + third, f2 - third
+            if w1 - w0 < lap:
+                mid = (f1 + f2) / 2
+                w0, w1 = mid - lap / 2, mid + lap / 2
+            w0, w1 = max(w0, lo), min(w1, hi)
+            if w1 - w0 > 1:
+                out.append((w0, w1))
+        return out
+
+    def bottom_windows(lap: float) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for f1, f2 in spans:
+            reach = max((f2 - f1) / 3, offset + lap)
+            candidates = []
+            if f1 > 0:
+                candidates.append((f1 + offset, f1 + reach))
+            if f2 < length:
+                candidates.append((f2 - reach, f2 - offset))
+            for a, c in candidates:
+                # clipped to the span less 2 h at both faces (a short span has none)
+                a, c = max(a, f1 + offset), min(c, f2 - offset)
+                if c - a > 1:
+                    out.append((a, c))
+        return out or top_windows(lap)
+
+    if special:
+        element["notes"].append(
+            "laps placed outside the joints and 2 h from their faces "
+            f"({_cite('barSpliceExclusion')}); top bars lapped in the middle third, bottom bars "
+            f"near the supports ({_cite('barBeamSplicePlaces')}); a bar with no such place in a "
+            "stock length is noted"
+        )
+
+    def anchorage(face: str, db: float, at_start: bool) -> tuple[float, str | None]:
+        """(hook leg outside dim, None) at a supported end; (leg, 'free') at a free end."""
+        free = start_free if at_start else end_free
+        hook = standard_hook(db, 90)
+        if free:
+            return (hook.leg if face == "top" else 0.0), "free"
+        sup = supports[0] if at_start else supports[-1]
+        avail = sup.width - sup.cover
+        need = (
+            hook_development_seismic(db, fy, fc)
+            if special and lateral
+            else hook_development(db, fy, fc)
+        )
+        element["checks"].append(
+            _check(
+                f"Hooked {face} bar Ø{db:g} into {sup.ref} ({'start' if at_start else 'end'})",
+                need.value,
+                avail,
+                need.clause,
+            )
+        )
+        room = h - 2 * inset
+        if hook.leg > room:
+            element["notes"].append(
+                f"the 12 db hook of Ø{db:g} ({hook.leg:.0f} mm) is longer than the beam's inside "
+                f"depth ({room:.0f} mm): turn it sideways or use a smaller bar"
+            )
+        return hook.leg, None
+
+    def run_bar(
+        role: str,
+        letter: str,
+        face: str,
+        count: int,
+        db: float,
+        a: float,
+        c: float,
+        windows: Callable[[float], list[tuple[float, float]]],
+        hooks: tuple[float, float],
+        top: bool,
+        **extra: Any,
+    ) -> list[dict[str, Any]]:
+        """The bars of one run from ``a`` to ``c``: one bar when it fits a stock length, else
+        pieces of at most a stock length lapped (class B, 8.2.13.1, 8.2.13.2, p 1083) in
+        ``windows(lap)``. All bars of the run lap at the same place, so more than half are
+        spliced within the lap length: class B (8.2.13.2). Bars of 36 mm and larger are not
+        lapped (8.2.12.2(a), p 1083): a run longer than stock is noted for couplers."""
+        bend = bend_diameter(db).value
+        if no_lap(db):
+            lap = 0.0
+            pieces, laps = [(a, c)], []
+            ok = c - a + hooks[0] + hooks[1] <= ctx.stock + 1e-6
+            if not ok:
+                element["notes"].append(
+                    f"{role} bars Ø{db:g}: {c - a + hooks[0] + hooks[1]:.0f} mm, longer than a "
+                    f"stock length ({ctx.stock:g} mm), and bars of "
+                    f"{bar_rules().laps.noLapDb:g} mm and larger are not lapped ({_cite('barNoLap')}): splice them with mechanical "
+                    "couplers or order longer bars"
+                )
+        else:
+            lap = ctx.lap(db, fy, fc, top=top, cb=cb_of(face, db))
+            pieces, laps, ok = split_run(a, c, lap, windows(lap), ctx.stock, hooks)
+        if not ok and not no_lap(db):
+            element["notes"].append(
+                f"{role} bars Ø{db:g}: no lap location within a stock length "
+                f"({ctx.stock:g} mm) in the permitted zones: one bar longer than stock (use a "
+                "mechanical splice or longer bars)"
+            )
+        out = []
+        z = z_of(face, db)
+        for k, (p0, p1) in enumerate(pieces):
+            hs = hooks[0] if k == 0 else 0.0
+            he = hooks[1] if k == len(pieces) - 1 else 0.0
+            run = p1 - p0
+            if hs and he:
+                dims, shape = {"A": hs, "B": run, "C": he}, "U"
+                total = u_length(hs, run, he, db, bend)
+            elif hs or he:
+                dims, shape = {"A": run, "B": hs or he}, "L"
+                total = l_length(run, hs or he, db, bend)
+            else:
+                dims, shape = {"A": run}, "straight"
+                total = run
+            covered = [m for s0, s1, m in line["pieces"] if s1 > p0 + 1 and s0 < p1 - 1]
+            bar = _bar(
+                role,
+                letter,
+                db,
+                shape,
+                count,
+                dims,
+                total,
+                {
+                    "from": round(p0, 1),
+                    "to": round(p1, 1),
+                    "face": face,
+                    "layer": 2
+                    if (face == "top" and top_drop) or (face == "bottom" and bottom_rise)
+                    else 1,
+                    "members": covered,
+                    "start": _point(origin, u, p0, z),
+                    "end": _point(origin, u, p1, z),
+                    "hooks": [
+                        ("down" if face == "top" else "up") if hs else None,
+                        ("down" if face == "top" else "up") if he else None,
+                    ],
+                },
+                bend=bend,
+                grade=grade,
+                lap=lap if laps else None,
+                **extra,
+            )
+            out.append(bar)
+        for k, (l0, l1) in enumerate(laps):
+            element["laps"].append(
+                {
+                    "bars": [out[k], out[k + 1]],  # the bar ending and the bar starting here
+                    "from": round(l0, 1),
+                    "to": round(l1, 1),
+                    "length": lap,
+                    "class": "B",
+                    "face": face,
+                    "dia": float(db),
+                    "count": int(count),
+                    "clause": _cite("barLapClasses"),
+                }
+            )
+        return out
+
+    top_below = h - inset - db_main > 300  # more than 300 mm of fresh concrete below (ψt)
+    # top bars: continuous ones first, from the largest diameter (the corner bars)
+    remaining = n_cont
+    extras: list[tuple[int, float]] = []
+    for count, db in sorted(tops, key=lambda g: -g[1]):
+        take = min(count, remaining)
+        remaining -= take
+        if take:
+            hs = anchorage("top", db, True)[0]
+            he = anchorage("top", db, False)[0]
+            element["bars"] += run_bar(
+                "top", "T", "top", take, db, s_start, s_end, top_windows, (hs, he), top_below
+            )
+        if count - take:
+            extras.append((count - take, db))
+    for count, db in extras:
+        ld = up(ctx.ld(db, fy, fc, top=top_below, cb=cb_of("top", db)), step)
+        bend = bend_diameter(db).value
+        # one interval per support, kept within the bar ends of the line; intervals that meet
+        # in a short span become one bar across it
+        runs: list[dict[str, Any]] = []
+        for j, sup in enumerate(supports):
+            # the clear spans either side of the support (0: none, the line ends there)
+            lf, rf = sup.s - sup.width / 2, sup.s + sup.width / 2
+            left = next(
+                (c for (a, c2), c in zip(spans, clear, strict=False) if abs(c2 - lf) < 1), 0
+            )
+            right = next(
+                (c for (a, c2), c in zip(spans, clear, strict=False) if abs(a - rf) < 1), 0
+            )
+            ln = max(left, right)
+            extent = up(standard_top_extent(ln, ld, ctx.options["beamTopExtent"]).value, step)
+            p0 = lf - extent if left > 0 else lf + sup.cover
+            p1 = rf + extent if right > 0 else rf - sup.cover
+            start_end = left <= 0
+            end_end = right <= 0
+            # over the support of a cantilever the bars run to its tip, bent down there
+            tip0 = start_free and j == 0 and left > 0
+            tip1 = end_free and j == len(supports) - 1 and right > 0
+            if tip0:
+                p0 = s_start
+            if tip1:
+                p1 = s_end
+            # never past the bar ends of the line: there the bar hooks into the end support
+            if p0 <= s_start + 1e-6:
+                p0, start_end = s_start, not tip0
+            if p1 >= s_end - 1e-6:
+                p1, end_end = s_end, not tip1
+            if runs and p0 <= runs[-1]["to"] + 1e-6:
+                last = runs[-1]
+                last["to"], last["endHook"], last["tip1"] = p1, end_end, tip1
+                last["refs"].append(sup.ref)
+                last["extents"].append(extent)
+            else:
+                runs.append(
+                    {"from": p0, "to": p1, "startHook": start_end, "endHook": end_end,
+                     "tip0": tip0, "tip1": tip1, "refs": [sup.ref], "extents": [extent]}
+                )  # fmt: skip
+        for row in runs:
+            p0, p1 = row["from"], row["to"]
+            hs = (
+                standard_hook(db).leg
+                if row["tip0"]
+                else anchorage("top", db, True)[0]
+                if row["startHook"]
+                else 0.0
+            )
+            he = (
+                standard_hook(db).leg
+                if row["tip1"]
+                else anchorage("top", db, False)[0]
+                if row["endHook"]
+                else 0.0
+            )
+            refs = row["refs"]
+            sup_ref = refs[0] if len(refs) == 1 else "+".join(refs)
+            remarks = (
+                f"over {refs[0]}, {row['extents'][0]:g} mm from the face"
+                if len(refs) == 1
+                else f"over {', '.join(refs)}: the extents meet, one bar across the span"
+            )
+            run = p1 - p0
+            if hs and he:
+                dims, shape = {"A": hs, "B": run, "C": he}, "U"
+                total = u_length(hs, run, he, db, bend)
+            elif hs or he:
+                dims, shape = {"A": run, "B": hs or he}, "L"
+                total = l_length(run, hs or he, db, bend)
+            else:
+                dims, shape, total = {"A": run}, "straight", run
+            if run + hs + he > ctx.stock + 1e-6:
+                element["notes"].append(
+                    f"extra top bars Ø{db:g} over {sup_ref}: {run + hs + he:.0f} mm, longer than "
+                    f"a stock length ({ctx.stock:g} mm): lap them in the middle third"
+                )
+            z = z_of("top", db)
+            covered = [m for s0, s1, m in line["pieces"] if s1 > p0 + 1 and s0 < p1 - 1]
+            element["bars"].append(
+                _bar(
+                    "top",
+                    "T",
+                    db,
+                    shape,
+                    count,
+                    dims,
+                    total,
+                    {
+                        "from": round(p0, 1),
+                        "to": round(p1, 1),
+                        "face": "top",
+                        "layer": 2 if top_drop else 1,
+                        "support": sup_ref,
+                        "supports": refs,
+                        "members": covered,
+                        "start": _point(origin, u, p0, z),
+                        "end": _point(origin, u, p1, z),
+                        "hooks": ["down" if hs else None, "down" if he else None],
+                    },
+                    bend=bend,
+                    grade=grade,
+                    curtailed=True,
+                    remarks=remarks,
+                )
+            )
+    # bottom bars: all run into the supports (8.2.8.1, 8.2.8.2)
+    for count, db in sorted(bottoms, key=lambda g: -g[1]):
+        hs = anchorage("bottom", db, True)[0] if not start_free else 0.0
+        he = anchorage("bottom", db, False)[0] if not end_free else 0.0
+        element["bars"] += run_bar(
+            "bottom", "B", "bottom", count, db, s_start, s_end, bottom_windows,
+            (hs, he), False,
+        )  # fmt: skip
+    if supports and bottoms:
+        n_bottom = sum(c for c, _ in bottoms)
+        need = positive_into_support(n_bottom, len(supports) > 2)
+        element["checks"].append(
+            _check(
+                "Bottom bars into the supports",
+                need,
+                n_bottom,
+                _cite("barIntoSupport"),
+                unit="bars",
+            )
+        )
+    for count, db in sides:
+        element["bars"] += run_bar(
+            "side", "F", "side", count, db, s_start, s_end, top_windows, (0.0, 0.0), False
+        )
+    # stirrups per span
+    if tr is not None:
+        zones = dm.zones_of(tr)
+        zone_len = zones.zone_length
+        if zone_len is None:
+            for mid in line["members"]:
+                lo = (((ctx.report.get(mid) or {}).get("detailing") or {}).get("zones") or {}).get(
+                    "lo"
+                )
+                if lo:
+                    zone_len = max(zone_len or 0.0, float(lo))
+        if zone_len is None and lateral and level in ("special", "intermediate"):
+            zone_len = 2 * h  # 8.3.4.3(a), 8.3.10.4(b) (dm.beam_need)
+        zone_s = zones.zone_spacing
+        if zone_len and zone_s is None:
+            element["notes"].append(
+                f"the type has no end zone: stirrups at {tr.spacing:g} mm all along (the code "
+                f"asks a zone of {zone_len:.0f} mm from each face; see the design checks)"
+            )
+        first_stirrup = bar_rules().extents.firstStirrup
+        first = zones.zone_first or (
+            first_stirrup if zone_len else min(first_stirrup, tr.spacing / 2)
+        )
+        hook = seismic_hook(tdia)
+        sa, sb = b - 2 * r.cover, h - 2 * r.cover
+        stirrup = _bar(
+            "stirrup",
+            "S",
+            tdia,
+            "stirrup",
+            0,
+            {"A": sa, "B": sb},
+            stirrup_length(sa, sb, tdia, hook),
+            {"section": [sa, sb], "legs": tr.legs},
+            bend=hook.bend_dia,
+            grade=grade,
+        )
+        extra_legs = max(tr.legs - 2, 0)
+        tie = None
+        if extra_legs:
+            h135, h90 = seismic_hook(tdia), standard_hook(tdia, 90, transverse=True)
+            tie = _bar(
+                "crosstie",
+                "X",
+                tdia,
+                "special",
+                0,
+                {"A": sb},
+                crosstie_length(sb, tdia, h135, h90),
+                {"section": [sa, sb], "legs": extra_legs},
+                bend=h135.bend_dia,
+                grade=grade,
+                remarks="cross tie: 135° hook one end, 90° the other, alternated (8.1.1.1)",
+            )
+        # hoops over the laps of special-frame beams at <= min(d/4, 100 mm) (8.3.4.2(b),
+        # p 1091; the code pack's splices.hoopDepthShare, hoopMax): the type's splice spacing,
+        # else that rule's
+        splice_s = zones.splice_spacing
+        sp = bar_rules().splices
+        hoop_rule = min(d_eff * sp.hoopDepthShare, sp.hoopMax)
+        if special and not splice_s:
+            rule = max(math.floor(hoop_rule / SPLICE_STEP) * SPLICE_STEP, SPLICE_STEP)
+            splice_s = rule if rule < tr.spacing else None  # else as close already
+        total = 0
+        for (f1, f2), ln in zip(spans, clear, strict=False):
+            if ln <= 0:
+                continue
+            rules: list[tuple[float, float, float, str]] = []
+            if zone_len and zone_s:
+                if f1 > 0 or not start_free:
+                    rules.append((f1, f1 + zone_len, zone_s, "lo"))
+                if f2 < length or not end_free:
+                    rules.append((f2 - zone_len, f2, zone_s, "lo"))
+            if splice_s:
+                # laps closer than three hoop spacings apart (top and bottom laps side by side)
+                # share one zone: no short zone of the normal spacing between them
+                over: list[list[float]] = []
+                for lap in sorted(element["laps"], key=lambda lap: lap["from"]):
+                    if lap["from"] < f2 and lap["to"] > f1:
+                        if over and lap["from"] - over[-1][1] < 3 * tr.spacing:
+                            over[-1][1] = max(over[-1][1], lap["to"])
+                        else:
+                            over.append([lap["from"], lap["to"]])
+                rules += [(a, b, splice_s, "splice") for a, b in over]
+            rows = space(f1, f2, float(tr.spacing), rules, first)
+            for row in rows:
+                row["_bar"] = stirrup
+                element["transverse"].append(row)
+            total += sum(row["count"] for row in rows)
+        stirrup["count"] = total
+        element["bars"].append(stirrup)
+        if tie is not None:
+            tie["count"] = total * extra_legs
+            element["bars"].append(tie)
+        if special and element["laps"] and not zones.splice_spacing and splice_s:
+            element["notes"].append(
+                f"hoops over the laps at {splice_s:g} mm: min(d/{1 / sp.hoopDepthShare:g}, "
+                f"{sp.hoopMax:g} mm) = {hoop_rule:.0f} mm rounded down to {SPLICE_STEP:g} mm "
+                f"({_cite('barSpliceExclusion')}; the type gives no splice spacing)"
+            )
+    sizes = sorted({d for _, d in tops + bottoms})
+    lds = ", ".join(
+        f"Ø{d:g} {up(ctx.ld(d, fy, fc, cb=cb_of('bottom', d)), step):g} mm" for d in sizes
+    )
+    laps = ", ".join(
+        f"Ø{d:g} {ctx.lap(d, fy, fc, cb=cb_of('bottom', d)):g} mm"
+        if not no_lap(d)
+        else f"Ø{d:g} none"
+        for d in sizes
+    )
+    element["notes"].append(
+        f"ld ({ctx.method_text}) of the bottom bars: {lds}; class B laps: {laps}"
+    )
+    element["checks"] = _unique(element["checks"])
+    return element
+
+
+def _unique(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: dict[str, dict[str, Any]] = {}
+    for row in checks:
+        seen.setdefault(row["name"], row)
+    return list(seen.values())
+
+
+# ────────────────────────────────────────── columns ──────────────────────────────────────────
+
+
+def _foundation_under(ctx: _Ctx, column: Any) -> dict[str, Any] | None:
+    """The foundation a column or wall stands on: {id, bottom, top, thickness, cover, mesh, fc}."""
+    from saengine.library.bim import FootingElement
+
+    if ctx.substructure is not None:
+        from saengine.library.bim import foundation_solids
+
+        ground = 0.0
+        if ctx.settings is not None:
+            ground = float(ctx.settings.foundation.groundLevel)
+        try:
+            solids = foundation_solids(ctx.substructure, ctx.building, ground)
+        except (ValueError, AttributeError):
+            solids = None
+        if solids is not None:
+            by_id = {f.id: f for f in ctx.substructure.foundations}
+            for s in solids.foundations:
+                f = by_id.get(s.id)
+                if f is None or column.id not in f.columns:
+                    continue
+                r = s.reinforcement
+                mesh = [
+                    m.dia for m in (getattr(r, "bottomX", None), getattr(r, "bottomY", None)) if m
+                ]
+                return {
+                    "id": s.id,
+                    "bottom": s.bottom,
+                    "top": s.top,
+                    "thickness": s.thickness,
+                    "cover": float(r.cover) if r is not None else 75.0,
+                    "mesh": mesh,
+                    "fc": ctx.fc(s.material or ""),
+                }
+        return None
+    pos = np.asarray(getattr(column, "position", None) or column.start, float)
+    for e in ctx.building.elements:
+        if isinstance(e, FootingElement) and np.linalg.norm(np.asarray(e.position) - pos) <= TOL:
+            t = ctx.types.get(e.type)
+            if t is None:
+                continue
+            r = t.reinforcement
+            mesh = [m.dia for m in (getattr(r, "bottomX", None), getattr(r, "bottomY", None)) if m]
+            return {
+                "id": e.id,
+                "bottom": e.elevation - t.thickness,
+                "top": e.elevation,
+                "thickness": float(t.thickness),
+                "cover": float(r.cover) if r is not None else 75.0,
+                "mesh": mesh,
+                "fc": ctx.fc(t.material),
+            }
+    return None
+
+
+def _stacks(ctx: _Ctx) -> list[list[Any]]:
+    from saengine.library.bim import ColumnElement
+
+    cols = sorted(
+        (e for e in ctx.building.elements if isinstance(e, ColumnElement)),
+        key=lambda e: (e.bottom, e.id),
+    )
+    stacks: list[list[Any]] = []
+    for c in cols:
+        for stack in stacks:
+            last = stack[-1]
+            if math.dist(last.position, c.position) <= TOL and abs(last.top - c.bottom) <= TOL:
+                stack.append(c)
+                break
+        else:
+            stacks.append([c])
+    return stacks
+
+
+def _beam_depth_at(ctx: _Ctx, column: Any, level: float) -> float:
+    depth = 0.0
+    for joint in ctx.joints:
+        if joint.below == column.id and abs(joint.level - level) <= TOL:
+            for jb in joint.beams:
+                t = ctx.types.get(jb.type)
+                depth = max(depth, float(getattr(getattr(t, "profile", None), "yDim", 0.0) or 0.0))
+    return depth
+
+
+def _column_lap_rule(ctx: _Ctx, db: float, fy: float, fc: float, special: bool) -> Rule:
+    if no_lap(db):  # no laps of the largest bars (36 mm and up): a mechanical splice
+        return Rule(0.0, "no lap: mechanical coupler", _cite("barNoLap"))
+    if ctx.options["columnLaps"] == "compression" and not special:
+        return column_lap(db, fy, fc, stress="compression")
+    return column_lap(db, fy, fc, stress="tension")
+
+
+def _column_lap_class(ctx: _Ctx, special: bool, length: float) -> str:
+    if length <= 0:
+        return "coupler"
+    return "B" if ctx.options["columnLaps"] == "tension" or special else "compression"
+
+
+def _lap_start(hc: float, lap: float, special: bool) -> tuple[float, bool]:
+    """Lap start above the floor, and whether it fits the rules."""
+    if special:
+        lo, hi = column_splice_region(hc)
+        start = max(lo, hc / 2 - lap / 2)
+        return start, start + lap <= hi + 1e-6
+    return 0.0, True
+
+
+def _detail_column(ctx: _Ctx, stack: list[Any], k: int) -> dict[str, Any]:
+    from saengine.design import ductile_joints as dj
+    from saengine.design import ductile_members as dm
+    from saengine.library.objects import CircleProfile, RectangleProfile
+
+    c = stack[k]
+    t = ctx.types.get(c.type)
+    element: dict[str, Any] = {
+        "id": c.id,
+        "kind": "column",
+        "type": c.type,
+        "member": c.id,
+        "story": _story_at(ctx.building, c.top),
+        "count": 1,
+        "bars": [],
+        "transverse": [],
+        "laps": [],
+        "checks": [],
+        "notes": _report_notes(ctx, c.id),
+        "at": {
+            "position": [float(c.position[0]), float(c.position[1])],
+            "rotation": float(c.rotation or 0.0),
+            "bottom": float(c.bottom),
+            "top": float(c.top),
+        },
+    }
+    if t is None or getattr(t, "kind", None) != "column":
+        element["notes"].append(f"type {c.type} is not a column type: not detailed")
+        return element
+    r = t.reinforcement
+    if r is None or not r.longitudinal:
+        element["notes"].append(f"{t.id} has no reinforcement: not detailed")
+        return element
+    profile = t.profile
+    if not isinstance(profile, (RectangleProfile, CircleProfile)):
+        element["notes"].append(f"{profile.shape} columns are not detailed")
+        return element
+    fc, fy, grade = ctx.fc(t.material), ctx.fy(r.material), ctx.grade(r.material)
+    step = ctx.step
+    level, lateral = _frame_of(ctx, c.id)
+    special = level == "special" and lateral
+    tr = r.transverse
+    tdia = float(tr.dia) if tr else 10.0
+    cover = float(r.cover)
+    beam_top = _beam_depth_at(ctx, c, c.top)
+    hc = c.top - c.bottom - beam_top
+    element["at"]["clearHeight"] = hc
+    above = stack[k + 1] if k + 1 < len(stack) else None
+    t_above = ctx.types.get(above.type) if above is not None else None
+    r_above = getattr(t_above, "reinforcement", None) if t_above is not None else None
+    groups = [(g.count, float(g.dia)) for g in r.longitudinal]
+    n_bars = sum(n for n, _ in groups)
+    db_max = max(d for _, d in groups)
+    lap_here = up(_column_lap_rule(ctx, db_max, fy, fc, special).value, step)
+    if no_lap(db_max):
+        element["notes"].append(
+            f"bars Ø{db_max:g}: not lapped ({_cite('barNoLap')}); spliced with "
+            "mechanical couplers where the lap would be"
+        )
+    start_here, fits = _lap_start(hc, lap_here, special)
+    if special and k > 0 and not fits:
+        element["notes"].append(
+            f"the lap ({lap_here:g} mm) does not fit the centre half of the clear height "
+            f"({hc:.0f} mm, {_cite('barColumnLapZone')}): use mechanical splices"
+        )
+    found = _foundation_under(ctx, c) if k == 0 else None
+    # the bars start at the lap with the bars below; the lowest column with nothing under it
+    # (no foundation in the model): at its base
+    z_lap = c.bottom + start_here if (k > 0 or found is not None) else c.bottom
+    # the lap above, in the next storey
+    if above is not None and r_above is not None and r_above.longitudinal:
+        db_up = max(float(g.dia) for g in r_above.longitudinal)
+        fy_up = ctx.fy(r_above.material)
+        lap_up = up(
+            max(
+                _column_lap_rule(ctx, db_max, fy, fc, special).value,
+                _column_lap_rule(ctx, db_up, fy_up, fc, special).value,
+            ),
+            step,
+        )
+        beam_up = _beam_depth_at(ctx, above, above.top)
+        lv_up, lat_up = _frame_of(ctx, above.id)
+        s_up, _ = _lap_start(
+            above.top - above.bottom - beam_up, lap_up, lv_up == "special" and lat_up
+        )
+        z_end = above.bottom + s_up + lap_up
+        n_up = sum(g.count for g in r_above.longitudinal)
+        partners = min(n_up, n_bars)
+        if n_up != n_bars or db_up != db_max:
+            text = (
+                f"the column above ({above.id}, {above.type}) has {n_up} bars up to Ø{db_up:g}: "
+                f"{partners} bars lap with them for {lap_up:g} mm (8.2.13.5)"
+            )
+            if n_bars > n_up:
+                text += (
+                    f"; the other {n_bars - n_up} (the smallest) stop 40 mm below the top of "
+                    "the floor with a 90° hook into it"
+                )
+            if n_up > n_bars:
+                text += (
+                    f"; its other {n_up - n_bars} bars start on dowels Ø{db_up:g} anchored ld "
+                    "below the floor in this column"
+                )
+            element["notes"].append(text)
+        top_hook = 0.0
+        element["laps"].append(
+            {
+                "bars": [],
+                "from": round(above.bottom + s_up, 1),
+                "to": round(z_end, 1),
+                "length": lap_up,
+                "class": _column_lap_class(ctx, special, lap_up),
+                "clause": _column_lap_rule(ctx, db_max, fy, fc, special).clause,
+                "with": above.id,
+            }
+        )
+    else:
+        top_cover = dj.TOP_HOOK_COVER
+        z_end = c.top - top_cover
+        top_hook = 1.0
+        if beam_top > 0:
+            # R4AC-5: the design's own check (one place), so the two agree.
+            need, available = dj.column_top_anchorage(
+                db_max, fy, fc, beam_top, detail=dj.column_top_detail(profile, r, fc, fy)
+            )
+            element["checks"].append(
+                _check(dj.column_top_name(db_max), need.value, available, need.clause)
+            )
+        else:
+            element["notes"].append("no beam at the top: the bars end 40 mm below the top, hooked")
+        partners = n_bars
+    # vertical bars: the largest first take the partners above; the others stop at the floor
+    lapping_up: list[dict[str, Any]] = []
+    left = partners
+    pieces_v: list[tuple[int, float, bool]] = []
+    for count, db in sorted(groups, key=lambda g: -g[1]):
+        take = min(count, left)
+        left -= take
+        if take:
+            pieces_v.append((take, db, False))
+        if count - take:
+            pieces_v.append((count - take, db, True))
+    stopped_any = False
+    for count, db, stops in pieces_v:
+        bend = bend_diameter(db).value
+        hook = standard_hook(db, 90)
+        hooked = bool(top_hook) or stops
+        z_top = (c.top - 40.0) if stops else z_end
+        run = z_top - z_lap
+        if hooked:
+            dims, shape = {"A": run, "B": hook.leg}, "L"
+            total = l_length(run, hook.leg, db, bend)
+        else:
+            dims, shape, total = {"A": run}, "straight", run
+        if run > ctx.stock:
+            element["notes"].append(
+                f"vertical bars Ø{db:g} longer than a stock length ({run:.0f} mm): add a lap"
+            )
+        bar = _bar(
+            "vertical",
+            "V",
+            db,
+            shape,
+            count,
+            dims,
+            total,
+            {
+                "from": round(z_lap, 1),
+                "to": round(z_top, 1),
+                "position": element["at"]["position"],
+                "hooks": [None, "inward" if hooked else None],
+            },
+            bend=bend,
+            grade=grade,
+            lap=lap_here if k > 0 or found else None,
+            **({"remarks": "no partner in the column above: stops at the floor"} if stops else {}),
+        )
+        element["bars"].append(bar)
+        if not stops:
+            lapping_up.append(bar)
+        stopped_any = stopped_any or stops
+    if stopped_any and beam_top > 0:
+        db_stop = max(d for _, d, st in pieces_v if st)
+        need = hook_development(db_stop, fy, fc)
+        element["checks"].append(
+            _check(
+                f"Column bars without a partner hooked into the floor (Ø{db_stop:g})",
+                need.value,
+                beam_top - 40.0,
+                need.clause,
+            )
+        )
+    if above is not None and r_above is not None and r_above.longitudinal:
+        n_up = sum(g.count for g in r_above.longitudinal)
+        if n_up > n_bars:
+            db_up = max(float(g.dia) for g in r_above.longitudinal)
+            fy_up = ctx.fy(r_above.material)
+            ld_up = up(ctx.ld(db_up, fy_up, fc, cb=_cb(cover + tdia, db_up, None)), step)
+            z0 = max(above.bottom - ld_up, c.bottom)
+            if above.bottom - ld_up < c.bottom - 1e-6:
+                element["notes"].append(
+                    f"dowels Ø{db_up:g} for {above.id}: ld {ld_up:g} mm is more than this "
+                    "storey's height"
+                )
+            dowel = _bar(
+                "starter",
+                "D",
+                db_up,
+                "straight",
+                n_up - n_bars,
+                {"A": z_end - z0},
+                z_end - z0,
+                {
+                    "from": round(z0, 1),
+                    "to": round(z_end, 1),
+                    "position": element["at"]["position"],
+                    "for": above.id,
+                    "hooks": [None, None],
+                },
+                bend=bend_diameter(db_up).value,
+                grade=ctx.grade(r_above.material),
+                lap=lap_up,
+                remarks=f"dowels for the extra bars of {above.id}: ld below the floor, lap above",
+            )
+            element["bars"].append(dowel)
+            lapping_up.append(dowel)
+    for lap in element["laps"]:
+        lap["bars"] = list(lapping_up)
+    # starter bars (dowels) from the foundation
+    if k == 0:
+        if found is not None:
+            mesh = sum(found["mesh"][:2]) if found["mesh"] else 0.0
+            for count, db in sorted(groups, key=lambda g: -g[1]):
+                bend = bend_diameter(db).value
+                hook = standard_hook(db, 90)
+                z0 = found["bottom"] + found["cover"] + mesh
+                z1 = z_lap + lap_here
+                dims = {"A": z1 - z0, "B": hook.leg}
+                element["bars"].append(
+                    _bar(
+                        "starter",
+                        "D",
+                        db,
+                        "L",
+                        count,
+                        dims,
+                        l_length(dims["A"], dims["B"], db, bend),
+                        {
+                            "from": round(z0, 1),
+                            "to": round(z1, 1),
+                            "position": element["at"]["position"],
+                            "foundation": found["id"],
+                            "hooks": ["toCentre", None],
+                        },
+                        bend=bend,
+                        grade=grade,
+                        lap=lap_here,
+                        remarks=f"starter bars from {found['id']}, 90° hook on its bottom mesh",
+                    )
+                )
+                element["checks"] += [
+                    {
+                        "name": row["name"],
+                        "required": row["demand"],
+                        "provided": row["capacity"],
+                        "unit": row["unit"],
+                        "ok": row["ok"],
+                        "clause": _cite("barStarters"),
+                    }
+                    for row in dj.column_dowel_checks(
+                        c.id, db, fy, found["fc"], found["thickness"], found["cover"],
+                        max(found["mesh"] or [0.0]),
+                    )
+                ]  # fmt: skip
+            element["laps"].append(
+                {
+                    "bars": [b for b in element["bars"] if b["role"] in ("starter", "vertical")],
+                    "from": round(z_lap, 1),
+                    "to": round(z_lap + lap_here, 1),
+                    "length": lap_here,
+                    "class": _column_lap_class(ctx, special, lap_here),
+                    "clause": _column_lap_rule(ctx, db_max, fy, fc, special).clause,
+                    "with": found["id"],
+                }
+            )
+        else:
+            element["notes"].append(
+                f"no foundation under {c.id}: its bars start at its base (on a beam: a transfer "
+                "detail, not drawn)"
+            )
+    # ties
+    if tr is not None:
+        zones = dm.zones_of(tr)
+        lo = zones.zone_length
+        info = ((ctx.report.get(c.id) or {}).get("detailing") or {}).get("zones") or {}
+        if lo is None and info.get("lo"):
+            lo = float(info["lo"])
+        if lo is None and lateral and level in ("special", "intermediate"):
+            largest = (
+                2 * profile.radius
+                if isinstance(profile, CircleProfile)
+                else max(profile.xDim, profile.yDim)
+            )
+            lo = max(largest, hc / 6, 450.0)  # 8.3.5.4(d), 8.3.10.5(a)
+        zs = zones.zone_spacing
+        if lo and zs is None:
+            element["notes"].append(
+                f"the type has no end zone: ties at {tr.spacing:g} mm all along (the code asks "
+                f"lo = {lo:.0f} mm; see the design checks)"
+            )
+        first = zones.zone_first or ((zs or tr.spacing) / 2)  # 8.1.9.4(d), Figure 6.8.8
+        rules: list[tuple[float, float, float, str]] = []
+        if lo and zs:
+            rules += [
+                (c.bottom, c.bottom + lo, zs, "lo"),
+                (c.bottom + hc - lo, c.bottom + hc, zs, "lo"),
+                (c.bottom + hc, c.top, zs, "joint"),
+            ]
+        if zones.splice_spacing:
+            for lap in element["laps"]:
+                if lap["from"] < c.top and lap["to"] > c.bottom:
+                    rules.append((lap["from"], lap["to"], zones.splice_spacing, "splice"))
+        if isinstance(profile, CircleProfile) and tr.type == "spiral":
+            dout = 2 * profile.radius - 2 * cover
+            pitch = float(tr.spacing)
+            turns = (c.top - c.bottom) / pitch + 3  # 1.5 extra turns at each end (8.1.9.3(d))
+            total = turns * math.hypot(math.pi * (dout - tdia), pitch)
+            element["bars"].append(
+                _bar(
+                    "spiral",
+                    "P",
+                    tdia,
+                    "helix",
+                    1,
+                    {"A": dout, "B": pitch, "C": round(turns, 2)},
+                    total,
+                    {"from": c.bottom, "to": c.top},
+                    bend=0.0,
+                    grade=grade,
+                    remarks="1.5 extra turns at each end (8.1.9.3(d)); laps 48 db (8.1.9.3(e))",
+                )
+            )
+        else:
+            rows = space(c.bottom, c.top, float(tr.spacing), rules, first)
+            n = sum(row["count"] for row in rows)
+            hook = seismic_hook(tdia)
+            if isinstance(profile, CircleProfile):
+                dout = 2 * profile.radius - 2 * cover
+                hoop = _bar(
+                    "tie",
+                    "H",
+                    tdia,
+                    "special",
+                    n,
+                    {"A": dout},
+                    math.pi * (dout - tdia) + 2 * hook.tail + 2 * hook.arc,
+                    {"section": [dout]},
+                    bend=hook.bend_dia,
+                    grade=grade,
+                    remarks="circular hoop, 135° hooks of max(6 db, 75 mm) (8.1.2.1(d))",
+                )
+            else:
+                ta, tb = profile.xDim - 2 * cover, profile.yDim - 2 * cover
+                hoop = _bar(
+                    "tie",
+                    "H",
+                    tdia,
+                    "stirrup",
+                    n,
+                    {"A": ta, "B": tb},
+                    stirrup_length(ta, tb, tdia, hook),
+                    {"section": [ta, tb]},
+                    bend=hook.bend_dia,
+                    grade=grade,
+                )
+            for row in rows:
+                row["_bar"] = hoop
+            element["transverse"] += rows
+            element["bars"].append(hoop)
+            if isinstance(profile, RectangleProfile):
+                h135, h90 = seismic_hook(tdia), standard_hook(tdia, 90, transverse=True)
+                for legs, across, name in (
+                    (tr.legs, profile.yDim - 2 * cover, "y"),
+                    (tr.legsX if tr.legsX is not None else tr.legs, profile.xDim - 2 * cover, "x"),
+                ):
+                    extra = max(int(legs) - 2, 0)
+                    if extra:
+                        element["bars"].append(
+                            _bar(
+                                "crosstie",
+                                "X",
+                                tdia,
+                                "special",
+                                n * extra,
+                                {"A": across},
+                                crosstie_length(across, tdia, h135, h90),
+                                {"along": name, "legs": extra},
+                                bend=h135.bend_dia,
+                                grade=grade,
+                                remarks="cross tie, 90° hooks alternated end for end (8.1.1.1)",
+                            )
+                        )
+    return element
+
+
+# ─────────────────────────────────────────── slabs ───────────────────────────────────────────
+
+
+def _edge_support(ctx: _Ctx, a: tuple[float, float], b: tuple[float, float], level: float):
+    """(width, ref) of the beam or wall under a slab edge a-b, (0, None) when none."""
+    from saengine.library.bim import BeamElement, WallElement
+
+    pa, pb = np.asarray(a, float), np.asarray(b, float)
+    d = pb - pa
+    length = float(np.linalg.norm(d))
+    u = d / length
+    best = (0.0, None)
+    for e in ctx.building.elements:
+        if isinstance(e, BeamElement):
+            if abs(e.elevation - level) > TOL:
+                continue
+            t = ctx.types.get(e.type)
+            width = float(getattr(getattr(t, "profile", None), "xDim", 0.0) or 0.0)
+        elif isinstance(e, WallElement):
+            if not (e.bottom < level <= e.top + TOL):
+                continue
+            t = ctx.types.get(e.type)
+            width = float(getattr(t, "thickness", 0.0) or 0.0)
+        else:
+            continue
+        q0, q1 = np.asarray(e.start, float), np.asarray(e.end, float)
+        off = [abs(float((q - pa)[0] * u[1] - (q - pa)[1] * u[0])) for q in (q0, q1)]
+        if max(off) > max(TOL, width / 2):
+            continue
+        t0, t1 = sorted((float((q0 - pa) @ u), float((q1 - pa) @ u)))
+        overlap = min(t1, length) - max(t0, 0.0)
+        if overlap > 0.5 * length and width > best[0]:
+            best = (width, e.id)
+    return best
+
+
+def _support_depth(ctx: _Ctx, ref: str | None) -> float:
+    """Depth [mm] of the beam ``ref`` under a slab edge; a wall: unlimited (it runs on below)."""
+    from saengine.library.bim import BeamElement, WallElement
+
+    for e in ctx.building.elements:
+        if e.id != ref:
+            continue
+        if isinstance(e, WallElement):
+            return math.inf
+        if isinstance(e, BeamElement):
+            t = ctx.types.get(e.type)
+            return float(getattr(getattr(t, "profile", None), "yDim", 0.0) or 0.0)
+    return 0.0
+
+
+def _edge_anchorage(
+    ctx: _Ctx,
+    element: dict[str, Any],
+    name: str,
+    db: float,
+    fy: float,
+    fc: float,
+    h: float,
+    cover: float,
+    width: float,
+    ref: str | None,
+) -> float:
+    """The bent-down leg [mm] of slab top bars at a discontinuous edge on ``ref`` (width
+    ``width``), with the anchorage check of 8.2.9.1 (p 1081: negative steel anchored in or
+    through the support): a standard 90° hook (8.1.2.1(b), p 1065) when the support is deep
+    enough, the bar's hook into the beam below the slab; else as deep as it goes, and the
+    straight length in the support checked against ld."""
+    hook = standard_hook(db)
+    depth = _support_depth(ctx, ref)
+    room = max(depth, h) - 2 * cover  # down into the beam, above its bottom cover
+    straight = width - cover
+    if hook.leg <= room + 1e-6:
+        need = hook_development(db, fy, fc)
+        element["checks"].append(
+            _check(
+                f"Top {name} bars Ø{db:g} hooked into the edge support {ref}",
+                need.value, straight, _cite("barEdgeHooked"),
+            )
+        )  # fmt: skip
+        return hook.leg
+    leg = max(room, 0.0)
+    ld = ctx.ld(db, fy, fc, cb=_cb(cover, db, None))
+    element["checks"].append(
+        _check(
+            f"Top {name} bars Ø{db:g} at the edge {ref}: straight length in the support (the "
+            f"bend of {leg:.0f} mm is shorter than a 12 db hook)",
+            ld, straight, _cite("barEdgeStraight"),
+        )
+    )  # fmt: skip
+    element["notes"].append(
+        f"top {name} bars at the edge {ref}: bent down {leg:.0f} mm, less than a standard hook "
+        f"(12 db, 8.1.2.1(b)); anchorage by the straight length in the support, checked"
+    )
+    return leg
+
+
+def _slab_boxes(ctx: _Ctx) -> list[tuple[Any, Any, tuple[float, float, float, float]]]:
+    from saengine.library.bim import SlabElement
+
+    out = []
+    for e in ctx.building.elements:
+        if isinstance(e, SlabElement):
+            t = ctx.types.get(e.type)
+            xs = [p[0] for p in e.boundary]
+            ys = [p[1] for p in e.boundary]
+            out.append((e, t, (min(xs), min(ys), max(xs), max(ys))))
+    return sorted(out, key=lambda x: x[0].id)
+
+
+def _neighbour(boxes, e, box, axis: int, side: int):
+    """The slab sharing the edge of ``box`` on ``axis`` (0: x edges) at ``side`` (0 min, 1 max)."""
+    x0, y0, x1, y1 = box
+    edge = (x0, x1)[side] if axis == 0 else (y0, y1)[side]
+    for other, _, ob in boxes:
+        if other.id == e.id or abs(other.elevation - e.elevation) > TOL:
+            continue
+        oedge = (ob[2], ob[0])[side] if axis == 0 else (ob[3], ob[1])[side]
+        if abs(oedge - edge) > TOL:
+            continue
+        lo, hi = (y0, y1) if axis == 0 else (x0, x1)
+        olo, ohi = (ob[1], ob[3]) if axis == 0 else (ob[0], ob[2])
+        if min(hi, ohi) - max(lo, olo) > TOL:
+            return other, ob
+    return None, None
+
+
+def _detail_slabs(ctx: _Ctx) -> list[dict[str, Any]]:
+    from shapely.geometry import Polygon
+
+    boxes = _slab_boxes(ctx)
+    elements = []
+    step = ctx.step
+    done_edges: set[tuple[str, str, int]] = set()
+    by_id = {e.id: (e, t, box) for e, t, box in boxes}
+    openings: dict[str, list[str]] = {}
+    for o in ctx.building.additions.slabOpenings:
+        openings.setdefault(o.host, []).append(o.id)
+    for e, t, box in boxes:
+        element: dict[str, Any] = {
+            "id": e.id,
+            "kind": "slab",
+            "type": e.type,
+            "member": e.id,
+            "story": _story_at(ctx.building, e.elevation),
+            "count": 1,
+            "bars": [],
+            "transverse": [],
+            "laps": [],
+            "checks": [],
+            "notes": _report_notes(ctx, e.id),
+            "at": {"box": [round(v, 1) for v in box], "elevation": e.elevation},
+        }
+        elements.append(element)
+        if t is None or getattr(t, "kind", None) != "slab" or t.reinforcement is None:
+            element["notes"].append("no slab reinforcement: not detailed")
+            continue
+        r = t.reinforcement
+        h = float(t.thickness)
+        cover = float(r.cover)
+        fc, fy, grade = ctx.fc(t.material), ctx.fy(r.material), ctx.grade(r.material)
+        poly = Polygon(e.boundary)
+        x0, y0, x1, y1 = box
+        if poly.area < 0.98 * (x1 - x0) * (y1 - y0):
+            element["notes"].append("not rectangular: detailed over its bounding rectangle")
+        if e.id in openings:
+            element["notes"].append(
+                f"openings {', '.join(openings[e.id])}: bars cut at the openings and trimmer "
+                "bars are not detailed"
+            )
+        sup = {
+            ("x", 0): _edge_support(ctx, (x0, y0), (x0, y1), e.elevation),
+            ("x", 1): _edge_support(ctx, (x1, y0), (x1, y1), e.elevation),
+            ("y", 0): _edge_support(ctx, (x0, y0), (x1, y0), e.elevation),
+            ("y", 1): _edge_support(ctx, (x0, y1), (x1, y1), e.elevation),
+        }
+        element["at"]["supports"] = {
+            f"{a}{s}": {"width": w, "ref": ref} for (a, s), (w, ref) in sup.items()
+        }
+        for axis, name in ((0, "X"), (1, "Y")):
+            lo, hi = (x0, x1) if axis == 0 else (y0, y1)
+            clo, chi = (y0, y1) if axis == 0 else (x0, x1)
+            key = "x" if axis == 0 else "y"
+            other = "y" if axis == 0 else "x"
+            wl, wr = sup[(key, 0)][0], sup[(key, 1)][0]
+            ln = (hi - lo) - wl / 2 - wr / 2
+            cross = (chi - clo) - sup[(other, 0)][0] / 2 - sup[(other, 1)][0] / 2
+            nl, _ = _neighbour(boxes, e, box, axis, 0)
+            nr, _ = _neighbour(boxes, e, box, axis, 1)
+            layer_dia = {"bottomX": None, "bottomY": None}
+            for face in ("bottom", "top"):
+                mesh = getattr(r, f"{face}{name}")
+                if mesh is None:
+                    continue
+                db = float(mesh.dia)
+                bend = bend_diameter(db).value
+                if face == "top" and ctx.options["slabTop"] == "supports":
+                    continue
+                ends = []
+                hooks = []
+                for side, w, n in ((0, wl, nl), (1, wr, nr)):
+                    edge = lo if side == 0 else hi
+                    sign = 1 if side == 0 else -1
+                    if n is not None:
+                        ext = max(bar_rules().extents.intoSupport, w / 2)
+                        ends.append(edge + sign * (w / 2 - ext))
+                        hooks.append(0.0)
+                    else:
+                        ends.append(edge - sign * (w / 2 - cover) if w else edge + sign * cover)
+                        hooks.append(
+                            (
+                                _edge_anchorage(
+                                    ctx, element, name, db, fy, fc, h, cover, w,
+                                    sup[(key, side)][1],
+                                )
+                                if w
+                                else min(standard_hook(db).leg, h - 2 * cover)
+                            )
+                            if face == "top"
+                            else 0.0
+                        )  # fmt: skip
+                a, c = ends
+                lap = ctx.lap(db, fy, fc, cb=_cb(cover, db, float(mesh.spacing)))
+                pieces, laps, _ok = split_run(a, c, lap, [(a, c)], ctx.stock, (hooks[0], hooks[1]))
+                n_bars = int(cross // float(mesh.spacing)) + 1 if cross > 0 else 0
+                letter = ("B" if face == "bottom" else "T") + name
+                for k, (p0, p1) in enumerate(pieces):
+                    hs = hooks[0] if k == 0 else 0.0
+                    he = hooks[1] if k == len(pieces) - 1 else 0.0
+                    run = p1 - p0
+                    if hs and he:
+                        dims, shape, total = (
+                            {"A": hs, "B": run, "C": he},
+                            "U",
+                            u_length(hs, run, he, db, bend),
+                        )
+                    elif hs or he:
+                        dims, shape, total = (
+                            {"A": run, "B": hs or he},
+                            "L",
+                            l_length(run, hs or he, db, bend),
+                        )
+                    else:
+                        dims, shape, total = {"A": run}, "straight", run
+                    element["bars"].append(
+                        _bar(
+                            face,
+                            letter,
+                            db,
+                            shape,
+                            n_bars,
+                            dims,
+                            total,
+                            {
+                                "direction": name,
+                                "face": face,
+                                "from": round(p0, 1),
+                                "to": round(p1, 1),
+                                "band": [round(clo, 1), round(chi, 1)],
+                                "spacing": float(mesh.spacing),
+                            },
+                            bend=bend,
+                            grade=grade,
+                            lap=lap if laps else None,
+                        )
+                    )
+                layer_dia[f"{face}{name}"] = db
+            element["at"][f"ln{name}"] = round(ln, 1)
+            # top bars over the supports of this direction
+            if ctx.options["slabTop"] != "supports":
+                continue
+            for side in (0, 1):
+                w, ref = sup[(key, side)]
+                n, nb = _neighbour(boxes, e, box, axis, side)
+                mesh = getattr(r, f"top{name}")
+                edge = lo if side == 0 else hi
+                if n is not None:
+                    pair = tuple(sorted((e.id, n.id)))
+                    if (pair[0], pair[1], axis) in done_edges:
+                        continue
+                    done_edges.add((pair[0], pair[1], axis))
+                    nt = by_id[n.id][1]
+                    nmesh = getattr(getattr(nt, "reinforcement", None), f"top{name}", None)
+                    if mesh is None or (
+                        nmesh is not None
+                        and nmesh.dia**2 / nmesh.spacing > mesh.dia**2 / mesh.spacing
+                    ):
+                        mesh = nmesh
+                    if mesh is None:
+                        element["notes"].append(f"no top {name} bars over the support at {edge:g}")
+                        continue
+                    nlo, nhi = (nb[0], nb[2]) if axis == 0 else (nb[1], nb[3])
+                    nw_far = _edge_support(
+                        ctx,
+                        *(
+                            ((nb[0], nb[1]), (nb[0], nb[3])) if (axis == 0 and side == 0)
+                            else ((nb[2], nb[1]), (nb[2], nb[3])) if axis == 0
+                            else ((nb[0], nb[1]), (nb[2], nb[1])) if side == 0
+                            else ((nb[0], nb[3]), (nb[2], nb[3]))
+                        ),
+                        e.elevation,
+                    )[0]  # fmt: skip
+                    ln_n = (nhi - nlo) - w / 2 - nw_far / 2
+                    db = float(mesh.dia)
+                    ld = ctx.ld(db, fy, fc, cb=_cb(cover, db, float(mesh.spacing)))
+                    ext = up(
+                        max(slab_top_extent(max(ln, ln_n), ctx.options["slabTopExtent"]).value, ld),
+                        step,
+                    )
+                    p0, p1 = edge - w / 2 - ext, edge + w / 2 + ext
+                    olo, ohi = (nb[1], nb[3]) if axis == 0 else (nb[0], nb[2])
+                    band = (max(clo, olo), min(chi, ohi))
+                    n_bars = int(max(band[1] - band[0], 0) // float(mesh.spacing)) + 1
+                    bend = bend_diameter(db).value
+                    element["bars"].append(
+                        _bar(
+                            "top",
+                            "T" + name,
+                            db,
+                            "straight",
+                            n_bars,
+                            {"A": p1 - p0},
+                            p1 - p0,
+                            {
+                                "direction": name,
+                                "face": "top",
+                                "from": round(p0, 1),
+                                "to": round(p1, 1),
+                                "band": [round(band[0], 1), round(band[1], 1)],
+                                "spacing": float(mesh.spacing),
+                                "support": ref,
+                                "slabs": list(pair),
+                            },
+                            bend=bend,
+                            grade=grade,
+                            curtailed=True,
+                            remarks=f"over the support at {edge:g}, {ext:g} mm from each face "
+                            "(0.30 ln, Figure 6.6.20)",
+                        )
+                    )
+                elif w > 0:
+                    if mesh is None:
+                        continue
+                    db = float(mesh.dia)
+                    ld = ctx.ld(db, fy, fc, cb=_cb(cover, db, float(mesh.spacing)))
+                    ext = up(max(slab_top_extent(ln, ctx.options["slabTopExtent"]).value, ld), step)
+                    sign = 1 if side == 0 else -1
+                    outer = edge - sign * (w / 2 - cover)
+                    inner = edge + sign * (w / 2 + ext)
+                    p0, p1 = sorted((outer, inner))
+                    leg = _edge_anchorage(ctx, element, name, db, fy, fc, h, cover, w, ref)
+                    bend = bend_diameter(db).value
+                    n_bars = int(max(cross, 0) // float(mesh.spacing)) + 1
+                    element["bars"].append(
+                        _bar(
+                            "top",
+                            "T" + name,
+                            db,
+                            "L",
+                            n_bars,
+                            {"A": p1 - p0, "B": leg},
+                            l_length(p1 - p0, leg, db, bend),
+                            {
+                                "direction": name,
+                                "face": "top",
+                                "from": round(p0, 1),
+                                "to": round(p1, 1),
+                                "band": [round(clo, 1), round(chi, 1)],
+                                "spacing": float(mesh.spacing),
+                                "support": ref,
+                                "hooks": ["down", None] if side == 0 else [None, "down"],
+                            },
+                            bend=bend,
+                            grade=grade,
+                            curtailed=True,
+                            remarks=f"at the discontinuous edge {ref}, {ext:g} mm into the panel",
+                        )
+                    )
+        if not any(b["role"] == "top" for b in element["bars"]) and (r.topX or r.topY):
+            element["notes"].append("no supported edges: no top bars over supports")
+    return elements
+
+
+# ─────────────────────────────────────────── walls ───────────────────────────────────────────
+
+
+def _detail_walls(ctx: _Ctx) -> list[dict[str, Any]]:
+    from saengine.library.bim import WallElement
+
+    walls = sorted(
+        (e for e in ctx.building.elements if isinstance(e, WallElement)), key=lambda e: e.id
+    )
+    out = []
+    step = ctx.step
+    openings: dict[str, list[str]] = {}
+    for o in ctx.building.additions.wallOpenings:
+        openings.setdefault(o.host, []).append(o.id)
+    for wall in walls:
+        t = ctx.types.get(wall.type)
+        element: dict[str, Any] = {
+            "id": wall.id,
+            "kind": "wall",
+            "type": wall.type,
+            "member": wall.id,
+            "story": _story_at(ctx.building, wall.top),
+            "count": 1,
+            "bars": [],
+            "transverse": [],
+            "laps": [],
+            "checks": [],
+            "notes": _report_notes(ctx, wall.id),
+            "at": {
+                "start": list(wall.start),
+                "end": list(wall.end),
+                "bottom": wall.bottom,
+                "top": wall.top,
+            },
+        }
+        out.append(element)
+        lintels = _detail_lintels(ctx, wall, element)
+        if lintels:
+            # A wall drawn for its lintels only (masonry): its elevation needs its size.
+            element["at"].update(length=math.dist(wall.start, wall.end))
+            if getattr(t, "thickness", None):
+                element["at"].update(thickness=float(t.thickness))
+        if t is not None and getattr(t, "confinement", None) is not None and not t.reinforcement:
+            # B34: a confined masonry wall: its elevation shows the tie columns and tie beams.
+            element["at"].update(
+                length=math.dist(wall.start, wall.end), thickness=float(t.thickness)
+            )
+            element["notes"].append("confined masonry: the tie columns and tie beams are drawn")
+            continue
+        if t is None or getattr(t, "kind", None) != "wall" or t.reinforcement is None:
+            element["notes"].append(
+                "no wall reinforcement: not detailed"
+                + (f" (the lintels over {', '.join(lintels)} are)" if lintels else "")
+            )
+            continue
+        r = t.reinforcement
+        fc, fy, grade = ctx.fc(t.material), ctx.fy(r.material), ctx.grade(r.material)
+        length = math.dist(wall.start, wall.end)
+        height = wall.top - wall.bottom
+        th = float(t.thickness)
+        cover = float(r.cover)
+        element["at"].update(length=length, thickness=th)
+        if wall.id in openings:
+            element["notes"].append(
+                f"openings {', '.join(openings[wall.id])}: bars cut at the openings and trimmer "
+                "bars are not detailed"
+            )
+        above = next(
+            (
+                w
+                for w in walls
+                if w.id != wall.id
+                and abs(w.bottom - wall.top) <= TOL
+                and math.dist(w.start, wall.start) <= TOL
+                and math.dist(w.end, wall.end) <= TOL
+            ),
+            None,
+        )
+        below = next(
+            (
+                w
+                for w in walls
+                if w.id != wall.id
+                and abs(w.top - wall.bottom) <= TOL
+                and math.dist(w.start, wall.start) <= TOL
+            ),
+            None,
+        )
+        special = ctx.wall_level == "special" and bool(t.structural)
+        factor = bar_rules().laps.wallYield if special and below is None else 1.0
+        if factor != 1.0:
+            element["notes"].append(
+                f"laps at the base for {factor:g} ld{_cite_after('barWallBaseLap', ' (')}"
+                + (")" if _cite("barWallBaseLap") else "")
+            )
+        found = _foundation_under(ctx, wall) if below is None else None
+        boundary = r.boundary
+        web_from = boundary.length if boundary else cover
+        web = length - 2 * web_from
+        layers = int(r.layers)
+        vertical_groups: list[tuple[str, str, int, float]] = []
+        if r.vertical is not None:
+            n = (int(max(web, 0) // float(r.vertical.spacing)) + 1) * layers
+            vertical_groups.append(("vertical", "V", n, float(r.vertical.dia)))
+        if boundary is not None:
+            vertical_groups.append(("end", "E", 2 * int(boundary.count), float(boundary.dia)))
+        for role, letter, n, db in vertical_groups:
+            bend = bend_diameter(db).value
+            spacing = float(r.vertical.spacing) if role == "vertical" and r.vertical else None
+            lap = ctx.lap(db, fy, fc, factor=factor, cb=_cb(cover, db, spacing))
+            z0 = wall.bottom
+            if above is not None:
+                z1 = wall.top + lap
+                dims, shape, total = {"A": z1 - z0}, "straight", z1 - z0
+                hooks = [None, None]
+            else:
+                z1 = wall.top - 40.0
+                hook = standard_hook(db)
+                dims = {"A": z1 - z0, "B": hook.leg}
+                shape, total = "L", l_length(z1 - z0, hook.leg, db, bend)
+                hooks = [None, "intoSlab"]
+            bar = _bar(
+                role, letter, db, shape, n, dims, total,
+                {"from": z0, "to": round(z1, 1), "hooks": hooks},
+                bend=bend, grade=grade, lap=lap if above is not None else None,
+            )  # fmt: skip
+            element["bars"].append(bar)
+            if above is not None:
+                element["laps"].append(
+                    {
+                        "bars": [bar],
+                        "from": wall.top,
+                        "to": wall.top + lap,
+                        "length": lap,
+                        "class": "B",
+                        "clause": _cite("barLapTension"),
+                        "with": above.id,
+                    }
+                )
+            if found is not None:
+                hook = standard_hook(db)
+                mesh = sum(found["mesh"][:2]) if found["mesh"] else 0.0
+                s0 = found["bottom"] + found["cover"] + mesh
+                s1 = wall.bottom + lap
+                dims = {"A": s1 - s0, "B": hook.leg}
+                dowel = _bar(
+                    "starter", "D", db, "L", n, dims, l_length(dims["A"], dims["B"], db, bend),
+                    {"from": round(s0, 1), "to": round(s1, 1), "foundation": found["id"],
+                     "hooks": ["toCentre", None]},
+                    bend=bend, grade=grade, lap=lap,
+                    remarks=f"starter bars from {found['id']}",
+                )  # fmt: skip
+                element["bars"].append(dowel)
+                element["laps"].append(
+                    {
+                        "bars": [dowel, bar],
+                        "from": wall.bottom,
+                        "to": wall.bottom + lap,
+                        "length": lap,
+                        "class": "B",
+                        "clause": _cite("barLapTension"),
+                        "with": found["id"],
+                    }
+                )
+        if r.horizontal is not None:
+            db = float(r.horizontal.dia)
+            s = float(r.horizontal.spacing)
+            bend = bend_diameter(db).value
+            hook = standard_hook(db)
+            leg = min(hook.leg, th - 2 * cover)
+            n = (int(max(height - s, 0) // s) + 1) * layers
+            run = length - 2 * cover
+            lap = ctx.lap(db, fy, fc, cb=_cb(cover, db, s))
+            pieces, laps, _ok = split_run(0.0, run, lap, [(0.0, run)], ctx.stock, (leg, leg))
+            for k, (p0, p1) in enumerate(pieces):
+                hs = leg if k == 0 else 0.0
+                he = leg if k == len(pieces) - 1 else 0.0
+                span = p1 - p0
+                if hs and he:
+                    dims, shape, total = (
+                        {"A": hs, "B": span, "C": he},
+                        "U",
+                        u_length(hs, span, he, db, bend),
+                    )
+                elif hs or he:
+                    dims, shape, total = (
+                        {"A": span, "B": hs or he},
+                        "L",
+                        l_length(span, hs or he, db, bend),
+                    )
+                else:
+                    dims, shape, total = {"A": span}, "straight", span
+                element["bars"].append(
+                    _bar(
+                        "horizontal", "H", db, shape, n, dims, total,
+                        {"from": round(cover + p0, 1), "to": round(cover + p1, 1),
+                         "spacing": s, "layers": layers},
+                        bend=bend, grade=grade, lap=lap if laps else None,
+                        remarks="90° hooks at the wall ends (8.3.6.6(d)(v), (e)(ii), p 1104)",
+                    )
+                )  # fmt: skip
+            if leg < hook.leg:
+                element["notes"].append(
+                    f"horizontal Ø{db:g} hooks shortened to the thickness ({leg:.0f} mm)"
+                )
+        if boundary is not None and boundary.hoop is not None:
+            hp = boundary.hoop
+            hdia = float(hp.dia)
+            hook = seismic_hook(hdia)
+            a, b = boundary.length - cover, th - 2 * cover
+            rows = space(wall.bottom, wall.top, float(hp.spacing), [], float(hp.spacing) / 2)
+            n = sum(row["count"] for row in rows)
+            hoop = _bar(
+                "hoop", "K", hdia, "stirrup", 2 * n, {"A": a, "B": b},
+                stirrup_length(a, b, hdia, hook), {"section": [a, b], "ends": 2},
+                bend=hook.bend_dia, grade=grade, zone="boundary",
+            )  # fmt: skip
+            for row in rows:
+                row["_bar"] = hoop
+            element["transverse"] += rows
+            element["bars"].append(hoop)
+            extra = max(int(hp.legsAcross) - 2, 0)
+            if extra:
+                h135, h90 = seismic_hook(hdia), standard_hook(hdia, 90, transverse=True)
+                element["bars"].append(
+                    _bar(
+                        "crosstie", "X", hdia, "special", 2 * n * extra, {"A": b},
+                        crosstie_length(b, hdia, h135, h90), {"legs": extra},
+                        bend=h135.bend_dia, grade=grade, zone="boundary",
+                    )
+                )  # fmt: skip
+        if getattr(r, "diagonal", None) is not None:
+            _detail_coupling_beams(ctx, wall, element, r, th, fy, fc, grade)
+        if getattr(r, "pierHoop", None) is not None:
+            _detail_pier_hoops(ctx, wall, element, r, th, grade)
+        _ = step
+    return out
+
+
+def _detail_pier_hoops(
+    ctx: _Ctx, wall: Any, element: dict[str, Any], r: Any, th: float, grade: str | None
+) -> None:
+    """Q, the hoops of the wall type's wall piers (``reinforcement.pierHoop``, 8.3.6.8) round
+    each wall pier beside the openings (:func:`saengine.boq.quantities.wall_pier_parts`), over
+    its clear height and the pack's ``pierHoopExtension`` above and below; Z, their crossties
+    beyond the two outer legs each way."""
+    from saengine.boq.quantities import wall_pier_parts
+    from saengine.design.walls import special_limit
+
+    hp = r.pierHoop
+    cover = float(r.cover)
+    length = math.dist(wall.start, wall.end)
+    own = [o for o in ctx.building.additions.wallOpenings if o.host == wall.id]
+    parts = wall_pier_parts(length, wall.top - wall.bottom, th, own)
+    if not parts:
+        return
+    hdia = float(hp.dia)
+    hook = seismic_hook(hdia)
+    h135, h90 = seismic_hook(hdia), standard_hook(hdia, 90, transverse=True)
+    extension = special_limit("pierHoopExtension")
+    b = th - 2 * cover
+    for lw, clear in parts:
+        a = lw - 2 * cover
+        n = math.floor((clear + 2 * extension) / float(hp.spacing) + 1e-9) + 1
+        element["bars"].append(
+            _bar(
+                "hoop", "Q", hdia, "stirrup", n, {"A": a, "B": b},
+                stirrup_length(a, b, hdia, hook),
+                {"section": [a, b], "clear": round(clear, 1), "extension": extension},
+                bend=hook.bend_dia, grade=grade, zone="wall pier",
+            )
+        )  # fmt: skip
+        extra = ((max(int(hp.legsAcross) - 2, 0), b), (max(int(hp.legsAlong) - 2, 0), a))
+        for count, width in extra:
+            if count:
+                element["bars"].append(
+                    _bar(
+                        "crosstie", "Z", hdia, "special", n * count, {"A": width},
+                        crosstie_length(width, hdia, h135, h90), {"legs": count},
+                        bend=h135.bend_dia, grade=grade, zone="wall pier",
+                    )
+                )  # fmt: skip
+    element["notes"].append(
+        f"wall piers ({len(parts)}): hoops Ø{hdia:g} @ {float(hp.spacing):g} over the clear "
+        f"height and {extension:g} mm above and below"
+    )
+
+
+def _detail_coupling_beams(
+    ctx: _Ctx,
+    wall: Any,
+    element: dict[str, Any],
+    r: Any,
+    th: float,
+    fy: float,
+    fc: float,
+    grade: str | None,
+) -> None:
+    """The wall type's coupling beam bars (``reinforcement.diagonal``) over each opening with a
+    pier on each side and the wall above it (:func:`saengine.boq.quantities.wall_spandrels`):
+    G, the two groups of diagonal bars corner to corner, embedded the pack's
+    ``couplingEmbedment`` ld into the piers (1.25 in the default pack, 8.3.6.7(d)(ii)); J, the
+    hoops over the whole section along the clear span, and Y, their crossties beyond the two
+    outer legs each way (8.3.6.7(d)(iv)), or W, hoops around each group along the diagonal
+    ((d)(iii)); U, the beam's longitudinal bars along each face (``diagonal.longitudinal``),
+    developed ld into the piers."""
+    from saengine.boq.quantities import wall_spandrels
+
+    d = r.diagonal
+    cover = float(r.cover)
+    length = math.dist(wall.start, wall.end)
+    height = wall.top - wall.bottom
+    own = [o for o in ctx.building.additions.wallOpenings if o.host == wall.id]
+    spandrels = wall_spandrels(length, height, own)
+    if not spandrels:
+        return
+    from saengine.design import walls as W
+    from saengine.design.wall_design import coupling_diagonal
+
+    db = float(d.dia)
+    bend = bend_diameter(db).value
+    k = W.special_limit("couplingEmbedment")
+    embed = k * ctx.ld(db, fy, fc)
+    long = getattr(d, "longitudinal", None)
+    group = getattr(d, "groupHoop", None)
+    for span, depth in spandrels:
+        edge = cover + 10.0 + 2 * 20.0  # the group's centroid off the beam's faces, as designed
+        run = math.hypot(span, max(depth - 2 * edge, 0.0)) + 2 * embed
+        element["bars"].append(
+            _bar(
+                "diagonal", "G", db, "straight", 2 * int(d.count), {"A": run}, run,
+                {"span": round(span, 1), "depth": round(depth, 1), "embedment": round(embed, 1)},
+                bend=bend, grade=grade, remarks=f"two groups, {k:g} ld into the piers",
+            )
+        )  # fmt: skip
+        if long is not None:
+            # U: the beam's longitudinal bars along each face, developed ld into the piers.
+            ldia = float(long.dia)
+            lrun = span + 2 * ctx.ld(ldia, fy, fc)
+            count = int(r.layers) * W.bars_down(depth - 2 * cover, float(long.spacing))
+            element["bars"].append(
+                _bar(
+                    "longitudinal", "U", ldia, "straight", count, {"A": lrun}, lrun,
+                    {"span": round(span, 1), "spacing": float(long.spacing)},
+                    bend=bend_diameter(ldia).value, grade=grade, zone="coupling beam",
+                    remarks="each face, ld into the piers",
+                )
+            )  # fmt: skip
+        hp = getattr(d, "hoop", None)
+        if hp is None and group is not None:
+            # W: hoops around each of the two groups along the diagonal (8.3.6.7(d)(iii)).
+            found = coupling_diagonal(d)
+            assert found is not None and found.group_hoop is not None
+            gw, gd = W.group_hoop_size(found.group_hoop, found, th, cover, W.wall_bars(r))
+            gdia = float(group.dia)
+            hook = seismic_hook(gdia)
+            along = math.hypot(span, max(depth - 2 * edge, 0.0))
+            n = 2 * (math.floor(along / float(group.spacing) + 1e-9) + 1)
+            element["bars"].append(
+                _bar(
+                    "hoop", "W", gdia, "stirrup", n, {"A": gd, "B": gw},
+                    stirrup_length(gd, gw, gdia, hook), {"section": [gd, gw], "groups": 2},
+                    bend=hook.bend_dia, grade=grade, zone="coupling beam",
+                )
+            )  # fmt: skip
+        if hp is None:
+            continue
+        hdia = float(hp.dia)
+        hook = seismic_hook(hdia)
+        a, b = depth - 2 * cover, th - 2 * cover
+        n = math.floor(span / float(hp.spacing) + 1e-9) + 1
+        element["bars"].append(
+            _bar(
+                "hoop", "J", hdia, "stirrup", n, {"A": a, "B": b},
+                stirrup_length(a, b, hdia, hook), {"section": [a, b], "span": round(span, 1)},
+                bend=hook.bend_dia, grade=grade, zone="coupling beam",
+            )
+        )  # fmt: skip
+        h135, h90 = seismic_hook(hdia), standard_hook(hdia, 90, transverse=True)
+        extra = ((max(int(hp.legsAcross) - 2, 0), b), (max(int(hp.legsAlong) - 2, 0), a))
+        for count, width in extra:
+            if count:
+                element["bars"].append(
+                    _bar(
+                        "crosstie", "Y", hdia, "special", n * count, {"A": width},
+                        crosstie_length(width, hdia, h135, h90), {"legs": count},
+                        bend=h135.bend_dia, grade=grade, zone="coupling beam",
+                    )
+                )  # fmt: skip
+    element["notes"].append(
+        f"coupling beams over {len(spandrels)} opening(s): {d.count} Ø{db:g} diagonal bars per "
+        "group and "
+        + (
+            "hoops around each group"
+            if getattr(d, "hoop", None) is None and group is not None
+            else "hoops over the whole section"
+        )
+        + (", longitudinal bars along each face" if long is not None else "")
+    )
+
+
+#: Lintels: the first stirrup from each end of the lintel [mm] (practice, as the first stirrup
+#: of beams in the default pack).
+LINTEL_FIRST_STIRRUP = 50.0
+
+
+def _high_wind(settings: Any) -> bool:
+    """Whether the site is a high-wind region for the lintel bars (7.9.6.3): the basic wind
+    speed over 200 km/h, decided as design/check.py decides it for the design report."""
+    if settings is None:
+        return False
+    from saengine.library.settings import derived
+
+    try:
+        wind = float(derived(settings).get("windSpeed") or 0.0)
+    except (ValueError, KeyError, AttributeError, TypeError):
+        wind = 0.0
+    return wind * 3.6 > 200.0
+
+
+def _lintels_of(ctx: _Ctx) -> list[dict[str, Any]]:
+    """The lintels designed over the openings of masonry and partition walls
+    (:func:`saengine.design.lintels.lintels_of`, the design report's ``kind: "lintel"``
+    elements); designed here, as the design report does, when no report was given."""
+    found = [e for e in ctx.report.values() if e.get("kind") == "lintel"]
+    if found or ctx.report:
+        return found
+    if ctx.lintels is None:
+        from saengine.design import lintels as lintel_design
+
+        try:
+            types = dict(ctx.types)
+            mats = {m.id: m for m in ctx.materials.materials} if ctx.materials else {}
+            result = lintel_design.lintels_of(
+                ctx.building,
+                types,
+                mats,
+                ctx.settings,
+                concrete=ctx.materials.default_concrete() if ctx.materials else None,
+                steel=ctx.materials.default_rebar() if ctx.materials else None,
+                high_wind=_high_wind(ctx.settings),
+            )
+            ctx.lintels = list(result["elements"])
+        except (ValueError, AttributeError, KeyError) as error:
+            ctx.notes.append(f"lintels could not be designed for the drawings: {error}")
+            ctx.lintels = []
+    return ctx.lintels
+
+
+def _detail_lintels(ctx: _Ctx, wall: Any, element: dict[str, Any]) -> list[str]:
+    """The bars of the lintels over the openings of ``wall`` (their design by
+    :mod:`saengine.design.lintels`) added to the wall's element: bottom bars (``LB``), top
+    hangers (``LT``) and closed stirrups (``LS``), each with ``at.opening``; returns the
+    openings' ids.
+
+    The lintel runs the opening's clear width plus its bearing at each end (the design's span
+    less the clear width is one bearing; Sec 7.4.3.2, p 1015), or the opening plus 600 mm each
+    side where the design asks for the bars to run that far (7.9.6.3, p 1045, high wind
+    regions); the bars run its length less the cover at each end, straight; ld of the bottom
+    bars is checked from mid-span (the section of the largest moment) to the bar's end
+    (8.2.3); stirrups with 135° hooks (8.1.2.1(c)) from 50 mm off each end at the design's
+    spacing."""
+    from saengine.design.lintels import WIND_BAR_EXTENSION, lintel_cover
+
+    openings = {o.id: o for o in ctx.building.additions.wallOpenings if o.host == wall.id}
+    done = []
+    lintel_cover_mm = lintel_cover()
+    for found in _lintels_of(ctx):
+        o = openings.get(str(found.get("id")))
+        if o is None:
+            continue
+        bars = found.get("bars") or {}
+        clear = float(found.get("clear") or o.width)
+        bearing = max(float(found.get("span") or clear) - clear, 0.0)
+        high_wind = any(
+            str(c.get("name", "")).startswith("Lintel span") and not c.get("flag", True)
+            for c in found.get("checks", [])
+        )
+        reach = max(bearing, WIND_BAR_EXTENSION) if high_wind else bearing
+        b, h = float(found.get("b") or 0), float(found.get("h") or 0)
+        length = clear + 2 * reach
+        x0 = float(o.offset) - reach
+        head = float(wall.bottom) + float(o.sill) + float(o.height)
+        steel = str(found.get("steel") or "")
+        grade = ctx.grade(steel) if steel else None
+        fy = ctx.fy(steel) if steel else 420.0
+        fc = ctx.fc(str(found.get("concrete") or ""))
+        cover = lintel_cover_mm
+        at = {"opening": o.id, "from": round(x0, 1), "to": round(x0 + length, 1),
+              "bottom": round(head, 1), "depth": h, "width": b}  # fmt: skip
+        run = length - 2 * cover
+        remarks = f"lintel over {o.id}"
+        for key, role, letter in (("bottom", "lintel bottom", "LB"), ("top", "lintel top", "LT")):
+            if not bars.get(key):
+                continue
+            count, db = int(bars[key][0]), float(bars[key][1])
+            element["bars"].append(
+                _bar(
+                    role, letter, db, "straight", count, {"A": run}, run,
+                    {**at, "face": key}, bend=bend_diameter(db).value, grade=grade,
+                    remarks=remarks,
+                )
+            )  # fmt: skip
+            if key == "bottom":
+                ld = ctx.ld(db, fy, fc)
+                element["checks"].append(
+                    _check(
+                        f"{o.id}: bottom Ø{db:g} developed from mid-span",
+                        ld,
+                        run / 2,
+                        _cite("barDevelopment"),
+                    )
+                )
+        if bars.get("stirrups"):
+            legs, ds, spacing = (
+                int(bars["stirrups"][0]),
+                float(bars["stirrups"][1]),
+                float(bars["stirrups"][2]),
+            )
+            hook = standard_hook(ds, 135, transverse=True)
+            a, c = b - 2 * cover, h - 2 * cover
+            first = LINTEL_FIRST_STIRRUP
+            count = int(max(length - 2 * first, 0.0) // spacing) + 1
+            stirrup = _bar(
+                "lintel stirrup", "LS", ds, "stirrup", count, {"A": a, "B": c},
+                stirrup_length(a, c, ds, hook), {**at, "spacing": spacing, "legs": legs},
+                bend=hook.bend_dia, grade=grade, remarks=remarks,
+            )  # fmt: skip
+            element["bars"].append(stirrup)
+            element["transverse"].append(
+                {"from": round(x0 + first, 1), "to": round(x0 + length - first, 1),
+                 "spacing": spacing, "count": count, "zone": "lintel", "_bar": stirrup}
+            )  # fmt: skip
+            if legs > 2:
+                element["notes"].append(
+                    f"{o.id}: {legs}-leg stirrups: the inner legs are not scheduled"
+                )
+        element.setdefault("lintels", []).append(
+            {"opening": o.id, "from": at["from"], "to": at["to"], "bottom": at["bottom"],
+             "depth": h, "width": b, "label": found.get("label", ""), "ok": found.get("ok")}
+        )  # fmt: skip
+        if found.get("ok") is False:
+            element["notes"].append(
+                f"the lintel over {o.id} fails its design check: detailed as designed"
+            )
+        done.append(o.id)
+    return done
+
+
+# ─────────────────────────────────────────── stairs ───────────────────────────────────────────
+
+
+def _detail_stairs(ctx: _Ctx) -> list[dict[str, Any]]:
+    levels = {s.id: s.elevation for s in ctx.building.stories}
+    out = []
+    step = ctx.step
+    for stair in sorted(ctx.building.additions.stairs, key=lambda s: s.id):
+        t = ctx.types.get(stair.type)
+        element: dict[str, Any] = {
+            "id": stair.id,
+            "kind": "staircase",
+            "type": stair.type,
+            "member": stair.id,
+            "story": stair.top,
+            "count": 1,
+            "bars": [],
+            "transverse": [],
+            "laps": [],
+            "checks": [],
+            "notes": _report_notes(ctx, stair.id),
+        }
+        out.append(element)
+        if t is None or getattr(t, "kind", None) != "staircase" or t.reinforcement is None:
+            element["notes"].append("no stair reinforcement: not detailed")
+            continue
+        if stair.base not in levels or stair.top not in levels:
+            element["notes"].append("its stories are not in the building model")
+            continue
+        rise = levels[stair.top] - levels[stair.base]
+        n = max(1, round(rise / t.riser))
+        riser, going = rise / n, float(t.tread)
+        width = float(t.flightWidth)
+        r = t.reinforcement
+        cover = float(r.cover)
+        fc, fy, grade = ctx.fc(t.material), ctx.fy(r.material), ctx.grade(r.material)
+        dog = t.arrangement == "dogLegged" and n >= 2
+        flights = [(n + 1) // 2, n // 2] if dog else [n]
+        angle = math.degrees(math.atan2(riser, going))
+        element["at"] = {
+            "x": stair.x,
+            "y": stair.y,
+            "direction": stair.direction,
+            "flights": flights,
+            "riser": round(riser, 1),
+            "going": going,
+            "width": width,
+            "waist": float(t.waistThickness),
+            "angle": round(angle, 2),
+        }
+        for k, risers in enumerate(flights, start=1):
+            slope = math.hypot(risers * going, risers * riser)
+            main = r.main
+            db = float(main.dia)
+            bend = bend_diameter(db).value
+            ext = up(ctx.ld(db, fy, fc), step)
+            count = int((width - 2 * cover) // float(main.spacing)) + 1
+            element["bars"].append(
+                _bar(
+                    "main", "M", db, "crank", count, {"A": ext, "B": slope, "C": ext},
+                    2 * ext + slope, {"flight": k, "face": "bottom", "angle": round(angle, 2)},
+                    bend=bend, grade=grade,
+                    remarks=f"ld = {ext:g} mm past the kink into the landing or support",
+                )
+            )  # fmt: skip
+            dist = r.distribution
+            dd = float(dist.dia)
+            element["bars"].append(
+                _bar(
+                    "distribution", "N", dd, "straight",
+                    int(slope // float(dist.spacing)) + 1, {"A": width - 2 * cover},
+                    width - 2 * cover, {"flight": k},
+                    bend=bend_diameter(dd).value, grade=grade,
+                )
+            )  # fmt: skip
+            if r.top is not None:
+                ends = (t.bottomEnd == "continuous") + (t.topEnd == "continuous")
+                if ends:
+                    tdb = float(r.top.dia)
+                    run = up(slope / 4 + ctx.ld(tdb, fy, fc), step)
+                    element["bars"].append(
+                        _bar(
+                            "top", "T", tdb, "straight",
+                            ends * (int((width - 2 * cover) // float(r.top.spacing)) + 1),
+                            {"A": run}, run, {"flight": k, "face": "top"},
+                            bend=bend_diameter(tdb).value, grade=grade, curtailed=True,
+                            remarks="a quarter of the flight from each continuous end, plus ld",
+                        )
+                    )  # fmt: skip
+        if dog:
+            depth = float(t.landingLength or width)
+            span = 2 * width + float(t.wellWidth or 0.0)
+            land = r.landing or r.main
+            ldb = float(land.dia)
+            run = span + float(t.supportWidth) - 2 * cover
+            element["bars"].append(
+                _bar(
+                    "landing", "L", ldb, "straight",
+                    int((depth - 2 * cover) // float(land.spacing)) + 1, {"A": run}, run,
+                    {"landing": True, "span": span},
+                    bend=bend_diameter(ldb).value, grade=grade,
+                    remarks="landing main bars across the flights, into the supports",
+                )
+            )  # fmt: skip
+            dist = r.distribution
+            element["bars"].append(
+                _bar(
+                    "landing distribution", "LN", float(dist.dia), "straight",
+                    int((span - 2 * cover) // float(dist.spacing)) + 1,
+                    {"A": depth - 2 * cover}, depth - 2 * cover, {"landing": True},
+                    bend=bend_diameter(float(dist.dia)).value, grade=grade,
+                )
+            )  # fmt: skip
+    return out
+
+
+# ───────────────────────────────────────── foundations ─────────────────────────────────────────
+
+
+def _natural(text: str) -> tuple[Any, ...]:
+    return tuple(int(p) if p.isdigit() else p for p in re.split(r"(\d+)", text))
+
+
+def _detail_foundations(ctx: _Ctx) -> list[dict[str, Any]]:
+    from saengine.library.bim import ColumnElement, FootingElement, foundation_solids
+
+    # (id, kind, type key, form, reinforcement, length, width, thickness, rotation, columns,
+    #  material, centre)
+    rows: list[tuple[Any, ...]] = []
+    columns = {e.id: e for e in ctx.building.elements if isinstance(e, ColumnElement)}
+    notes: list[str] = []
+    if ctx.substructure is not None:
+        ground = float(ctx.settings.foundation.groundLevel) if ctx.settings is not None else 0.0
+        solids = foundation_solids(ctx.substructure, ctx.building, ground)
+        notes += [f"9 Substructure: {n}" for n in solids.notes]
+        by_id = {f.id: f for f in ctx.substructure.foundations}
+        # 9 Substructure has no foundation types: each foundation is its own definition, and
+        # foundations with the same definition (form, size, reinforcement, concrete) are one
+        # type, named after the first of them (natural order), for the marks
+        definitions: dict[str, str] = {}
+        for s in sorted(solids.foundations, key=lambda x: _natural(x.id)):
+            r = s.reinforcement
+            key = json.dumps(
+                [s.type, round(s.runs[0]), round(s.runs[1]), round(s.thickness), s.material,
+                 r.model_dump(mode="json") if hasattr(r, "model_dump") else repr(r)],
+                sort_keys=True, default=str,
+            )  # fmt: skip
+            definitions.setdefault(key, s.id)
+            f = by_id[s.id]
+            kind = "pileCap" if s.type == "pileCap" else "footing"
+            if s.type in ("strip", "raft"):
+                notes.append(f"{s.id}: {s.type} foundations are detailed over their runs only")
+            rows.append(
+                (s.id, kind, definitions[key], s.type, s.reinforcement, s.runs[0], s.runs[1],
+                 s.thickness, s.rotation, list(f.columns), s.material or "", s.center)
+            )  # fmt: skip
+        if solids.piles:
+            notes.append(
+                "piles are not detailed (their bars: see the pile types of 9 Substructure)"
+            )
+        if solids.ties:
+            notes.append("tie beams of 9 Substructure are not detailed")
+    else:
+        for e in ctx.building.elements:
+            if isinstance(e, FootingElement):
+                t = ctx.types.get(e.type)
+                if t is None:
+                    continue
+                on = [c.id for c in columns.values() if math.dist(c.position, e.position) <= TOL]
+                rows.append(
+                    (e.id, t.kind, e.type, getattr(t, "footingType", None) or "pileCap",
+                     t.reinforcement, float(t.length), float(t.width), float(t.thickness),
+                     e.rotation, on, t.material, (float(e.position[0]), float(e.position[1])))
+                )  # fmt: skip
+    out = []
+    step = ctx.step
+    rows.sort(key=lambda row: _natural(row[0]))
+    for (fid, kind, ftype, form, r, length, width, thick, rotation, cols, material,
+         centre) in rows:  # fmt: skip
+        element: dict[str, Any] = {
+            "id": fid,
+            "kind": kind,
+            "type": ftype,
+            "form": form,
+            "member": fid,
+            "story": None,
+            "count": 1,
+            "bars": [],
+            "transverse": [],
+            "laps": [],
+            "checks": [],
+            "notes": [],
+            "at": {
+                "length": length,
+                "width": width,
+                "thickness": thick,
+                "rotation": rotation,
+                "columns": cols,
+                "centre": list(centre) if centre is not None else None,
+            },
+        }
+        out.append(element)
+        if r is None:
+            element["notes"].append("no reinforcement: not detailed")
+            continue
+        fc, fy, grade = ctx.fc(material), ctx.fy(r.material), ctx.grade(r.material)
+        cover = float(r.cover)
+        # the shortest length from a column face to the foundation's edge, along each local
+        # axis, over all its columns at their real positions (the critical section of 8.2.7.2
+        # is the column face)
+        edge_from_face: dict[int, float | None] = {0: None, 1: None}
+        half = {0: length / 2, 1: width / 2}
+        rot = math.radians(rotation or 0.0)
+        ux, uy = (math.cos(rot), math.sin(rot)), (-math.sin(rot), math.cos(rot))
+        for cid in cols:
+            c = columns.get(cid)
+            t = ctx.types.get(c.type) if c else None
+            prof = getattr(t, "profile", None)
+            if prof is None:
+                continue
+            extent = profile_extent(prof)
+            if extent is None:
+                continue
+            if getattr(prof, "shape", "") in ("circle", "circleHollow"):
+                c_along = {0: extent[0], 1: extent[0]}
+            else:
+                # the bounding rectangle of any profile (a steel I-shape's flanges by its depth)
+                bx, by = extent
+                rel = math.radians((c.rotation or 0.0) - (rotation or 0.0))
+                ca, sa = abs(math.cos(rel)), abs(math.sin(rel))
+                c_along = {0: bx * ca + by * sa, 1: bx * sa + by * ca}
+            dx = float(c.position[0]) - (centre[0] if centre is not None else c.position[0])
+            dy = float(c.position[1]) - (centre[1] if centre is not None else c.position[1])
+            local = {0: dx * ux[0] + dy * ux[1], 1: dx * uy[0] + dy * uy[1]}
+            for axis in (0, 1):
+                near = half[axis] - abs(local[axis]) - c_along[axis] / 2
+                prev = edge_from_face[axis]
+                edge_from_face[axis] = near if prev is None else min(prev, near)
+        if centre is None and cols:
+            element["notes"].append(
+                "the foundation's centre is not known: the columns are taken at its centre"
+            )
+        for face in ("bottom", "top"):
+            for axis, name in ((0, "X"), (1, "Y")):
+                mesh = getattr(r, f"{face}{name}", None)
+                if mesh is None:
+                    continue
+                db = float(mesh.dia)
+                bend = bend_diameter(db).value
+                run = (length if axis == 0 else width) - 2 * cover
+                across = (width if axis == 0 else length) - 2 * cover
+                n = int(across // float(mesh.spacing)) + 1
+                near = edge_from_face[axis]
+                avail = (near if near is not None else (length if axis == 0 else width) / 2) - cover
+                top = face == "top" and thick - cover > 300
+                cb = _cb(cover, db, float(mesh.spacing))
+                ld = ctx.ld(db, fy, fc, top=top, cb=cb)
+                letter = ("B" if face == "bottom" else "T") + name
+                if form in ("strip", "raft") or avail >= ld:
+                    if form not in ("strip", "raft"):
+                        element["checks"].append(
+                            _check(
+                                f"{face} {name} bars Ø{db:g}: straight development from the "
+                                "column face", ld, avail, _cite("barFootingDevelopment"),
+                            )
+                        )  # fmt: skip
+                    lap = ctx.lap(db, fy, fc, top=top, cb=cb)
+                    pieces, laps, _ok = split_run(0.0, run, lap, [(0.0, run)], ctx.stock)
+                    for p0, p1 in pieces:
+                        element["bars"].append(
+                            _bar(
+                                face, letter, db, "straight", n, {"A": p1 - p0}, p1 - p0,
+                                {"direction": name, "face": face, "from": round(cover + p0, 1),
+                                 "to": round(cover + p1, 1), "spacing": float(mesh.spacing)},
+                                bend=bend, grade=grade, lap=lap if laps else None,
+                            )
+                        )  # fmt: skip
+                else:
+                    hook = standard_hook(db)
+                    leg = min(hook.leg, thick - 2 * cover)
+                    need = hook_development(db, fy, fc)
+                    element["checks"].append(
+                        _check(
+                            f"{face} {name} bars Ø{db:g}: hooked development from the column "
+                            "face (too short for straight ld "
+                            f"{ld:.0f} mm)", need.value, avail, need.clause,
+                        )
+                    )  # fmt: skip
+                    dims = {"A": leg, "B": run, "C": leg}
+                    element["bars"].append(
+                        _bar(
+                            face, letter, db, "U", n, dims, u_length(leg, run, leg, db, bend),
+                            {"direction": name, "face": face, "from": cover,
+                             "to": round(cover + run, 1), "spacing": float(mesh.spacing),
+                             "hooks": ["up", "up"] if face == "bottom" else ["down", "down"]},
+                            bend=bend, grade=grade,
+                            remarks="90° hooks at both ends (straight length short of ld)",
+                        )
+                    )  # fmt: skip
+        if cols:
+            element["notes"].append(f"column starter bars: see {', '.join(cols)} (role 'starter')")
+        _ = step
+    ctx.notes += notes
+    return out
+
+
+# ─────────────────────────────────────────── marks ───────────────────────────────────────────
+
+
+_PREFIX = {
+    "beam": "B",
+    "column": "C",
+    "slab": "S",
+    "wall": "W",
+    "staircase": "ST",
+    "footing": "F",
+    "pileCap": "PC",
+}
+_ROLE_ORDER = ["T", "B", "F", "S", "X", "V", "D", "H", "P", "BX", "BY", "TX", "TY", "E", "K",
+               "G", "J", "Y", "U", "W", "Q", "Z",
+               "M", "N", "L", "LN", "LB", "LT", "LS"]  # fmt: skip
+
+
+def _signature(element: dict[str, Any], bar: dict[str, Any]) -> str:
+    dims = {k: round(v) for k, v in sorted(bar["dims"].items())}
+    return json.dumps(
+        [element["type"], bar["_letter"], bar["dia"], bar["shape"], dims, round(bar["length"])],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def assign_marks(
+    elements: list[dict[str, Any]], previous: dict[str, Any] | None = None
+) -> dict[str, dict[str, Any]]:
+    """Gives every bar of ``elements`` its mark (in place) and returns the marks table. Bars
+    with the same signature (type, role, diameter, shape, rounded dimensions and length) share a
+    mark across members. ``previous``: an earlier ``marks`` table; a signature found there keeps
+    its mark and a type keeps its code, new ones take the next free numbers."""
+    previous = previous or {}
+    by_signature = {
+        str(v.get("signature")): k for k, v in previous.items() if v.get("signature") is not None
+    }
+    type_code: dict[tuple[str, str], str] = {}
+    for mark, v in previous.items():
+        code = mark.split("-", 1)[0]
+        if v.get("type") and v.get("kind"):
+            type_code.setdefault((str(v["kind"]), str(v["type"])), code)
+    # type codes: previous ones first, then the next free number per kind letter, by type id
+    used_codes = set(type_code.values())
+    kinds_types = sorted({(e["kind"], e["type"]) for e in elements if e["bars"]})
+    # foundations of 9 Substructure have no types: a definition is named after its first
+    # foundation (F1, PC2), and that label is its code when it is free
+    labels = {(e["kind"], e["id"]) for e in elements}
+    for kind, type_id in kinds_types:
+        if (
+            kind in ("footing", "pileCap")
+            and (kind, type_id) not in type_code
+            and (kind, type_id) in labels
+            and re.fullmatch(r"[A-Za-z]{1,3}\d{1,4}", str(type_id))
+            and type_id not in used_codes
+        ):
+            type_code[(kind, type_id)] = str(type_id)
+            used_codes.add(str(type_id))
+    for kind, type_id in kinds_types:
+        if (kind, type_id) in type_code:
+            continue
+        letter = _PREFIX.get(kind, "M")
+        k = 1
+        while f"{letter}{k}" in used_codes:
+            k += 1
+        type_code[(kind, type_id)] = f"{letter}{k}"
+        used_codes.add(f"{letter}{k}")
+    used_marks = set(previous)
+    groups: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
+    for element in elements:
+        for bar in element["bars"]:
+            groups.setdefault(_signature(element, bar), []).append((element, bar))
+    marks: dict[str, dict[str, Any]] = {}
+
+    def order(sig: str) -> tuple[Any, ...]:
+        element, bar = groups[sig][0]
+        letter = bar["_letter"]
+        index = _ROLE_ORDER.index(letter) if letter in _ROLE_ORDER else len(_ROLE_ORDER)
+        return (
+            type_code[(element["kind"], element["type"])],
+            index,
+            -bar["dia"],
+            -bar["length"],
+            sig,
+        )
+
+    for sig in sorted(groups, key=order):
+        element, bar = groups[sig][0]
+        mark = by_signature.get(sig)
+        if mark is None or mark in marks:
+            code = type_code[(element["kind"], element["type"])]
+            k = 1
+            while f"{code}-{bar['_letter']}{k}" in used_marks:
+                k += 1
+            mark = f"{code}-{bar['_letter']}{k}"
+        used_marks.add(mark)
+        count = 0
+        ids = []
+        for el, b in groups[sig]:
+            b["mark"] = mark
+            count += b["count"] * int(el.get("count", 1))
+            if el["id"] not in ids:
+                ids.append(el["id"])
+        marks[mark] = {
+            "mark": mark,
+            "type": element["type"],
+            "kind": element["kind"],
+            "role": bar["role"],
+            "dia": bar["dia"],
+            "shape": bar["shape"],
+            "dims": bar["dims"],
+            "length": bar["length"],
+            "count": count,
+            "elements": ids,
+            "signature": sig,
+        }
+    return dict(sorted(marks.items()))
+
+
+def _finish(elements: list[dict[str, Any]]) -> None:
+    for element in elements:
+        for row in element["transverse"]:
+            bar = row.pop("_bar", None)
+            row["mark"] = bar["mark"] if bar is not None else None
+        for lap in element["laps"]:
+            bars = lap.pop("bars", [])
+            lap["marks"] = sorted({b["mark"] for b in bars if b.get("mark")})
+        for bar in element["bars"]:
+            bar.pop("_letter", None)
+
+
+# ───────────────────────────────────────────── entry ─────────────────────────────────────────────
+
+
+def _frames(
+    settings: Any, materials: Any, objects: Any, building: Any, root: Any
+) -> tuple[dict[str, tuple[str, bool]], str | None, list[str]]:
+    """(frame level and lateral role per beam and column id, the walls' detailing level, notes)
+    from the seismic detailing scope (:func:`saengine.design.seismic_detailing.scope_of`)."""
+    if settings is None:
+        return {}, None, ["no project settings: ordinary detailing (no seismic provisions) assumed"]
+    from saengine.design.seismic_detailing import _frame_for, scope_of
+
+    try:
+        scope, _ = scope_of(settings, materials, objects, building, root)
+    except Exception as error:  # noqa: BLE001 - the scope is advisory here
+        return {}, None, [f"the seismic detailing scope could not be found: {error}"]
+    frames = {}
+    for mid, row in (scope.get("members") or {}).items():
+        found = _frame_for(row, scope)
+        if found is not None:
+            frames[mid] = found
+    level = scope.get("detailingLevel")
+    return frames, level if level in ("special", "intermediate", "ordinary") else None, []
+
+
+def _read(root: Path, relative: str) -> str | None:
+    path = root / relative
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+FILES = {
+    "settings": "02 Project Settings/project-settings.json",
+    "materials": "03 Materials/materials.json",
+    "objects": "04 Objects/objects.json",
+    "bim": "06 BIM/bim.json",
+    "substructure": "09 Substructure/substructure.json",
+}
+
+
+def detailing_model(
+    project_root: str | Path | None = None,
+    *,
+    texts: dict[str, str | None] | None = None,
+    design_report: dict[str, Any] | None = None,
+    required: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
+    previous: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The detailing model of a project (see the module notes). ``project_root``: the project
+    folder, its files read (``FILES``); or ``texts``: the files' texts by key ("bim", "objects",
+    "materials" required; "settings", "substructure" optional). ``design_report``: the output of
+    :func:`saengine.design.check.design_report` (frame types, zones lo, failing elements);
+    ``required``: of :func:`saengine.design.required.design_required` (the top steel the beams
+    need at mid-span); ``options``: see ``DEFAULT_OPTIONS``; ``previous``: the ``marks`` of an
+    earlier model, to keep the marks. Pure: reads files only when ``project_root`` is given.
+    Raises ``ValueError`` when a required file is missing or invalid."""
+    from saengine.design import ductile_joints as dj
+    from saengine.library.bim import BuildingModel
+    from saengine.library.materials import MaterialLibrary
+    from saengine.library.objects import ObjectLibrary
+    from saengine.library.settings import ProjectSettings
+
+    root = Path(project_root) if project_root is not None else None
+    data = dict(texts or {})
+    if root is not None:
+        for key, relative in FILES.items():
+            data.setdefault(key, _read(root, relative))
+    for key in ("bim", "objects", "materials"):
+        if not data.get(key):
+            raise ValueError(f"{FILES[key]} is missing")
+    building = BuildingModel.model_validate_json(data["bim"])
+    objects = ObjectLibrary.model_validate_json(data["objects"])
+    materials = MaterialLibrary.model_validate_json(data["materials"])
+    settings = (
+        ProjectSettings.model_validate_json(data["settings"]) if data.get("settings") else None
+    )
+    from saengine.codes import context as code_context
+
+    pack_id = getattr(settings, "codePack", None)
+    if (
+        code_context.in_force() is None
+        and settings is not None
+        and pack_id
+        and pack_id != code_context.DEFAULT_PACK
+    ):
+        # Alpha 9 C5b: under the project's code pack (its anchorage and laps, its bar rules), as
+        # Design Reinforcement (the default pack's projects as before).
+        with code_context.using(code_context.pack_for(settings, root)):
+            return detailing_model(
+                project_root,
+                texts=data,
+                design_report=design_report,
+                required=required,
+                options=options,
+                previous=previous,
+            )
+    substructure = None
+    if data.get("substructure"):
+        from saengine.substructure.handover import authoritative_substructure
+
+        substructure = authoritative_substructure(data["substructure"], building)
+    opts = {**DEFAULT_OPTIONS, **_standard_lengths(), **(options or {})}
+    if opts.get("slabTopExtent") is None:
+        opts["slabTopExtent"] = bar_rules().extents.slabTopExtent
+    if opts["method"] not in ("simplified", "general"):
+        raise ValueError(f"method {opts['method']!r}: 'simplified' or 'general'")
+    report = {str(e.get("id")): e for e in (design_report or {}).get("elements", [])}
+    req: dict[str, dict[str, Any]] = {}
+    for row in (required or {}).get("elements", []):
+        req.setdefault(str(row.get("element")), {"rows": []})["rows"].append(row)
+    frames, wall_level, notes = _frames(settings, materials, objects, building, root)
+    if design_report is not None and (design_report.get("seismic") or {}).get("detailingLevel"):
+        wall_level = design_report["seismic"]["detailingLevel"]
+    types = {o.id: o for o in objects.objects}
+    ctx = _Ctx(
+        building, types, materials, settings, substructure, report, req, frames, wall_level, opts
+    )
+    ctx.notes += notes
+    try:
+        ctx.joints = dj.frame_joints(building, types)
+    except (ValueError, AttributeError) as error:
+        ctx.notes.append(f"the beam-column joints could not be found: {error}")
+    from saengine.design.rc_detailing import joint_bottom_layers, joint_mode, joint_top_layers
+
+    mode = joint_mode(settings)
+    ctx.top_layers = joint_top_layers(ctx.joints, types, mode)
+    ctx.bottom_layers = joint_bottom_layers(ctx.joints, types, mode)
+    elements: list[dict[str, Any]] = []
+    stacks = _stacks(ctx)
+    # a member that cannot be detailed is left out with a note (10 BOQ measures it by its own
+    # rules), not the whole model
+    for stack in stacks:
+        for k in range(len(stack)):
+            try:
+                elements.append(_detail_column(ctx, stack, k))
+            except (ValueError, ArithmeticError) as error:
+                ctx.notes.append(f"column {stack[k].id} could not be detailed: {error}")
+    for line in _beam_lines(ctx):
+        try:
+            element = _detail_beam_line(ctx, line)
+            if _precast_piece(ctx.types.get(line["type"])) is not None:
+                _precast_beam(ctx, element, line)  # W4C-16
+            elements.append(element)
+        except (ValueError, ArithmeticError) as error:
+            ctx.notes.append(f"beam {'+'.join(line['members'])} could not be detailed: {error}")
+    elements += _detail_slabs(ctx)
+    elements += _detail_walls(ctx)
+    elements += _detail_stairs(ctx)
+    elements += _detail_foundations(ctx)
+    if building.additions.members:
+        ctx.notes.append("inclined members are not detailed")
+    order = {"footing": 0, "pileCap": 0, "column": 1, "wall": 2, "beam": 3, "slab": 4,
+             "staircase": 5}  # fmt: skip
+    elements.sort(key=lambda e: (order.get(e["kind"], 9), e["id"]))
+    # beam bars cranked at the joints to pass inside the column bars (A10 track F)
+    from saengine.drawings.cages import joint_cranks
+
+    try:
+        joint_cranks(elements, types, materials)
+    except Exception as error:  # noqa: BLE001 - the bars stay straight, the cages check them
+        ctx.notes.append(f"the beam bars could not be fitted past the column bars: {error}")
+    marks = assign_marks(elements, previous)
+    _finish(elements)
+    ctx.notes.append(
+        f"Detailing{_cite_after('detailing', ' to ')}; ld by {ctx.method_text}"
+        + (
+            " (first row: spacing and cover at least db, code stirrups)"
+            if opts.get("method") != "general"
+            else " (cb from the cover and bar spacing of each layer)"
+        )
+        + "; lengths rounded up to "
+        f"{opts['round']:g} mm; bars longer than {opts['stockLength']:g} mm lapped (class B)."
+    )
+    return {
+        "schema": SCHEMA_ID,
+        "code": _cite("detailingBasis"),
+        "options": opts,
+        "elements": elements,
+        "marks": marks,
+        "notes": ctx.notes,
+    }
+
+
+def anchorage_rooms(
+    building: Any,
+    objects: Any,
+    materials: Any,
+    settings: Any = None,
+    substructure_text: str | None = None,
+) -> dict[str, Any]:
+    """What the drawings' anchorage checks measure, for the design proposal (no duplication:
+    the same supports and foundations as :func:`detailing_model`):
+
+    - ``"columns"``: per column standing on a foundation (the lowest of its stack),
+      ``{"foundation", "fc", "thickness", "cover", "mesh"}`` (:func:`_foundation_under`), the
+      depth its hooked bars have there being ``thickness - cover - 2 mesh``
+      (:func:`saengine.design.ductile_joints.column_dowel_checks`);
+    - ``"slabs"``: per slab, per bar direction ("X", "Y"), the supports at its discontinuous
+      edges (no slab beyond) ``[(width, depth, ref)]`` (:func:`_edge_support`; a wall's depth is
+      unlimited), where :func:`_edge_anchorage` hooks the top bars."""
+    substructure = None
+    if substructure_text:
+        from saengine.substructure.handover import authoritative_substructure
+
+        try:
+            substructure = authoritative_substructure(substructure_text, building)
+        except (ValueError, AttributeError):
+            substructure = None
+    types = {o.id: o for o in objects.objects}
+    ctx = _Ctx(building, types, materials, settings, substructure, {}, {}, {}, None, {})
+    columns: dict[str, dict[str, Any]] = {}
+    for stack in _stacks(ctx):
+        found = _foundation_under(ctx, stack[0])
+        if found is not None:
+            columns[stack[0].id] = {
+                "foundation": found["id"],
+                "fc": found["fc"],
+                "thickness": float(found["thickness"]),
+                "cover": float(found["cover"]),
+                "mesh": max(found["mesh"] or [0.0]),
+            }
+    slabs: dict[str, dict[str, list[tuple[float, float, str | None]]]] = {}
+    boxes = _slab_boxes(ctx)
+    for e, _t, box in boxes:
+        x0, y0, x1, y1 = box
+        edges = {
+            (0, 0): ((x0, y0), (x0, y1)),
+            (0, 1): ((x1, y0), (x1, y1)),
+            (1, 0): ((x0, y0), (x1, y0)),
+            (1, 1): ((x0, y1), (x1, y1)),
+        }
+        found_edges: dict[str, list[tuple[float, float, str | None]]] = {"X": [], "Y": []}
+        for (axis, side), (a, b) in edges.items():
+            if _neighbour(boxes, e, box, axis, side)[0] is not None:
+                continue
+            width, ref = _edge_support(ctx, a, b, e.elevation)
+            if width > 0:
+                found_edges["X" if axis == 0 else "Y"].append(
+                    (float(width), _support_depth(ctx, ref), ref)
+                )
+        slabs[e.id] = found_edges
+    return {"columns": columns, "slabs": slabs}

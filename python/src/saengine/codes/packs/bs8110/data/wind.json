@@ -1,0 +1,324 @@
+{
+  "$schema": "../../../schemas/wind.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BS 6399-2:1997 Sections 2.1-2.4 (standard method)"
+  ],
+  "source": "BS 6399-2:1997 standard method: site wind speed Vs = Vb Sa Sd Ss Sp (2.2.2), effective wind speed Ve = Vs Sb with the terrain and building factor Sb of Table 4 by the effective height and the distance from the sea (2.2.3), dynamic pressure qs = 0.613 Ve² (2.1.2.1), the overall load of the front and rear faces × 0.85 (2.1.3.6) with the external pressure coefficients of walls (Table 5)",
+  "defaultExposure": "country10",
+  "method": "speedFactors",
+  "exposures": {
+    "country0": {
+      "description": "Country site at the coast (0 km from the sea)"
+    },
+    "country2": {
+      "description": "Country site 2 km from the sea"
+    },
+    "country10": {
+      "description": "Country site 10 km from the sea"
+    },
+    "country100": {
+      "description": "Country site 100 km or more from the sea"
+    },
+    "town2": {
+      "description": "Town site (town terrain at least 2 km upwind), 2 km from the sea"
+    },
+    "town10": {
+      "description": "Town site, 10 km from the sea"
+    },
+    "town100": {
+      "description": "Town site, 100 km or more from the sea"
+    }
+  },
+  "speedFactors": {
+    "airFactor": 0.613,
+    "heightFactors": {
+      "country0": [
+        [
+          2,
+          1.48
+        ],
+        [
+          5,
+          1.65
+        ],
+        [
+          10,
+          1.78
+        ],
+        [
+          15,
+          1.85
+        ],
+        [
+          20,
+          1.9
+        ],
+        [
+          30,
+          1.96
+        ],
+        [
+          50,
+          2.04
+        ],
+        [
+          100,
+          2.12
+        ]
+      ],
+      "country2": [
+        [
+          2,
+          1.4
+        ],
+        [
+          5,
+          1.62
+        ],
+        [
+          10,
+          1.78
+        ],
+        [
+          15,
+          1.85
+        ],
+        [
+          20,
+          1.9
+        ],
+        [
+          30,
+          1.96
+        ],
+        [
+          50,
+          2.04
+        ],
+        [
+          100,
+          2.12
+        ]
+      ],
+      "country10": [
+        [
+          2,
+          1.35
+        ],
+        [
+          5,
+          1.57
+        ],
+        [
+          10,
+          1.73
+        ],
+        [
+          15,
+          1.82
+        ],
+        [
+          20,
+          1.89
+        ],
+        [
+          30,
+          1.96
+        ],
+        [
+          50,
+          2.04
+        ],
+        [
+          100,
+          2.12
+        ]
+      ],
+      "country100": [
+        [
+          2,
+          1.26
+        ],
+        [
+          5,
+          1.45
+        ],
+        [
+          10,
+          1.62
+        ],
+        [
+          15,
+          1.71
+        ],
+        [
+          20,
+          1.77
+        ],
+        [
+          30,
+          1.85
+        ],
+        [
+          50,
+          1.95
+        ],
+        [
+          100,
+          2.07
+        ]
+      ],
+      "town2": [
+        [
+          2,
+          1.4
+        ],
+        [
+          5,
+          1.45
+        ],
+        [
+          10,
+          1.56
+        ],
+        [
+          15,
+          1.73
+        ],
+        [
+          20,
+          1.83
+        ],
+        [
+          30,
+          1.96
+        ],
+        [
+          50,
+          2.04
+        ],
+        [
+          100,
+          2.12
+        ]
+      ],
+      "town10": [
+        [
+          2,
+          1.35
+        ],
+        [
+          5,
+          1.42
+        ],
+        [
+          10,
+          1.54
+        ],
+        [
+          15,
+          1.7
+        ],
+        [
+          20,
+          1.81
+        ],
+        [
+          30,
+          1.95
+        ],
+        [
+          50,
+          2.04
+        ],
+        [
+          100,
+          2.12
+        ]
+      ],
+      "town100": [
+        [
+          2,
+          1.26
+        ],
+        [
+          5,
+          1.36
+        ],
+        [
+          10,
+          1.47
+        ],
+        [
+          15,
+          1.63
+        ],
+        [
+          20,
+          1.74
+        ],
+        [
+          30,
+          1.87
+        ],
+        [
+          50,
+          1.99
+        ],
+        [
+          100,
+          2.1
+        ]
+      ]
+    },
+    "riskCoefficients": [
+      {
+        "id": "standard",
+        "name": "Standard design (annual probability of exceedance 0.02, Sp = 1.0)",
+        "importance": 1.0,
+        "k1": [
+          [
+            20,
+            1.0
+          ],
+          [
+            35,
+            1.0
+          ]
+        ]
+      }
+    ],
+    "importance": 1.0,
+    "areaAveraging": 1.0,
+    "combination": 0.85,
+    "minimumShare": 0.0
+  },
+  "directionality": 1.0,
+  "topographic": 1.0,
+  "gust": 1.0,
+  "cpWindward": 0.85,
+  "cpLeeward": [
+    [
+      1.0,
+      -0.5
+    ],
+    [
+      4.0,
+      -0.5
+    ]
+  ],
+  "sources": {
+    "speedFactors.airFactor": "BS 6399-2:1997 2.1.2.1: qs = 0.613 Ve² [Pa]",
+    "speedFactors.heightFactors": "BS 6399-2:1997 Table 4: Sb (k2 of the method) by the effective height He (taken as the height, no displacement height: SAEngine practice, on the safe side) and the closest distance to the sea, country and town sites (linear between, the 2 m value below)",
+    "speedFactors.riskCoefficients": "BS 6399-2:1997 2.2.2.5: Sp = 1.0 for the standard annual probability 0.02 (k1 of the method)",
+    "speedFactors.importance": "BS 6399-2:1997 2.2.2.4: seasonal factor Ss = 1.0 (permanent buildings); k4 of the method",
+    "speedFactors.areaAveraging": "BS 6399-2:1997 2.1.3.4, Figure 4: size effect factor Ca; SAEngine takes 1.0 (conservative; override wind.speedFactors.areaAveraging with Ca of the building's diagonal)",
+    "speedFactors.combination": "BS 6399-2:1997 2.1.3.6: the overall horizontal load as 0.85 × (front + rear) for the lack of correlation (Kc of the method)",
+    "directionality": "BS 6399-2:1997 2.2.2.3, Table 3: direction factor Sd, taken 1.0 for every direction (the largest; override wind.directionality)",
+    "topographic": "BS 6399-2:1997 2.2.2.2: altitude factor Sa = 1 + 0.001 Δs (Δs the site altitude [m]) and the topographic increment of 2.2.2.2.2: enter Sa as the topographic factor in Project Settings > Wind (1.0: sea level, flat terrain)",
+    "gust": "BS 6399-2:1997 standard method: the gusts are in Sb (1.0); the dynamic augmentation factor Cr (1.4, Figure 3) is not applied (valid for Cr up to 0.25 with the 1 + Cr factor not covered)",
+    "cpWindward": "BS 6399-2:1997 Table 5: front face of a vertical wall, D/H <= 1 (+0.85; less for deeper buildings: SAEngine keeps 0.85, on the safe side)",
+    "cpLeeward": "BS 6399-2:1997 Table 5: rear face, D/H <= 1 (-0.5; -0.3 for D/H >= 4: SAEngine keeps -0.5, on the safe side)"
+  }
+}

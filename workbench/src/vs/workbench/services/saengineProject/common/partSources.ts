@@ -1,0 +1,366 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { StringSHA1 } from '../../../../base/common/hash.js';
+import { DEFAULT_FLOOR_PLAN } from './projectLibraries.generated.js';
+
+/*
+ * How the parts of a project connect. Each part owns its main file and is the only one that
+ * writes it; it reads the files of the parts upstream of it, never writes them. A file derived
+ * from upstream files records, under `source`, the stamp of each upstream file it was built
+ * from, so its editor can tell when an upstream file has changed since and offer to update.
+ * Nothing is regenerated without the engineer asking.
+ */
+
+/**
+ * The parts each derived part can be built from, by part id (one-way: upstream to downstream).
+ * A project has one of them: the building model comes from the floor plan of a building or the
+ * structural model of a special structure (see `upstreamPart`).
+ */
+export const UPSTREAM_PARTS: { readonly [part: string]: readonly string[] } = {
+	bim: ['floorPlan', 'structure'],
+};
+
+/** The part `part` is built from in a project with `parts`, if any. */
+export function upstreamPart(part: string, parts: readonly { readonly id: string }[]): string | undefined {
+	return UPSTREAM_PARTS[part]?.find(id => parts.some(p => p.id === id));
+}
+
+/**
+ * The stamp of an upstream file: SHA-1 of its text with line endings normalised. The Python
+ * side (`saengine.library.bim.source_stamp`) computes the same.
+ */
+export function sourceStamp(text: string): string {
+	const sha = new StringSHA1();
+	sha.update(text.replace(/\r\n/g, '\n'));
+	return sha.digest();
+}
+
+/** Keys of the floor plan that only set what is shown behind it, not the building (R2-10, OI-24: attaching an underlay made the building model and all after it stale). */
+const FLOOR_PLAN_VIEW_KEYS = new Set(['underlays']);
+
+/**
+ * The stamp the building model records for the floor plan `text` (key `floorPlan`): of its
+ * content without the underlays, as `JSON.stringify` writes it. The Python side
+ * (`saengine.library.bim.floor_plan_stamp`) computes the same; a text that is not a JSON object
+ * is stamped whole.
+ */
+export function floorPlanStamp(text: string): string {
+	const document = jsonObject(text);
+	return document ? sourceStamp(JSON.stringify(without(document, FLOOR_PLAN_VIEW_KEYS))) : sourceStamp(text);
+}
+
+/**
+ * Whether the stamp `recorded` for upstream part `part` is that of its text `text`. For the
+ * floor plan, its `floorPlanStamp`, or the whole text's stamp the building models recorded
+ * before the underlays were left out (current until the plan changes).
+ */
+export function upstreamCurrent(part: string, recorded: string | undefined, text: string): boolean {
+	if (recorded === undefined) {
+		return false;
+	}
+	return recorded === sourceStamp(text) || (part === 'floorPlan' && recorded === floorPlanStamp(text));
+}
+
+/** Keys of the project settings the analysis model does not take: the project's details and the drawings' title block. */
+const SETTINGS_INFO_KEYS = new Set(['project', 'drawings']);
+/** Keys of the settings' foundation section the analysis model does not take (N-X9): the qa sizes the footings only. */
+const SETTINGS_FOUNDATION_DESIGN_KEYS = new Set(['allowableBearing']);
+/** Keys of an object type the analysis model does not take (N-X9): the bars and design overwrites are the design checks'. */
+const OBJECT_DESIGN_KEYS = new Set(['reinforcement', 'punchingReinforcement', 'designOverwrites']);
+
+function jsonObject(text: string): { readonly [key: string]: unknown } | undefined {
+	try {
+		const value = JSON.parse(text);
+		return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function without(value: unknown, keys: ReadonlySet<string>): unknown {
+	return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).filter(([key]) => !keys.has(key))) : value;
+}
+
+/**
+ * The stamp an analysis model records for the project settings `text` (key `settings`): of the
+ * settings without the project's details, the drawings' title block and the foundation's qa, so
+ * typing the engineer's name, a revision or the qa leaves the model current (`legacy`: the stamp
+ * of models derived before the qa was left out). The Python side
+ * (`saengine.fem.derive.settings_stamp`) computes the same; a text that is not a JSON object gets
+ * the stamp of its text.
+ */
+export function femSettingsStamp(text: string, legacy = false, codeTables?: ReadonlySet<string>): string {
+	const document = jsonObject(text);
+	if (!document) {
+		return sourceStamp(text);
+	}
+	const kept: { [key: string]: unknown } = Object.fromEntries(Object.entries(document).filter(([key]) => !SETTINGS_INFO_KEYS.has(key)));
+	if (!legacy && typeof kept.foundation === 'object' && kept.foundation !== null && !Array.isArray(kept.foundation)) {
+		kept.foundation = without(kept.foundation, SETTINGS_FOUNDATION_DESIGN_KEYS);
+	}
+	const overrides = kept.codeOverrides;
+	if (codeTables && typeof overrides === 'object' && overrides !== null && !Array.isArray(overrides)) {
+		const read = Object.entries(overrides).filter(([path]) => {
+			const table = overrideTable(path);
+			return table === undefined || codeTables.has(table);
+		});
+		if (read.length) {
+			kept.codeOverrides = Object.fromEntries(read);
+		} else {
+			delete kept.codeOverrides;
+		}
+	}
+	return sourceStamp(JSON.stringify(kept));
+}
+
+/** The key of an analysis model's recorded sources listing the code pack tables its derivation read. */
+export const FEM_CODE_TABLES_SOURCE = 'codeTables';
+
+/**
+ * R3 staleness: the stamp a part downstream of the analysis (9 Substructure, 7 MEP, the
+ * drawings) records for the project settings `text`: of the whole settings, with the project's
+ * code overrides of the tables its checks read (`codeTables`) only, so a ramp slope its checks
+ * never read leaves it current. A text that is not a JSON object, or whose overrides are all of
+ * those tables, gets its whole text's stamp (as such a part recorded before). The Python side
+ * (`saengine.fem.derive.code_settings_stamp`) computes the same.
+ */
+export function codeSettingsStamp(text: string, codeTables: ReadonlySet<string>): string {
+	const document = jsonObject(text);
+	const overrides = document?.codeOverrides;
+	if (!document || typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
+		return sourceStamp(text);
+	}
+	const entries = Object.entries(overrides);
+	const read = entries.filter(([path]) => {
+		const table = overrideTable(path);
+		return table === undefined || codeTables.has(table);
+	});
+	if (read.length === entries.length) {
+		return sourceStamp(text);
+	}
+	const kept: { [key: string]: unknown } = { ...document };
+	if (read.length) {
+		kept.codeOverrides = Object.fromEntries(read);
+	} else {
+		delete kept.codeOverrides;
+	}
+	return sourceStamp(JSON.stringify(kept));
+}
+
+/** The code pack tables a downstream part's recorded `source` lists (`codeTables`, `-` for none); undefined when it lists none. */
+export function sourceCodeTables(source: { readonly [part: string]: unknown }): ReadonlySet<string> | undefined {
+	const value = source[FEM_CODE_TABLES_SOURCE];
+	return typeof value === 'string' ? new Set(value.split(',').filter(t => t && t !== '-')) : undefined;
+}
+
+/**
+ * The code pack tables an analysis model's derivation read (its recorded `codeTables`, `-` for
+ * none); undefined for a model derived before they were recorded (every override then counts).
+ * The settings' overrides of other tables leave the model current (B10-32 of usability walk 3).
+ */
+export function femCodeTables(recorded: ReadonlyMap<string, string>): ReadonlySet<string> | undefined {
+	const value = recorded.get(FEM_CODE_TABLES_SOURCE);
+	return value === undefined ? undefined : new Set(value.split(',').filter(t => t && t !== '-'));
+}
+
+/** The table a code override's path names ("factors.phi.shear" -> "factors", "[a.b].c" -> "a.b"), as `saengine.codes.overrides.table_of`. */
+function overrideTable(path: string): string | undefined {
+	const text = path.trim();
+	const match = /^(?:\[([^\]]*)\]|([^.[\]]+))/.exec(text);
+	const table = match ? (match[1] ?? match[2]) : undefined;
+	return table ? table : undefined;
+}
+
+/**
+ * The stamp an analysis model records for the object types `text` (key `objects`): of the types
+ * without their bars and design overwrites (N-X9), so a bar-only Apply leaves the analysis
+ * current. The Python side (`saengine.fem.derive.objects_stamp`) computes the same.
+ */
+export function femObjectsStamp(text: string): string {
+	const document = jsonObject(text);
+	if (!document) {
+		return sourceStamp(text);
+	}
+	const objects = document.objects;
+	return sourceStamp(JSON.stringify(Array.isArray(objects) ? { ...document, objects: objects.map(o => without(o, OBJECT_DESIGN_KEYS)) } : document));
+}
+
+/**
+ * Whether the analysis model's source `part` with `text` is still the one it recorded as
+ * `recorded`. The settings count without the project's details and the qa
+ * ({@link femSettingsStamp}), the object types without their bars ({@link femObjectsStamp}); a
+ * model derived before that recorded the whole file's stamp, which stays current while the file
+ * is unchanged.
+ */
+export function femSourceCurrent(part: string, text: string, recorded: string | undefined, codeTables?: ReadonlySet<string>): boolean {
+	return recorded === sourceStamp(text)
+		|| (part === 'settings' && ((!!codeTables && recorded === femSettingsStamp(text, false, codeTables)) || recorded === femSettingsStamp(text) || recorded === femSettingsStamp(text, true)))
+		|| (part === 'objects' && recorded === femObjectsStamp(text));
+}
+
+/** What the analysis model takes from the MEP file (see {@link mepModelStamp}). */
+const MEP_MODEL_KEYS = ['contentsAs', 'equipment', 'openings', 'shafts'];
+/** Labels of the MEP file's items, which the analysis model does not take. */
+const MEP_LABELS = new Set(['name', 'service']);
+
+/**
+ * The stamp an analysis model records for the MEP file `text` (key `mep`): of what the model
+ * takes from it (its contents setting, equipment, openings and shafts, without the items' names
+ * and service labels, and the plumbing's overhead tanks as `plumbingTanks`, the HVAC plant as
+ * `hvacPlant`, the electrical equipment as `electricalEquipment` (with the supply's
+ * `transformerType`), the fire pumps as `firePumps` (with the supply's `standby` as
+ * `fireStandby`) and the overhead fire tanks as `fireTanks` when there are any),
+ * so editing an IFC model's entry or a label leaves the model current. The
+ * Python side (`saengine.fem.derive.mep_stamp`) computes the same; a text that is not a JSON
+ * object gets the stamp of its text.
+ */
+export function mepModelStamp(text: string): string {
+	let document: unknown;
+	try {
+		document = JSON.parse(text);
+	} catch {
+		return sourceStamp(text);
+	}
+	if (typeof document !== 'object' || document === null || Array.isArray(document)) {
+		return sourceStamp(text);
+	}
+	const source = document as { readonly [key: string]: unknown };
+	const content: { [key: string]: unknown } = {};
+	for (const key of MEP_MODEL_KEYS) {
+		if (!Object.prototype.hasOwnProperty.call(source, key)) {
+			continue;
+		}
+		const value = source[key];
+		content[key] = Array.isArray(value)
+			? value.map(item => typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).filter(([name]) => !MEP_LABELS.has(name))) : item)
+			: value;
+	}
+	// The plumbing's overhead tanks load the model too (stamped only when there are any).
+	const plumbing = source.plumbing;
+	const tanks = typeof plumbing === 'object' && plumbing !== null && !Array.isArray(plumbing) ? (plumbing as { readonly tanks?: unknown }).tanks : undefined;
+	const overhead = Array.isArray(tanks) ? tanks.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t) && (t as { readonly kind?: unknown }).kind === 'overhead') : [];
+	if (overhead.length) {
+		content.plumbingTanks = overhead;
+	}
+	// The HVAC plant and the electrical equipment load the model as equipment too.
+	const unlabelled = (items: readonly unknown[]) => items.map(item => typeof item === 'object' && item !== null && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).filter(([name]) => !MEP_LABELS.has(name))) : item);
+	const section = (value: unknown) => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { readonly [key: string]: unknown } : undefined;
+	const plant = section(source.hvac)?.plant;
+	if (Array.isArray(plant) && plant.length) {
+		content.hvacPlant = unlabelled(plant);
+	}
+	const electrical = section(source.electrical);
+	const equipment = electrical?.equipment;
+	if (Array.isArray(equipment) && equipment.length) {
+		content.electricalEquipment = unlabelled(equipment);
+		const supply = section(electrical?.supply);
+		if (supply && Object.prototype.hasOwnProperty.call(supply, 'transformerType')) {
+			content.transformerType = supply.transformerType;
+		}
+	}
+	// The fire pumps and the overhead fire tanks load the model too.
+	const fire = section(source.fire);
+	const pumps = fire?.pumps;
+	if (Array.isArray(pumps) && pumps.length) {
+		content.firePumps = unlabelled(pumps);
+		const supply = section(fire?.supply);
+		if (supply && Object.prototype.hasOwnProperty.call(supply, 'standby')) {
+			content.fireStandby = supply.standby;
+		}
+	}
+	const fireTanks = fire?.tanks;
+	const fireOverhead = Array.isArray(fireTanks) ? fireTanks.filter(t => typeof t === 'object' && t !== null && !Array.isArray(t) && (t as { readonly kind?: unknown }).kind === 'overhead') : [];
+	if (fireOverhead.length) {
+		content.fireTanks = fireOverhead;
+	}
+	return sourceStamp(JSON.stringify(content));
+}
+
+/**
+ * The stamp of the finished ground level of the project settings in `settingsText` (to the
+ * micrometre; 0 when not set), the only setting the bill of quantities depends on. The Python
+ * side (`saengine.library.bim.ground_level_stamp`) computes the same. A text that is not valid
+ * JSON gets the stamp of its text, which no bill records.
+ */
+export function groundLevelStamp(settingsText: string): string {
+	let ground = 0;
+	try {
+		const settings = JSON.parse(settingsText);
+		const value = typeof settings === 'object' && settings !== null ? settings.foundation?.groundLevel : undefined;
+		if (typeof value === 'number') {
+			ground = value;
+		}
+	} catch {
+		return sourceStamp(settingsText);
+	}
+	return sourceStamp(`groundLevel=${Math.floor(ground * 1000 + 0.5)}`);
+}
+
+/**
+ * The stamp the bill of quantities records for its source part `part` with text `text`: the
+ * ground level's for the project settings; for the materials of a bill `document` that records
+ * the ids it used (`source.materialIds`), the stamp of those entries only (adding a material
+ * nothing uses leaves the bill current); the whole file's otherwise.
+ */
+export function boqSourceStamp(part: string, text: string, document?: unknown): string {
+	if (part === 'settings') {
+		return groundLevelStamp(text);
+	}
+	const ids = part === 'materials' ? recordedMaterialIds(document) : undefined;
+	return ids ? boqMaterialsStamp(text, ids) : sourceStamp(text);
+}
+
+function recordedMaterialIds(document: unknown): readonly string[] | undefined {
+	const source = typeof document === 'object' && document !== null ? (document as { source?: { materialIds?: unknown } }).source : undefined;
+	const ids = source?.materialIds;
+	return Array.isArray(ids) && ids.every(id => typeof id === 'string') ? ids : undefined;
+}
+
+/**
+ * The stamp of the entries of `ids` in the materials file `text`, in the file's order; the Python
+ * side (`saengine.boq.quantities.materials_stamp`) computes the same from the same JSON text.
+ */
+export function boqMaterialsStamp(text: string, ids: readonly string[]): string {
+	let materials: unknown;
+	try {
+		materials = JSON.parse(text)?.materials;
+	} catch {
+		return sourceStamp(text);
+	}
+	const wanted = new Set(ids);
+	const entries = Array.isArray(materials) ? materials.filter(m => typeof m === 'object' && m !== null && wanted.has(m.id)) : [];
+	return sourceStamp(JSON.stringify({ ids: [...ids].sort(), materials: entries }));
+}
+
+/** The stamp a derived document recorded for upstream part `part`, if any. */
+export function recordedStamp(document: unknown, part: string): string | undefined {
+	if (typeof document !== 'object' || document === null) {
+		return undefined;
+	}
+	const source = (document as { source?: unknown }).source;
+	const stamp = typeof source === 'object' && source !== null ? (source as { [part: string]: unknown })[part] : undefined;
+	return typeof stamp === 'string' ? stamp : undefined;
+}
+
+const FLOOR_PLAN_SCHEMA_ID = 'saengine.floorPlan/1';
+const LEGACY_BIM_SCHEMA_ID = 'saengine.bim/1';
+
+/**
+ * The content of a new floor plan. Projects made before the floor plan owned the layout kept
+ * grids, stories and members in `bim.json` (`saengine.bim/1`); given that file's text, its
+ * layout moves to the floor plan unchanged.
+ */
+export function newFloorPlan(legacyBimText: string | undefined): object {
+	try {
+		const legacy = legacyBimText ? JSON.parse(legacyBimText) : undefined;
+		if (typeof legacy === 'object' && legacy !== null && legacy.schema === LEGACY_BIM_SCHEMA_ID) {
+			return { ...legacy, schema: FLOOR_PLAN_SCHEMA_ID };
+		}
+	} catch {
+		// Not JSON: start from the default layout.
+	}
+	return JSON.parse(JSON.stringify(DEFAULT_FLOOR_PLAN));
+}

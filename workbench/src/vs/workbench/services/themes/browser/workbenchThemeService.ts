@@ -161,7 +161,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			}
 		}
 		if (!themeData) {
-			const colorScheme = this.settings.getPreferredColorScheme() ?? (isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
+			// SAEngine: the default theme is light on the desktop too.
+			const colorScheme = this.settings.getPreferredColorScheme() ?? (isWeb || colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_LIGHT ? ColorScheme.LIGHT : ColorScheme.DARK);
 			themeData = ColorThemeData.createUnloadedThemeForThemeType(colorScheme, defaultColorMap);
 		}
 		themeData.setCustomizations(this.settings);

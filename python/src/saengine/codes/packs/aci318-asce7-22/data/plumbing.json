@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../schemas/plumbing.schema.json",
+  "$sources": [
+    "ACI 350-06 Code Requirements for Environmental Engineering Concrete Structures: the RC water tanks' design (alpha 9 track C12); the building services' values stay the default pack's"
+  ],
+  "tanks": {
+    "coverStrengths": [28],
+    "cover": {
+      "$replace": true,
+      "severe": [50],
+      "moderate": [50]
+    },
+    "weatherCover": [50, 50],
+    "againstEarth": 75,
+    "maxSpacingFactor": 3,
+    "maxWaterCement": 0.45,
+    "crackControl": "steelStress",
+    "steelStress": {
+      "tension": 138,
+      "flexure": 138,
+      "flexureAway": 138
+    },
+    "surfaceZone": {
+      "ratio": 0.003,
+      "depthMax": 300
+    },
+    "spacingMax": 300,
+    "combinations": [
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-1)", "factors": {"D": 1.4, "F": 1.4}, "eachFluid": true},
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-2), H = 0", "factors": {"D": 1.2, "F": 1.2, "Lr": 0.5}, "eachFluid": true},
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-2)", "factors": {"D": 1.2, "F": 1.2, "H": 1.6, "Lr": 0.5}, "eachFluid": true, "requires": ["H"]},
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-2), F = 0", "factors": {"D": 1.2, "H": 1.6, "Lr": 0.5}, "requires": ["H"]},
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-6), W = 0", "factors": {"D": 0.9, "H": 1.6}, "requires": ["H"]},
+      {"kind": "strength", "clause": "ACI 350-06 9.2.1 (9-3)", "factors": {"D": 1.2, "Lr": 1.6}, "requires": ["Lr"]},
+      {"kind": "service", "clause": "ACI 350-06 9.2.6, D + F", "factors": {"D": 1.0, "F": 1.0}, "eachFluid": true},
+      {"kind": "service", "clause": "ACI 350-06 9.2.6, D + F + H", "factors": {"D": 1.0, "F": 1.0, "H": 1.0}, "eachFluid": true, "requires": ["H"]},
+      {"kind": "service", "clause": "ACI 350-06 9.2.6, D + H, F = 0", "factors": {"D": 1.0, "H": 1.0}, "requires": ["H"]},
+      {"kind": "service", "clause": "ACI 350-06 9.2.6, D + F + H + Lr", "factors": {"D": 1.0, "F": 1.0, "H": 1.0, "Lr": 1.0}, "requires": ["Lr"]},
+      {"kind": "service", "clause": "ASCE 7-22 Sec 2.4.1 (7), 0.6D + H", "factors": {"D": 0.6, "H": 1.0}, "requires": ["H"]}
+    ]
+  },
+  "sources": {
+    "tanks.cover": "ACI 350-06 7.7.1: 50 mm (2 in) on walls and slabs in contact with the liquid or the weather; f'c at least 28 MPa (4 000 psi, Sec 4.2)",
+    "tanks.weatherCover": "ACI 350-06 7.7.1: 50 mm, any bar size",
+    "tanks.againstEarth": "ACI 350-06 7.7.1: 75 mm (3 in) cast against and permanently exposed to earth",
+    "tanks.maxSpacing": "ACI 350-06 7.6.5 and 10.6.4: bars at most 3h and 300 mm (12 in) apart",
+    "tanks.maxWaterCement": "ACI 350-06 Table 4.2.2: w/cm at most 0.45 (normal exposure; 0.40 severe)",
+    "tanks.combinations": "ACI 350-06 9.2.1 (the ACI 318 strength combinations with F at the factor of D and H at 1.6) and 9.2.6 (service); W = 0",
+    "tanks.steelStress": "ACI 350-06 9.2.6 (crackControl steelStress): the service stress of the bars at most 138 MPa (20 ksi) in direct (hoop) tension, normal environmental exposure; flexure taken at the same 20 ksi, the least value of the fs,max relation of 9.2.6.2 (SAEngine practice, on the safe side); the durability factor Sd of 9.2.6 is not applied separately: the service stress check stands for it",
+    "tanks.surfaceZone": "ACI 350-06 7.12.2.1-7.12.2.2: shrinkage and temperature steel 0.003 of the gross section (Grade 60 bars, movement joints less than 9 m apart; 0.004-0.005 for longer spacing, not checked), half at each face, the surface layer at most 300 mm (12 in) for thick sections",
+    "tanks.uplift": "ASCE 7-22 Sec 2.4.1 combination 7 (0.6D) against the full hydrostatic uplift"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "../../../schemas/pushover.schema.json",
+  "$sources": [
+    "BNBC 2020 Part 6 Sec 2.5.12.1-2.5.12.4, Eqs 6.2.51-6.2.55 (part 1 pp. 641-644, gazette pp. 3222-3225)",
+    "BNBC 2020 Part 6 Sec 2.5.4.3, Eq 6.2.34 and the design spectrum for inelastic analysis (R = 1, I = 1) (part 1 pp. 612-613, gazette pp. 3193-3194)"
+  ],
+  "source": "BNBC 2020 Part 6 Sec 2.5.12 (Non-Linear Static Analysis)",
+  "sources": {
+    "modelling": "BNBC 2020 Part 6 Sec 2.5.12.1 (p. 641-642): nonlinear force-deformation models of every element that yields, P-Delta, strengths not above the expected values, degradation",
+    "controlPoint": "BNBC 2020 Part 6 Sec 2.5.12.1 (p. 642): control point at the centre of mass of the roof",
+    "pattern": "BNBC 2020 Part 6 Sec 2.5.12.2 (p. 642): lateral forces at the centres of mass, proportional to the fundamental mode",
+    "pushTo": "BNBC 2020 Part 6 Sec 2.5.12.2 (p. 642): continued to at least 150 % of the target displacement",
+    "noDrop": "BNBC 2020 Part 6 Sec 2.5.12.2 (p. 642): no drop of the base shear up to 125 % of the target displacement",
+    "bilinear": "BNBC 2020 Part 6 Sec 2.5.12.3 (p. 642): bilinear fit at 60 % of the effective yield strength, equal areas to the target displacement",
+    "period": "BNBC 2020 Part 6 Sec 2.5.12.3, Eq 6.2.51 (p. 642)",
+    "target": "BNBC 2020 Part 6 Sec 2.5.12.3, Eq 6.2.52 (p. 643)",
+    "c0": "BNBC 2020 Part 6 Sec 2.5.12.3, Eq 6.2.53 (p. 643)",
+    "c1": "BNBC 2020 Part 6 Sec 2.5.12.3, Eq 6.2.54 (p. 643)",
+    "rd": "BNBC 2020 Part 6 Sec 2.5.12.3, Eq 6.2.55 (p. 643)",
+    "spectrum": "BNBC 2020 Part 6 Sec 2.5.4.3, Eq 6.2.34 with R = 1 and I = 1 (pp. 612-613)",
+    "memberForces": "BNBC 2020 Part 6 Sec 2.5.12.4 (p. 643): member forces and deformations at the step the target displacement is reached",
+    "acceptance": "BNBC 2020 Part 6 Sec 2.5.12.4 (p. 644): deformation at most 2/3 of that at loss of gravity support and of that at which the strength drops below 70 % of the peak",
+    "review": "BNBC 2020 Part 6 Sec 2.5.12.5 (p. 644): design review by an independent team"
+  },
+  "procedure": {
+    "loadPattern": "firstMode",
+    "pushToTarget": 1.5,
+    "noDropToTarget": 1.25,
+    "pDelta": true,
+    "expectedStrengths": "nominal",
+    "source": "BNBC 2020 Part 6 Sec 2.5.12.1-2.5.12.2 (pp. 641-642)",
+    "note": "Sec 2.5.12.1 caps the element strengths at the expected values and gives no expected-strength factors: the fibre model uses the nominal strengths, which never exceed them."
+  },
+  "targetDisplacement": {
+    "method": "coefficient",
+    "bilinearFitShare": 0.6,
+    "spectrumR": 1.0,
+    "spectrumImportance": 1.0,
+    "c1PeriodLimit": "TC",
+    "c1Period": "TC",
+    "minimumRd": 1.0,
+    "source": "BNBC 2020 Part 6 Sec 2.5.12.3, Eqs 6.2.51-6.2.55 (pp. 642-643); Sa from Eq 6.2.34 with R = 1, I = 1 (Sec 2.5.4.3, p. 613)",
+    "note": "Eq 6.2.54 prints Ts, which BNBC does not define; the condition above it names TC (Sec 2.5.4.3), so Ts is read as TC. Below Rd = 1 the structure stays elastic and Eq 6.2.54 has no meaning (it would give C1 < 1), so Rd is taken as at least 1 (C1 = 1): SAEngine practice, not BNBC."
+  },
+  "acceptance": {
+    "method": "fibreStrain",
+    "deformationShare": 0.666667,
+    "residualStrengthShare": 0.7,
+    "reinforcementFractureStrain": 0.06,
+    "steelFractureStrain": 0.06,
+    "source": "BNBC 2020 Part 6 Sec 2.5.12.4 (p. 644)",
+    "note": "BNBC asks for the deformation capacities from laboratory test data and gives no strain values. The concrete limits come from the fibre model's own stress-strain curves (the strain where the confined core falls below 70 % of its peak). The bars and steel shapes do not lose strength in the fibre model, so a fracture or buckling strain of 0.06 is assumed for them (SAEngine practice, not BNBC; conservative against the uniform elongation of reinforcing and structural steel)."
+  }
+}

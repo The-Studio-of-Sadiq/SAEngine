@@ -1,0 +1,1493 @@
+{
+  "$defs": {
+    "ChordRotationCapacity": {
+      "additionalProperties": false,
+      "description": "Model ``chordRotationCapacity``: the ultimate chord rotation of an RC member by an\nempirical formula θum = (1/γel)·k·c^ν·[max(ωmin, ω')/max(ωmin, ω)·fc]^e1·(LV/h)^e2·\nbase^(α·ρsx·fyw/fc)·diag^(100·ρd) (fc in MPa), × ``wallFactor`` for walls; the levels are\n``yieldLevel`` (θ ≤ θy, the chord rotation at the first yield of the bars) and shares of\nθum.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "gammaEl": {
+          "exclusiveMinimum": 0,
+          "title": "Gammael",
+          "type": "number"
+        },
+        "k": {
+          "exclusiveMinimum": 0,
+          "title": "K",
+          "type": "number"
+        },
+        "axialBase": {
+          "exclusiveMinimum": 0,
+          "title": "Axialbase",
+          "type": "number"
+        },
+        "omegaMin": {
+          "exclusiveMinimum": 0,
+          "title": "Omegamin",
+          "type": "number"
+        },
+        "omegaExponent": {
+          "title": "Omegaexponent",
+          "type": "number"
+        },
+        "spanExponent": {
+          "title": "Spanexponent",
+          "type": "number"
+        },
+        "confinementBase": {
+          "exclusiveMinimum": 0,
+          "title": "Confinementbase",
+          "type": "number"
+        },
+        "diagonalBase": {
+          "exclusiveMinimum": 0,
+          "title": "Diagonalbase",
+          "type": "number"
+        },
+        "wallFactor": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Wallfactor",
+          "type": "number"
+        },
+        "yieldLevel": {
+          "description": "The level met while θ ≤ θy.",
+          "title": "Yieldlevel",
+          "type": "string"
+        },
+        "shares": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Other levels: their limit as a share of θum.",
+          "title": "Shares",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gammaEl",
+        "k",
+        "axialBase",
+        "omegaMin",
+        "omegaExponent",
+        "spanExponent",
+        "confinementBase",
+        "diagonalBase",
+        "yieldLevel",
+        "shares"
+      ],
+      "title": "ChordRotationCapacity",
+      "type": "object"
+    },
+    "ColumnRegression": {
+      "additionalProperties": false,
+      "description": "Model ``columnRegression`` of RC columns: a = a0 + aN·n + aRho·ρt + aV·v ≥ 0;\nb = b0/(b1 + n/bN·(1/ρt)·(fc/fyt)) + bC ≥ a; c = c0 + cN·n ≥ 0; with n = N/(Ag·fc) and\nv = V/Vcol; limits ``ioShare``·a (at most ``ioMax``), ``shares``·b per other level.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "a": {
+          "description": "a0, aN, aRho, aV.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "A",
+          "type": "array"
+        },
+        "b": {
+          "description": "b0, b1, bN, bC.",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "B",
+          "type": "array"
+        },
+        "c": {
+          "description": "c0, cN.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "C",
+          "type": "array"
+        },
+        "ioLevel": {
+          "description": "The level limited by a share of a.",
+          "title": "Iolevel",
+          "type": "string"
+        },
+        "ioShare": {
+          "exclusiveMinimum": 0,
+          "title": "Ioshare",
+          "type": "number"
+        },
+        "ioMax": {
+          "exclusiveMinimum": 0,
+          "title": "Iomax",
+          "type": "number"
+        },
+        "shares": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "Other levels: their limit as a share of b.",
+          "title": "Shares",
+          "type": "object"
+        },
+        "rhoMax": {
+          "description": "ρt is taken at most as this.",
+          "exclusiveMinimum": 0,
+          "title": "Rhomax",
+          "type": "number"
+        },
+        "rhoMin": {
+          "default": 0.0,
+          "description": "Below this ρt the column has no ductility (a = b = 0).",
+          "minimum": 0,
+          "title": "Rhomin",
+          "type": "number"
+        },
+        "axialMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "n is taken at most as this.",
+          "title": "Axialmax"
+        },
+        "shearRatioMin": {
+          "default": 0.0,
+          "description": "v is taken at least as this.",
+          "minimum": 0,
+          "title": "Shearratiomin",
+          "type": "number"
+        },
+        "shearK": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Sheark",
+          "type": "number"
+        },
+        "shearLambda": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Shearlambda",
+          "type": "number"
+        },
+        "shearConcrete": {
+          "description": "vc of Vcol [√MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Shearconcrete",
+          "type": "number"
+        },
+        "shearAxial": {
+          "description": "vn of Vcol [√MPa].",
+          "exclusiveMinimum": 0,
+          "title": "Shearaxial",
+          "type": "number"
+        },
+        "shearArea": {
+          "description": "Share of Ag of Vcol.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Sheararea",
+          "type": "number"
+        },
+        "shearSpan": {
+          "description": "Range M/Vd is taken within.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shearspan",
+          "type": "array"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c",
+        "ioLevel",
+        "ioShare",
+        "ioMax",
+        "shares",
+        "rhoMax",
+        "shearConcrete",
+        "shearAxial",
+        "shearArea",
+        "shearSpan"
+      ],
+      "title": "ColumnRegression",
+      "type": "object"
+    },
+    "DisplacementCoefficients": {
+      "additionalProperties": false,
+      "description": "P3: the coefficients of method ``displacementCoefficient`` (δt = C0·C1·C2·Sa·Te²/4π²·g):\nC1 = 1 + (μ - 1)/(a·Te²) between ``c1PeriodMin`` and ``c1PeriodMax`` (C1 at ``c1PeriodMin``\nbelow it, 1 above ``c1PeriodMax``), C2 = 1 + ((μ - 1)/Te)²/``c2Divisor`` up to\n``c2PeriodMax`` (1 above), μ = Sa/(Vy/W)·Cm.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "siteFactors": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "description": "The site class factor a of C1, by the pack's site class id.",
+          "title": "Sitefactors",
+          "type": "object"
+        },
+        "siteFactorDefault": {
+          "description": "a of a site class not listed (the softest soils' value is safe).",
+          "exclusiveMinimum": 0,
+          "title": "Sitefactordefault",
+          "type": "number"
+        },
+        "c1PeriodMin": {
+          "description": "Below this Te [s] C1 is taken at this Te.",
+          "exclusiveMinimum": 0,
+          "title": "C1Periodmin",
+          "type": "number"
+        },
+        "c1PeriodMax": {
+          "description": "Above this Te [s] C1 = 1.",
+          "exclusiveMinimum": 0,
+          "title": "C1Periodmax",
+          "type": "number"
+        },
+        "c2PeriodMax": {
+          "description": "Above this Te [s] C2 = 1.",
+          "exclusiveMinimum": 0,
+          "title": "C2Periodmax",
+          "type": "number"
+        },
+        "c2Divisor": {
+          "description": "The divisor of ((μ - 1)/Te)² in C2.",
+          "exclusiveMinimum": 0,
+          "title": "C2Divisor",
+          "type": "number"
+        },
+        "massFactor": {
+          "default": 1.0,
+          "description": "The effective mass factor Cm in μ (1.0, its upper bound, unless the pack gives the system's value).",
+          "exclusiveMinimum": 0,
+          "title": "Massfactor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "siteFactors",
+        "siteFactorDefault",
+        "c1PeriodMin",
+        "c1PeriodMax",
+        "c2PeriodMax",
+        "c2Divisor"
+      ],
+      "title": "DisplacementCoefficients",
+      "type": "object"
+    },
+    "EquivalentLinearization": {
+      "additionalProperties": false,
+      "description": "P3: the values of method ``equivalentLinearization`` (effective period and damping of\nthe bilinear SDOF system, the spectrum reduced by B(βeff) = numerator/(constant - ln βeff),\nthe performance point where the capacity spectrum meets the modified demand spectrum).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "initialDamping": {
+          "description": "β0 of the elastic spectrum [%].",
+          "exclusiveMinimum": 0,
+          "title": "Initialdamping",
+          "type": "number"
+        },
+        "bands": {
+          "description": "The ductilities μ where the low band ends and the high band starts.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Bands",
+          "type": "array"
+        },
+        "low": {
+          "$ref": "#/$defs/LinearizationBand",
+          "description": "1 < μ < bands[0]: β = A(μ-1)² + B(μ-1)³ + β0, Teff = [G(μ-1)² + H(μ-1)³ + 1]·T0."
+        },
+        "mid": {
+          "$ref": "#/$defs/LinearizationBand",
+          "description": "bands[0] ≤ μ ≤ bands[1]: β = C + D(μ-1) + β0, Teff = [I + J(μ-1) + 1]·T0."
+        },
+        "high": {
+          "$ref": "#/$defs/LinearizationBand",
+          "description": "μ > bands[1]: β = E·[(F(μ-1) - 1)/(F(μ-1))²]·(Teff/T0)² + β0, Teff = {K·[√((μ-1)/(1 + L(μ-2))) - 1] + 1}·T0."
+        },
+        "reductionNumerator": {
+          "description": "Numerator of B(βeff).",
+          "exclusiveMinimum": 0,
+          "title": "Reductionnumerator",
+          "type": "number"
+        },
+        "reductionConstant": {
+          "description": "Constant of B(βeff) (minus ln βeff[%]).",
+          "exclusiveMinimum": 0,
+          "title": "Reductionconstant",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0.05,
+          "description": "The trial and the found displacement agree within this share.",
+          "exclusiveMinimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "initialDamping",
+        "bands",
+        "low",
+        "mid",
+        "high",
+        "reductionNumerator",
+        "reductionConstant"
+      ],
+      "title": "EquivalentLinearization",
+      "type": "object"
+    },
+    "HazardLevel": {
+      "additionalProperties": false,
+      "description": "P3: one hazard level the target displacement is found for, with the performance level\nthe hinges must meet there.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "description": "Short id (BSE-1N, SD ...).",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "What the level is (shown with the results).",
+          "title": "Label",
+          "type": "string"
+        },
+        "spectrumScale": {
+          "default": 1.0,
+          "description": "Factor on the spectrum the target is read from.",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumscale",
+          "type": "number"
+        },
+        "level": {
+          "description": "The performance level (an id of hinges.levels) checked.",
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "level"
+      ],
+      "title": "HazardLevel",
+      "type": "object"
+    },
+    "HingeAssignment": {
+      "additionalProperties": false,
+      "description": "Values the hinge variables are worked out with (SI: MPa, mm).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "stressUnitPerMPa": {
+          "default": 1.0,
+          "description": "The unit √fc of the shear stress variables is in, per MPa (145.04: psi).",
+          "exclusiveMinimum": 0,
+          "title": "Stressunitpermpa",
+          "type": "number"
+        },
+        "concreteShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vc = this·√fc·b·d of the shear control [√MPa].",
+          "title": "Concreteshear"
+        },
+        "conformingSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Conforming hoops: spacing at most this × d.",
+          "title": "Conformingspacing"
+        },
+        "conformingShear": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Conforming hoops: their shear strength at least this × the shear.",
+          "title": "Conformingshear"
+        },
+        "closeSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stirrups 'close': spacing at most this × d.",
+          "title": "Closespacing"
+        },
+        "stressBlock": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "α1 of the balanced ratio.",
+          "title": "Stressblock"
+        },
+        "ultimateStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "εcu of the balanced ratio.",
+          "title": "Ultimatestrain"
+        },
+        "beta1": {
+          "description": "β1 by fc [MPa], interpolated, held beyond the ends.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Beta1",
+          "type": "array"
+        },
+        "wallShearAspect": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Walls with hw/lw at most this are controlled by shear (component rcWallShear); empty: by flexure.",
+          "title": "Wallshearaspect"
+        },
+        "steelYieldDivisor": {
+          "description": "θy = Z·Fy·L/(divisor·E·I).",
+          "exclusiveMinimum": 0,
+          "title": "Steelyielddivisor",
+          "type": "number"
+        },
+        "compactFlange": {
+          "description": "Compact flange: bf/2tf ≤ this·√(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Compactflange",
+          "type": "number"
+        },
+        "noncompactFlange": {
+          "exclusiveMinimum": 0,
+          "title": "Noncompactflange",
+          "type": "number"
+        },
+        "compactWeb": {
+          "description": "Compact web: h/tw ≤ this·√(E/Fy).",
+          "exclusiveMinimum": 0,
+          "title": "Compactweb",
+          "type": "number"
+        },
+        "noncompactWeb": {
+          "exclusiveMinimum": 0,
+          "title": "Noncompactweb",
+          "type": "number"
+        },
+        "effectiveLength": {
+          "default": 1.0,
+          "description": "K of braces and columns.",
+          "exclusiveMinimum": 0,
+          "title": "Effectivelength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "steelYieldDivisor",
+        "compactFlange",
+        "noncompactFlange",
+        "compactWeb",
+        "noncompactWeb"
+      ],
+      "title": "HingeAssignment",
+      "type": "object"
+    },
+    "HingeComponent": {
+      "additionalProperties": false,
+      "description": "The hinges of one kind of component (rcBeam, rcColumn, rcWall, rcWallShear, steelBeam,\nsteelColumn, steelBrace): the model giving their parameters, what deformation they are\nmeasured by and the model's values.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "model": {
+          "enum": [
+            "table",
+            "columnRegression",
+            "chordRotationCapacity"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "deformation": {
+          "description": "plasticRotation: chord rotation beyond yield [rad]; chordRotation: the whole chord rotation [rad]; yieldMultiple: plastic rotation / θy; drift: storey drift ratio; axialMultiple: axial deformation beyond yield or buckling / that deformation.",
+          "enum": [
+            "plasticRotation",
+            "chordRotation",
+            "yieldMultiple",
+            "drift",
+            "axialMultiple"
+          ],
+          "title": "Deformation",
+          "type": "string"
+        },
+        "variables": {
+          "description": "Variables of the table.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/HingeRow"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "regression": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ColumnRegression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "chordRotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChordRotationCapacity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "deformation"
+      ],
+      "title": "HingeComponent",
+      "type": "object"
+    },
+    "HingeRow": {
+      "additionalProperties": false,
+      "description": "One row of a hinge table: where it applies (``match``: a categorical variable's value,\nor a numeric variable's range), the grid point it gives (``at``: numeric variables;\nbetween the rows of a group the values are interpolated linearly, beyond them the end row\nholds) and the modelling parameters and limits there.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "match": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                ],
+                "type": "array"
+              }
+            ]
+          },
+          "title": "Match",
+          "type": "object"
+        },
+        "at": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "At",
+          "type": "object"
+        },
+        "a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deformation where the strength starts to drop.",
+          "title": "A"
+        },
+        "b": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Deformation where the residual strength is lost.",
+          "title": "B"
+        },
+        "c": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Residual strength (share of the yield strength).",
+          "title": "C"
+        },
+        "limits": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Deformation limit per performance level id.",
+          "title": "Limits",
+          "type": "object"
+        }
+      },
+      "required": [
+        "limits"
+      ],
+      "title": "HingeRow",
+      "type": "object"
+    },
+    "LinearizationBand": {
+      "additionalProperties": false,
+      "description": "FEMA 440-style effective damping and period over one band of the ductility μ: the\n``beta`` and ``period`` coefficient pairs of the band's formula (see the method).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "beta": {
+          "description": "The damping coefficients of the band [%].",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Beta",
+          "type": "array"
+        },
+        "period": {
+          "description": "The period coefficients of the band.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Period",
+          "type": "array"
+        }
+      },
+      "required": [
+        "beta",
+        "period"
+      ],
+      "title": "LinearizationBand",
+      "type": "object"
+    },
+    "N2Rule": {
+      "additionalProperties": false,
+      "description": "P3: the values of method ``n2`` (equivalent SDOF system, elasto-perfectly plastic\nidealisation, dt* from the elastic spectrum with the equal-displacement rule above the\ncorner period and the q-correction below it).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "cornerPeriod": {
+          "description": "The corner period of the spectrum that separates short from medium periods.",
+          "enum": [
+            "TB",
+            "TC",
+            "TD"
+          ],
+          "title": "Cornerperiod",
+          "type": "string"
+        },
+        "maxElasticMultiple": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "dt* is taken as at most this × the elastic displacement det*; empty: no cap.",
+          "title": "Maxelasticmultiple"
+        },
+        "iterate": {
+          "default": true,
+          "description": "Idealise again with dm* = dt* until the target settles (the iterative procedure the code permits).",
+          "title": "Iterate",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cornerPeriod"
+      ],
+      "title": "N2Rule",
+      "type": "object"
+    },
+    "PerformanceLevel": {
+      "additionalProperties": false,
+      "description": "A structural performance level of the hinges, in rising order of damage.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "PerformanceLevel",
+      "type": "object"
+    },
+    "PushoverAcceptance": {
+      "additionalProperties": false,
+      "description": "Acceptance of the members at the target displacement (``fem.acceptance``). Method\n``fibreStrain``: each fibre's strain at the member's end sections against a share of the\nstrain at which its material loses strength. Method ``hingeRotation`` (P3): the hinges of\n``hinges`` (:mod:`saengine.fem.hinges`) against the performance level of each hazard.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "Method id (the engine's generic implementation).",
+          "enum": [
+            "fibreStrain",
+            "hingeRotation"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "deformationShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fibreStrain: a member's deformation may reach at most this × the deformation at which it fails (gravity loss, or strength below residualStrengthShare).",
+          "title": "Deformationshare"
+        },
+        "residualStrengthShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fibreStrain: strength (share of the peak) below which the component has failed.",
+          "title": "Residualstrengthshare"
+        },
+        "reinforcementFractureStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fibreStrain: strain at which a reinforcing bar is taken as lost (fracture or buckling): the fibre model's bars do not degrade.",
+          "title": "Reinforcementfracturestrain"
+        },
+        "steelFractureStrain": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "fibreStrain: strain at which a structural steel fibre is taken as lost (fracture or local buckling): the fibre model's steel does not degrade.",
+          "title": "Steelfracturestrain"
+        },
+        "performanceLevel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "hingeRotation: the performance level checked when the target has no hazard levels (an id of hinges.levels; empty: the last).",
+          "title": "Performancelevel"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "PushoverAcceptance",
+      "type": "object"
+    },
+    "PushoverHinges": {
+      "additionalProperties": false,
+      "description": "P3: hinges at the member ends of the pushover (:mod:`saengine.fem.hinges`): their\nperformance levels, the values they are assigned with and the parameters per component.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "levels": {
+          "items": {
+            "$ref": "#/$defs/PerformanceLevel"
+          },
+          "minItems": 1,
+          "title": "Levels",
+          "type": "array"
+        },
+        "assignment": {
+          "$ref": "#/$defs/HingeAssignment"
+        },
+        "components": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HingeComponent"
+          },
+          "title": "Components",
+          "type": "object"
+        },
+        "clauses": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Clause per component.",
+          "title": "Clauses",
+          "type": "object"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "levels",
+        "assignment"
+      ],
+      "title": "PushoverHinges",
+      "type": "object"
+    },
+    "PushoverProcedure": {
+      "additionalProperties": false,
+      "description": "How the pushover is run: the lateral load pattern the code requires, how far the control\npoint is pushed and the no-drop rule of the capacity curve.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "loadPattern": {
+          "description": "Lateral load pattern the code requires (firstMode: proportional to the fundamental mode's shape times the masses, applied at the centres of mass).",
+          "enum": [
+            "firstMode",
+            "seismic",
+            "uniform"
+          ],
+          "title": "Loadpattern",
+          "type": "string"
+        },
+        "pushToTarget": {
+          "description": "Push the control point to at least this × the target displacement.",
+          "exclusiveMinimum": 0,
+          "title": "Pushtotarget",
+          "type": "number"
+        },
+        "noDropToTarget": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The base shear may not drop in any step up to this × the target displacement; empty: the code has no such rule.",
+          "title": "Nodroptotarget"
+        },
+        "pDelta": {
+          "default": true,
+          "description": "P-Delta effects in the analysis.",
+          "title": "Pdelta",
+          "type": "boolean"
+        },
+        "expectedStrengths": {
+          "default": "nominal",
+          "description": "Material strengths of the nonlinear model: nominal (never above the expected strengths the code caps them at) or expected.",
+          "enum": [
+            "nominal",
+            "expected"
+          ],
+          "title": "Expectedstrengths",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "loadPattern",
+        "pushToTarget"
+      ],
+      "title": "PushoverProcedure",
+      "type": "object"
+    },
+    "TargetDisplacement": {
+      "additionalProperties": false,
+      "description": "The target displacement of the control point (``fem.pushover_target``), by method id:\n``coefficient`` (C0·C1·Sa·(Te/2π)²·g, C1 by Rd), ``displacementCoefficient`` (adds C2 and\nC1 by the site factor), ``equivalentLinearization`` (the performance point by effective\nperiod and damping) or ``n2`` (equivalent SDOF, elasto-perfectly plastic idealisation).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "method": {
+          "description": "Method id (the engine's generic implementation).",
+          "enum": [
+            "coefficient",
+            "displacementCoefficient",
+            "equivalentLinearization",
+            "n2"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "bilinearFitShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The bilinear curve's first segment meets the capacity curve at this × the effective yield strength (methods coefficient, displacementCoefficient, equivalentLinearization).",
+          "title": "Bilinearfitshare"
+        },
+        "spectrumR": {
+          "description": "R of the spectrum Sa is read from (1: the real, unreduced spectrum).",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumr",
+          "type": "number"
+        },
+        "spectrumImportance": {
+          "description": "I of the spectrum Sa is read from.",
+          "exclusiveMinimum": 0,
+          "title": "Spectrumimportance",
+          "type": "number"
+        },
+        "c1PeriodLimit": {
+          "anyOf": [
+            {
+              "enum": [
+                "TB",
+                "TC",
+                "TD"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Method coefficient: C1 = 1 where Te exceeds this corner period.",
+          "title": "C1Periodlimit"
+        },
+        "c1Period": {
+          "anyOf": [
+            {
+              "enum": [
+                "TB",
+                "TC",
+                "TD"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Method coefficient: the corner period Ts of C1 = [1 + (Rd - 1)·Ts/Te] / Rd.",
+          "title": "C1Period"
+        },
+        "minimumRd": {
+          "default": 1.0,
+          "description": "Rd is taken as at least this (below 1 the structure stays elastic and the C1 formula has no meaning).",
+          "exclusiveMinimum": 0,
+          "title": "Minimumrd",
+          "type": "number"
+        },
+        "coefficients": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DisplacementCoefficients"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "linearization": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquivalentLinearization"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "n2": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/N2Rule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hazards": {
+          "description": "P3: hazard levels the target is found for, the first the main one; empty: one target from the spectrum as it is.",
+          "items": {
+            "$ref": "#/$defs/HazardLevel"
+          },
+          "title": "Hazards",
+          "type": "array"
+        },
+        "note": {
+          "default": "",
+          "description": "Why the values are what they are.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "spectrumR",
+        "spectrumImportance"
+      ],
+      "title": "TargetDisplacement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Nonlinear static (pushover) analysis: the procedure, the target displacement method and\nthe acceptance of the members (with P3's hinges).",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "procedure": {
+      "$ref": "#/$defs/PushoverProcedure"
+    },
+    "targetDisplacement": {
+      "$ref": "#/$defs/TargetDisplacement"
+    },
+    "acceptance": {
+      "$ref": "#/$defs/PushoverAcceptance"
+    },
+    "hinges": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PushoverHinges"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "procedure",
+    "targetDisplacement",
+    "acceptance"
+  ],
+  "title": "PushoverTable",
+  "type": "object",
+  "$id": "saengine.codePack.pushover/1"
+}

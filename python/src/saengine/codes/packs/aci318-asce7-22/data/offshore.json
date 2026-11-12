@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../schemas/offshore.schema.json",
+  "$sources": [
+    "API RP 2A-WSD (22nd edition): Sec 2.3.1b (Morison's equation, Cd and Cm of smooth and rough members, wave kinematics factor, current blockage factors), Sec 2.3.1c (current profile); load factors after API RP 2A-LRFD (1.1 permanent, 1.35 environmental) as SAEngine practice for the pack's LRFD steel checks; see VERIFY.md"
+  ],
+  "source": "API RP 2A Sec 2.3.1 hydrodynamic loads by Morison's equation",
+  "method": "morison",
+  "seawaterDensity": 1025.0,
+  "dragSmooth": 0.65,
+  "dragRough": 1.05,
+  "inertiaSmooth": 1.6,
+  "inertiaRough": 1.2,
+  "kinematicsFactor": 0.88,
+  "blockage": {"1": 1.0, "3": 0.9, "4": 0.85, "6": 0.85, "8": 0.85},
+  "currentExponent": 0.142857,
+  "permanentFactor": 1.1,
+  "environmentalFactor": 1.35,
+  "clauses": {
+    "code": "API RP 2A-WSD",
+    "morison": "Sec 2.3.1b",
+    "coefficients": "Sec 2.3.1b(7)",
+    "kinematics": "Sec 2.3.1b(3)",
+    "blockage": "Sec 2.3.1b(4)",
+    "current": "Sec 2.3.1c",
+    "factors": "API RP 2A-LRFD (SAEngine practice)"
+  }
+}

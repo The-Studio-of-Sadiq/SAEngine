@@ -1,0 +1,551 @@
+{
+  "$defs": {
+    "AreaAndStoreys": {
+      "additionalProperties": false,
+      "description": "C4: EN 1991-1-1 6.3.1.2(10)-(11): αA = ``areaShare``·ψ0 + A0/A ≤ 1 (at least\n``categoryMinimum`` in the ``minimumCategories``), αn = (2 + (n - 2)·ψ0)/n for columns and\nwalls of n > 2 storeys; the member takes ``combine`` of the two (\"lesser\": the one that\nreduces more, used alone).",
+      "properties": {
+        "psi0": {
+          "description": "ψ0 of the imposed load.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Psi0",
+          "type": "number"
+        },
+        "areaShare": {
+          "description": "5/7 of αA.",
+          "exclusiveMinimum": 0,
+          "title": "Areashare",
+          "type": "number"
+        },
+        "referenceArea": {
+          "description": "A0 [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Referencearea",
+          "type": "number"
+        },
+        "categoryMinimum": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Categoryminimum"
+        },
+        "minimumCategories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Minimumcategories",
+          "type": "array"
+        },
+        "storeysFrom": {
+          "default": 3,
+          "description": "αn applies from this many storeys.",
+          "minimum": 2,
+          "title": "Storeysfrom",
+          "type": "integer"
+        },
+        "combine": {
+          "const": "lesser",
+          "default": "lesser",
+          "title": "Combine",
+          "type": "string"
+        }
+      },
+      "required": [
+        "psi0",
+        "areaShare",
+        "referenceArea"
+      ],
+      "title": "AreaAndStoreys",
+      "type": "object"
+    },
+    "FloorCountReduction": {
+      "additionalProperties": false,
+      "description": "C7, ``method: floorCount`` (IS 875-2 3.2): L / L0 = 1 − the share of the first (floors,\nshare) row whose floors is at least the floors the member carries (the last row above it);\na member of one floor (beams) with a tributary area of ``beamArea`` m² or more is reduced by\n``beamShare`` per ``beamArea`` m², at most ``beamMax``.",
+      "properties": {
+        "rows": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "exclusiveMaximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "beamArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamarea"
+        },
+        "beamShare": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beamshare"
+        },
+        "beamMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beammax"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "FloorCountReduction",
+      "type": "object"
+    },
+    "LiveElementFactors": {
+      "additionalProperties": false,
+      "properties": {
+        "interiorColumn": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorcolumn",
+          "type": "number"
+        },
+        "exteriorColumn": {
+          "description": "Exterior columns without cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Exteriorcolumn",
+          "type": "number"
+        },
+        "edgeColumnCantilever": {
+          "description": "Edge columns with cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Edgecolumncantilever",
+          "type": "number"
+        },
+        "cornerColumnCantilever": {
+          "description": "Corner columns with cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Cornercolumncantilever",
+          "type": "number"
+        },
+        "interiorBeam": {
+          "exclusiveMinimum": 0,
+          "title": "Interiorbeam",
+          "type": "number"
+        },
+        "edgeBeam": {
+          "description": "Edge beams without cantilever slabs.",
+          "exclusiveMinimum": 0,
+          "title": "Edgebeam",
+          "type": "number"
+        },
+        "other": {
+          "description": "All other members (one-way slabs, cantilevers ...).",
+          "exclusiveMinimum": 0,
+          "title": "Other",
+          "type": "number"
+        }
+      },
+      "required": [
+        "interiorColumn",
+        "exteriorColumn",
+        "edgeColumnCantilever",
+        "cornerColumnCantilever",
+        "interiorBeam",
+        "edgeBeam",
+        "other"
+      ],
+      "title": "LiveElementFactors",
+      "type": "object"
+    },
+    "RoofReduction": {
+      "additionalProperties": false,
+      "description": "Lr = L0 R1 R2 within [minimum, maximum]: R1 from the tributary area, R2 from the slope.",
+      "properties": {
+        "areaLow": {
+          "description": "R1 = 1 up to this tributary area [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Arealow",
+          "type": "number"
+        },
+        "areaHigh": {
+          "description": "R1 = r1Min from this tributary area [m²].",
+          "exclusiveMinimum": 0,
+          "title": "Areahigh",
+          "type": "number"
+        },
+        "r1Constant": {
+          "description": "a of R1 = a - b AT between the two.",
+          "exclusiveMinimum": 0,
+          "title": "R1Constant",
+          "type": "number"
+        },
+        "r1Coefficient": {
+          "description": "b of R1 = a - b AT [1/m²].",
+          "exclusiveMinimum": 0,
+          "title": "R1Coefficient",
+          "type": "number"
+        },
+        "r1Min": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "R1Min",
+          "type": "number"
+        },
+        "riseLow": {
+          "description": "R2 = 1 up to this F.",
+          "exclusiveMinimum": 0,
+          "title": "Riselow",
+          "type": "number"
+        },
+        "riseHigh": {
+          "description": "R2 = r2Min from this F.",
+          "exclusiveMinimum": 0,
+          "title": "Risehigh",
+          "type": "number"
+        },
+        "r2Constant": {
+          "description": "a of R2 = a - b F between the two.",
+          "exclusiveMinimum": 0,
+          "title": "R2Constant",
+          "type": "number"
+        },
+        "r2Coefficient": {
+          "description": "b of R2 = a - b F.",
+          "exclusiveMinimum": 0,
+          "title": "R2Coefficient",
+          "type": "number"
+        },
+        "r2Min": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "R2Min",
+          "type": "number"
+        },
+        "slopeF": {
+          "description": "Pitched roof: F = this × slope in per cent.",
+          "exclusiveMinimum": 0,
+          "title": "Slopef",
+          "type": "number"
+        },
+        "archF": {
+          "description": "Arch or dome: F = this × rise / span.",
+          "exclusiveMinimum": 0,
+          "title": "Archf",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "Least reduced roof live load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Minimum",
+          "type": "number"
+        },
+        "maximum": {
+          "description": "Most reduced roof live load [kN/m²].",
+          "exclusiveMinimum": 0,
+          "title": "Maximum",
+          "type": "number"
+        },
+        "uses": {
+          "description": "Area uses the rule reduces (ordinary roofs).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "areaLow",
+        "areaHigh",
+        "r1Constant",
+        "r1Coefficient",
+        "r1Min",
+        "riseLow",
+        "riseHigh",
+        "r2Constant",
+        "r2Coefficient",
+        "r2Min",
+        "slopeF",
+        "archF",
+        "minimum",
+        "maximum",
+        "uses"
+      ],
+      "title": "RoofReduction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Reduction of floor live loads by influence area (the default pack's Part 6 Sec 2.3.13),\nor (C4, ``method`` areaAndStoreys) by the loaded area and the number of storeys, or (C7,\n``floorCount``) by the number of floors carried.",
+  "properties": {
+    "source": {
+      "default": "",
+      "description": "Clause (and page) the table comes from.",
+      "title": "Source",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Clause references of single entries: {key: clause}.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "clauses": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Short clause references the results cite, by key, without the code's name (e.g. 'Part 6 Sec 2.5.7.3'); read by saengine.codes.context.cite. A key the pack does not give is not cited.",
+      "title": "Clauses",
+      "type": "object"
+    },
+    "method": {
+      "default": "influenceArea",
+      "enum": [
+        "influenceArea",
+        "areaAndStoreys",
+        "floorCount",
+        "frameValue"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "areaAndStoreys": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AreaAndStoreys"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "floorCount": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FloorCountReduction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "influenceMin": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least KLL AT [m²] that is reduced.",
+      "title": "Influencemin"
+    },
+    "constant": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "a of L = L0 (a + b / √(KLL AT)).",
+      "title": "Constant"
+    },
+    "coefficient": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "b of L = L0 (a + b / √(KLL AT)) [m].",
+      "title": "Coefficient"
+    },
+    "minOneFloor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least L / L0 of members supporting one floor.",
+      "title": "Minonefloor"
+    },
+    "minFloors": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Least L / L0 of members supporting two or more.",
+      "title": "Minfloors"
+    },
+    "heavyLive": {
+      "description": "Live loads above this [kN/m²] are not reduced.",
+      "exclusiveMinimum": 0,
+      "title": "Heavylive",
+      "type": "number"
+    },
+    "heavyFactor": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "L / L0 of heavy loads on members of 2+ floors.",
+      "title": "Heavyfactor"
+    },
+    "notReduced": {
+      "description": "Area uses never reduced.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notreduced",
+      "type": "array"
+    },
+    "assemblyMax": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The ``notReduced`` uses are not reduced up to this L0 [kN/m²] (above it the heavy load rule applies); empty: never reduced.",
+      "title": "Assemblymax"
+    },
+    "twoFloorsOnly": {
+      "description": "Area uses reduced only on 2+ floors.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Twofloorsonly",
+      "type": "array"
+    },
+    "notReducedBuildings": {
+      "description": "Building kinds (project occupancy flags such as cycloneShelter) whose live loads are never reduced.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Notreducedbuildings",
+      "type": "array"
+    },
+    "oneWaySlabWidth": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "AT of a one-way slab at most its span times this many spans wide.",
+      "title": "Onewayslabwidth"
+    },
+    "kll": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveElementFactors"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "roof": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RoofReduction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reduction of the ordinary roof live load (Lr)."
+    }
+  },
+  "required": [
+    "heavyLive",
+    "notReduced",
+    "twoFloorsOnly"
+  ],
+  "title": "LiveReductionTable",
+  "type": "object",
+  "$id": "saengine.codePack.liveReduction/1"
+}

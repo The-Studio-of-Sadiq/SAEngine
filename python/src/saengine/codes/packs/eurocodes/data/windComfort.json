@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/windComfort.schema.json",
+  "$sources": [
+    "EN 1991-1-4 Annex B.4 (Eqs B.10-B.11: the standard deviation of the along-wind acceleration, Kx), B.2 (R², kp) and Sec 4.2 Note 4 (cprob, K 0.2, n 0.5); EN 1990 Annex A1.4.4 (comfort criteria with ISO 10137); the 10-year criteria of tall-building practice; see VERIFY.md"
+  ],
+  "source": "EN 1991-1-4 Annex B.4: the along-wind peak acceleration of the top floor under the 10-year wind (cprob of Sec 4.2), against tall-building criteria (SAEngine practice where EN 1990 A1.4.4 leaves them to the project)",
+  "response": "turbulenceSpectrum",
+  "speedRatio": "probabilityFactor",
+  "mriTerms": null,
+  "probabilityTerms": [0.2, 0.5],
+  "duration": 600,
+  "peakConstant": 0.6,
+  "clauses": {
+    "required": "EN 1990 Annex A1.4.4: comfort criteria agreed for the project (ISO 10137)",
+    "response": "EN 1991-1-4 Annex B.4, Eqs B.10-B.11 (σa,x = cf ρ b Iv vm² R Kx Φ1,x / m1,x), kp of Eq B.4 with T = 600 s",
+    "speed": "EN 1991-1-4 Sec 4.2(2) Note 4, Eq 4.2: cprob = ((1 - K ln(-ln(1 - p))) / (1 - K ln(-ln 0.98)))^n, K 0.2, n 0.5, p = 1 - exp(-1/T)",
+    "limits": "SAEngine practice: 10-year peak acceleration 15 milli-g residential, 18 hotels, 25 offices (Isyumov 1993; CTBUH practice)"
+  }
+}

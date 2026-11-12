@@ -1,0 +1,155 @@
+{
+  "$schema": "../../../schemas/areaLoads.schema.json",
+  "$replace": true,
+  "$sources": [
+    "BS 6399-1:1996 Table 1, Clauses 5-6",
+    "BS 6399-3:1988 Clause 4"
+  ],
+  "source": "BS 6399-1:1996 Table 1 (imposed floor loads: uniformly distributed [kN/m²] and concentrated [kN]) and BS 6399-3:1988 (imposed roof loads)",
+  "concentratedPatch": 50,
+  "uses": {
+    "residential": {
+      "name": "Residential: self-contained dwelling units, all usages",
+      "live": 1.5,
+      "concentrated": 1.4
+    },
+    "residentialPublic": {
+      "name": "Residential: communal areas of blocks of flats, hotel bedrooms and corridors",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "balcony": {
+      "name": "Balconies of dwellings (same as the rooms, at least this; plus 1.5 kN/m at the edge)",
+      "live": 1.5,
+      "concentrated": 1.4
+    },
+    "office": {
+      "name": "Offices: areas for general use",
+      "live": 2.5,
+      "concentrated": 2.7
+    },
+    "officeComputer": {
+      "name": "Offices: areas with computing and data processing equipment",
+      "live": 3.5,
+      "concentrated": 4.5
+    },
+    "officeCorridor": {
+      "name": "Offices: corridors, hallways, aisles",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "classroom": {
+      "name": "Educational: classrooms",
+      "live": 3.0,
+      "concentrated": 2.7
+    },
+    "schoolCorridor": {
+      "name": "Educational: corridors, hallways, stairs",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "hospitalWard": {
+      "name": "Hospitals: wards, bedrooms",
+      "live": 2.0,
+      "concentrated": 1.8
+    },
+    "operatingRoom": {
+      "name": "Hospitals: operating theatres, X-ray rooms, utility rooms",
+      "live": 2.0,
+      "concentrated": 4.5
+    },
+    "hospitalCorridor": {
+      "name": "Hospitals: corridors, hallways",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "assemblyFixed": {
+      "name": "Assembly: areas with fixed seats",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "assemblyMovable": {
+      "name": "Assembly: areas without fixed seats (crowds)",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "dining": {
+      "name": "Assembly: dining rooms, restaurants",
+      "live": 2.0,
+      "concentrated": 2.7
+    },
+    "gymnasium": {
+      "name": "Assembly: gymnasia, dance halls",
+      "live": 5.0,
+      "concentrated": 3.6
+    },
+    "stageFloor": {
+      "name": "Assembly: stages in public buildings",
+      "live": 7.5,
+      "concentrated": 4.5
+    },
+    "retailUpper": {
+      "name": "Shops: areas for the display and sale of merchandise",
+      "live": 4.0,
+      "concentrated": 3.6
+    },
+    "manufacturingLight": {
+      "name": "Industrial: workrooms, workshops (light industrial)",
+      "live": 5.0,
+      "concentrated": 4.5
+    },
+    "storageLight": {
+      "name": "Storage: general (2.4 kN/m² per metre of storage height; this row for 3 m)",
+      "live": 7.2,
+      "concentrated": 7.0,
+      "reducible": false,
+      "note": "2.4 kN/m² per metre of storage height: enter the load of the actual height (custom) where it is more"
+    },
+    "libraryStacks": {
+      "name": "Libraries: stack rooms (2.4 kN/m² per metre of height, at least 6.5)",
+      "live": 6.5,
+      "concentrated": 7.0,
+      "reducible": false
+    },
+    "parking": {
+      "name": "Car parks: vehicles up to 2500 kg",
+      "live": 2.5,
+      "concentrated": 9.0
+    },
+    "stairs": {
+      "name": "Stairs and landings (other than dwellings)",
+      "live": 4.0,
+      "concentrated": 4.5
+    },
+    "stairsDwelling": {
+      "name": "Stairs and landings: self-contained dwellings",
+      "live": 1.5,
+      "concentrated": 1.4
+    },
+    "roof": {
+      "name": "Roof: no access except for maintenance (BS 6399-3)",
+      "live": 0.6,
+      "concentrated": 0.9,
+      "roof": true
+    },
+    "roofAccess": {
+      "name": "Roof: with access (as the floors it serves; BS 6399-3)",
+      "live": 1.5,
+      "concentrated": 1.8,
+      "roof": true
+    }
+  },
+  "partitions": {
+    "share": 0.33,
+    "minimum": 1.0,
+    "lightMax": 4.0,
+    "loadCase": "L"
+  },
+  "sources": {
+    "uses": "BS 6399-1:1996 Table 1: the rows SAEngine lists (the category of each row named in VERIFY.md)",
+    "uses.roof": "BS 6399-3:1988 4.3.1: flat or pitched up to 30°, no access except for cleaning and maintenance, 0.6 kN/m² or 0.9 kN",
+    "uses.roofAccess": "BS 6399-3:1988 4.2: access provided, as the floor loads of the use (1.5 kN/m², 1.8 kN taken)",
+    "partitions": "BS 6399-1:1996 6.3: partitions whose positions are not known, a uniform load of one third of their weight per metre run, at least 1.0 kN/m² (offices), for partitions up to 4.0 kN per metre run (SAEngine reading of the limit)",
+    "concentratedPatch": "BS 6399-1:1996 6.2: concentrated loads on a square of 50 mm side (unless stated otherwise)"
+  }
+}
