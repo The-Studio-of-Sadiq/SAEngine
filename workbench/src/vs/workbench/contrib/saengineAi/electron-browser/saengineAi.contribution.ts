@@ -18,6 +18,7 @@ import { ALLOW_CONTROL_SETTING, PORT_SETTING } from '../common/aiTools.js';
 import { AI_ACTIVITY_CHANNEL_ID, AiEditsAllowedContext, AiServerRunningContext, ISaengineAiService, MANAGE_AI_COMMAND, SaengineAiService } from './aiController.js';
 import { ISaengineAiDataConsentService, MANAGE_PROJECT_CONSENT_COMMAND, PROJECT_DATA_CONSENT_SETTING, SaengineAiDataConsentService } from '../browser/aiDataConsent.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ISaengineAiChangeSetService, SaengineAiChangeSetService } from '../browser/aiChangeSets.js';
 
 const category = localize2('saengine.category', "SAEngine");
 
@@ -62,6 +63,7 @@ Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).registerCha
 
 registerSingleton(ISaengineAiService, SaengineAiService, InstantiationType.Delayed);
 registerSingleton(ISaengineAiDataConsentService, SaengineAiDataConsentService, InstantiationType.Delayed);
+registerSingleton(ISaengineAiChangeSetService, SaengineAiChangeSetService, InstantiationType.Delayed);
 
 /** U2: the open project's AI data consent: what may receive it, and withdrawing it. */
 registerAction2(class extends Action2 {

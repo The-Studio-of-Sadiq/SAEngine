@@ -27,11 +27,9 @@ import { openPart, partName } from '../../saengineProject/browser/projectParts.j
 import { AI_TOOLS, ALLOWED_COMMANDS, checkCommand, IAiTool, ResultKind, safeRelativePath, validateArguments } from '../common/aiTools.js';
 import { readProposal } from '../common/aiChangeSet.js';
 import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from '../browser/aiChangeSets.js';
-import { AiActionTools, ACTIONS_DECISION_WAIT } from '../browser/aiActionTools.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ActionKind, IActionStep, stepNames } from '../../../services/saengineProject/common/saengineActions.js';
-import { ASSISTANT_VIEW_ID } from '../common/aiAssistant.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AiActionTools, ACTIONS_DECISION_WAIT, IAiReview } from '../browser/aiActionTools.js';
+import { AiDialogReview } from '../browser/aiDialogReview.js';
+import { ActionKind } from '../../../services/saengineProject/common/saengineActions.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
@@ -75,21 +73,22 @@ export class AiToolRunner {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISaengineModelSelectionService private readonly selectionService: ISaengineModelSelectionService,
 		@ISaengineAiChangeSetService private readonly changeSetService: ISaengineAiChangeSetService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@IFemSolverService private readonly femSolverService: IFemSolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogService private readonly dialogService: IDialogService,
 	) {
-		this.actionTools = instantiationService.createInstance(AiActionTools,
-			(steps: readonly IActionStep[], source: ChangeSetSource) => this.confirmRun(steps, source),
-			async () => { await this.viewsService.openView(ASSISTANT_VIEW_ID, true); },
-			ACTIONS_DECISION_WAIT);
+		this.dialogReview = instantiationService.createInstance(AiDialogReview);
+		this.actionTools = instantiationService.createInstance(AiActionTools, this.dialogReview, ACTIONS_DECISION_WAIT);
 	}
 
+	/** The review of MCP clients' requests (dialogs); the chat brings its own (aiChatReview). */
+	private readonly dialogReview: IAiReview;
 	private readonly actionTools: AiActionTools;
 
-	/** `source`: who calls, for the change sets' preview (an MCP client or the built-in assistant). */
-	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp'): Promise<MCP.CallToolResult> {
+	/**
+	 * `source`: who calls, for the change sets' preview (an MCP client or the chat's assistant);
+	 * `review`: where the engineer reviews change sets and run steps (default: dialogs).
+	 */
+	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp', review: IAiReview = this.dialogReview): Promise<MCP.CallToolResult> {
 		const tool = AI_TOOLS.find(t => t.name === name);
 		if (!tool) {
 			return errorResult(`Unknown tool "${name}".`);
@@ -102,13 +101,13 @@ export class AiToolRunner {
 			return errorResult(`Invalid arguments: ${problems.join('; ')}.`);
 		}
 		try {
-			return await this.run(tool, args, source);
+			return await this.run(tool, args, source, review);
 		} catch (error) {
 			return errorResult(error instanceof ToolError ? error.message : `Failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
 		switch (tool.name) {
 			case 'get_project': return this.getProject();
 			case 'list_editors': return this.listEditors();
@@ -123,10 +122,10 @@ export class AiToolRunner {
 			case 'reveal_element': return this.reveal(args);
 			case 'search_code': return this.searchCode(args.query as string, (args.limit as number | undefined) ?? 8);
 			case 'explain_results': return this.explainResults(args.member as string | undefined, args.onlyFailing === true, (args.limit as number | undefined) ?? 20);
-			case 'propose_changes': return this.proposeChanges(args, source);
+			case 'propose_changes': return this.proposeChanges(args, source, review);
 			case 'list_actions': return this.actionTools.listActions(args.kind as ActionKind | undefined);
 			case 'describe_action': return this.actionTools.describeAction(args.name as string);
-			case 'run_actions': return this.actionTools.runActions(args, source);
+			case 'run_actions': return this.actionTools.runActions(args, source, review);
 			case 'annotate_drawings': return this.annotateDrawings(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
@@ -418,7 +417,7 @@ export class AiToolRunner {
 		});
 	}
 
-	private async proposeChanges(args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	private async proposeChanges(args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
 		this.project();
 		const { proposal, problems } = readProposal(args);
 		if (!proposal) {
@@ -430,13 +429,13 @@ export class AiToolRunner {
 		} catch (error) {
 			throw new ToolError(error instanceof Error ? error.message : String(error));
 		}
-		await this.viewsService.openView(ASSISTANT_VIEW_ID, true);
+		await review.showChangeSet(changeSet);
 		const outcome = await Promise.race([changeSet.decision, timeout(DECISION_WAIT).then(() => 'pending' as const)]);
 		const summary = changeSet.files.map(f => ({ file: f.file, changes: f.changes.length }));
 		switch (outcome) {
 			case 'accepted': return textResult(`The engineer accepted the change set "${proposal.title}" (${JSON.stringify(summary)}). It is applied, unsaved until saved, and undoable.`);
 			case 'rejected': return textResult(`The engineer rejected the change set "${proposal.title}". Nothing changed; ask what to do differently.`);
-			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision in the AI Assistant view.`);
+			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision.`);
 			default: return errorResult(`The change set was not applied (${outcome}): ${changeSet.problem ?? ''}`);
 		}
 	}
@@ -456,18 +455,6 @@ export class AiToolRunner {
 			throw new ToolError(bag.error);
 		}
 		return jsonResult(answer);
-	}
-
-	/** A batch with run steps (or creating the project): the engineer agrees before anything is saved or run. */
-	private async confirmRun(steps: readonly IActionStep[], source: ChangeSetSource): Promise<boolean> {
-		const { confirmed } = await this.dialogService.confirm({
-			message: source === 'mcp'
-				? localize('actions.confirmMcp', "An MCP client asks to save the project and run {0}.", stepNames(steps))
-				: localize('actions.confirmAssistant', "The AI assistant asks to save the project and run {0}.", stepNames(steps)),
-			detail: localize('actions.confirmDetail', "SAEngine saves your edited parts first; the results are written to the project. You check them before they are used."),
-			primaryButton: localize({ key: 'actions.run', comment: ['&& denotes a mnemonic'] }, "&&Save and Run"),
-		});
-		return confirmed;
 	}
 }
 

@@ -15,7 +15,7 @@ import { ISaengineProjectService } from '../../../services/saengineProject/commo
 /**
  * The engineer's consent before project data goes to an AI provider (U2, decision "AI assistant
  * scope, privacy and order" of 2026-11-11). Every path that sends project data asks it first:
- * the built-in assistant before each question goes to its provider, the MCP server before a
+ * the chat before a question goes to its model provider, the MCP server before a
  * connected assistant reads the project. The dialog says who receives what, and that SAEngine
  * and its developers never receive or sell it; the answer is remembered per project (and per
  * destination) in the user's settings ({@link PROJECT_DATA_CONSENT_SETTING}), never in the
