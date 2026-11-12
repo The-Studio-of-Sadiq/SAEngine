@@ -12,7 +12,7 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**/*.md']
   pull_request:
-    branches: [main, 'feat/**']
+    branches: [main, beta]
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
@@ -249,3 +249,7 @@ jobs:
         run: xvfb-run -a bash ./scripts/test.sh --grep SAEngine
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
+      # The platform's node-layer tests that load npm packages (Yjs for live co-editing) skip
+      # themselves in the Electron run above, so they run here under Node.
+      - name: SAEngine node tests (platform/saengine)
+        run: npx mocha test/unit/node/index.js --delay --ui=tdd --exit --runGlob "vs/platform/saengine/test/node/**/*.test.js"

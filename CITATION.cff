@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use SAEngine in research or a publication, please cite it as below."
+type: software
+title: "SAEngine: open-source structural analysis and design"
+abstract: >-
+  SAEngine is a free, open-source program for structural engineers that takes a building from
+  the soil report to finite element analysis (OpenSees), reinforced concrete and foundation
+  design, drawings, the bill of quantities and the calculation report. Building codes are
+  supplied as code packs (BNBC 2020 by default; ACI/ASCE, Eurocodes, Indian Standards and
+  others).
+authors:
+  - name: "The Studio of Sadiq"
+    email: publicrelations@thestudioofsadiq.tech
+    website: "https://thestudioofsadiq.tech"
+version: "0.0.48"
+date-released: 2026-11-11
+license: AGPL-3.0-only
+repository-code: "https://github.com/The-Studio-of-Sadiq/SAEngine"
+url: "https://thestudioofsadiq.tech/SAEngine/"
+keywords:
+  - structural engineering
+  - structural analysis
+  - finite element analysis
+  - OpenSees
+  - reinforced concrete
+  - foundation design
+  - building codes
+  - BNBC 2020
+  - BIM
