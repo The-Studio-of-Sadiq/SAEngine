@@ -2,17 +2,35 @@
 
 # SAEngine
 
-SAEngine is an open-source engineering IDE for civil and structural engineers,
-built as a native fork of Code - OSS. Engineering features are implemented as
-native workbench contributions (not webview extensions), and existing
-open-source engines are reused wherever they exist.
+**Free, open-source structural analysis and design.** SAEngine takes a building from the soil
+report to finite element analysis (OpenSees), reinforced concrete and foundation design, drawings,
+the bill of quantities and the calculation report, in one program. Building codes come as code
+packs: BNBC 2020 by default, with ACI/ASCE, the Eurocodes, the Indian Standards and more.
 
-**User manual:** [docs/manual](docs/manual/README.md) — every part, four step-by-step tutorials
-and a glossary, also as one PDF ([SAEngine-User-Manual.pdf](docs/manual/SAEngine-User-Manual.pdf)).
+[Website](https://thestudioofsadiq.tech/SAEngine/) ·
+[Wiki](https://github.com/The-Studio-of-Sadiq/SAEngine/wiki) ·
+[Download](https://github.com/The-Studio-of-Sadiq/SAEngine/releases) ·
+[Project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8) ·
+[Changelog](CHANGELOG.md)
 
-**Engineering decisions:** [docs/engineering-decisions.md](docs/engineering-decisions.md) — the
-choices behind SAEngine's results where the code is silent, misprinted or open to more than one
-reading, and the defaults SAEngine picks.
+> **Pre-alpha.** For trying out and feedback, not yet for design work you sign. Check every
+> result independently.
+
+Under the hood SAEngine is a native fork of Code - OSS: its engineering features are native
+workbench contributions (not webview extensions), and existing open-source engines are reused
+wherever they exist.
+
+- **Get started:** [Installing](https://github.com/The-Studio-of-Sadiq/SAEngine/wiki/Installing) and
+  [Getting Started](https://github.com/The-Studio-of-Sadiq/SAEngine/wiki/Getting-Started) on the wiki.
+- **User manual:** [docs/manual](docs/manual/README.md), with tutorials and a glossary, also as one
+  PDF ([SAEngine-User-Manual.pdf](docs/manual/SAEngine-User-Manual.pdf)).
+- **Engineering decisions:** [docs/engineering-decisions.md](docs/engineering-decisions.md), the
+  choices behind SAEngine's results where a code is silent, misprinted or open to more than one
+  reading.
+- **Help and reports:** [SUPPORT.md](SUPPORT.md); confidential reports and security:
+  [SECURITY.md](SECURITY.md).
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+  Pull requests go into the `beta` branch; `main` holds releases.
 
 ## Modules
 
@@ -23,15 +41,16 @@ reading, and the defaults SAEngine picks.
 5. Floor plan CAD
 6. 3D BIM model
 7. MEP
-8. **FEM analysis (SAP2000/ETABS alternative) — in progress**
+8. FEM analysis and design (OpenSees)
 9. Substructure analysis
 10. BOQ analyzer
 11. Exporter
 
 ## Projects
 
-SAEngine starts with a modal start window (New Project, Open Project, recent projects;
-also *File > New Project...* / *Open Project...*). A project is a folder with a
+SAEngine opens on a start page (New Project, Open Project, the sample project, import, recent
+projects; also *File > New Project...* / *Open Project...*). New Project is one wizard: the
+project, its site and use, and the grid and storeys. A project is a folder with a
 `<name>.saengine` manifest and one folder per module:
 
 ```
