@@ -19161,7 +19161,6 @@ export const GUARDRAIL_RULES: IGuardrailDocument = {
 			id: 'beamSpanDepth',
 			kind: 'floorPlan',
 			derived: 'beamSpanDepth',
-			needs: 'objects',
 			paths: ['beams'],
 			what: 'span/depth',
 			block: [
@@ -19181,7 +19180,6 @@ export const GUARDRAIL_RULES: IGuardrailDocument = {
 			id: 'slabSpanThickness',
 			kind: 'floorPlan',
 			derived: 'slabSpanThickness',
-			needs: 'objects',
 			paths: ['slabs'],
 			what: 'short span/thickness',
 			block: [

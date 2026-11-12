@@ -428,9 +428,12 @@ export async function actionsWindow(disposables: Pick<DisposableStore, 'add'>, o
 			return host.pick ? [host.pick] : undefined;
 		}
 	};
+	const home = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	const paths = new class extends mock<IPathService>() {
-		override async userHome(): Promise<URI> {
-			return URI.from({ scheme: Schemas.inMemory, path: '/home' });
+		override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+		override userHome(options: { preferLocal: true }): URI;
+		override userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
+			return options?.preferLocal ? home : Promise.resolve(home);
 		}
 	};
 	const hostService = new class extends mock<IHostService>() {
