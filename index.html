@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAEngine</title>
+<meta name="description" content="SAEngine: free, open-source structural analysis and design, from the soil report to drawings, BOQ and the report.">
+<link rel="icon" href="assets/saengine-mark-small.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: Saira; src: url(fonts/Saira-Regular.ttf) format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: Saira; src: url(fonts/Saira-SemiBold.ttf) format('truetype'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Saira Expanded'; src: url(fonts/SairaExpanded-ExtraBold.ttf) format('truetype'); font-weight: 800; font-display: swap; }
+
+:root {
+	--ink: #0A1F3D; --blue: #1A5FB4; --facade: #1C6EC1; --grey: #939AA3;
+	--bg: #FFFFFF; --surface: #F4F7FB; --text: #1D2733; --muted: #5A6675; --line: #DCE3EC;
+	--ok: #1E7B45; --warn: #9A6200; --todo: #6B7686;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--ink: #F2F5FA; --blue: #6EA8F2; --facade: #4C94E8; --grey: #6B7686;
+		--bg: #0D1520; --surface: #141F2D; --text: #E3E9F1; --muted: #9AA7B7; --line: #243244;
+		--ok: #5FC98A; --warn: #E3B04B; --todo: #8E9AAA;
+	}
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 Saira, 'Segoe UI', system-ui, sans-serif; }
+a { color: var(--blue); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+header { border-bottom: 1px solid var(--line); }
+header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+header img { height: 40px; display: block; }
+nav { display: flex; gap: 20px; flex-wrap: wrap; }
+nav a { color: var(--text); text-decoration: none; font-weight: 600; }
+nav a:hover { color: var(--blue); }
+.logo-dark { display: none; }
+@media (prefers-color-scheme: dark) { .logo-light { display: none; } .logo-dark { display: block; } }
+.hero { padding: 64px 0 40px; }
+h1, h2 { font-family: 'Saira Expanded', Saira, sans-serif; color: var(--ink); line-height: 1.15; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 5vw, 48px); margin: 0 0 16px; }
+h2 { font-size: 24px; margin: 0 0 16px; }
+h3 { color: var(--ink); margin: 0 0 6px; font-size: 18px; }
+.lead { font-size: 20px; color: var(--muted); max-width: 720px; margin: 0 0 28px; }
+.buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+.button { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--blue); }
+.button.primary { background: var(--blue); color: #fff; }
+@media (prefers-color-scheme: dark) { .button.primary { color: #0D1520; } }
+.note { font-size: 14px; color: var(--muted); margin-top: 12px; }
+section { padding: 40px 0; border-top: 1px solid var(--line); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 20px; padding: 0; list-style: none; }
+.flow li { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-weight: 600; font-size: 15px; }
+.flow li + li::before { content: '›'; margin: 0 8px 0 -4px; color: var(--grey); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+.tag { font-weight: 600; white-space: nowrap; }
+.tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); } .tag.todo { color: var(--todo); }
+.scroll { overflow-x: auto; }
+footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+	<div class="wrap">
+		<a href="./" aria-label="SAEngine home">
+			<img class="logo-light" src="assets/saengine-lockup.svg" alt="SAEngine">
+			<img class="logo-dark" src="assets/saengine-lockup-white.svg" alt="SAEngine">
+		</a>
+		<nav aria-label="Main">
+			<a href="#what">What it does</a>
+			<a href="#status">Status</a>
+			<a href="#privacy">Privacy</a>
+			<a href="https://github.com/The-Studio-of-Sadiq/SAEngine">Source</a>
+		</nav>
+	</div>
+</header>
+
+<main>
+	<div class="wrap hero">
+		<h1>Structural analysis and design, in one open program.</h1>
+		<p class="lead">SAEngine takes a building from the soil report to the analysis, the member design, the drawings, the bill of quantities and the calculation report. It is free software for practising structural engineers, and your projects stay on your computer.</p>
+		<div class="buttons">
+			<a class="button primary" href="https://github.com/The-Studio-of-Sadiq/SAEngine/releases">Download for Windows</a>
+			<a class="button" href="https://github.com/The-Studio-of-Sadiq/SAEngine">View the source</a>
+		</div>
+		<p class="note">Pre-alpha: for trying out and feedback, not yet for design work you sign. Check every result.</p>
+	</div>
+
+	<section id="what">
+		<div class="wrap">
+			<h2>What it does</h2>
+			<ul class="flow" aria-label="The stages of a project">
+				<li>Site &amp; Soil</li><li>Model</li><li>Loads</li><li>Analysis</li><li>Design</li><li>Drawings · BOQ · Report</li>
+			</ul>
+			<div class="grid">
+				<div class="card"><h3>Model</h3><p>One New Project wizard sets up the grid and storeys. Draw columns, beams, walls and slabs on the floor plan, with typical floors and a 3D view.</p></div>
+				<div class="card"><h3>Analysis</h3><p>Finite element analysis with OpenSees: static, modal and response spectrum, with the load combinations of the chosen code.</p></div>
+				<div class="card"><h3>Design</h3><p>Reinforced concrete beams, columns, slabs, walls, footings, rafts, piles and pile caps, with every value traced to its clause.</p></div>
+				<div class="card"><h3>Codes</h3><p>Code packs, not hard-coded rules: BNBC 2020 by default, with ACI/ASCE, Eurocode, IS and more as packs.</p></div>
+				<div class="card"><h3>Outputs</h3><p>DXF drawings (DWG through LibreDWG, editing in LibreCAD), the BOQ with cement bags and sand and stone volumes, and a calculation report.</p></div>
+				<div class="card"><h3>Working together</h3><p>Share a project through the office's own file server, with versions, part locks and live co-editing over a relay on the office network.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<section id="status">
+		<div class="wrap">
+			<h2>Where it stands</h2>
+			<p>An honest picture. "Built" means the feature exists; "verified" means it is checked against hand calculations or published examples.</p>
+			<div class="scroll">
+				<table>
+					<thead><tr><th>Area</th><th>Status</th><th>Notes</th></tr></thead>
+					<tbody>
+						<tr><td>Reinforced concrete buildings, end to end</td><td><span class="tag ok">Built, in testing</span></td><td>The main path: model, loads, analysis, design, drawings, BOQ, report.</td></tr>
+						<tr><td>Slabs and foundations</td><td><span class="tag ok">Built, in testing</span></td><td>Punching, deflection, cracking; footings, rafts, piles. Post-tensioned slabs are not done.</td></tr>
+						<tr><td>Advanced analysis</td><td><span class="tag warn">Built, untested</span></td><td>Pushover, time history, P-delta, construction stages, isolators and dampers.</td></tr>
+						<tr><td>Steel design</td><td><span class="tag warn">Partial</span></td><td>Member checks; no automatic sizing or full section databases yet.</td></tr>
+						<tr><td>MEP</td><td><span class="tag warn">Coordination grade</span></td><td>Plumbing with RC tanks, HVAC loads with EnergyPlus, fire; electrical design is not done.</td></tr>
+						<tr><td>Architecture layer</td><td><span class="tag todo">Started</span></td><td>Walls, doors, windows and rooms with IFC; DWG import and room loads are next.</td></tr>
+						<tr><td>AI assistant</td><td><span class="tag todo">Planned</span></td><td>Builds and changes a project from a prompt, only with your consent.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<section id="privacy">
+		<div class="wrap">
+			<h2>Your data stays yours</h2>
+			<div class="grid">
+				<div class="card"><h3>Local first</h3><p>Projects are folders on your computer. Nothing is uploaded unless you choose to.</p></div>
+				<div class="card"><h3>Never sold</h3><p>Diagnostics to the developers are off by default, and you see everything before it is sent.</p></div>
+				<div class="card"><h3>Your office, your relay</h3><p>Sharing and co-editing use your office's own server or network, never a third-party cloud.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<section id="contribute">
+		<div class="wrap">
+			<h2>Report a problem or help out</h2>
+			<p>In SAEngine, use <strong>Help › Report a Bug</strong> or <strong>Send Feedback</strong>. You can also <a href="https://github.com/The-Studio-of-Sadiq/SAEngine/issues/new/choose">open an issue</a>, which is public. For anything about a client, a site or a project you cannot share, e-mail <a href="mailto:publicrelations@thestudioofsadiq.tech">publicrelations@thestudioofsadiq.tech</a>.</p>
+			<p>Work in progress and the plan are on the <a href="https://github.com/The-Studio-of-Sadiq/SAEngine">repository</a>: <code>main</code> holds releases and <code>beta</code> the work towards the next one.</p>
+		</div>
+	</section>
+</main>
+
+<footer>
+	<div class="wrap">
+		<p>Developed by The Studio of Sadiq.</p>
+		<p>Copyright © 2026 The Studio of Sadiq. SAEngine is free software under the GNU Affero General Public License v3.0 (AGPL-3.0-only), with no warranty.</p>
+		<p>Saira fonts under the SIL Open Font License (<a href="fonts/OFL.txt">OFL.txt</a>). This site loads nothing from other servers.</p>
+	</div>
+</footer>
+</body>
+</html>
