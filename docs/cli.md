@@ -13,6 +13,7 @@ stopped before it is merged.
 
 - [Install and PATH](#install-and-path)
 - [Commands](#commands)
+- [Shared editing actions](#shared-editing-actions)
 - [Run All, step by step](#run-all-step-by-step)
 - [JSON output](#json-output)
 - [Exit codes](#exit-codes)
@@ -75,6 +76,7 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine versions status\|list\|save\|diff\|restore\|issue <project> ...` | The project's version history. |
 | `saengine verify [--out DIR] [--pdf]` | Runs SAEngine's verification pack. |
 | `saengine codepack list\|show\|new\|validate\|diff ...` | Design code packs: list, inspect, start, check and compare them (see [code-packs.md](code-packs.md)). |
+| `saengine action list\|describe\|run\|batch ...` | The shared editing actions: build or change a project step by step (see [below](#shared-editing-actions) and [actions.md](actions.md)). |
 
 ### validate
 
@@ -344,6 +346,37 @@ Runs the verification pack (closed-form and published references, see
 `--fast` skips the slow cases, `--cases ID ...` runs some. Exit code 1 when a case is outside
 its tolerance. With `--json` the pack's table goes to stderr (nowhere with `-q`) and stdout is
 the JSON document.
+
+## Shared editing actions
+
+`saengine action` runs the catalogue of typed, validated edits the app and its assistant use
+([actions.md](actions.md) lists them with their parameters). With it a script builds a whole
+project from an empty folder to the report.
+
+```console
+> saengine action list --kind edit
+> saengine action describe columns.place
+> saengine action run grid.set --params "{\"x\": [5000, 5000], \"y\": [4000]}" --project House
+> saengine action batch three-storey-rc.json --project "C:\Projects\Three Storey" --dry-run
+> saengine action batch three-storey-rc.json --project "C:\Projects\Three Storey"
+```
+
+- `run` runs one action, `batch` a file of steps: a JSON list of `{"action": name, "params":
+  {...}}` (or `{"steps": [...]}`). `--project` is the project folder (default: the current
+  folder); for `project.create` the folder the project is created in.
+- A batch is **all or nothing**: when a step is refused (a parameter, a guardrail such as a
+  storey height out of range, or a part that would no longer validate) nothing is written,
+  each problem is printed with its field, value and reason, and the exit code is **1**.
+  `--keep-going` runs the remaining steps too, to report every problem (still writing nothing).
+- Without `--dry-run` the changed part files are written (each through a temporary file and a
+  rename) and, when the project keeps versions, saved as a version "Actions: <names>".
+- A **run** step (`run.all`, `run.step`, `design.reinforcement.apply`, `foundations.generate`,
+  the exports) works on the saved files, so the changes of the steps before it are written
+  first; they stay written if a later step is refused. With `--dry-run` a run step after
+  edits is refused.
+- With `--json` the document's `batch` holds `ok`, `results` (each step's `ok`, `message`,
+  `created`, `warnings`, `problems`, `data`), `failed_step`, `changed` (the files changed),
+  `written` and `version`.
 
 ## Run All, step by step
 
