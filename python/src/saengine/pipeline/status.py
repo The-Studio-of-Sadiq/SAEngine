@@ -979,7 +979,12 @@ def holds_defaults(document: dict[str, Any], part: str) -> bool:
     from saengine.library.settings import default_project_settings
 
     if part == "materials":
-        return _canonical(document) == _canonical(library_json(default_material_library()))
+        expected = library_json(default_material_library())
+        # Projects started before the starting library named its concrete (#308) have no
+        # ``defaults``: nobody chose one, so they still hold the defaults.
+        if "defaults" not in document:
+            expected = {k: v for k, v in expected.items() if k != "defaults"}
+        return _canonical(document) == _canonical(expected)
     defaults = library_json(default_project_settings())
     document = {k: v for k, v in document.items() if k != "codes"}
     expected = {
