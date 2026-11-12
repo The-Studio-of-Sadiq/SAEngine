@@ -9,14 +9,18 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IUndoRedoService, UndoRedoGroup } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { applyTextsAsOneStep } from '../../../services/saengineProject/browser/saengineActionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
-import { changesByFile, IAiChangeSetProposal, IPlannedFile, planFile } from '../common/aiChangeSet.js';
+import { changesByFile, diffJson, IAiChangeSetProposal, IPlannedFile, planFile } from '../common/aiChangeSet.js';
+import { safeRelativePath } from '../common/aiTools.js';
 
 /*
  * The change sets AI assistants propose (the built-in assistant and MCP clients alike): planned
@@ -35,7 +39,9 @@ export interface IAiChangeSet {
 	readonly id: string;
 	readonly title: string;
 	readonly source: ChangeSetSource;
-	readonly files: readonly (IPlannedFile & { readonly resource: URI })[];
+	readonly files: readonly (IPlannedFile & { readonly resource: URI; readonly created?: boolean })[];
+	/** What the set does in the engineer's words: each action's message, for a set of actions. */
+	readonly summary?: readonly string[];
 	readonly state: ChangeSetState;
 	/** Why it failed or went stale. */
 	readonly problem?: string;
@@ -51,6 +57,11 @@ export interface ISaengineAiChangeSetService {
 	readonly onDidChange: Event<IAiChangeSet | undefined>;
 	/** Plans the proposal (throws with the problem when it cannot be applied) and shows it. */
 	propose(proposal: IAiChangeSetProposal, source: ChangeSetSource): Promise<IAiChangeSet>;
+	/**
+	 * A set of whole new texts (a batch of actions the engine worked out, already checked by its
+	 * guardrails), previewed value by value and applied like any other set.
+	 */
+	proposeTexts(proposal: IAiTextsProposal, source: ChangeSetSource): Promise<IAiChangeSet>;
 	accept(id: string): Promise<void>;
 	reject(id: string): void;
 	undo(id: string): Promise<void>;
@@ -59,11 +70,19 @@ export interface ISaengineAiChangeSetService {
 	clearDecided(): void;
 }
 
+/** New texts of project files (relative path -> text) with what they do. */
+export interface IAiTextsProposal {
+	readonly title: string;
+	readonly texts: { readonly [file: string]: string };
+	readonly summary?: readonly string[];
+}
+
 interface IChangeSetEntry {
 	id: string;
 	title: string;
 	source: ChangeSetSource;
-	files: (IPlannedFile & { readonly resource: URI; version: number })[];
+	files: (IPlannedFile & { readonly resource: URI; version: number; readonly created?: boolean })[];
+	summary?: readonly string[];
 	state: ChangeSetState;
 	problem?: string;
 	readonly deferred: DeferredPromise<ChangeSetState>;
@@ -153,8 +172,57 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 			throw new Error(localize('changeSet.noop', "Every change already holds: nothing to propose."));
 		}
 		await this.checkGuardrails(files);
+		return this.add(proposal.title, source, files);
+	}
+
+	async proposeTexts(proposal: IAiTextsProposal, source: ChangeSetSource): Promise<IAiChangeSet> {
+		const project = this.projectService.project;
+		if (!project) {
+			throw new Error(localize('changeSet.noProject', "No project is open."));
+		}
+		const files: IChangeSetEntry['files'] = [];
+		for (const [path, newText] of Object.entries(proposal.texts)) {
+			const file = safeRelativePath(path);
+			if (!file) {
+				throw new Error(localize('changeSet.outside', "{0} is not a file of the project.", path));
+			}
+			const resource = joinPath(project.root, ...file.split('/'));
+			let after: unknown;
+			try {
+				after = JSON.parse(newText);
+			} catch {
+				throw new Error(localize('changeSet.notJson', "The new text of {0} is not JSON.", file));
+			}
+			if (!await this.fileService.exists(resource)) {
+				// A file the project does not have yet: written as it is on accept.
+				files.push({ file, newText, resource, version: 0, created: true, changes: [{ change: { file, path: [file], value: after }, before: undefined, existed: false, after, noop: false }] });
+				continue;
+			}
+			const model = (await this.model(resource)).textEditorModel;
+			const text = model.getValue();
+			let before: unknown;
+			try {
+				before = JSON.parse(text);
+			} catch {
+				throw new Error(localize('changeSet.invalidNow', "{0} is not valid JSON now; fix it first.", file));
+			}
+			const options = model.getOptions();
+			// The values before and after, for the preview (and to plan again on a newer document).
+			const planned = planFile(file, text, diffJson(file, before, after), { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() });
+			if (planned.changes.length) {
+				// Applied as the engine formatted it while the document stays as it was planned on.
+				files.push({ ...planned, newText, resource, version: model.getAlternativeVersionId() });
+			}
+		}
+		if (!files.length) {
+			throw new Error(localize('changeSet.noop', "Every change already holds: nothing to propose."));
+		}
+		return this.add(proposal.title, source, files, proposal.summary);
+	}
+
+	private add(title: string, source: ChangeSetSource, files: IChangeSetEntry['files'], summary?: readonly string[]): IAiChangeSet {
 		const deferred = new DeferredPromise<ChangeSetState>();
-		const entry: IChangeSetEntry = { id: generateUuid(), title: proposal.title, source, files, state: 'pending', deferred, decision: deferred.p };
+		const entry: IChangeSetEntry = { id: generateUuid(), title, source, files, summary, state: 'pending', deferred, decision: deferred.p };
 		this.entries.unshift(entry);
 		while (this.entries.length > MAX_KEPT) {
 			const dropped = this.entries.pop()!;
@@ -190,29 +258,29 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 		}
 		try {
 			// The documents may have changed since the proposal: plan again on what is there now.
-			const texts: { resource: URI; text: string }[] = [];
+			const texts: { model: ITextModel; text: string }[] = [];
+			const created: { resource: URI; text: string }[] = [];
 			for (const file of entry.files) {
+				if (file.created) {
+					if (await this.fileService.exists(file.resource)) {
+						throw new Error(localize('changeSet.fileAppeared', "{0} was created meanwhile; ask again.", file.file));
+					}
+					created.push({ resource: file.resource, text: file.newText });
+					continue;
+				}
 				const model = (await this.model(file.resource)).textEditorModel;
 				let text = file.newText;
 				if (model.getAlternativeVersionId() !== file.version) {
 					const options = model.getOptions();
 					text = planFile(file.file, model.getValue(), file.changes.map(c => c.change), { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() }).newText;
 				}
-				texts.push({ resource: file.resource, text });
+				texts.push({ model, text });
 			}
-			const group = new UndoRedoGroup();
-			const applied: { resource: URI; version: number }[] = [];
-			for (const { resource, text } of texts) {
-				const model = (await this.model(resource)).textEditorModel;
-				if (model.getValue() === text) {
-					continue;
-				}
-				model.pushStackElement();
-				model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null, group);
-				model.pushStackElement();
-				applied.push({ resource, version: model.getAlternativeVersionId() });
+			for (const file of created) {
+				await this.fileService.writeFile(file.resource, VSBuffer.fromString(file.text));
 			}
-			entry.applied = applied;
+			// One undo step over every file, each as its one small edit (co-editing shares it).
+			entry.applied = applyTextsAsOneStep(texts).map(model => ({ resource: model.uri, version: model.getAlternativeVersionId() }));
 			this.settle(entry, 'accepted');
 		} catch (error) {
 			this.settle(entry, 'failed', localize('changeSet.failed', "The change set could not be applied: {0}", error instanceof Error ? error.message : String(error)));

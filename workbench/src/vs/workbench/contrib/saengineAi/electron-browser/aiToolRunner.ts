@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { JSONPath } from '../../../../base/common/json.js';
-import { applyEdits, removeProperty, setProperty } from '../../../../base/common/jsonEdit.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -29,13 +26,15 @@ import { generateArgs } from '../../saengineProject/browser/drawingsModel.js';
 import { openPart, partName } from '../../saengineProject/browser/projectParts.js';
 import { AI_TOOLS, ALLOWED_COMMANDS, checkCommand, IAiTool, ResultKind, safeRelativePath, validateArguments } from '../common/aiTools.js';
 import { readProposal } from '../common/aiChangeSet.js';
-import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService, refusedValues } from '../browser/aiChangeSets.js';
+import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from '../browser/aiChangeSets.js';
+import { AiActionTools, ACTIONS_DECISION_WAIT } from '../browser/aiActionTools.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ActionKind, IActionStep, stepNames } from '../../../services/saengineProject/common/saengineActions.js';
 import { ASSISTANT_VIEW_ID } from '../common/aiAssistant.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { NEW_BUILDING_COMMAND } from '../../saengineProject/browser/newBuildingModel.js';
 
 /** How long run_command waits for a command before reporting it as still running [ms]. */
 const COMMAND_WAIT = 3000;
@@ -79,7 +78,15 @@ export class AiToolRunner {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IFemSolverService private readonly femSolverService: IFemSolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
+		@IDialogService private readonly dialogService: IDialogService,
+	) {
+		this.actionTools = instantiationService.createInstance(AiActionTools,
+			(steps: readonly IActionStep[], source: ChangeSetSource) => this.confirmRun(steps, source),
+			async () => { await this.viewsService.openView(ASSISTANT_VIEW_ID, true); },
+			ACTIONS_DECISION_WAIT);
+	}
+
+	private readonly actionTools: AiActionTools;
 
 	/** `source`: who calls, for the change sets' preview (an MCP client or the built-in assistant). */
 	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp'): Promise<MCP.CallToolResult> {
@@ -114,11 +121,12 @@ export class AiToolRunner {
 			case 'screenshot': return this.screenshot();
 			case 'show_message': return this.showMessage(args.message as string, args.severity === 'warning' ? Severity.Warning : Severity.Info);
 			case 'reveal_element': return this.reveal(args);
-			case 'set_json_value': return this.setJsonValue(args.file as string, args.path as JSONPath, args.value, args.remove === true);
 			case 'search_code': return this.searchCode(args.query as string, (args.limit as number | undefined) ?? 8);
 			case 'explain_results': return this.explainResults(args.member as string | undefined, args.onlyFailing === true, (args.limit as number | undefined) ?? 20);
 			case 'propose_changes': return this.proposeChanges(args, source);
-			case 'propose_building': return this.proposeBuilding(args);
+			case 'list_actions': return this.actionTools.listActions(args.kind as ActionKind | undefined);
+			case 'describe_action': return this.actionTools.describeAction(args.name as string);
+			case 'run_actions': return this.actionTools.runActions(args, source);
 			case 'annotate_drawings': return this.annotateDrawings(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
@@ -361,51 +369,6 @@ export class AiToolRunner {
 		return textResult('Revealed.');
 	}
 
-	private async setJsonValue(file: string, path: JSONPath, value: unknown, remove: boolean): Promise<MCP.CallToolResult> {
-		const project = this.project();
-		if (!/\.json$/i.test(file)) {
-			throw new ToolError('Only .json files of the project can be edited.');
-		}
-		if (!remove && value === undefined) {
-			throw new ToolError('Give "value", or "remove": true.');
-		}
-		const resource = this.resolve(project, file);
-		if (!await this.fileService.exists(resource)) {
-			throw new ToolError(`No file "${file}" in the project.`);
-		}
-		// The shared text model every editor and view uses: the edit is on the undo stack and stays unsaved.
-		const reference = await this.textModelService.createModelReference(resource);
-		try {
-			const model = reference.object.textEditorModel;
-			const text = model.getValue();
-			try {
-				JSON.parse(text);
-			} catch {
-				throw new ToolError(`${file} is not valid JSON now; it is not edited.`);
-			}
-			const options = model.getOptions();
-			const formatting = { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() };
-			const edits = remove ? removeProperty(text, path, formatting) : setProperty(text, path, value, formatting);
-			if (!edits.length) {
-				return textResult('No change.');
-			}
-			// U2: refused like the engineer's entry when it breaks the input guardrails.
-			const refused = await refusedValues(this.commandService, file, text, applyEdits(text, edits));
-			if (refused.length) {
-				throw new ToolError(`SAEngine refuses these values (the same rules as for the engineer): ${refused.slice(0, 10).join('; ')}`);
-			}
-			model.pushStackElement();
-			model.pushEditOperations([], edits.map(edit => ({
-				range: Range.fromPositions(model.getPositionAt(edit.offset), model.getPositionAt(edit.offset + edit.length)),
-				text: edit.content,
-			})), () => null);
-			model.pushStackElement();
-		} finally {
-			reference.dispose();
-		}
-		return textResult(`Edited ${file} (unsaved; the engineer can undo it with Ctrl+Z and saves it).`);
-	}
-
 	private async searchCode(query: string, limit: number): Promise<MCP.CallToolResult> {
 		const python = this.instantiationService.createInstance(FemAnalysisRunner).resolvePython();
 		const answer = await this.femSolverService.projectPlatform(python, 'ai/searchCode', {
@@ -495,9 +458,16 @@ export class AiToolRunner {
 		return jsonResult(answer);
 	}
 
-	private async proposeBuilding(args: Record<string, unknown>): Promise<MCP.CallToolResult> {
-		await this.commandService.executeCommand(NEW_BUILDING_COMMAND, { spec: args });
-		return textResult('The New Project wizard is open with this building filled in. The engineer checks the plan, changes any field and clicks Generate to create the project; nothing is created before that.');
+	/** A batch with run steps (or creating the project): the engineer agrees before anything is saved or run. */
+	private async confirmRun(steps: readonly IActionStep[], source: ChangeSetSource): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			message: source === 'mcp'
+				? localize('actions.confirmMcp', "An MCP client asks to save the project and run {0}.", stepNames(steps))
+				: localize('actions.confirmAssistant', "The AI assistant asks to save the project and run {0}.", stepNames(steps)),
+			detail: localize('actions.confirmDetail', "SAEngine saves your edited parts first; the results are written to the project. You check them before they are used."),
+			primaryButton: localize({ key: 'actions.run', comment: ['&& denotes a mnemonic'] }, "&&Save and Run"),
+		});
+		return confirmed;
 	}
 }
 

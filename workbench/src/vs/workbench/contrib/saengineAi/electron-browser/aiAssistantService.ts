@@ -90,7 +90,7 @@ export class SaengineAiAssistantService extends Disposable implements ISaengineA
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		// Never set_json_value: the built-in assistant changes the model only through change sets.
+		// Edits never on: the built-in assistant changes the model only through change sets (run_actions, propose_changes).
 		this.runner = instantiationService.createInstance(AiToolRunner, () => false);
 		this._scopes = readScopes(this.storageService.get(SCOPES_STORAGE_KEY, StorageScope.APPLICATION));
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -348,7 +348,9 @@ function describeTool(result: IAiToolResult): string {
 		case 'open_file': return localize('tool.openFile', "Opened a project file") + failed;
 		case 'reveal_element': return localize('tool.reveal', "Showed a member") + failed;
 		case 'propose_changes': return localize('tool.proposeChanges', "Proposed a change set") + failed;
-		case 'propose_building': return localize('tool.proposeBuilding', "Filled the New Project wizard") + failed;
+		case 'list_actions': return localize('tool.listActions', "Read the action catalogue") + failed;
+		case 'describe_action': return localize('tool.describeAction', "Read an action's parameters") + failed;
+		case 'run_actions': return localize('tool.runActions', "Ran actions on the project") + failed;
 		default: return result.name + failed;
 	}
 }
