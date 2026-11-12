@@ -23,7 +23,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
-import { appendPropertyHeading, appendPropertyRow, appendPropertyNote } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyRow, appendPropertyNote, applyPropertyOnCommit } from '../../saengineProject/browser/editorFrame.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
 import { familyOf, masterOf } from './floorPlanTypical.js';
@@ -1493,12 +1493,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 				const autoWord = localize('loads.autoWord', "auto");
 				box.value = wall ? (wall.auto ? autoWord : String(wall.height)) : String(row.value ?? '');
 				box.element.title = wall ? localize('loads.heightTitle', "Wall height (mm), or {0} to work it out on each beam and story: {1}", autoWord, row.valueLabel) : row.valueLabel;
-				store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
-					if (e.key !== 'Enter') {
-						return;
-					}
-					e.preventDefault();
-					e.stopPropagation();
+				store.add(applyPropertyOnCommit(box.inputElement, () => {
 					if (wall && box.value.trim().toLowerCase() === autoWord.toLowerCase()) {
 						void this.write(updateLoad(loads, row.id, { auto: true }), localize('loads.changed', "Changed {0}.", row.id), context);
 						return;

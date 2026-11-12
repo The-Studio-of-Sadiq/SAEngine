@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, clampPanelWidth, manualChapterOf, readFrameState } from '../../browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, appliesOnLeave, applyPropertyOnCommit, clampPanelWidth, manualChapterOf, readFrameState } from '../../browser/editorFrame.js';
 
 suite('SAEngine - editor frame', () => {
 
@@ -78,5 +78,27 @@ suite('SAEngine - editor frame', () => {
 			'workbench.editor.saengine.structureModeler', 'workbench.editor.saengine.femResults', 'workbench.editor.saengine.boq',
 			'workbench.editor.saengine.sectionDesigner',
 		].map(manualChapterOf), ['01-soil-report', '05-floor-plan', '09-substructure', '05-floor-plan', '08-fem', '10-boq', undefined]);
+	});
+
+	test('a property field applies on Enter and when left changed, not when tabbed through or refused again', () => {
+		assert.deepStrictEqual([appliesOnLeave('90', '0'), appliesOnLeave(' 0 ', '0'), appliesOnLeave('', '')], [true, false, false]);
+		const input = mainWindow.document.createElement('input');
+		mainWindow.document.body.appendChild(input);
+		const applied: string[] = [];
+		input.value = '0';
+		const binding = applyPropertyOnCommit(input, text => applied.push(text));
+		try {
+			input.dispatchEvent(new FocusEvent('blur'));
+			input.value = '90';
+			input.dispatchEvent(new FocusEvent('blur'));
+			input.dispatchEvent(new FocusEvent('blur'));
+			input.value = '45';
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+			input.dispatchEvent(new FocusEvent('blur'));
+		} finally {
+			binding.dispose();
+			input.remove();
+		}
+		assert.deepStrictEqual(applied, ['90', '45']);
 	});
 });

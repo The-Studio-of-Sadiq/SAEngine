@@ -23,6 +23,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { coEditingRoom, ISaengineCoEditingService, relayUrlProblem } from '../../../../platform/saengine/common/coEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ISaengineCoEditingPresenceService } from '../../../services/saengineProject/common/coEditingPresence.js';
 import { ISaengineModelSelectionService } from '../../../services/saengineProject/common/modelSelection.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
@@ -159,6 +160,7 @@ class LiveCoEditingContribution extends Disposable implements IWorkbenchContribu
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISaengineModelSelectionService selectionService: ISaengineModelSelectionService,
+		@ISaengineCoEditingPresenceService private readonly presenceService: ISaengineCoEditingPresenceService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -262,6 +264,7 @@ class LiveCoEditingContribution extends Disposable implements IWorkbenchContribu
 		store.add(model.onWillDispose(() => this.sessions.deleteAndDispose(resource)));
 		store.add(toDisposable(() => {
 			this.parts.delete(resource);
+			this.presenceService.setColleagues(model.resource, []);
 			this.renderStatus();
 		}));
 		const name = this.configurationService.getValue<string>(DISPLAY_NAME_SETTING) ?? '';
@@ -272,7 +275,13 @@ class LiveCoEditingContribution extends Disposable implements IWorkbenchContribu
 			}
 			store.add(session);
 			this.parts.set(resource, { path, session });
-			store.add(session.onDidChangePeople(() => this.renderStatus()));
+			// The part editors show the colleagues' selections (the floor plan outlines them).
+			const publish = () => this.presenceService.setColleagues(model.resource, session.people.map(p => ({ name: p.name, color: p.color, selection: p.selection })));
+			store.add(session.onDidChangePeople(() => {
+				publish();
+				this.renderStatus();
+			}));
+			publish();
 			this.renderStatus();
 		}, error => {
 			this.sessions.deleteAndDispose(resource);

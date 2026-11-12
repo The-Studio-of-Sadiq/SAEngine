@@ -16,11 +16,13 @@ check every result independently.
 - **Trust:** impossible input refused with the reason; delete confirmation for important data; a
   consent dialog before any data goes to an AI provider; diagnostics off by default; Help › Report
   a Bug / Send Feedback, sent publicly as a GitHub issue or privately by e-mail.
-- **Live co-editing:** several engineers in one part at once over a relay on the office network.
+- **Live co-editing:** several engineers in one part at once over a relay on the office network,
+  with each colleague's selected members outlined on the plan in their colour.
 - **Each code pack sets its own least f'c and greatest fy.**
 - **Detailing:** one direction's bottom bars raised at crossing beam joints.
 - **Fixes:** the engine no longer hangs on opening a project (a lock-order deadlock); the ≡ File
-  menu opens on Windows.
+  menu opens on Windows; Properties shows the selection once and applies a field when you leave
+  it; a rotated column's label is no longer drawn twice.
 
 ## Pre-Alpha 9 — 0.0.48 (11 Nov 2026)
 

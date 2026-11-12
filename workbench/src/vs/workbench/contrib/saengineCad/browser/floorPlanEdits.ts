@@ -375,6 +375,15 @@ export function notRotatableMessage(): string {
 	return localize('edit.notRotatable', "Only columns rotate here; beams, walls and slabs follow their points, and footings turn in 9 Substructure.");
 }
 
+/**
+ * The angle typed in a Rotation field, in degrees; NaN for a blank or non-numeric entry (so an
+ * emptied field is refused with the reason, not taken as 0°).
+ */
+export function parseAngle(text: string): number {
+	const trimmed = text.trim().replace(/°$/, '').trim();
+	return trimmed ? Number(trimmed) : Number.NaN;
+}
+
 /** Sets the rotation of a column, in degrees (kept within 0–360). */
 export function rotateMember(layout: unknown, group: MemberGroup, id: string, degrees: number): EditResult {
 	if (group !== 'columns') {
