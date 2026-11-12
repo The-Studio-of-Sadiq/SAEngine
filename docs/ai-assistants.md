@@ -146,33 +146,28 @@ build a whole project from an empty folder to the report. It works through three
   ("Placed 6 columns", "3 storeys") and every value before and after. **Accept** applies it to the
   part files' text models as one step: **Undo** after it in the chat (or Ctrl+Z) reverts all of it. It shows at once in every editor, live co-editing shares it, and it stays
   unsaved until you save. **Reject** changes nothing.
-<<<<<<< HEAD
 - **Runs ask you first.** A batch with a step that writes to disk (`writes` in the catalogue:
   `run.all`, `run.step`, `design.reinforcement.apply`, `foundations.generate`, `export.*` and
-  `project.create`) runs only after you agree in a dialog. SAEngine then saves your edited parts
+  `project.create`) runs only after you agree (**Save and Run** in the chat, or a dialog for an
+  MCP client). SAEngine then saves your edited parts
   (as Run All does), the engine writes the results, and the open files are read again. Such a
   batch holds only those steps and queries; the assistant sends the edits first, as their own
   change set. The answer lists the files the run saved first (`written`).
-- **You can stop a run.** Cancel on the run's progress notification stops the batch before its
-  next step, and a Run All at its next step boundary; the answer says what was done and what
+- **You can stop a run.** Stop in the chat (or Stop on the run's progress notification) stops the
+  batch before its next step, and a Run All at its next step boundary; the answer says what was done and what
   was written (that stays written, and Undo does not take back a run).
 - **Nonsense is refused with the allowed range.** A storey of 30 m, spans in metres, a beam far
   too shallow for its span, loads in N or psf, more storeys than the structural system may have
   in the site's Seismic Design Category: the same input guardrails as for you refuse them and
   say what is allowed (see [engineering-decisions.md](engineering-decisions.md)).
-=======
-- **Runs ask you first.** A batch with a run step (`run.all`, `run.step`,
-  `design.reinforcement.apply`, `export.*`) or `project.create` runs only after you agree (**Save and
-  Run** in the chat, or a dialog for an MCP client). SAEngine then saves your edited parts (as Run All does), the engine writes the results,
-  and the open files are read again. Such a batch holds only run steps and queries; the assistant
-  sends the edits first, as their own change set.
->>>>>>> origin/side/ai-chat
 - **You check the results.** The assistant reports what the run and the checks say. It does not
   approve a design. Design Reinforcement is never automatic: the assistant applies it only when
   you ask.
 
 The order the assistant follows for a new project: `project.create` (in the empty folder open in the
-window; the project then opens there) → settings (code pack, site, use, analysis) → soil → grid and
+window, where the project then opens; in a window without a folder SAEngine asks where to create
+it, by default in Documents\SAEngine Projects, in a subfolder named after the project, and opens
+it in the window) → settings (code pack, site, use, analysis) → soil → grid and
 storeys → materials and types → members → loads → an analysis (`run.step`) → foundations → `run.all` → results and checks →
 Design Reinforcement and exports when you ask.
 

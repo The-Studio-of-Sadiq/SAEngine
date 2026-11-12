@@ -41,7 +41,38 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
-<<<<<<< HEAD
+## 2026-11-12: the assistant in the title-bar chat (AI round, track C)
+
+Owner, 2026-11-11/12: one chat, not two; Copilot sign-in and bring-your-own-key; consent before
+any project data goes to a provider. See [ai-assistants.md](ai-assistants.md#the-assistant-in-the-chat).
+
+- **The AI Assistant view is retired.** SAEngine's assistant is the **SAEngine** agent (mode) of
+  the chat beside Sign In, the default for new chats while a project is open. Its instructions
+  are the playbook SAEngine keeps in code (the same as for MCP clients) and it offers only the
+  **saengine** tool set: no terminal, no direct file edits, no web. The MCP server stays.
+- **One set of tools, two doors.** The chat's tools are the MCP server's tools (one runner);
+  the chat gets the read, explain, screenshot and action tools, not run_command or the
+  edits-switch tools.
+- **Change sets and run steps are SAEngine's own cards in the chat** (Accept / Reject, Save and
+  Run / Cancel), not the chat's tool approval, so the chat's "always allow" and auto-approve
+  settings cannot skip them. An MCP client's change sets are reviewed in a dialog.
+- **Consent covers the whole chat.** With a project open, the first request to a provider in any
+  chat mode asks first (per project and provider, kept in the user's settings), and tools that
+  read project data check it again. The status bar shows where the project's data may go. In
+  SAEngine the chat does not attach the open part by itself and does not save unsaved parts on
+  send.
+- **Providers are the chat's.** Copilot after Sign In, or the engineer's own key through Manage
+  Language Models (Anthropic recommended; an OpenAI-compatible endpoint as a Custom Endpoint).
+  SAEngine no longer sends requests itself (its HTTP relay is removed). The old
+  saengine.ai.assistant.* settings and keys move once into the chat's providers.
+- **The assistant needs the AI component** (the bundled Copilot Chat extension): it runs the
+  chat and the model providers, also for a key of the engineer's own.
+- **Open point, narrowed (track D):** the chat's own Agent mode can still use its file-editing
+  tools on the project's JSON (bypassing change sets); it is not the default in a project. Its
+  edits to a project's part files (`01 Soil Report` to `10 BOQ`, the `.saengine` manifest) now
+  always ask the engineer first (`chat.tools.edits.autoApprove`, always-checked patterns); a hard
+  refusal would need the Copilot extension's own tools changed.
+
 ## 2026-11-12: a whole project done reliably (AI round, track D)
 
 The assistant's typical mistakes (lengths in metres instead of mm, loads in N or psf, a 30 m
@@ -72,37 +103,6 @@ the allowed range.
 - **`writes` decides, not the name.** An action that writes files itself (`run` actions and
   `project.create`) says so in the catalogue; the app saves before it, asks the engineer and
   reads the files again after it.
-=======
-## 2026-11-12: the assistant in the title-bar chat (AI round, track C)
-
-Owner, 2026-11-11/12: one chat, not two; Copilot sign-in and bring-your-own-key; consent before
-any project data goes to a provider. See [ai-assistants.md](ai-assistants.md#the-assistant-in-the-chat).
-
-- **The AI Assistant view is retired.** SAEngine's assistant is the **SAEngine** agent (mode) of
-  the chat beside Sign In, the default for new chats while a project is open. Its instructions
-  are the playbook SAEngine keeps in code (the same as for MCP clients) and it offers only the
-  **saengine** tool set: no terminal, no direct file edits, no web. The MCP server stays.
-- **One set of tools, two doors.** The chat's tools are the MCP server's tools (one runner);
-  the chat gets the read, explain, screenshot and action tools, not run_command or the
-  edits-switch tools.
-- **Change sets and run steps are SAEngine's own cards in the chat** (Accept / Reject, Save and
-  Run / Cancel), not the chat's tool approval, so the chat's "always allow" and auto-approve
-  settings cannot skip them. An MCP client's change sets are reviewed in a dialog.
-- **Consent covers the whole chat.** With a project open, the first request to a provider in any
-  chat mode asks first (per project and provider, kept in the user's settings), and tools that
-  read project data check it again. The status bar shows where the project's data may go. In
-  SAEngine the chat does not attach the open part by itself and does not save unsaved parts on
-  send.
-- **Providers are the chat's.** Copilot after Sign In, or the engineer's own key through Manage
-  Language Models (Anthropic recommended; an OpenAI-compatible endpoint as a Custom Endpoint).
-  SAEngine no longer sends requests itself (its HTTP relay is removed). The old
-  saengine.ai.assistant.* settings and keys move once into the chat's providers.
-- **The assistant needs the AI component** (the bundled Copilot Chat extension): it runs the
-  chat and the model providers, also for a key of the engineer's own.
-- **Open point:** the chat's own Agent mode can still use its file-editing tools on the
-  project's JSON (bypassing change sets); it is not the default in a project. Restrict or hide it
-  outside developer mode if the owner wants.
->>>>>>> origin/side/ai-chat
 
 ## 2026-11-12: shared editing actions (actions round, track A)
 
