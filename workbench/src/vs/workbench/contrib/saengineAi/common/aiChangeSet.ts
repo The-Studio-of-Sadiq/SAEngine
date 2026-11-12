@@ -238,3 +238,39 @@ export function previewValue(value: unknown, found = true, length = 120): string
 export function previewPath(path: JSONPath): string {
 	return path.map((segment, index) => typeof segment === 'number' ? `[${segment}]` : index === 0 ? segment : `.${segment}`).join('');
 }
+
+/** Most values a change set's preview lists: a whole building is thousands. */
+export const MAX_PREVIEW_ROWS = 60;
+
+/** One value of a change set as the engineer previews it. */
+export interface IPreviewRow {
+	readonly file: string;
+	readonly value: string;
+	/** The value before ("—" when it is added). */
+	readonly before: string;
+	/** The value after; undefined when it is removed. */
+	readonly after: string | undefined;
+	readonly reason?: string;
+	readonly noop: boolean;
+}
+
+/** The first `max` values of the files' changes, and how many more there are. */
+export function previewRows(files: readonly IPlannedFile[], max = MAX_PREVIEW_ROWS): { readonly rows: readonly IPreviewRow[]; readonly more: number } {
+	const rows: IPreviewRow[] = [];
+	let total = 0;
+	for (const file of files) {
+		for (const planned of file.changes) {
+			if (total++ < max) {
+				rows.push({
+					file: file.file,
+					value: previewPath(planned.change.path),
+					before: previewValue(planned.before, planned.existed),
+					after: planned.change.remove ? undefined : previewValue(planned.after),
+					reason: planned.change.reason,
+					noop: planned.noop,
+				});
+			}
+		}
+	}
+	return { rows, more: Math.max(0, total - max) };
+}

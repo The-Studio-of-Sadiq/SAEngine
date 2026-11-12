@@ -23,16 +23,16 @@ import { changesByFile, diffJson, IAiChangeSetProposal, IPlannedFile, planFile }
 import { safeRelativePath } from '../common/aiTools.js';
 
 /*
- * The change sets AI assistants propose (the built-in assistant and MCP clients alike): planned
- * against the documents as the engineer sees them (unsaved edits included), shown in the
- * assistant's view for the engineer to accept or reject, and applied through the shared text
+ * The change sets AI assistants propose (the chat's assistant and MCP clients alike): planned
+ * against the documents as the engineer sees them (unsaved edits included), shown in the chat
+ * (or a dialog, for MCP clients) for the engineer to accept or reject, and applied through the shared text
  * models in one undo group over every file, as the design proposal applies its bars. Undo in
  * the preview (or Ctrl+Z in any of the files) reverts the whole set.
  */
 
 export type ChangeSetState = 'pending' | 'accepted' | 'rejected' | 'undone' | 'failed' | 'stale';
 
-/** Who proposed it: the built-in assistant or an MCP client (named in AI Activity). */
+/** Who proposed it: the chat's assistant or an MCP client (named in AI Activity). */
 export type ChangeSetSource = 'assistant' | 'mcp';
 
 export interface IAiChangeSet {

@@ -28,28 +28,32 @@ export interface IAiTool {
 	/** Only reads: never changes the window or the project. */
 	readonly readOnly?: boolean;
 	/**
-	 * Offered to the built-in assistant too, with what its result sends to the provider: the
-	 * engineer chooses which of these the assistant may read (see {@link ContextScope}).
-	 * Tools without it are for MCP clients on this computer only.
+	 * Offered in the chat too (SAEngine's tool set), with what its result sends to the model
+	 * provider (see {@link ContextScope}). Tools without it are for MCP clients on this computer
+	 * only.
 	 */
 	readonly assistant?: ContextScope;
 }
 
 /**
- * What a tool's result tells the built-in assistant's provider: `code` (passages of the code pack
- * and the manual: no project data), `project` (the project's name, parts and their status, the
- * open editors), `document` (the active editor's document), `results` (design and analysis
- * results), `local` (nothing leaves the computer but the assistant's own words: opening a part,
- * revealing a member, proposing a change set the engineer previews).
+ * What a tool's result tells the chat's model provider: `code` (passages of the code pack, the
+ * manual and the action catalogue: no project data), `project` (the project's name, parts and
+ * their status, the open editors, batches worked out on it), `document` (the active editor's
+ * document, a picture of the window), `results` (design and analysis results), `local` (nothing
+ * leaves the computer but the assistant's own words: opening a part, revealing a member,
+ * proposing a change set the engineer previews). Tools that send project data ask for the
+ * project's consent first (aiDataConsent).
  */
 export type ContextScope = 'code' | 'project' | 'document' | 'results' | 'local';
-/** The scopes the engineer can turn off (code and local are always on). */
-export const OPTIONAL_SCOPES = ['project', 'document', 'results'] as const;
-export type OptionalScope = typeof OPTIONAL_SCOPES[number];
 
-/** The tools the built-in assistant may use with `allowed` scopes. */
-export function assistantTools(allowed: ReadonlySet<OptionalScope>): readonly IAiTool[] {
-	return AI_TOOLS.filter(tool => tool.assistant !== undefined && (tool.assistant === 'code' || tool.assistant === 'local' || allowed.has(tool.assistant)));
+/** Whether a tool's result carries project data to the provider (it needs the project's consent). */
+export function sendsProjectData(tool: IAiTool | undefined): boolean {
+	return tool?.assistant === 'project' || tool?.assistant === 'document' || tool?.assistant === 'results';
+}
+
+/** The tools offered in the chat: SAEngine's tool set (never one that edits directly). */
+export function chatTools(): readonly IAiTool[] {
+	return AI_TOOLS.filter(tool => tool.assistant !== undefined && !tool.edits);
 }
 
 const PART_IDS = ALL_PARTS.map(part => part.id);
@@ -143,6 +147,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'screenshot',
+		assistant: 'document',
 		title: 'Screenshot',
 		description: 'A picture of the SAEngine window as it is now (PNG).',
 		inputSchema: { type: 'object', properties: {}, additionalProperties: false },
