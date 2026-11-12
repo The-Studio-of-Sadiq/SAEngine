@@ -25,6 +25,7 @@ Who uses them:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 from functools import cache
@@ -301,13 +302,163 @@ def _derived(rule: dict[str, Any], data: dict[str, Any]) -> list[dict[str, Any]]
 LIST_KEYS = {"materials": "materials", "objects": "objects"}
 
 
-def check(kind: str, data: Any, pack: Any = None) -> list[dict[str, Any]]:
+# ── member sizes against their spans (floor plan + object types) ──
+
+
+def _grid_positions(plan: dict[str, Any]) -> dict[str, dict[str, float]]:
+    grids = plan.get("grids") or {}
+    out: dict[str, dict[str, float]] = {}
+    for axis in ("x", "y"):
+        out[axis] = {
+            str(g.get("label")): float(g["position"])
+            for g in grids.get(axis) or []
+            if isinstance(g, dict) and isinstance(g.get("position"), int | float)
+        }
+    return out
+
+
+def _where(grids: dict[str, dict[str, float]], ref: Any) -> tuple[float, float] | None:
+    """Where a floor plan point ``{x, y, dx, dy}`` is [mm]; None when its lines are missing."""
+    if not isinstance(ref, dict):
+        return None
+    x, y = grids["x"].get(str(ref.get("x"))), grids["y"].get(str(ref.get("y")))
+    if x is None or y is None:
+        return None
+    return x + float(ref.get("dx") or 0), y + float(ref.get("dy") or 0)
+
+
+def _types(objects: Any) -> dict[str, dict[str, Any]]:
+    entries = objects.get("objects") if isinstance(objects, dict) else None
+    return {str(o.get("id")): o for o in entries or [] if isinstance(o, dict)}
+
+
+def _span_problem(
+    rule: dict[str, Any], ratio: float, what: str, needed: str
+) -> tuple[str, str] | None:
+    """The rule's verdict on ``ratio``, with what would keep it (``needed``) for a block."""
+    found = judge(rule, round(ratio, 1), what)
+    if found and found[0] == "error":
+        return "error", found[1][:-1] + f"; {needed}."
+    return found
+
+
+def _member_sizes(rule: dict[str, Any], plan: dict[str, Any], objects: Any) -> list[dict]:
+    """Beams (span/depth of a rectangular section) and slabs (short side of the panel over the
+    thickness) of the floor plan against their object types."""
+    grids, types = _grid_positions(plan), _types(objects)
+    limit = next((lim.get("max") for lim in rule.get("block", ()) if lim.get("max")), None)
+    out: list[dict[str, Any]] = []
+    group = "beams" if rule["derived"] == "beamSpanDepth" else "slabs"
+    for index, m in enumerate(plan.get(group) or []):
+        if not isinstance(m, dict):
+            continue
+        t = types.get(str(m.get("type")))
+        if t is None:
+            continue
+        if group == "beams":
+            profile = t.get("profile") if isinstance(t.get("profile"), dict) else {}
+            depth = profile.get("yDim") if profile.get("shape") == "rectangle" else None
+            a, b = _where(grids, m.get("start")), _where(grids, m.get("end"))
+            if not isinstance(depth, int | float) or depth <= 0 or a is None or b is None:
+                continue
+            span = math.hypot(b[0] - a[0], b[1] - a[1])
+            size = depth
+            what = (
+                f"{m.get('id')}: {rule['what']} of a {_num(round(span))} mm span "
+                f"{_num(depth)} mm deep ({t.get('id')})"
+            )
+            needed = f"at least {_num(math.ceil(span / limit / 10) * 10)} mm deep" if limit else ""
+        else:
+            thickness = t.get("thickness")
+            corners = [_where(grids, c) for c in m.get("boundary") or []]
+            if not isinstance(thickness, int | float) or thickness <= 0 or None in corners:
+                continue
+            if len(corners) < 3:
+                continue
+            xs, ys = [c[0] for c in corners], [c[1] for c in corners]  # type: ignore[index]
+            span = min(max(xs) - min(xs), max(ys) - min(ys))
+            size = thickness
+            what = (
+                f"{m.get('id')}: {rule['what']} of a {_num(round(span))} mm panel "
+                f"{_num(thickness)} mm thick ({t.get('id')})"
+            )
+            needed = f"at least {_num(math.ceil(span / limit / 5) * 5)} mm thick" if limit else ""
+        if span <= 0:
+            continue
+        found = _span_problem(rule, span / size, what, needed)
+        if found:
+            out.append(_problem(None, f"{group}.{index}.type", found))
+    return out
+
+
+# ── the building's height against its structural system (settings + floor plan) ──
+
+
+def system_height_problems(
+    rule: dict[str, Any], plan: dict[str, Any], settings: Any
+) -> list[dict[str, Any]]:
+    """The building (its storeys' levels) taller than the height limit of its seismic
+    force-resisting system in the site's Seismic Design Category (the code pack's systems
+    table, e.g. BNBC 2020 Table 6.2.19): blocked, with the height allowed and the storeys
+    that fit at the typical storey height."""
+    from saengine.library.settings import ProjectSettings, design_category
+
+    stories = [s for s in plan.get("stories") or [] if isinstance(s, dict)]
+    levels = sorted(
+        float(s["elevation"]) for s in stories if isinstance(s.get("elevation"), int | float)
+    )
+    if len(levels) < 2 or not isinstance(settings, dict):
+        return []
+    try:
+        parsed = ProjectSettings.model_validate(settings)
+        category = design_category(parsed)
+    except Exception:  # noqa: BLE001 - settings that do not validate: their own check says why
+        return []
+    limit = category.get("heightLimit")
+    sdc = category.get("sdc")
+    height = (levels[-1] - levels[0]) / 1000.0
+    if not limit or not sdc or height <= float(limit) + 1e-6:
+        return []
+    from saengine.codes import context as code_context
+
+    typical = (levels[-1] - levels[0]) / (len(levels) - 1)
+    fits = int((float(limit) * 1000.0 + 1e-6) // typical)
+    system, clause = parsed.seismic.system, ""
+    with contextlib.suppress(Exception):  # a pack without the clause
+        clause = code_context.cite("seismic", "systems") or ""
+    with contextlib.suppress(Exception):  # a pack without the system's name
+        system = code_context.table("seismic").systems[system].name
+    row = category.get("row") or ""
+    source = clause or rule["block"][0].get("source", PRACTICE)
+    if row and row not in source:
+        source = f"{source}, row {row}"
+    message = (
+        f"The building is {height:.1f} m tall ({len(levels) - 1} storeys), above the "
+        f"{float(limit):g} m height limit of {system} in Seismic Design Category "
+        f"{sdc}: {rule['block'][0]['reason']}; at most {fits} storeys of "
+        f"{typical / 1000:.1f} m, or choose a system allowed for this height ({source})."
+    )
+    return [_problem(None, f"stories.{len(stories) - 1}.elevation", ("error", message))]
+
+
+def check(
+    kind: str,
+    data: Any,
+    pack: Any = None,
+    objects: Any = None,
+    settings: Any = None,
+) -> list[dict[str, Any]]:
     """The guardrail problems of a file of ``kind`` (its parsed JSON), each as
     ``{index, path, message, severity}``: ``index`` is the entry of a list file (None for the
-    whole document), ``severity`` ``error`` (blocked) or ``warning`` (unusual)."""
+    whole document), ``severity`` ``error`` (blocked) or ``warning`` (unusual). A floor plan's
+    member sizes against their spans need its ``objects`` (the object types, parsed), its
+    height against the structural system the project's ``settings`` (parsed); without them
+    those rules are not checked."""
     if not isinstance(data, dict):
         return []
     rules = resolved_rules(pack, kind)
+    if kind == "floorPlan":
+        rules += resolved_rules(pack, "project")
     if not rules:
         return []
     list_key = LIST_KEYS.get(kind)
@@ -320,7 +471,16 @@ def check(kind: str, data: Any, pack: Any = None) -> list[dict[str, Any]]:
             continue
         out += item_problems(rules, item, index)
     for r in rules:
-        if r.get("derived") and r["derived"] != "coverInMember" and not list_key:
+        derived = r.get("derived")
+        if not derived or derived == "coverInMember" or list_key:
+            continue
+        if derived in ("beamSpanDepth", "slabSpanThickness"):
+            if objects is not None:
+                out += _member_sizes(r, data, objects)
+        elif derived == "systemHeight":
+            if settings is not None:
+                out += system_height_problems(r, data, settings)
+        else:
             out += _derived(r, data)
     return out
 

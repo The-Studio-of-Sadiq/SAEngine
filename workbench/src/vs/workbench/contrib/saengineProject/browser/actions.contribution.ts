@@ -123,7 +123,7 @@ registerAction2(class extends Action2 {
 					message: localize('actions.done', "Ran {0} action(s). {1}", steps.length, describeOutcome(outcome)),
 				});
 			} else {
-				notifications.error(localize('actions.failed', "Nothing was changed. {0}", describeFailure(steps, outcome)));
+				notifications.error(outcome.written.length || outcome.cancelled ? describeFailure(steps, outcome) : localize('actions.failed', "Nothing was changed. {0}", describeFailure(steps, outcome)));
 			}
 			return outcome;
 		} catch (error) {

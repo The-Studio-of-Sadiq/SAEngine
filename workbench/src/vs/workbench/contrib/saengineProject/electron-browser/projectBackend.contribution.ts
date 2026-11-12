@@ -17,7 +17,7 @@ import { ICadOpenResult, IFemSolverService, ProjectPlatformMethod } from '../../
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
-import { ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND } from '../../../services/saengineProject/common/saengineActions.js';
+import { ACTIONS_CANCEL_COMMAND, ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND } from '../../../services/saengineProject/common/saengineActions.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
 import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, POINT_CLOUD_VIEW_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
@@ -424,6 +424,9 @@ CommandsRegistry.registerCommand(ACTIONS_RUN_COMMAND, (accessor, raw: unknown) =
 		write: args.write === true,
 	});
 });
+
+// Stop: the batches in progress stop before their next step (a Run All at its next step boundary).
+CommandsRegistry.registerCommand(ACTIONS_CANCEL_COMMAND, accessor => call(accessor, 'actions/cancel', {}));
 
 // --- A .civil file opened from the operating system ----------------------------------------
 

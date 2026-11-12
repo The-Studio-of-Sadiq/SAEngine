@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
@@ -17,10 +18,13 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { UndoRedoGroup } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IHostService } from '../../host/browser/host.js';
+import { IPathService } from '../../path/common/pathService.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
-import { ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND, ActionKind, IActionInfo, IActionStep, IActionsOutcome, IActionsRunOptions, IActionsRunRequest, ISaengineActionsService, minimalEdit, PROJECT_CREATE_ACTION, readBatchResult, readCatalogue, stepNames, stepNeedsWrite } from '../common/saengineActions.js';
-import { ISaengineProjectService } from '../common/saengineProject.js';
+import { ACTIONS_CANCEL_COMMAND, ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND, ActionKind, IActionInfo, IActionStep, IActionsOutcome, IActionsRunOptions, IActionsRunRequest, ISaengineActionsService, minimalEdit, PROJECT_CREATE_ACTION, readBatchResult, readCatalogue, stepNames, stepNeedsWrite } from '../common/saengineActions.js';
+import { DEFAULT_PROJECTS_FOLDER, ISaengineProjectService, projectFolderName } from '../common/saengineProject.js';
 
 /**
  * Applies new texts to text models as ONE undo step over every file (Ctrl+Z in any of them, or
@@ -70,6 +74,9 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IPathService private readonly pathService: IPathService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this._register(this.projectService.onDidChangeProject(() => this.releaseAll()));
@@ -94,15 +101,29 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 		return steps.some(step => stepNeedsWrite(step, catalogue));
 	}
 
-	async run(steps: readonly IActionStep[], options: IActionsRunOptions): Promise<IActionsOutcome> {
+	async run(steps: readonly IActionStep[], options: IActionsRunOptions, token: CancellationToken = CancellationToken.None): Promise<IActionsOutcome> {
 		if (!steps.length) {
 			throw new Error(localize('actions.noSteps', "The batch has no steps."));
 		}
-		const root = this.root(steps);
 		const write = await this.needsWrite(steps);
-		if (write && options.apply) {
-			return this.runWritten(root, steps);
+		const root = await this.root(steps, write && options.apply);
+		if (!root) {
+			const results = [{ ok: false, message: localize('actions.noLocation', "No folder was chosen for the new project: nothing was created."), created: [], warnings: [], problems: [], written: [] }];
+			return { ok: false, results, changes: {}, failedStep: 0, written: [], cancelled: true, ran: false, applied: [] };
 		}
+		if (write && options.apply) {
+			const outcome = await this.runWritten(root.folder, steps, token);
+			if (root.created && outcome.ok) {
+				// The new project opens in this window, as the New Project wizard opens it.
+				await this.hostService.openWindow([{ folderUri: root.folder }], { forceReuseWindow: true });
+				return { ...outcome, createdIn: root.folder.fsPath };
+			}
+			return outcome;
+		}
+		return this.runInMemory(root.folder, steps, options);
+	}
+
+	private async runInMemory(root: URI, steps: readonly IActionStep[], options: IActionsRunOptions): Promise<IActionsOutcome> {
 		const request: IActionsRunRequest = { projectRoot: root.fsPath, steps, overrides: this.overrides(root), write: false };
 		const result = readBatchResult(await this.backend<unknown>(ACTIONS_RUN_COMMAND, request));
 		if (!result.ok || !options.apply) {
@@ -113,21 +134,64 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 	}
 
 	/**
-	 * The project the batch works on: the open one, or for creating a project the window's empty
-	 * folder (the project then opens in this window as it appears).
+	 * The project the batch works on: the open one, or for creating a project the window's
+	 * folder (the project then opens in this window as it appears). A window without a folder
+	 * asks where to create it (`created`: a new subfolder named after the project, opened in the
+	 * window afterwards); undefined when the engineer chose none.
 	 */
-	private root(steps: readonly IActionStep[]): URI {
+	private async root(steps: readonly IActionStep[], write: boolean): Promise<{ readonly folder: URI; readonly created?: boolean } | undefined> {
 		const project = this.projectService.project;
 		if (project) {
-			return project.root;
+			return { folder: project.root };
 		}
 		const folder = this.contextService.getWorkspace().folders[0]?.uri;
-		if (steps[0]?.action === PROJECT_CREATE_ACTION && folder) {
-			return folder;
+		const create = steps[0]?.action === PROJECT_CREATE_ACTION;
+		if (create && folder) {
+			return { folder };
 		}
-		throw new Error(steps[0]?.action === PROJECT_CREATE_ACTION
-			? localize('actions.noFolder', "Open an empty folder first (File > Open Folder): the project is created in it.")
-			: localize('actions.noProject', "No SAEngine project is open in this window."));
+		if (!create) {
+			throw new Error(localize('actions.noProject', "No SAEngine project is open in this window."));
+		}
+		if (!write) {
+			throw new Error(localize('actions.createNeedsWrite', "project.create writes the new project: run it (not as a preview)."));
+		}
+		const name = typeof steps[0].params?.name === 'string' ? steps[0].params.name : '';
+		const subfolder = projectFolderName(name);
+		if (!/[\p{L}\p{N}]/u.test(subfolder)) {
+			throw new Error(localize('actions.badName', "project.create needs a name with a letter or digit: the project's folder is named after it."));
+		}
+		const location = await this.chooseLocation();
+		if (!location) {
+			return undefined;
+		}
+		const target = joinPath(location, subfolder);
+		if (await this.fileService.exists(target)) {
+			const stat = await this.fileService.resolve(target);
+			if (!stat.isDirectory || stat.children?.length) {
+				throw new Error(localize('actions.folderTaken', "{0} exists already and is not empty: choose another location or name for the project.", target.fsPath));
+			}
+		}
+		return { folder: target, created: true };
+	}
+
+	/** Asks where to create a new project: the folder picker opens at Documents/SAEngine Projects (or the nearest folder that exists). */
+	private async chooseLocation(): Promise<URI | undefined> {
+		const home = await this.pathService.userHome();
+		let start = joinPath(home, ...DEFAULT_PROJECTS_FOLDER);
+		for (const candidate of [start, joinPath(home, DEFAULT_PROJECTS_FOLDER[0]), home]) {
+			if (await this.fileService.exists(candidate)) {
+				start = candidate;
+				break;
+			}
+		}
+		const picked = await this.fileDialogService.showOpenDialog({
+			title: localize('actions.chooseLocation', "Choose Where to Create the Project"),
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			defaultUri: start,
+		});
+		return picked?.[0];
 	}
 
 	/** The unsaved texts of the project's files, by path relative to the project (the engine's overrides). */
@@ -146,30 +210,52 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 	}
 
 	/**
-	 * A batch with a run step: the project is saved (the engine reads the files, as Run All
-	 * does), the engine runs and writes, and the files it changed are read again.
+	 * A batch with a step that writes: the project is saved (the engine reads the files, as Run
+	 * All does), the engine runs and writes, and the files it changed are read again. Cancel on
+	 * the progress (or `token`) stops it before its next step (`actions/cancel`).
 	 */
-	private async runWritten(root: URI, steps: readonly IActionStep[]): Promise<IActionsOutcome> {
-		return this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('actions.running', "Running {0}", stepNames(steps)),
-		}, async () => {
-			await this.saveProject(root);
-			const request: IActionsRunRequest = { projectRoot: root.fsPath, steps, write: true };
-			const result = readBatchResult(await this.backend<unknown>(ACTIONS_RUN_COMMAND, request));
-			// What the engine wrote, even for a failed batch (a run step writes the steps before it first).
-			const applied: string[] = [];
-			for (const path of new Set([...Object.keys(result.changes), ...result.written])) {
-				const segments = insideProject(path);
-				const model = segments && this.textFileService.files.get(joinPath(root, ...segments));
-				// Saved before the run, so nothing of the engineer's is lost by reading the file again.
-				if (model && !model.isDirty()) {
-					await model.resolve({ forceReadFromFile: true });
-					applied.push(segments.join('/'));
-				}
+	private async runWritten(root: URI, steps: readonly IActionStep[], token: CancellationToken): Promise<IActionsOutcome> {
+		const stop = new CancellationTokenSource(token);
+		let running = false;
+		const listener = stop.token.onCancellationRequested(() => {
+			if (running) {
+				// The engine stops at its next step boundary and answers what was done.
+				this.backend<unknown>(ACTIONS_CANCEL_COMMAND, {}).catch(() => undefined);
 			}
-			return { ...result, ran: true, applied };
 		});
+		try {
+			return await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('actions.running', "Running {0}", stepNames(steps)),
+				cancellable: localize('actions.stop', "Stop"),
+			}, () => this.writeAndRun(root, steps, stop.token, () => running = true), () => stop.cancel());
+		} finally {
+			listener.dispose();
+			stop.dispose();
+		}
+	}
+
+	private async writeAndRun(root: URI, steps: readonly IActionStep[], token: CancellationToken, started: () => void): Promise<IActionsOutcome> {
+		await this.saveProject(root);
+		if (token.isCancellationRequested) {
+			const results = [{ ok: false, message: localize('actions.stoppedBefore', "Stopped before it started: nothing was run."), created: [], warnings: [], problems: [], written: [] }];
+			return { ok: false, results, changes: {}, failedStep: 0, written: [], cancelled: true, ran: false, applied: [] };
+		}
+		started();
+		const request: IActionsRunRequest = { projectRoot: root.fsPath, steps, write: true };
+		const result = readBatchResult(await this.backend<unknown>(ACTIONS_RUN_COMMAND, request));
+		// What the engine wrote, even for a failed batch (a run step writes the steps before it first).
+		const applied: string[] = [];
+		for (const path of new Set([...Object.keys(result.changes), ...result.written])) {
+			const segments = insideProject(path);
+			const model = segments && this.textFileService.files.get(joinPath(root, ...segments));
+			// Saved before the run, so nothing of the engineer's is lost by reading the file again.
+			if (model && !model.isDirty()) {
+				await model.resolve({ forceReadFromFile: true });
+				applied.push(segments.join('/'));
+			}
+		}
+		return { ...result, ran: true, applied };
 	}
 
 	private async saveProject(root: URI): Promise<void> {

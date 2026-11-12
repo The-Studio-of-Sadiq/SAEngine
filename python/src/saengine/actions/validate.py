@@ -32,6 +32,7 @@ from saengine.actions.view import ProjectView, json_text
 DEPENDENTS: dict[str, tuple[str, ...]] = {
     MATERIALS: (OBJECTS, SUBSTRUCTURE),
     OBJECTS: (FLOOR_PLAN, BIM, SUBSTRUCTURE),
+    SETTINGS: (FLOOR_PLAN,),  # the height against the structural system
     FLOOR_PLAN: (LOADS,),
 }
 
@@ -63,7 +64,7 @@ def _check(path: str, texts: Callable[[str], str | None]) -> list[dict[str, Any]
     if path == OBJECTS:
         return check_library("objects", text, texts(MATERIALS))
     if path == FLOOR_PLAN:
-        return check_library("floorPlan", text, texts(OBJECTS))
+        return check_library("floorPlan", text, texts(OBJECTS), texts(SETTINGS))
     if path == BIM:
         data = json.loads(text)
         if not isinstance(data, dict) or data.get("schema") != "saengine.bim/2":
@@ -102,7 +103,10 @@ def _check_settings(text: str) -> list[dict[str, Any]]:
     for problem in problems:
         node: Any = data
         for step in [s for s in (problem.get("path") or "").split(".") if s]:
-            node = node.get(step) if isinstance(node, dict) else None
+            if isinstance(node, list) and step.isdigit() and int(step) < len(node):
+                node = node[int(step)]  # an entry of a list (areaLoads.0.live)
+            else:
+                node = node.get(step) if isinstance(node, dict) else None
         out.append({**problem, "severity": "warning"} if node is None else problem)
     return out
 

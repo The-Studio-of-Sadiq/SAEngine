@@ -89,6 +89,8 @@ interface IChangeSetEntry {
 	readonly decision: Promise<ChangeSetState>;
 	/** After accept: each model's version, so Undo reverts only this set. */
 	applied?: { readonly resource: URI; readonly version: number }[];
+	/** After accept: the files the set created, with the text written, so Undo removes them again. */
+	created?: { readonly resource: URI; readonly text: string }[];
 }
 
 /** The full check of the editors (`saengine.library.check`). */
@@ -279,6 +281,7 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 			for (const file of created) {
 				await this.fileService.writeFile(file.resource, VSBuffer.fromString(file.text));
 			}
+			entry.created = created;
 			// One undo step over every file, each as its one small edit (co-editing shares it).
 			entry.applied = applyTextsAsOneStep(texts).map(model => ({ resource: model.uri, version: model.getAlternativeVersionId() }));
 			this.settle(entry, 'accepted');
@@ -296,10 +299,10 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 
 	canUndo(id: string): boolean {
 		const entry = this.entries.find(e => e.id === id);
-		if (!entry || entry.state !== 'accepted' || !entry.applied?.length) {
+		if (!entry || entry.state !== 'accepted' || (!entry.applied?.length && !entry.created?.length)) {
 			return false;
 		}
-		return entry.applied.every(file => {
+		return (entry.applied ?? []).every(file => {
 			const reference = this.references.get(file.resource.toString());
 			return reference?.object.textEditorModel.getAlternativeVersionId() === file.version && this.undoRedoService.canUndo(file.resource);
 		});
@@ -310,8 +313,31 @@ export class SaengineAiChangeSetService extends Disposable implements ISaengineA
 		if (!entry || !this.canUndo(id)) {
 			return;
 		}
-		// One undo: the group reverts the other files too.
-		await this.undoRedoService.undo(entry.applied![0].resource);
+		// The files the set created go too, unless they were changed since (then they stay, and say so).
+		const created = entry.created ?? [];
+		const changed: string[] = [];
+		for (const file of created) {
+			const model = this.references.get(file.resource.toString())?.object.textEditorModel;
+			const now = model ? model.getValue() : await this.fileService.readFile(file.resource).then(content => content.value.toString(), () => undefined);
+			if (now !== undefined && now !== file.text) {
+				changed.push(file.resource.path);
+			}
+		}
+		if (changed.length) {
+			entry.problem = localize('changeSet.createdChanged', "Not undone: {0} changed since the set created it.", changed.join(', '));
+			this._onDidChange.fire(entry);
+			return;
+		}
+		if (entry.applied?.length) {
+			// One undo: the group reverts the other files too.
+			await this.undoRedoService.undo(entry.applied[0].resource);
+		}
+		for (const file of created) {
+			if (await this.fileService.exists(file.resource)) {
+				// To the recycle bin where there is one: removing a file is not undoable otherwise.
+				await this.fileService.del(file.resource, { useTrash: true }).catch(() => this.fileService.del(file.resource));
+			}
+		}
 		entry.state = 'undone';
 		this._onDidChange.fire(entry);
 	}

@@ -18,13 +18,17 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { IWindowOpenable, IOpenWindowOptions } from '../../../../../platform/window/common/window.js';
+import { IHostService } from '../../../host/browser/host.js';
+import { IPathService } from '../../../path/common/pathService.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileService } from '../../../textfile/common/textfiles.js';
 import { SaengineActionsService } from '../../browser/saengineActionsService.js';
-import { ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND, IActionsRunRequest, IActionStep } from '../../common/saengineActions.js';
+import { ACTIONS_CANCEL_COMMAND, ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND, IActionsRunRequest, IActionStep } from '../../common/saengineActions.js';
 import { ISaengineProject, ISaengineProjectService } from '../../common/saengineProject.js';
 
 /*
@@ -70,13 +74,21 @@ export class FakeEngine {
 	readonly requests: { command: string; args: IActionsRunRequest | Json }[] = [];
 	/** Called when project.create wrote the project. */
 	onCreated: (() => void) | undefined;
+	/** Called as a batch with write starts (a test cancels it there). */
+	onRun: (() => void) | undefined;
+	/** `actions/cancel` asked: the batch in progress stops before its next step. */
+	private cancelled = false;
 
 	constructor(private readonly fileService: FileService) { }
 
 	async handle(command: string, args: IActionsRunRequest | Json): Promise<unknown> {
 		this.requests.push({ command, args: JSON.parse(JSON.stringify(args)) });
 		if (command === ACTIONS_LIST_COMMAND) {
-			return FAKE_CATALOGUE.map(a => ({ name: a.name, summary: a.summary, kind: a.kind, parts: a.parts, params_schema: { type: 'object', properties: a.params, required: Object.keys(a.params).slice(0, 1) } }));
+			return FAKE_CATALOGUE.map(a => ({ name: a.name, summary: a.summary, kind: a.kind, writes: a.kind === 'run' || a.name === 'project.create', parts: a.parts, params_schema: { type: 'object', properties: a.params, required: Object.keys(a.params).slice(0, 1) } }));
+		}
+		if (command === ACTIONS_CANCEL_COMMAND) {
+			this.cancelled = true;
+			return { cancelled: 1 };
 		}
 		const request = args as IActionsRunRequest;
 		return this.run(URI.file(request.projectRoot).with({ scheme: Schemas.inMemory }), request.steps, request.overrides ?? {}, request.write === true);
@@ -97,8 +109,17 @@ export class FakeEngine {
 		const changed = new Set<string>();
 		const put = (path: string, data: Json) => { parts.set(path, data); changed.add(path); };
 		const results: Json[] = [];
+		await Promise.resolve(); // a cancel may arrive while the engine starts
+		this.cancelled = false;
+		if (write) {
+			this.onRun?.();
+		}
 		for (let index = 0; index < steps.length; index++) {
 			const step = steps[index];
+			if (this.cancelled) {
+				results.push({ ok: false, message: 'Stopped: this step and the ones after it were not run.', created: [], warnings: [], problems: [], data: null });
+				return { ok: false, results, changes: {}, failed_step: index, written: [], cancelled: true };
+			}
 			const result = await this.step(step, read, put, root, write);
 			results.push(result);
 			if (result.ok !== true) {
@@ -364,10 +385,19 @@ export interface IActionsWindow {
 	readonly projectService: FakeProjectService;
 	readonly commandService: ICommandService;
 	readonly service: SaengineActionsService;
+	readonly host: FakeHost;
 }
 
-/** A window with the project at `/projects/Plot` (open, or an empty folder for project.create). */
-export async function actionsWindow(disposables: Pick<DisposableStore, 'add'>, options: { readonly project: boolean }): Promise<IActionsWindow> {
+/** The window's dialogs and host: the folders the engineer picks, the windows opened. */
+export class FakeHost {
+	/** What the folder picker answers (undefined: the engineer cancels). */
+	pick: URI | undefined;
+	readonly dialogs: IOpenDialogOptions[] = [];
+	readonly opened: (IWindowOpenable & { folderUri?: URI })[] = [];
+}
+
+/** A window with the project at `/projects/Plot` (open, or an empty folder for project.create; `noFolder`: a window without a folder). */
+export async function actionsWindow(disposables: Pick<DisposableStore, 'add'>, options: { readonly project: boolean; readonly noFolder?: boolean }): Promise<IActionsWindow> {
 	const store = disposables.add(new DisposableStore());
 	const root = URI.from({ scheme: Schemas.inMemory, path: '/projects/Plot' });
 	const fileService = store.add(new FileService(new NullLogService()));
@@ -380,6 +410,7 @@ export async function actionsWindow(disposables: Pick<DisposableStore, 'add'>, o
 	engine.onCreated = () => projectService.markOpen();
 	store.add(CommandsRegistry.registerCommand(ACTIONS_LIST_COMMAND, () => undefined));
 	store.add(CommandsRegistry.registerCommand(ACTIONS_RUN_COMMAND, () => undefined));
+	store.add(CommandsRegistry.registerCommand(ACTIONS_CANCEL_COMMAND, () => undefined));
 	const commandService = new class extends mock<ICommandService>() {
 		override executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
 			return engine.handle(id, (args[0] ?? {}) as Json) as Promise<R>;
@@ -390,8 +421,26 @@ export async function actionsWindow(disposables: Pick<DisposableStore, 'add'>, o
 			return task({ report: () => { } });
 		}
 	};
-	const service = store.add(new SaengineActionsService(projectService, commandService, textModels, textFiles, fileService, new TestContextService(testWorkspace(root)), progressService));
-	return { root, fileService, engine, textModels, textFiles, projectService, commandService, service };
+	const host = new FakeHost();
+	const fileDialogs = new class extends mock<IFileDialogService>() {
+		override async showOpenDialog(dialog: IOpenDialogOptions): Promise<URI[] | undefined> {
+			host.dialogs.push(dialog);
+			return host.pick ? [host.pick] : undefined;
+		}
+	};
+	const paths = new class extends mock<IPathService>() {
+		override async userHome(): Promise<URI> {
+			return URI.from({ scheme: Schemas.inMemory, path: '/home' });
+		}
+	};
+	const hostService = new class extends mock<IHostService>() {
+		override async openWindow(toOpen?: IWindowOpenable[] | IOpenWindowOptions): Promise<void> {
+			host.opened.push(...(Array.isArray(toOpen) ? toOpen : []));
+		}
+	};
+	const workspace = options.noFolder ? new TestContextService(testWorkspace()) : new TestContextService(testWorkspace(root));
+	const service = store.add(new SaengineActionsService(projectService, commandService, textModels, textFiles, fileService, workspace, progressService, fileDialogs, paths, hostService));
+	return { root, fileService, engine, textModels, textFiles, projectService, commandService, service, host };
 }
 
 export async function readText(window: IActionsWindow, path: string): Promise<string> {

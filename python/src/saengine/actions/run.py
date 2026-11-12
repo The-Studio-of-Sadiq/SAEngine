@@ -5,9 +5,17 @@ what an earlier one changed. A batch is all or nothing: when a step is refused (
 a guardrail, or a changed part that no longer validates), no change is returned or written.
 
 A ``run`` step (Run All, the design proposal, an export) works on the saved files. Before it,
-with ``write=True``, the changes of the steps before it are written (a commit point: they stay
-written if a later step fails, and ``BatchResult.written`` lists them); with ``write=False`` it
-is refused while there are unsaved changes, since it would not see them.
+with ``write=True``, the changes of the steps before it are written: a commit point. A batch is
+therefore all or nothing *per segment* (the edits up to a run step): the segments before a later
+failure stay written; the run step's ``ActionResult.written`` and ``BatchResult.written`` list
+them, and a warning on the failed step says so. With ``write=False`` a run step is refused while
+there are unsaved changes, since it would not see them.
+
+A batch can be stopped (``should_stop``; through the RPC server ``actions/cancel``): the engine
+stops before the next step, and a Run All in progress at its next step boundary (the steps it
+did not run are ``notRun``). The answer has ``cancelled``, ``failed_step`` the step it stopped
+at and the results of the steps done; what was written stays written, unwritten edits are
+dropped.
 """
 
 from __future__ import annotations
@@ -16,7 +24,8 @@ import contextlib
 import json
 import os
 import tempfile
-from collections.abc import Iterator
+import threading
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +87,29 @@ def _write(view: ProjectView, texts: dict[str, str]) -> list[str]:
     return sorted(texts)
 
 
+#: Whether to stop the batch before its next step (and a Run All at its next step boundary).
+ShouldStop = Callable[[], bool]
+
+
+def _job_cancelled() -> bool:
+    """The RPC request this batch runs for was cancelled (``actions/cancel``,
+    ``saengine/cancelJobs``); False outside a request."""
+    from saengine.rpc import jobs
+
+    job = jobs.current()
+    return bool(job is not None and job.cancelled)
+
+
+#: The stop test of the batch running on this thread, for a run action to pass on (Run All).
+_STOP = threading.local()
+
+
+def current_should_stop() -> ShouldStop | None:
+    """The stop test of the batch being run (Run All stops at its next step boundary when it
+    says so); None outside a batch."""
+    return getattr(_STOP, "test", None)
+
+
 def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]) -> ActionResult:
     """One step on ``view``: refused (``ok`` False) or done; its changes stay in the view."""
     try:
@@ -100,6 +132,7 @@ def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]
             message=f"{name}: the parameters are not valid: "
             + "; ".join(f"{p.field}: {p.reason}" if p.field else p.reason for p in problems),
         )
+    wrote: list[str] = []
     if info.kind == "run":
         pending = view.pending()
         if pending:
@@ -112,15 +145,29 @@ def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]
                     f"{', '.join(pending)}. Save them first (or run the batch with write).",
                     problems=[Problem(field="", value=pending, reason="unsaved changes")],
                 )
-            written += _write(view, view.change_texts())
+            wrote = _write(view, view.change_texts())
+            written += wrote
             view.reload()
     before = view.changes()
     with _pack(view):
+        from saengine.rpc.jobs import JobCancelled
+
         try:
             result = info.fn(view, params)
         except ActionError as error:
             return ActionResult(
-                ok=False, action=name, message=error.message, problems=error.problems
+                ok=False,
+                action=name,
+                message=error.message,
+                problems=error.problems,
+                written=wrote,
+            )
+        except JobCancelled:
+            return ActionResult(
+                ok=False,
+                action=name,
+                message=f"{name} was stopped before it finished.",
+                written=wrote,
             )
         except Exception as error:  # noqa: BLE001 - reported as the step's failure, not raised
             return ActionResult(
@@ -132,6 +179,7 @@ def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]
         if not isinstance(result, ActionResult):
             result = ActionResult(message=str(result or ""))
         result.action = name
+        result.written = wrote
         if not result.ok:
             return result
         changed = [p for p, d in view.changes().items() if before.get(p, object()) != d]
@@ -158,13 +206,16 @@ def run_actions(
     overrides: dict[str, str] | None = None,
     write: bool = False,
     stop_on_error: bool = True,
+    should_stop: ShouldStop | None = None,
 ) -> BatchResult:
     """Runs ``steps`` (``[{"action": name, "params": {...}}]``) in order on the project at
     ``root`` (its folder; for ``project.create`` the folder to create it in). ``overrides``: the
     app's unsaved part texts by path. ``write``: write the changed files (atomically) and save a
     version "Actions: <names>" when the project keeps versions. ``stop_on_error``: stop at the
     first refused step (else run the others too, to report every problem; still nothing is
-    changed)."""
+    changed). ``should_stop``: tested before each step (and by Run All before each of its
+    steps); True stops the batch (``BatchResult.cancelled``). Inside an RPC request its
+    cancellation (``actions/cancel``) stops it too."""
     from saengine.codes import context as code_context
 
     root = Path(root)
@@ -172,8 +223,25 @@ def run_actions(
     results: list[ActionResult] = []
     failed: int | None = None
     written: list[str] = []
+    cancelled = False
+
+    def stop() -> bool:
+        return _job_cancelled() or bool(should_stop and should_stop())
+
     with code_context.project(root):
         for index, step in enumerate(steps):
+            if stop():
+                cancelled = True
+                failed = index
+                name = step.get("action") if isinstance(step, dict) else None
+                results.append(
+                    ActionResult(
+                        ok=False,
+                        action=str(name or ""),
+                        message="Stopped: this step and the ones after it were not run.",
+                    )
+                )
+                break
             if not isinstance(step, dict) or not isinstance(step.get("action"), str):
                 result = ActionResult(
                     ok=False,
@@ -182,21 +250,30 @@ def run_actions(
                 )
             else:
                 snapshot = view.snapshot()
-                result = _one(view, step["action"], step.get("params"), write, written)
+                outer = current_should_stop()
+                _STOP.test = stop
+                try:
+                    result = _one(view, step["action"], step.get("params"), write, written)
+                finally:
+                    _STOP.test = outer
                 if not result.ok:
                     view.restore(snapshot)
+                    cancelled = stop()
             results.append(result)
             if not result.ok and failed is None:
                 failed = index
-                if stop_on_error:
+                if stop_on_error or cancelled:
                     break
         if failed is not None:
-            if written:
+            kept = sorted(set(written))
+            if kept:
                 results[failed].warnings.append(
-                    "The changes of the steps before the run step were written already: "
-                    + ", ".join(written)
+                    "Written before this step and kept (the edits before a run step are saved "
+                    "first): " + ", ".join(kept)
                 )
-            return BatchResult(ok=False, results=results, failed_step=failed, written=written)
+            return BatchResult(
+                ok=False, results=results, failed_step=failed, written=kept, cancelled=cancelled
+            )
         texts = view.change_texts()
         version = None
         if write and texts:

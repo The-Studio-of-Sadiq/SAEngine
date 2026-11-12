@@ -128,6 +128,7 @@ def _generate(spec: Any, settings: Any = None) -> dict[str, Any]:
         "boq",
     ),
     kind="edit",
+    writes=True,
     example={"name": "Example House", "occupancy": "residential"},
 )
 def project_create(view: ProjectView, p: CreateParams) -> ActionResult:

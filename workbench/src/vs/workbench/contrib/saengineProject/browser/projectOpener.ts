@@ -15,15 +15,9 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { DEFAULT_CODE_PACK_ID } from '../../../services/saengineProject/common/activeCodePack.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { ISaengineProject, ISaengineProjectService, partById, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
+import { DEFAULT_PROJECTS_FOLDER, INVALID_FOLDER_NAME as INVALID_NAME, ISaengineProject, ISaengineProjectService, partById, projectFolderName, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 
-/** Characters Windows does not allow in a folder name (the strictest platform). */
-const INVALID_NAME = /[\\/:*?"<>|]/;
-
-/** The folder a project named `name` is created in: the name with "-" for what a folder name cannot hold (N8). */
-export function projectFolderName(name: string): string {
-	return name.trim().replace(new RegExp(INVALID_NAME.source, 'g'), '-').replace(/[. ]+$/, '');
-}
+export { projectFolderName };
 
 /** What the new-project form fills into the settings besides the name: the code pack, the site's location and the building's use. */
 export interface INewProjectChoices {
@@ -69,7 +63,7 @@ export class ProjectOpener {
 	) { }
 
 	async defaultLocation(): Promise<URI> {
-		return joinPath(await this.pathService.userHome(), 'Documents', 'SAEngine Projects');
+		return joinPath(await this.pathService.userHome(), ...DEFAULT_PROJECTS_FOLDER);
 	}
 
 	/** Error message for an invalid project name, or undefined when it can be used. */

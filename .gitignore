@@ -26,3 +26,6 @@ htmlcov/
 
 # Verification pack output when run without --out
 /python/verification/
+
+# The opt-in real-model smoke test (scripts/ai/smoke_build.py): transcripts stay local
+ai-smoke-*/

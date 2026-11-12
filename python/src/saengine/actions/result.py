@@ -35,6 +35,12 @@ class ActionResult(BaseModel):
     )
     data: Any = Field(default=None, description="What a query (or a run) found.")
     action: str = Field(default="", description="The action's name.")
+    written: list[str] = Field(
+        default_factory=list,
+        description="A step that writes (run, project.create) in a batch run with write: the "
+        "edited files of the steps before it, written to disk before it ran (they stay written "
+        "whatever happens after).",
+    )
 
 
 class BatchResult(BaseModel):
@@ -47,11 +53,20 @@ class BatchResult(BaseModel):
         description="The changed part files (path relative to the project folder -> the new "
         "text, in the project's own formatting). Empty when a step failed.",
     )
-    failed_step: int | None = Field(default=None, description="Index of the first failed step.")
+    failed_step: int | None = Field(
+        default=None, description="Index of the first failed (or stopped) step."
+    )
     written: list[str] = Field(
         default_factory=list,
         description="Files written to disk (write=True; or before a run step, which works on "
-        "the saved files).",
+        "the saved files). On a failed or stopped batch: the files the steps before its last "
+        "run step wrote, which stay written.",
+    )
+    cancelled: bool = Field(
+        default=False,
+        description="The batch was stopped (actions/cancel): failed_step is the step it stopped "
+        "at (before it, or inside a run step at its next step boundary); the results before it "
+        "say what was done.",
     )
     version: dict[str, Any] | None = Field(
         default=None, description="The version saved after writing, when the project has versions."

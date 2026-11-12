@@ -5,11 +5,15 @@
 One catalogue of typed, validated edits of a SAEngine project, used by every surface: the command
 line (`saengine action`, [docs/cli.md](cli.md#shared-editing-actions)), the SDK
 (`saengine.api.list_actions` and `run_actions`, [docs/sdk](sdk/README.md)), the JSON-RPC
-methods `actions/list` and `actions/run`, the app and its assistant. With it a script or the
+methods `actions/list`, `actions/run` and `actions/cancel`, the app and its assistant. With it a script or the
 assistant builds a whole project from an empty folder to the report.
 
 - **A batch is all or nothing.** The steps run in order on one view of the project (a later step
   sees what an earlier one changed); when a step is refused, no change is returned or written.
+  With a run step it is all or nothing *per segment*: with `write`, the edits before a run step
+  are written first (the run works on the saved files) and stay written when a later step fails;
+  that step's result (`written`) and the batch's `written` name them, and the failed step warns
+  that they were kept. The assistant sends edits and runs as separate batches.
 - **Every value is checked** by the parameters' model, by the input guardrails (the same rules as
   the editors: `python/src/saengine/library/data/guardrails.json`, the code pack's limits) and by
   the part models: a changed part must still validate. Only what the step made worse counts; a
@@ -18,7 +22,14 @@ assistant builds a whole project from an empty folder to the report.
 - **Kinds.** `edit` actions change part files only (the app applies the changes as one undo
   step); `run` actions work on the saved project (the app saves first; with `write` the edits
   before a run step are written first, and stay written if a later step fails); `query` actions
-  read only.
+  read only. **Writes: yes** marks the actions that write files to disk themselves (every `run`
+  action and `project.create`): a client saves before them, asks the engineer and reads the
+  written files again, deciding by this flag (`writes` in `actions/list`), never by the name.
+- **Stop.** `actions/cancel` (the app's Cancel on the run's progress, the chat's Stop) stops a
+  batch before its next step, and a Run All at its next step boundary (its steps not run are
+  `notRun`); an export in progress finishes first. The answer has `cancelled: true`,
+  `failed_step` the step it stopped at and the results of the steps done; what was written stays
+  written, unwritten edits are dropped.
 - **Ids** are made as the floor plan editor makes them: the group's letter and the lowest free
   number (C1, B1, W1, S1, F1), LL1 and PL1 for line and point loads, BH-1 for boreholes.
 - **Code independence.** No action branches on the code pack: the pack in force (the project's)
@@ -62,7 +73,7 @@ A batch file is a list of steps (or `{"steps": [...]}`); `python/tests/data/acti
 
 The catalogue: every action (or one, with its parameters' schema and an example), and the order to build a whole project in.
 
-Kind: **query**. Parts: -.
+Kind: **query**. Writes: no. Parts: -.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -77,7 +88,7 @@ Kind: **query**. Parts: -.
 
 The members' design checks of the last run (by default only the failing ones), with their utilisation and governing check.
 
-Kind: **query**. Parts: `fem`.
+Kind: **query**. Writes: no. Parts: `fem`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -92,7 +103,7 @@ Kind: **query**. Parts: `fem`.
 
 The floor plan's members (id, group, type, storey, where), filtered by group, storey or type.
 
-Kind: **query**. Parts: `floorPlan`.
+Kind: **query**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -109,7 +120,7 @@ Kind: **query**. Parts: `floorPlan`.
 
 What the project holds: code, site, use, grid, storeys, member counts, types, materials, area loads, foundations, soil.
 
-Kind: **query**. Parts: `settings`, `materials`, `objects`, `floorPlan`, `loads`, `substructure`, `soil`.
+Kind: **query**. Writes: no. Parts: `settings`, `materials`, `objects`, `floorPlan`, `loads`, `substructure`, `soil`.
 
 No parameters.
 
@@ -121,7 +132,7 @@ No parameters.
 
 The state of every part (as the sidebar shows it) and the design and foundation summaries of the last run.
 
-Kind: **query**. Parts: `fem`, `substructure`.
+Kind: **query**. Writes: no. Parts: `fem`, `substructure`.
 
 No parameters.
 
@@ -135,7 +146,7 @@ No parameters.
 
 Generate a whole building (grid, storeys, materials, types, members, footings) into the project from a BuildingSpec; the settings' code pack and site are kept.
 
-Kind: **edit**. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `substructure`.
+Kind: **edit**. Writes: no. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `substructure`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -150,7 +161,7 @@ Kind: **edit**. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `
 
 Create a project in the folder: empty (then grid, storeys, members...) or a whole building from a grid and storeys (building: the generator's spec).
 
-Kind: **edit**. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `substructure`, `soil`, `mep`, `boq`.
+Kind: **edit**. Writes: yes. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `substructure`, `soil`, `mep`, `boq`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -172,7 +183,7 @@ Kind: **edit**. Parts: `settings`, `materials`, `objects`, `floorPlan`, `bim`, `
 
 Set analysis model options (the names of Project Settings > Analysis model).
 
-Kind: **edit**. Parts: `settings`.
+Kind: **edit**. Writes: no. Parts: `settings`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -186,7 +197,7 @@ Kind: **edit**. Parts: `settings`.
 
 Switch the project to another design code pack: its towns, site classes, systems, area loads and combinations take the pack's values.
 
-Kind: **edit**. Parts: `settings`.
+Kind: **edit**. Writes: no. Parts: `settings`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -200,7 +211,7 @@ Kind: **edit**. Parts: `settings`.
 
 Set the site: location, site class, seismic zone coefficient, wind speed and exposure, mapped spectral values, seismic system, ground level and the allowable bearing pressure when there is no soil report.
 
-Kind: **edit**. Parts: `settings`.
+Kind: **edit**. Writes: no. Parts: `settings`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -224,7 +235,7 @@ Kind: **edit**. Parts: `settings`.
 
 Set the building's use and occupancy category, and the floor and roof area loads (live loads default to the pack's for the use).
 
-Kind: **edit**. Parts: `settings`.
+Kind: **edit**. Writes: no. Parts: `settings`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -247,7 +258,7 @@ Kind: **edit**. Parts: `settings`.
 
 Set the net allowable bearing pressure qa used for every footing (when there is no soil report, or to override it); null to use the soil report's again.
 
-Kind: **edit**. Parts: `settings`.
+Kind: **edit**. Writes: no. Parts: `settings`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -261,7 +272,7 @@ Kind: **edit**. Parts: `settings`.
 
 Add a borehole to the soil report at a plan position.
 
-Kind: **edit**. Parts: `soil`.
+Kind: **edit**. Writes: no. Parts: `soil`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -282,7 +293,7 @@ Kind: **edit**. Parts: `soil`.
 
 Add a soil layer (stratum) to a borehole's log.
 
-Kind: **edit**. Parts: `soil`.
+Kind: **edit**. Writes: no. Parts: `soil`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -306,7 +317,7 @@ Kind: **edit**. Parts: `soil`.
 
 Add a standard penetration test record (N, or the 150 mm increments) to a borehole.
 
-Kind: **edit**. Parts: `soil`.
+Kind: **edit**. Writes: no. Parts: `soil`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -328,7 +339,7 @@ Kind: **edit**. Parts: `soil`.
 
 Add a grid line on the X or Y axis at a position.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -344,7 +355,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Delete a grid line (with the members on it only when deleteMembers is true).
 
-Kind: **edit**. Parts: `floorPlan`, `loads`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`, `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -359,7 +370,7 @@ Kind: **edit**. Parts: `floorPlan`, `loads`.
 
 Move a grid line to a position (or by a distance); members on it move with it.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -375,7 +386,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Set the whole grid: the X and Y lines by their spacings (or labels and positions).
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -391,7 +402,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Add a storey on top (or above a given storey, lifting the ones above it).
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -408,7 +419,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Delete a storey; the storeys above come down by its height. Members on it are deleted only when deleteMembers is true.
 
-Kind: **edit**. Parts: `floorPlan`, `loads`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`, `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -423,7 +434,7 @@ Kind: **edit**. Parts: `floorPlan`, `loads`.
 
 Change a storey's height (the distance from the storey below); the ones above move.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -438,7 +449,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Make storeys typical floors of a master storey (similarTo): their plan becomes a copy of the master's, and later edits on one are made on all.
 
-Kind: **edit**. Parts: `floorPlan`, `loads`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`, `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -454,7 +465,7 @@ Kind: **edit**. Parts: `floorPlan`, `loads`.
 
 Set all the storeys: a base level and the storeys above it with their heights.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -476,7 +487,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Add a concrete by its f'c (Ec by the code pack); optionally the project's concrete.
 
-Kind: **edit**. Parts: `materials`.
+Kind: **edit**. Writes: no. Parts: `materials`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -496,7 +507,7 @@ Kind: **edit**. Parts: `materials`.
 
 Change a concrete (f'c, density, Ec, name); Ec follows a new f'c unless given.
 
-Kind: **edit**. Parts: `materials`.
+Kind: **edit**. Writes: no. Parts: `materials`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -516,7 +527,7 @@ Kind: **edit**. Parts: `materials`.
 
 Add reinforcing bars or a structural steel by fy (Es by the code pack).
 
-Kind: **edit**. Parts: `materials`.
+Kind: **edit**. Writes: no. Parts: `materials`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -536,7 +547,7 @@ Kind: **edit**. Parts: `materials`.
 
 Change reinforcing bars or a structural steel (fy, fu, grade, name).
 
-Kind: **edit**. Parts: `materials`.
+Kind: **edit**. Writes: no. Parts: `materials`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -555,7 +566,7 @@ Kind: **edit**. Parts: `materials`.
 
 Add a beam object type (its section and material) to 04 Objects.
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -581,7 +592,7 @@ Kind: **edit**. Parts: `objects`.
 
 Change a beam object type (section, material, name, other fields).
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -607,7 +618,7 @@ Kind: **edit**. Parts: `objects`.
 
 Add a column object type (its section and material) to 04 Objects.
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -633,7 +644,7 @@ Kind: **edit**. Parts: `objects`.
 
 Change a column object type (section, material, name, other fields).
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -659,7 +670,7 @@ Kind: **edit**. Parts: `objects`.
 
 Add a footing object type (its section and material) to 04 Objects.
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -685,7 +696,7 @@ Kind: **edit**. Parts: `objects`.
 
 Change a footing object type (section, material, name, other fields).
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -711,7 +722,7 @@ Kind: **edit**. Parts: `objects`.
 
 Add a slab object type (its section and material) to 04 Objects.
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -737,7 +748,7 @@ Kind: **edit**. Parts: `objects`.
 
 Change a slab object type (section, material, name, other fields).
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -763,7 +774,7 @@ Kind: **edit**. Parts: `objects`.
 
 Add a wall object type (its section and material) to 04 Objects.
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -789,7 +800,7 @@ Kind: **edit**. Parts: `objects`.
 
 Change a wall object type (section, material, name, other fields).
 
-Kind: **edit**. Parts: `objects`.
+Kind: **edit**. Writes: no. Parts: `objects`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -817,7 +828,7 @@ Kind: **edit**. Parts: `objects`.
 
 Place beams between grid points (pairs, or all along the grid lines) on storeys.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -834,7 +845,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Place columns at grid points (a list, or all) on storeys; each rises from the storey below.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -851,7 +862,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Delete members (and the member loads on them); on a typical floor their twins on the family's other storeys too.
 
-Kind: **edit**. Parts: `floorPlan`, `loads`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`, `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -866,7 +877,7 @@ Kind: **edit**. Parts: `floorPlan`, `loads`.
 
 Change members: object type, rotation, offsets, storeys (base/top or story), a slab's area load; on a typical floor the family's twins follow.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -889,7 +900,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Copy a storey's columns, beams, walls and slabs to other storeys (places that have one already are left as they are).
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -905,7 +916,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Place slabs in grid bays (by their lower-left point, corner lists, or all) on storeys.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -922,7 +933,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Place walls between grid points on storeys; each rises from the storey below.
 
-Kind: **edit**. Parts: `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -941,7 +952,7 @@ Kind: **edit**. Parts: `floorPlan`.
 
 Set an area load (SD, L or Lr, partitions) and assign it to the slabs of storeys or to slabs; without a target it changes the area load itself (e.g. FL, RF).
 
-Kind: **edit**. Parts: `settings`, `floorPlan`.
+Kind: **edit**. Writes: no. Parts: `settings`, `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -963,7 +974,7 @@ Kind: **edit**. Parts: `settings`, `floorPlan`.
 
 Add a uniform line load [kN/m] on beams (by id, or every beam of storeys).
 
-Kind: **edit**. Parts: `loads`.
+Kind: **edit**. Writes: no. Parts: `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -982,7 +993,7 @@ Kind: **edit**. Parts: `loads`.
 
 Add a point load [kN] on a beam (at a distance from its start) or at a column's joint.
 
-Kind: **edit**. Parts: `loads`.
+Kind: **edit**. Writes: no. Parts: `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1002,7 +1013,7 @@ Kind: **edit**. Parts: `loads`.
 
 Add masonry wall loads on beams: a wall type of the pack's dead loads with its height (or the storey height less the beam above) and openings.
 
-Kind: **edit**. Parts: `loads`.
+Kind: **edit**. Writes: no. Parts: `loads`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1024,7 +1035,7 @@ Kind: **edit**. Parts: `loads`.
 
 Place or change a footing under columns (size, thickness, material).
 
-Kind: **edit**. Parts: `substructure`.
+Kind: **edit**. Writes: no. Parts: `substructure`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1046,7 +1057,7 @@ Kind: **edit**. Parts: `substructure`.
 
 Size footings for the column bases from the analysis reactions and the soil (Size Footings); needs the analysis results (run.step analyse first).
 
-Kind: **run**. Parts: `substructure`.
+Kind: **run**. Writes: yes. Parts: `substructure`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1063,7 +1074,7 @@ Kind: **run**. Parts: `substructure`.
 
 Design Reinforcement: propose bars for the object types from the analysis and apply them (all types, or those given); needs the analysis results. Never automatic.
 
-Kind: **run**. Parts: `objects`, `bim`, `floorPlan`.
+Kind: **run**. Writes: yes. Parts: `objects`, `bim`, `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1079,7 +1090,7 @@ Kind: **run**. Parts: `objects`, `bim`, `floorPlan`.
 
 Archive the project as a .civil file (default: beside the project folder).
 
-Kind: **run**. Parts: -.
+Kind: **run**. Writes: yes. Parts: -.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1095,7 +1106,7 @@ Kind: **run**. Parts: -.
 
 Write the bill of quantities (Excel or CSV) into 11 Exports.
 
-Kind: **run**. Parts: `exports`.
+Kind: **run**. Writes: yes. Parts: `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1110,7 +1121,7 @@ Kind: **run**. Parts: `exports`.
 
 Generate the structural drawings (sheets as DXF and a PDF set) into 11 Exports.
 
-Kind: **run**. Parts: `exports`.
+Kind: **run**. Writes: yes. Parts: `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1125,7 +1136,7 @@ Kind: **run**. Parts: `exports`.
 
 Write the building model as IFC into 11 Exports.
 
-Kind: **run**. Parts: `exports`.
+Kind: **run**. Writes: yes. Parts: `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1139,7 +1150,7 @@ Kind: **run**. Parts: `exports`.
 
 Write the design report (PDF or Word) into 11 Exports.
 
-Kind: **run**. Parts: `exports`.
+Kind: **run**. Writes: yes. Parts: `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1155,7 +1166,7 @@ Kind: **run**. Parts: `exports`.
 
 Run All: building model, analysis model, analysis, foundations, design checks, MEP, bill of quantities, report and drawings, as the app's Run All.
 
-Kind: **run**. Parts: `bim`, `fem`, `substructure`, `boq`, `exports`.
+Kind: **run**. Writes: yes. Parts: `bim`, `fem`, `substructure`, `boq`, `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -1169,7 +1180,7 @@ Kind: **run**. Parts: `bim`, `fem`, `substructure`, `boq`, `exports`.
 
 Run part of Run All: derive (the analysis model), analyse, design (members and foundations), substructure, boq, report or drawings.
 
-Kind: **run**. Parts: `bim`, `fem`, `substructure`, `boq`, `exports`.
+Kind: **run**. Writes: yes. Parts: `bim`, `fem`, `substructure`, `boq`, `exports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |

@@ -261,7 +261,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		name: 'list_actions',
 		assistant: 'code',
 		title: 'List actions',
-		description: 'The catalogue of SAEngine actions (name, kind, summary): typed, validated edits ("edit"), reads ("query") and runs ("run": Run All, design, exports) that build and change a whole project, from project.create to the report. The same actions the command line (saengine action) and scripts use.',
+		description: 'The catalogue of SAEngine actions (name, kind, writes, summary): typed, validated edits ("edit"), reads ("query") and runs ("run": Run All, design, exports) that build and change a whole project, from project.create to the report. writes: true marks the actions that write to disk themselves (every run, and project.create). The same actions the command line (saengine action) and scripts use.',
 		inputSchema: {
 			type: 'object',
 			properties: { kind: { type: 'string', enum: ['edit', 'query', 'run'], description: 'Only actions of this kind.' } },
@@ -286,7 +286,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		name: 'run_actions',
 		assistant: 'project',
 		title: 'Run actions',
-		description: 'Runs a batch of actions on the open project, in order (later steps see the earlier ones), all or nothing: if one step fails nothing changes and the answer names the step and each refused value (field, value, reason), so correct those and send the batch again. Edits come back as ONE change set the engineer previews and accepts or rejects (the answer says which; accepted, it is one undoable step, unsaved until saved). A batch with run steps (run.all, run.step, design.reinforcement.apply, export.*) or project.create runs only after the engineer agrees, saves the project first and writes to disk; it may hold only those and queries, so send edits in a batch of their own first. Queries answer in "data".',
+		description: 'Runs a batch of actions on the open project, in order (later steps see the earlier ones), all or nothing: if one step fails nothing changes and the answer names the step and each refused value (field, value, reason), so correct those and send the batch again. Edits come back as ONE change set the engineer previews and accepts or rejects (the answer says which; accepted, it is one undoable step, unsaved until saved). A batch with steps that write to disk (writes: true in list_actions: run.all, run.step, design.reinforcement.apply, foundations.generate, export.*, project.create) runs only after the engineer agrees, saves the project first and writes to disk; it may hold only those and queries, so send edits in a batch of their own first. Its answer lists what was saved first ("written"); the engineer can stop it ("cancelled": the steps from failedStep were not run, what was written stays). Values outside the input guardrails are refused with the allowed range. Queries answer in "data".',
 		inputSchema: {
 			type: 'object',
 			properties: {

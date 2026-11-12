@@ -431,7 +431,10 @@ export class AiToolRunner {
 			throw new ToolError(error instanceof Error ? error.message : String(error));
 		}
 		await this.viewsService.openView(ASSISTANT_VIEW_ID, true);
-		const outcome = await Promise.race([changeSet.decision, timeout(DECISION_WAIT).then(() => 'pending' as const)]);
+		// The wait is cancelled once the engineer decides (no timer left running for 5 minutes).
+		const wait = timeout(DECISION_WAIT);
+		const outcome = await Promise.race([changeSet.decision, wait.then(() => 'pending' as const, () => 'pending' as const)]);
+		wait.cancel();
 		const summary = changeSet.files.map(f => ({ file: f.file, changes: f.changes.length }));
 		switch (outcome) {
 			case 'accepted': return textResult(`The engineer accepted the change set "${proposal.title}" (${JSON.stringify(summary)}). It is applied, unsaved until saved, and undoable.`);
