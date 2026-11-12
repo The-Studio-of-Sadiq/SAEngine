@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
-import { ActionKind, describeFailure, IActionResult, IActionStep, IBatchResult, ISaengineActionsService, readSteps, stepNames } from '../../../services/saengineProject/common/saengineActions.js';
+import { ActionKind, describeFailure, IActionInfo, IActionResult, IActionStep, IBatchResult, ISaengineActionsService, readSteps, stepNames } from '../../../services/saengineProject/common/saengineActions.js';
 import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from './aiChangeSets.js';
 
 /*
  * The AI's tools on the shared editing actions (list_actions, describe_action, run_actions), for
  * the chat's assistant and MCP clients alike. Edits come back as ONE change set per batch that
- * the engineer previews and accepts or rejects (nothing changes before); a batch with run steps
- * (Run All, design, exports, creating the project) runs only after the engineer agrees, and saves
- * the project first. A failed batch changes nothing and its guardrail problems go back to the
+ * the engineer previews and accepts or rejects (nothing changes before); a batch whose steps write
+ * to disk (`writes` in the catalogue: Run All, design, exports, creating the project) runs only
+ * after the engineer agrees, saves the project first, and can be stopped (the caller's token). A
+ * failed batch changes nothing and its guardrail problems go back to the
  * model word for word, so it can correct the values.
  */
 
@@ -44,7 +46,7 @@ export class AiActionTools {
 	async listActions(kind: ActionKind | undefined): Promise<MCP.CallToolResult> {
 		const infos = await this.actions.listActions(kind);
 		return jsonResult({
-			actions: infos.map(info => ({ name: info.name, kind: info.kind, summary: info.summary })),
+			actions: infos.map(info => ({ name: info.name, kind: info.kind, writes: info.writes, summary: info.summary })),
 			note: 'Call describe_action for the parameters of an action; run_actions runs a batch of them.',
 		});
 	}
@@ -55,10 +57,11 @@ export class AiActionTools {
 			const names = (await this.actions.listActions()).map(i => i.name);
 			return errorResult(`No action "${name}". The actions: ${names.join(', ')}.`);
 		}
-		return jsonResult({ name: info.name, kind: info.kind, summary: info.summary, parts: info.parts, params: info.paramsSchema });
+		return jsonResult({ name: info.name, kind: info.kind, writes: info.writes, summary: info.summary, parts: info.parts, params: info.paramsSchema });
 	}
 
-	async runActions(args: { readonly [key: string]: unknown }, source: ChangeSetSource, review: IAiReview = this.review): Promise<MCP.CallToolResult> {
+	/** `token`: the engineer's Stop (the chat's, or the run's progress): a run stops before its next step. */
+	async runActions(args: { readonly [key: string]: unknown }, source: ChangeSetSource, review: IAiReview = this.review, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
 		let steps: IActionStep[];
 		try {
 			steps = readSteps(args.steps);
@@ -71,9 +74,9 @@ export class AiActionTools {
 		if (unknown.length) {
 			return errorResult(`Unknown action(s): ${unknown.join(', ')}. Call list_actions for the catalogue.`);
 		}
-		const kinds = steps.map(step => catalogue.find(info => info.name === step.action)!.kind);
-		if (await this.actions.needsWrite(steps)) {
-			return this.runWritten(steps, kinds, source, review);
+		const infos = steps.map(step => catalogue.find(info => info.name === step.action)!);
+		if (infos.some(info => info.writes)) {
+			return this.runWritten(steps, infos, source, review, token);
 		}
 		const outcome = await this.actions.run(steps, { apply: false });
 		if (!outcome.ok) {
@@ -105,20 +108,26 @@ export class AiActionTools {
 		}
 	}
 
-	/** Run steps (and creating a project): the engineer agrees, the project is saved, the engine writes. */
-	private async runWritten(steps: readonly IActionStep[], kinds: readonly ActionKind[], source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
-		const edits = steps.filter((step, index) => kinds[index] === 'edit' && step.action !== 'project.create').map(step => step.action);
+	/** Steps that write to disk (runs, creating a project): the engineer agrees, the project is saved, the engine writes. */
+	private async runWritten(steps: readonly IActionStep[], infos: readonly IActionInfo[], source: ChangeSetSource, review: IAiReview, token: CancellationToken): Promise<MCP.CallToolResult> {
+		const edits = infos.filter(info => info.kind === 'edit' && !info.writes).map(info => info.name);
 		if (edits.length) {
-			return errorResult(`A batch with run steps (${stepNames(steps.filter((_, i) => kinds[i] === 'run'))}) or project.create holds only those and queries, because the engine writes it to disk. Send the edits (${edits.join(', ')}) as a batch of their own first: the engineer reviews them as a change set.`);
+			return errorResult(`A batch with steps that write to disk (${stepNames(steps.filter((_, i) => infos[i].writes))}) holds only those and queries, because the engine writes it to disk. Send the edits (${edits.join(', ')}) as a batch of their own first: the engineer reviews them as a change set.`);
 		}
 		if (!await review.confirmRun(steps, source)) {
 			return jsonResult({ ok: false, decision: 'declined', note: `The engineer did not run ${stepNames(steps)}. Nothing changed.` });
 		}
-		const outcome = await this.actions.run(steps, { apply: true });
+		const outcome = await this.actions.run(steps, { apply: true }, token);
 		if (!outcome.ok) {
 			return failed(steps, outcome);
 		}
-		return jsonResult({ ok: true, files: Object.keys(outcome.changes), results: outcome.results.map(compact), note: 'Done and written to disk. The engineer checks the results; report them with their status, never as approved.' });
+		return jsonResult({
+			ok: true,
+			files: Object.keys(outcome.changes),
+			written: outcome.written,
+			...(outcome.createdIn ? { createdIn: outcome.createdIn, note: `The project was created in ${outcome.createdIn} and opens in this window now.` } : { note: 'Done and written to disk. The engineer checks the results; report them with their status, never as approved.' }),
+			results: outcome.results.map(compact),
+		});
 	}
 }
 
@@ -131,15 +140,22 @@ function compact(result: IActionResult): object {
 		...(result.warnings.length ? { warnings: result.warnings } : {}),
 		...(result.problems.length ? { problems: result.problems } : {}),
 		...(result.data !== undefined ? { data: result.data } : {}),
+		...(result.written.length ? { written: result.written } : {}),
 	};
 }
 
-/** A failed batch: nothing changed; the failing step and its problems word for word, so the model corrects them. */
+/**
+ * A failed (or stopped) batch: the failing step and its problems word for word, so the model
+ * corrects them, and what was written before it (it stays written: all or nothing per segment).
+ */
 function failed(steps: readonly IActionStep[], outcome: IBatchResult): MCP.CallToolResult {
+	const head = outcome.cancelled
+		? 'The engineer stopped the batch: the steps from the one named were not run.'
+		: outcome.written.length ? 'The batch failed. The files saved before its run step stay written; nothing else changed.' : 'Nothing was changed: the batch is all or nothing.';
 	return {
 		content: [{
 			type: 'text',
-			text: `Nothing was changed: the batch is all or nothing.\n${describeFailure(steps, outcome)}\n${JSON.stringify({ failedStep: outcome.failedStep, results: outcome.results.map(compact) }, undefined, 1)}`,
+			text: `${head}\n${describeFailure(steps, outcome)}\n${JSON.stringify({ failedStep: outcome.failedStep, cancelled: outcome.cancelled, written: outcome.written, results: outcome.results.map(compact) }, undefined, 1)}`,
 		}],
 		isError: true,
 	};

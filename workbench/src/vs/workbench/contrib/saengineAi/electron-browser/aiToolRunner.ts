@@ -6,6 +6,7 @@
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -88,7 +89,7 @@ export class AiToolRunner {
 	 * `source`: who calls, for the change sets' preview (an MCP client or the chat's assistant);
 	 * `review`: where the engineer reviews change sets and run steps (default: dialogs).
 	 */
-	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp', review: IAiReview = this.dialogReview): Promise<MCP.CallToolResult> {
+	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp', review: IAiReview = this.dialogReview, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
 		const tool = AI_TOOLS.find(t => t.name === name);
 		if (!tool) {
 			return errorResult(`Unknown tool "${name}".`);
@@ -101,13 +102,13 @@ export class AiToolRunner {
 			return errorResult(`Invalid arguments: ${problems.join('; ')}.`);
 		}
 		try {
-			return await this.run(tool, args, source, review);
+			return await this.run(tool, args, source, review, token);
 		} catch (error) {
 			return errorResult(error instanceof ToolError ? error.message : `Failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
+	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview, token: CancellationToken): Promise<MCP.CallToolResult> {
 		switch (tool.name) {
 			case 'get_project': return this.getProject();
 			case 'list_editors': return this.listEditors();
@@ -125,7 +126,7 @@ export class AiToolRunner {
 			case 'propose_changes': return this.proposeChanges(args, source, review);
 			case 'list_actions': return this.actionTools.listActions(args.kind as ActionKind | undefined);
 			case 'describe_action': return this.actionTools.describeAction(args.name as string);
-			case 'run_actions': return this.actionTools.runActions(args, source, review);
+			case 'run_actions': return this.actionTools.runActions(args, source, review, token);
 			case 'annotate_drawings': return this.annotateDrawings(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
@@ -430,7 +431,10 @@ export class AiToolRunner {
 			throw new ToolError(error instanceof Error ? error.message : String(error));
 		}
 		await review.showChangeSet(changeSet);
-		const outcome = await Promise.race([changeSet.decision, timeout(DECISION_WAIT).then(() => 'pending' as const)]);
+		// The wait is cancelled once the engineer decides (no timer left running for 5 minutes).
+		const wait = timeout(DECISION_WAIT);
+		const outcome = await Promise.race([changeSet.decision, wait.then(() => 'pending' as const, () => 'pending' as const)]);
+		wait.cancel();
 		const summary = changeSet.files.map(f => ({ file: f.file, changes: f.changes.length }));
 		switch (outcome) {
 			case 'accepted': return textResult(`The engineer accepted the change set "${proposal.title}" (${JSON.stringify(summary)}). It is applied, unsaved until saved, and undoable.`);

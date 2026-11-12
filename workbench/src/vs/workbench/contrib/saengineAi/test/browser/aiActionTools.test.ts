@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MCP } from '../../../../../platform/mcp/common/modelContextProtocol.js';
@@ -114,6 +116,46 @@ suite('SAEngine - AI actions', () => {
 		const unknown = await run({ id: '4', name: 'run_actions', args: { steps: [{ action: 'columns.explode' }] } });
 		assert.ok(unknown.isError && /Unknown action\(s\): columns\.explode/.test(unknown.text));
 		assert.deepStrictEqual(engineer.confirmed, [['project.create']]);
+	});
+
+	test('a change set that creates a file is undone by removing the file again', async () => {
+		const { window, changeSets } = await setup({ project: true });
+		await window.fileService.writeFile(joinPath(window.root, ...FLOOR_PLAN_FILE.split('/')), VSBuffer.fromString('{"schema": 1, "columns": []}\n'));
+		const created = '06 Building Model/notes.json';
+		const set = await changeSets.proposeTexts({ title: 'Notes and a column', texts: { [created]: '{"a": 1}\n', [FLOOR_PLAN_FILE]: '{"schema": 1, "columns": [{"id": "C1"}]}\n' } }, 'assistant');
+		await changeSets.accept(set.id);
+		const file = joinPath(window.root, ...created.split('/'));
+		assert.ok(await window.fileService.exists(file));
+		assert.ok(changeSets.canUndo(set.id));
+		await changeSets.undo(set.id);
+		assert.strictEqual(changeSets.changeSets[0].state, 'undone');
+		assert.ok(!await window.fileService.exists(file));
+		assert.deepStrictEqual(JSON.parse(window.textModels.models.get(joinPath(window.root, ...FLOOR_PLAN_FILE.split('/')))!.getValue()).columns, []);
+
+		// Only a created file: undone too; one changed since stays, and the set says why.
+		const only = await changeSets.proposeTexts({ title: 'Notes', texts: { [created]: '{"a": 1}\n' } }, 'assistant');
+		await changeSets.accept(only.id);
+		assert.ok(changeSets.canUndo(only.id));
+		await window.fileService.writeFile(file, VSBuffer.fromString('{"a": 2}\n'));
+		await changeSets.undo(only.id);
+		assert.strictEqual(changeSets.changeSets[0].state, 'accepted');
+		assert.match(changeSets.changeSets[0].problem ?? '', /changed since/);
+		assert.ok(await window.fileService.exists(file));
+	});
+
+	test('a run the engineer stops answers what was done, and the catalogue says which actions write', async () => {
+		const { window, tools } = await setup({ project: true });
+		await window.fileService.writeFile(joinPath(window.root, ...FLOOR_PLAN_FILE.split('/')), VSBuffer.fromString('{"schema": 1, "columns": [], "beams": []}\n'));
+		const source = new CancellationTokenSource();
+		window.engine.onRun = () => source.cancel();
+		const stopped = await tools.runActions({ steps: [{ action: 'run.all' }] }, 'assistant', undefined, source.token);
+		source.dispose();
+		const text = stopped.content[0].type === 'text' ? stopped.content[0].text : '';
+		assert.ok(stopped.isError && text.startsWith('The engineer stopped the batch'), text);
+		assert.ok(text.includes('"cancelled": true'), text);
+		const catalogue = (await tools.listActions(undefined)).content[0];
+		const listed = JSON.parse(catalogue.type === 'text' ? catalogue.text : '{}');
+		assert.ok(listed.actions.some((a: { name: string; writes: boolean }) => a.name === 'run.all' && a.writes));
 	});
 
 	test('a change set worked out on whole texts previews value by value and plans again on a newer document', () => {

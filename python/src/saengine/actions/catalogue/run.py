@@ -18,6 +18,12 @@ from saengine.actions.result import ActionResult
 from saengine.actions.view import ProjectView
 
 
+def current_should_stop() -> Any:
+    from saengine.actions.run import current_should_stop as current
+
+    return current()
+
+
 def _project(view: ProjectView) -> Any:
     from saengine.pipeline.project import ProjectError, open_project
 
@@ -36,9 +42,12 @@ def _ran(result: Any, strict: bool) -> ActionResult:
     data = {
         "summary": result.summary,
         "stoppedAt": result.stopped_at,
+        "cancelled": result.cancelled,
         "steps": steps,
         "parts": [p.to_json() for p in result.parts],
     }
+    if result.cancelled:
+        return ActionResult(ok=False, message=result.summary, warnings=warnings, data=data)
     if bad and strict:
         return ActionResult(
             ok=False,
@@ -69,7 +78,7 @@ class RunAllParams(Params):
 def run_all_action(view: ProjectView, p: RunAllParams) -> ActionResult:
     from saengine.pipeline.run_all import run_all
 
-    return _ran(run_all(_project(view)), p.strict)
+    return _ran(run_all(_project(view), should_stop=current_should_stop()), p.strict)
 
 
 #: The steps of each part of Run All (as ``saengine derive|analyse|design|report``).
@@ -101,7 +110,9 @@ class StepParams(Params):
 def run_step(view: ProjectView, p: StepParams) -> ActionResult:
     from saengine.pipeline.run_all import run_all
 
-    return _ran(run_all(_project(view), steps=STEPS[p.step]), p.strict)
+    return _ran(
+        run_all(_project(view), steps=STEPS[p.step], should_stop=current_should_stop()), p.strict
+    )
 
 
 class ReinforceParams(Params):

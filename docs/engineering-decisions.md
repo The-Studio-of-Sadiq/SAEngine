@@ -67,9 +67,42 @@ any project data goes to a provider. See [ai-assistants.md](ai-assistants.md#the
   saengine.ai.assistant.* settings and keys move once into the chat's providers.
 - **The assistant needs the AI component** (the bundled Copilot Chat extension): it runs the
   chat and the model providers, also for a key of the engineer's own.
-- **Open point:** the chat's own Agent mode can still use its file-editing tools on the
-  project's JSON (bypassing change sets); it is not the default in a project. Restrict or hide it
-  outside developer mode if the owner wants.
+- **Open point, narrowed (track D):** the chat's own Agent mode can still use its file-editing
+  tools on the project's JSON (bypassing change sets); it is not the default in a project. Its
+  edits to a project's part files (`01 Soil Report` to `10 BOQ`, the `.saengine` manifest) now
+  always ask the engineer first (`chat.tools.edits.autoApprove`, always-checked patterns); a hard
+  refusal would need the Copilot extension's own tools changed.
+
+## 2026-11-12: a whole project done reliably (AI round, track D)
+
+The assistant's typical mistakes (lengths in metres instead of mm, loads in N or psf, a 30 m
+"storey", a shallow beam over a long span, a system taller than the code allows) are refused
+where every value is checked: the input guardrails (`python/src/saengine/library/data/guardrails.json`),
+the same rules for the editors, `saengine validate`, imports and the actions. Each refusal names
+the allowed range.
+
+| Rule | Block (refused) | Warn | Source |
+| --- | --- | --- | --- |
+| Storey height | below 1 m or above **20 m** (was 30 m) | outside 2.2–**6 m** (was 8 m) | SAEngine practice (a taller hall is modelled with its intermediate levels; the parameter studies already used 1–20 m) |
+| Grid spacing | below 100 mm or above **60 m** (was 100 m) | outside 1–**12 m** (was 15 m) | SAEngine practice (about the longest roof span) |
+| Beam span / overall depth (rectangular types) | above **35**, with the depth that would pass | above 21 | SAEngine practice; for background only, the least depths of BNBC 2020 Part 6 Table 6.6.1 / ACI 318-19 Table 9.3.1.1 (l/16 to l/21) apply when deflections are not computed, and SAEngine computes them |
+| Slab short span / thickness | above **60**, with the thickness that would pass | above 40 | SAEngine practice (two-way slabs are usually ln/33 to ln/36) |
+| Area live load | above 50 kN/m² | above 15 kN/m² | SAEngine practice (a unit slip: N/m², kg/m², psf); the code's *least* live load per use stays the settings' own check (BNBC 2020 Part 6 Table 6.2.3) |
+| Finish and partition allowance | above 50 kN/m² | above 6 kN/m² | SAEngine practice |
+| Line or point load on a member | above 10 000 kN/m or kN | above 500 | SAEngine practice (N instead of kN) |
+| Building height against its structural system | above the system's height limit in the site's Seismic Design Category | - | **Code value** from the code pack's systems table (default pack: BNBC 2020 Part 6 Table 6.2.19, pp. 621–624), checked on the floor plan with the project settings; the message says how many storeys of the typical height fit |
+
+- **Cancel.** A batch can be stopped (`actions/cancel`; the app's Cancel on the run progress and
+  the chat's Stop): the engine stops before the next step, and a Run All at its next step
+  boundary (the steps not run are "not run"). It answers what was done; files a run step wrote
+  stay written, unwritten edits are dropped. An export in progress finishes first.
+- **All or nothing per segment.** The edits before a run step are written first (the run works
+  on the saved files) and stay written when a later step fails or the batch is stopped. Each
+  run step's result names the files it saved first (`written`); the failed step says which
+  files were kept. The assistant still sends edits and runs as separate batches.
+- **`writes` decides, not the name.** An action that writes files itself (`run` actions and
+  `project.create`) says so in the catalogue; the app saves before it, asks the engineer and
+  reads the files again after it.
 
 ## 2026-11-12: shared editing actions (actions round, track A)
 

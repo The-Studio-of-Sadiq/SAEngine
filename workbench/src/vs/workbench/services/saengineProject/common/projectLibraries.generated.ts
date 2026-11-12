@@ -19104,15 +19104,15 @@ export const GUARDRAIL_RULES: IGuardrailDocument = {
 			block: [
 				{
 					min: 1000,
-					max: 30000,
-					reason: 'no storey is that low or that high; check the levels are in mm',
+					max: 20000,
+					reason: 'no storey is that low or that high (a hall taller than 20 m is modelled with its intermediate levels); check the levels are in mm: most storeys are 2.8 to 4.5 m',
 				},
 			],
 			warn: [
 				{
 					min: 2200,
-					max: 8000,
-					reason: 'an unusual storey height',
+					max: 6000,
+					reason: 'an unusual storey height (most storeys are 2.8 to 4.5 m, a tall ground floor up to 6 m)',
 				},
 			],
 		},
@@ -19145,15 +19145,105 @@ export const GUARDRAIL_RULES: IGuardrailDocument = {
 			block: [
 				{
 					min: 100,
-					max: 100000,
-					reason: 'grid lines that close or that far apart are a slip; check the positions are in mm',
+					max: 60000,
+					reason: 'grid lines that close or that far apart are a slip (the longest roof spans are about 60 m); check the positions are in mm',
 				},
 			],
 			warn: [
 				{
 					min: 1000,
-					max: 15000,
-					reason: 'an unusual span for a building grid',
+					max: 12000,
+					reason: 'an unusual span for a building grid (most frames span 3 to 9 m)',
+				},
+			],
+		},
+		{
+			id: 'beamSpanDepth',
+			kind: 'floorPlan',
+			derived: 'beamSpanDepth',
+			paths: ['beams'],
+			what: 'span/depth',
+			block: [
+				{
+					max: 35,
+					reason: 'no beam that slender carries a floor; give it a deeper type or support it',
+				},
+			],
+			warn: [
+				{
+					max: 21,
+					reason: 'shallower than usual for a floor beam (span/depth 10 to 18 in practice); the deflection check decides',
+				},
+			],
+		},
+		{
+			id: 'slabSpanThickness',
+			kind: 'floorPlan',
+			derived: 'slabSpanThickness',
+			paths: ['slabs'],
+			what: 'short span/thickness',
+			block: [
+				{
+					max: 60,
+					reason: 'no slab that thin spans that far; give it a thicker type or add beams',
+				},
+			],
+			warn: [
+				{
+					max: 40,
+					reason: 'thinner than usual for its span (short span/thickness 25 to 36 in practice); the deflection check decides',
+				},
+			],
+		},
+		{
+			id: 'systemHeight',
+			kind: 'project',
+			derived: 'systemHeight',
+			paths: ['stories'],
+			what: 'the building\'s height',
+			unit: 'm',
+			block: [
+				{
+					source: 'the code pack\'s structural systems table',
+					reason: 'above the height limit of its structural system in the site\'s Seismic Design Category',
+				},
+			],
+		},
+		{
+			id: 'areaLiveLoad',
+			kind: 'settings',
+			paths: ['areaLoads.*.live'],
+			what: 'a live load',
+			unit: 'kN/m²',
+			block: [
+				{
+					max: 50,
+					reason: 'no floor carries that much live load; check the value is in kN/m² (not N/m², kg/m² or psf)',
+				},
+			],
+			warn: [
+				{
+					max: 15,
+					reason: 'heavier than heavy storage; check the area\'s use',
+				},
+			],
+		},
+		{
+			id: 'areaDeadLoad',
+			kind: 'settings',
+			paths: ['areaLoads.*.finish', 'areaLoads.*.partitions'],
+			what: 'a superimposed dead load',
+			unit: 'kN/m²',
+			block: [
+				{
+					max: 50,
+					reason: 'no finish or partition allowance is that heavy; check the value is in kN/m²',
+				},
+			],
+			warn: [
+				{
+					max: 6,
+					reason: 'heavier than usual finishes and partitions (1 to 3 kN/m²); a roof garden or fill is better as an area load of its own',
 				},
 			],
 		},
@@ -19185,6 +19275,24 @@ export const GUARDRAIL_RULES: IGuardrailDocument = {
 				{
 					min: 0,
 					reason: 'dead, superimposed dead, live and roof live loads act downward: enter them as positive values',
+				},
+			],
+		},
+		{
+			id: 'memberLoadSize',
+			kind: 'memberLoads',
+			paths: ['loads.*.value'],
+			what: 'a member load',
+			block: [
+				{
+					max: 10000,
+					reason: 'no line or point load on one member is that large; check the value is in kN/m or kN (not N/m or N)',
+				},
+			],
+			warn: [
+				{
+					max: 500,
+					reason: 'a very large load on one member; check it',
 				},
 			],
 		},

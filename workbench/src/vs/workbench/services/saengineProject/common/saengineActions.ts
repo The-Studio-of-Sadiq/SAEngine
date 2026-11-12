@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -12,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
  * works out each batch on the part files (with the app's unsaved texts as overrides) and answers
  * with the new texts; the app applies them through the part files' text models, so the editors,
  * undo and live co-editing see them like the engineer's own typing. The contract with the engine
- * (`actions/list`, `actions/run`) is in docs/actions.md.
+ * (`actions/list`, `actions/run`, `actions/cancel`) is in docs/actions.md.
  */
 
 /** Edits change part files; queries only read; runs need the files on disk (analysis, design, exports). */
@@ -24,6 +25,12 @@ export interface IActionInfo {
 	/** What it does, in the engineer's words. */
 	readonly summary: string;
 	readonly kind: ActionKind;
+	/**
+	 * It writes files to disk itself (every run action, and project.create): the project is
+	 * saved before it, the engineer agrees first, and the written files are read again after it.
+	 * Clients decide by this, never by the action's name.
+	 */
+	readonly writes: boolean;
 	/** The parts it reads or changes (part ids or files). */
 	readonly parts: readonly string[];
 	/** Its parameters (the pydantic model's JSON schema). */
@@ -58,6 +65,8 @@ export interface IActionResult {
 	readonly problems: readonly IActionProblem[];
 	/** A query's answer. */
 	readonly data?: unknown;
+	/** A step that writes, in a batch run with write: the edited files of the steps before it, saved before it ran (they stay written). */
+	readonly written: readonly string[];
 }
 
 /** What a batch did (`actions/run`): all its steps or none of them. */
@@ -73,6 +82,11 @@ export interface IBatchResult {
 	 * so these may be written even when a later step failed).
 	 */
 	readonly written: readonly string[];
+	/**
+	 * The batch was stopped ({@link ISaengineActionsService.run}'s token): `failedStep` is the step
+	 * it stopped at, the results before it say what was done; what was written stays written.
+	 */
+	readonly cancelled: boolean;
 }
 
 export interface IActionsRunOptions {
@@ -90,6 +104,11 @@ export interface IActionsOutcome extends IBatchResult {
 	readonly ran: boolean;
 	/** The project files whose text models were changed (relative paths): edits applied, or files a run wrote and the window reloaded. */
 	readonly applied: readonly string[];
+	/**
+	 * project.create in a window without a folder: the folder the engineer chose for the new
+	 * project (a subfolder named after it), which then opens in this window.
+	 */
+	readonly createdIn?: string;
 }
 
 export const ISaengineActionsService = createDecorator<ISaengineActionsService>('saengineActionsService');
@@ -104,19 +123,22 @@ export interface ISaengineActionsService {
 	 * Runs a batch on the open project. Edits and queries are worked out by the engine on the
 	 * texts as the engineer sees them (unsaved edits included) and, with `apply`, applied to the
 	 * text models as one undo step. A batch with a run step (Run All, design, exports) saves the
-	 * project and lets the engine write the files, then reloads them. All or nothing: a failed
-	 * batch changes nothing.
+	 * project and lets the engine write the files, then reloads them. All or nothing (per
+	 * segment: the edits before a run step are saved first and stay saved). Cancelling `token`
+	 * stops the batch before its next step (a Run All at its next step boundary,
+	 * `actions/cancel`); the outcome is `cancelled` and says what was done.
 	 */
-	run(steps: readonly IActionStep[], options: IActionsRunOptions): Promise<IActionsOutcome>;
-	/** Whether the batch needs the files on disk (a run step, or creating the project). */
+	run(steps: readonly IActionStep[], options: IActionsRunOptions, token?: CancellationToken): Promise<IActionsOutcome>;
+	/** Whether the batch needs the files on disk: a step whose action `writes`. */
 	needsWrite(steps: readonly IActionStep[]): Promise<boolean>;
 }
 
 //#region Engine answers
 
-/** Internal commands the desktop layer registers to reach the engine (`actions/list`, `actions/run`). */
+/** Internal commands the desktop layer registers to reach the engine (`actions/list`, `actions/run`, `actions/cancel`). */
 export const ACTIONS_LIST_COMMAND = 'saengine.actions.backend.list';
 export const ACTIONS_RUN_COMMAND = 'saengine.actions.backend.run';
+export const ACTIONS_CANCEL_COMMAND = 'saengine.actions.backend.cancel';
 
 /** What `actions/run` takes. */
 export interface IActionsRunRequest {
@@ -126,12 +148,12 @@ export interface IActionsRunRequest {
 	readonly write?: boolean;
 }
 
-/** The action that creates a project: it writes a new project's files, so it runs like a run step. */
+/** The action that creates a project: a batch starting with it works in the window's empty folder. */
 export const PROJECT_CREATE_ACTION = 'project.create';
 
-/** Whether `step` needs the files on disk, by the catalogue. */
+/** Whether `step` needs the files on disk: its action `writes`, by the catalogue. */
 export function stepNeedsWrite(step: IActionStep, catalogue: readonly IActionInfo[]): boolean {
-	return step.action === PROJECT_CREATE_ACTION || catalogue.find(info => info.name === step.action)?.kind === 'run';
+	return catalogue.find(info => info.name === step.action)?.writes === true;
 }
 
 type Bag = { readonly [key: string]: unknown };
@@ -165,6 +187,8 @@ export function readCatalogue(raw: unknown): IActionInfo[] {
 			name: entry.name,
 			summary: typeof entry.summary === 'string' ? entry.summary : '',
 			kind,
+			// An engine before `writes`: its run actions wrote (and project.create, then special-cased).
+			writes: typeof entry.writes === 'boolean' ? entry.writes : kind === 'run' || entry.name === PROJECT_CREATE_ACTION,
 			parts: strings(entry.parts),
 			paramsSchema: schema as IJSONSchema,
 			...(typeof example === 'object' && example !== null && !Array.isArray(example) ? { example: example as Bag } : {}),
@@ -196,6 +220,7 @@ export function readActionResult(raw: unknown): IActionResult {
 		warnings: strings(entry.warnings),
 		problems: Array.isArray(entry.problems) ? entry.problems.map(readProblem) : [],
 		...(entry.data !== undefined && entry.data !== null ? { data: entry.data } : {}),
+		written: strings(entry.written).map(path => path.replace(/\\/g, '/')),
 	};
 }
 
@@ -221,6 +246,7 @@ export function readBatchResult(raw: unknown): IBatchResult {
 			created: [],
 			warnings: [],
 			problems: Array.isArray(answer.problems) ? answer.problems.map(readProblem) : [],
+			written: [],
 		});
 	}
 	const ok = answer.ok === true;
@@ -231,6 +257,7 @@ export function readBatchResult(raw: unknown): IBatchResult {
 		changes: ok ? changes : {},
 		failedStep: typeof failed === 'number' ? failed : (ok ? undefined : Math.max(0, results.findIndex(r => !r.ok))),
 		written: strings(answer.written).map(path => path.replace(/\\/g, '/')),
+		cancelled: answer.cancelled === true,
 	};
 }
 
@@ -303,11 +330,15 @@ export function describeFailure(steps: readonly IActionStep[], result: IBatchRes
 	const index = result.failedStep ?? result.results.findIndex(r => !r.ok);
 	const failed = index >= 0 ? result.results[index] : undefined;
 	const name = index >= 0 && index < steps.length ? steps[index].action : undefined;
-	const lines = [name ? `Step ${index + 1} (${name}) failed: ${failed?.message ?? ''}`.trim() : (failed?.message ?? 'The batch failed.')];
+	const verb = result.cancelled ? 'was stopped' : 'failed';
+	const lines = [name ? `Step ${index + 1} (${name}) ${verb}: ${failed?.message ?? ''}`.trim() : (failed?.message ?? 'The batch failed.')];
 	for (const problem of failed?.problems ?? []) {
 		const value = problem.value !== undefined && problem.value !== null ? ` = ${JSON.stringify(problem.value)}` : '';
 		const where = problem.part ? ` (${problem.part})` : '';
 		lines.push(`- ${problem.field ? `${problem.field}${where}${value}: ` : ''}${problem.reason}`);
+	}
+	if (result.written.length) {
+		lines.push(`Written before it and kept: ${result.written.join(', ')}.`);
 	}
 	return lines.join('\n');
 }

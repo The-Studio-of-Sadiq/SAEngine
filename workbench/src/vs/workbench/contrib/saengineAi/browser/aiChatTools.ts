@@ -38,7 +38,8 @@ export const MAX_TOOL_RESULT = 60_000;
 
 /** The runner the tools call: the window's (AiToolRunner); a fake one in tests. */
 export interface IAiToolCaller {
-	call(name: string, args: Record<string, unknown>, source: ChangeSetSource, review?: IAiReview): Promise<MCP.CallToolResult>;
+	/** `token`: the chat request's cancellation (Stop): a run in progress stops before its next step. */
+	call(name: string, args: Record<string, unknown>, source: ChangeSetSource, review?: IAiReview, token?: CancellationToken): Promise<MCP.CallToolResult>;
 }
 
 /** The chat tool id of a SAEngine tool. */
@@ -107,7 +108,7 @@ export class SaengineChatTool implements IToolImpl {
 		try {
 			const request = this.request(invocation);
 			const review = request ? store.add(this.instantiationService.createInstance(AiChatReview, request, token)) : undefined;
-			const result = toChatToolResult(await this.caller.call(this.tool.name, invocation.parameters, 'assistant', review));
+			const result = toChatToolResult(await this.caller.call(this.tool.name, invocation.parameters, 'assistant', review, token));
 			if (review?.accepted.length) {
 				const last = review.accepted[review.accepted.length - 1];
 				result.toolResultMessage = new MarkdownString(localize('chatTool.applied', "Applied \"{0}\" (unsaved). [Undo]({1})", last.title.replace(/[[\]]/g, ''), `command:${UNDO_CHANGE_SET_COMMAND}?${encodeURIComponent(JSON.stringify([last.id]))}`), { isTrusted: { enabledCommands: [UNDO_CHANGE_SET_COMMAND] } });

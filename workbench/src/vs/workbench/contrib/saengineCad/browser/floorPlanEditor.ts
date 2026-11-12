@@ -42,6 +42,7 @@ import { ISaengineCoEditingPresenceService } from '../../../services/saenginePro
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
+import { ACTIONS_RUN_COMMAND, IActionsOutcome, IActionStep, ISaengineActionsService } from '../../../services/saengineProject/common/saengineActions.js';
 import { confirmDelete, needsBulkConfirmation } from '../../../services/saengineProject/common/confirmDelete.js';
 import { ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -381,6 +382,7 @@ export class FloorPlanEditor extends EditorPane {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ISaengineCoEditingPresenceService private readonly presenceService: ISaengineCoEditingPresenceService,
+		@ISaengineActionsService private readonly actionsService: ISaengineActionsService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this.viewStorage = storageService;
@@ -1479,14 +1481,64 @@ export class FloorPlanEditor extends EditorPane {
 		if (!isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID) {
 			return;
 		}
-		if (!this.writeEdit(removeMember(layout, group, id), this.storyOfMember({ group, id }))) {
-			return;
+		const deleted = () => {
+			const selection = this.selectionService.selection;
+			if (selection?.kind === 'member' && selection.group === group && selection.id === id) {
+				this.selectionService.setSelection(undefined, SELECTION_SOURCE);
+			}
+			this.setNotice(localize('floorPlan.deleted', "Deleted {0}.", id));
+		};
+		// The shared action (its twins on the typical floors and the member loads on it go too).
+		void this.memberAction([{ action: 'member.delete', params: { ids: [id] } }], this.storyOfMember({ group, id }), () => {
+			if (this.writeEdit(removeMember(layout, group, id), this.storyOfMember({ group, id }))) {
+				deleted();
+			}
+		}).then(outcome => outcome && deleted());
+	}
+
+	/**
+	 * A member edit through the shared actions (`member.delete`, `member.set`: track D of the AI
+	 * round), so the plan's own edits and the assistant's are one code path: the engine works it
+	 * out on the plan as shown (unsaved text included) and the answer is applied as one undo step,
+	 * named in the editor's Undo as before. A typical floor whose family's plans differ is refused
+	 * first, as the editor's own edits are. Without the engine (a web window) the editor's own edit
+	 * `local` is made.
+	 */
+	private async memberAction(steps: readonly IActionStep[], story: string | undefined, local: () => void): Promise<IActionsOutcome | undefined> {
+		const model = this.planModel;
+		if (!model || model.isDisposed()) {
+			return undefined;
 		}
-		const selection = this.selectionService.selection;
-		if (selection?.kind === 'member' && selection.group === group && selection.id === id) {
-			this.selectionService.setSelection(undefined, SELECTION_SOURCE);
+		if (!CommandsRegistry.getCommand(ACTIONS_RUN_COMMAND)) {
+			local();
+			return undefined;
 		}
-		this.setNotice(localize('floorPlan.deleted', "Deleted {0}.", id));
+		if (story && !repeatFamily(parse(model), story)) {
+			this.setNotice(familyDiffersMessage());
+			return undefined;
+		}
+		const before = model.getAlternativeVersionId();
+		let outcome: IActionsOutcome;
+		this.writing = true;
+		try {
+			outcome = await this.actionsService.run(steps, { apply: true });
+		} catch (error) {
+			this.setNotice(error instanceof Error ? error.message : String(error));
+			return undefined;
+		} finally {
+			this.writing = false;
+		}
+		if (!outcome.ok) {
+			const failed = outcome.results[outcome.failedStep ?? 0];
+			this.setNotice(failed?.problems[0]?.reason ?? failed?.message ?? '');
+			return undefined;
+		}
+		if (!model.isDisposed()) {
+			this.pendingWrite = { before, after: model.getAlternativeVersionId() };
+		}
+		this.renderScheduler.cancel();
+		this.renderPlan();
+		return outcome;
 	}
 
 	// ───────────────────────────── selection and bulk edits ─────────────────────────────
@@ -2585,15 +2637,19 @@ export class FloorPlanEditor extends EditorPane {
 			store.add(picker.onDidSelect(({ index }) => {
 				const type = types[index]?.[0];
 				if (type && type !== current.type) {
-					const result = changeMemberType(parse(this.planModel), member.group, member.id, type);
-					if (result.ok) {
-						if (!this.writeEdit(result.layout, this.storyOfMember(member))) {
-							return;
-						}
-						this.setNotice(localize('floorPlan.typeChanged', "{0} is a {1} now.", member.id, type));
-					} else {
-						this.setNotice(result.error);
+					const changed = () => this.setNotice(localize('floorPlan.typeChanged', "{0} is a {1} now.", member.id, type));
+					if (member.group === 'footings') {
+						this.setNotice(footingsOwnedMessage());
+						return;
 					}
+					void this.memberAction([{ action: 'member.set', params: { ids: [member.id], type } }], this.storyOfMember(member), () => {
+						const result = changeMemberType(parse(this.planModel), member.group, member.id, type);
+						if (!result.ok) {
+							this.setNotice(result.error);
+						} else if (this.writeEdit(result.layout, this.storyOfMember(member))) {
+							changed();
+						}
+					}).then(outcome => outcome && changed());
 				}
 			}));
 			appendPropertyRow(panel, localize('floorPlan.memberType', "Type"), cell).classList.add('editable');

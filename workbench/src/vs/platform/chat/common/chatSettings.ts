@@ -61,6 +61,11 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.codex/agents/**': false,
 	'**/.codex/config.toml': false,
 	'**/.codex/hooks.json': false,
+	// SAEngine: a project's part files (PROJECT_PARTS of services/saengineProject) change through
+	// the saengine actions, which check every value and come as a change set; a generic file edit
+	// of them always asks the engineer first.
+	'**/*.saengine': false,
+	'**/{01 Soil Report,02 Project Settings,03 Materials,04 Objects,05 Floor Plan,05 Structural Model,06 BIM,07 MEP,08 FEM,09 Substructure,10 BOQ}/**': false,
 };
 
 export const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: ChatEditAutoApprovePatterns = {

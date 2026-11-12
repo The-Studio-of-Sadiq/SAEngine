@@ -50,11 +50,15 @@ INTRO = """# Shared editing actions
 One catalogue of typed, validated edits of a SAEngine project, used by every surface: the command
 line (`saengine action`, [docs/cli.md](cli.md#shared-editing-actions)), the SDK
 (`saengine.api.list_actions` and `run_actions`, [docs/sdk](sdk/README.md)), the JSON-RPC
-methods `actions/list` and `actions/run`, the app and its assistant. With it a script or the
+methods `actions/list`, `actions/run` and `actions/cancel`, the app and its assistant. With it a script or the
 assistant builds a whole project from an empty folder to the report.
 
 - **A batch is all or nothing.** The steps run in order on one view of the project (a later step
   sees what an earlier one changed); when a step is refused, no change is returned or written.
+  With a run step it is all or nothing *per segment*: with `write`, the edits before a run step
+  are written first (the run works on the saved files) and stay written when a later step fails;
+  that step's result (`written`) and the batch's `written` name them, and the failed step warns
+  that they were kept. The assistant sends edits and runs as separate batches.
 - **Every value is checked** by the parameters' model, by the input guardrails (the same rules as
   the editors: `python/src/saengine/library/data/guardrails.json`, the code pack's limits) and by
   the part models: a changed part must still validate. Only what the step made worse counts; a
@@ -63,7 +67,14 @@ assistant builds a whole project from an empty folder to the report.
 - **Kinds.** `edit` actions change part files only (the app applies the changes as one undo
   step); `run` actions work on the saved project (the app saves first; with `write` the edits
   before a run step are written first, and stay written if a later step fails); `query` actions
-  read only.
+  read only. **Writes: yes** marks the actions that write files to disk themselves (every `run`
+  action and `project.create`): a client saves before them, asks the engineer and reads the
+  written files again, deciding by this flag (`writes` in `actions/list`), never by the name.
+- **Stop.** `actions/cancel` (the app's Cancel on the run's progress, the chat's Stop) stops a
+  batch before its next step, and a Run All at its next step boundary (its steps not run are
+  `notRun`); an export in progress finishes first. The answer has `cancelled: true`,
+  `failed_step` the step it stopped at and the results of the steps done; what was written stays
+  written, unwritten edits are dropped.
 - **Ids** are made as the floor plan editor makes them: the group's letter and the lowest free
   number (C1, B1, W1, S1, F1), LL1 and PL1 for line and point loads, BH-1 for boreholes.
 - **Code independence.** No action branches on the code pack: the pack in force (the project's)
@@ -111,7 +122,8 @@ def action_section(info: Any) -> str:
         "",
         f"{info.summary}",
         "",
-        f"Kind: **{info.kind}**. Parts: {', '.join(f'`{p}`' for p in info.parts) or '-'}.",
+        f"Kind: **{info.kind}**. Writes: {'yes' if info.writes else 'no'}. "
+        + f"Parts: {', '.join(f'`{p}`' for p in info.parts) or '-'}.",
         "",
     ]
     props = schema.get("properties") or {}

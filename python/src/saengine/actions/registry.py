@@ -8,6 +8,11 @@ model of its parameters. Its ``kind`` says how it may be used:
 - ``run``: works on the saved project (Run All, the design proposal, exports): the files on disk
   must be current, so the app saves before it; it may also return edits through the view;
 - ``query``: reads only.
+
+``writes`` says whether the action writes files to disk itself (every ``run`` action, and
+``project.create``, which makes a new project's files): a client saves the project before it,
+asks the engineer first, and reads the written files again after it, instead of applying its
+changes as an unsaved edit. A client decides by this flag, never by the action's name.
 """
 
 from __future__ import annotations
@@ -27,6 +32,11 @@ class ActionInfo(BaseModel):
     name: str
     summary: str
     kind: Kind
+    writes: bool = Field(
+        default=False,
+        description="It writes files to disk itself (run actions, project.create): the client "
+        "saves first, asks the engineer, and reads the written files again afterwards.",
+    )
     parts: list[str] = Field(description="Ids of the parts it reads or edits (pipeline.project).")
     params_schema: dict[str, Any] = Field(description="JSON Schema of its parameters.")
     example: dict[str, Any] | None = Field(default=None, description="Example parameters.")
@@ -63,8 +73,10 @@ def action(
     parts: tuple[str, ...],
     kind: Kind,
     example: dict[str, Any] | None = None,
+    writes: bool | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Registers ``fn(view, p) -> ActionResult`` as the action ``name``."""
+    """Registers ``fn(view, p) -> ActionResult`` as the action ``name``. ``writes``: whether it
+    writes files itself; default: every ``run`` action does."""
     if kind not in KINDS:
         raise ValueError(f"unknown kind {kind!r}")
 
@@ -77,6 +89,7 @@ def action(
             name=name,
             summary=summary,
             kind=kind,
+            writes=kind == "run" if writes is None else writes,
             parts=list(parts),
             params_schema=params.model_json_schema(),
             example=example,

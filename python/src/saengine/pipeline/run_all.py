@@ -194,6 +194,9 @@ class RunAllResult:
     parts: list[PartStatus]
     stopped_at: str | None = None
     summary: str = ""
+    #: Stopped by the engineer (``should_stop``) before ``stopped_at``; the steps from it on
+    #: are ``notRun``.
+    cancelled: bool = False
 
     @property
     def ok(self) -> bool:
@@ -216,6 +219,7 @@ class RunAllResult:
             },
             "ok": self.ok,
             "stoppedAt": self.stopped_at,
+            "cancelled": self.cancelled,
             "summary": self.summary,
             "steps": [s.to_json() for s in self.steps],
             "parts": [p.to_json() for p in self.parts],
@@ -1414,23 +1418,30 @@ def run_all(
     root: str | Path | Project,
     steps: Iterable[str] | None = None,
     progress: Progress | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> RunAllResult:
     """Run All on the project at ``root`` (its folder or ``.saengine`` file): ``steps`` (ids of
     :data:`STEP_IDS`; default all) in Run All's order. ``progress`` is called at the start of
     each step and with the solver's progress. A step that cannot be done fails; the steps that
-    need it (:data:`STEP_NEEDS`) are ``notRun``, the others still run, as in the app."""
+    need it (:data:`STEP_NEEDS`) are ``notRun``, the others still run, as in the app.
+    ``should_stop``: asked before each step; True stops the run there (and a cancelled RPC
+    request stops the step in progress where it checks), the rest are ``notRun`` and the
+    result is ``cancelled``."""
     project = root if isinstance(root, Project) else open_project(root)
     # The project's own code packs (02 Project Settings/code-packs) are found while it runs.
     with code_context.project(project.root):
-        return _run_all(project, steps, progress)
+        return _run_all(project, steps, progress, should_stop)
 
 
 def _run_all(
-    project: Project, steps: Iterable[str] | None, progress: Progress | None
+    project: Project,
+    steps: Iterable[str] | None,
+    progress: Progress | None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> RunAllResult:
     ahead: list[threading.Thread] = []
     try:
-        return _run_steps(project, steps, progress, ahead)
+        return _run_steps(project, steps, progress, ahead, should_stop)
     finally:
         # Never left running past Run All (a step that failed before the design, say).
         for thread in ahead:
@@ -1471,7 +1482,10 @@ def _run_steps(
     steps: Iterable[str] | None,
     progress: Progress | None,
     ahead: list[threading.Thread],
+    should_stop: Callable[[], bool] | None = None,
 ) -> RunAllResult:
+    from saengine.rpc.jobs import JobCancelled
+
     wanted = normalise_steps(steps)
     analysed = _seismic_design_ahead(project, ahead) if "design" in wanted else None
     # The drawings are drawn when asked for by name, else only to keep a generated set current.
@@ -1482,7 +1496,14 @@ def _run_steps(
     blocked: dict[str, str] = {}  # step id -> the failed step it waits for
     tanks_designed = False
     design_report: dict[str, Any] | None = None
+    stopped: str | None = None  # the step the engineer stopped the run at
     for index, step in enumerate(results):
+        if stopped is None and should_stop is not None and should_stop():
+            stopped = step.id
+        if stopped is not None:
+            step.status = "notRun"
+            step.message = "Not run: the run was stopped."
+            continue
         waits = next((blocked[n] for n in STEP_NEEDS[step.id] if n in blocked), None)
         if waits is not None:
             step.status = "notRun"
@@ -1523,6 +1544,14 @@ def _run_steps(
                     _report(project, step)
                 case "drawings":
                     _drawings(project, step, design_report, drawings_asked)
+        except JobCancelled:
+            # The request was cancelled (actions/cancel): this step stopped where it checked.
+            step.status = "notRun"
+            step.message = "Stopped while it ran: run it again."
+            stopped = step.id
+            _remove_summary(project, step.id)
+            step.seconds = time.monotonic() - started
+            continue
         except StepFailure as failure:
             step.status = "failed"
             step.message = str(failure) or "failed"
@@ -1534,4 +1563,12 @@ def _run_steps(
             _remove_summary(project, step.id)
         step.seconds = time.monotonic() - started
     failed = next((s.id for s in results if s.status in ("failed", "error")), None)
+    if stopped is not None:
+        done = [s.label for s in results if s.status not in ("notRun", "skipped")]
+        summary = f"Stopped at {STEP_LABELS[stopped]}" + (
+            f"; done before it: {', '.join(done)}." if done else "; no step was done."
+        )
+        return RunAllResult(
+            project, results, part_statuses(project), failed or stopped, summary, cancelled=True
+        )
     return RunAllResult(project, results, part_statuses(project), failed, _summary(results))

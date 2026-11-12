@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ACTIONS_RUN_COMMAND, describeFailure, IActionsRunRequest, minimalEdit, readBatchResult, readCatalogue, readSteps } from '../../common/saengineActions.js';
+import { ACTIONS_CANCEL_COMMAND, ACTIONS_RUN_COMMAND, describeFailure, IActionsRunRequest, minimalEdit, readBatchResult, readCatalogue, readSteps } from '../../common/saengineActions.js';
 import { actionsWindow, DESIGN_SUMMARY, FLOOR_PLAN_FILE, readText, SETTINGS_FILE, writeText } from './actionsFixture.js';
 
 suite('SAEngine - Actions service', () => {
@@ -117,6 +121,84 @@ suite('SAEngine - Actions service', () => {
 		assert.deepStrictEqual(JSON.parse(await readText(window, DESIGN_SUMMARY)).checked, 4);
 	});
 
+	test('writes decides which batches run on disk, not the action names', async () => {
+		const window = await openProject();
+		const all = await window.service.listActions();
+		assert.deepStrictEqual(all.filter(a => a.writes).map(a => a.name), ['project.create', 'run.all']);
+		assert.strictEqual(await window.service.needsWrite([{ action: 'project.create', params: { name: 'Plot' } }]), true);
+		// An engine before the flag: its run actions and project.create write.
+		const old = readCatalogue([{ name: 'project.create', kind: 'edit' }, { name: 'run.step', kind: 'run' }, { name: 'grid.set', kind: 'edit' }]);
+		assert.deepStrictEqual(old.map(a => a.writes), [true, true, false]);
+		const flagged = readCatalogue([{ name: 'export.x', kind: 'run', writes: false }]);
+		assert.strictEqual(flagged[0].writes, false);
+	});
+
+	test('Stop: a cancelled run stops before its next step and says what was done', async () => {
+		const window = await openProject();
+		const source = new CancellationTokenSource();
+		window.engine.onRun = () => source.cancel();
+		const outcome = await window.service.run([{ action: 'run.all' }, { action: 'results.summary' }], { apply: true }, source.token);
+		source.dispose();
+		assert.strictEqual(outcome.ok, false);
+		assert.strictEqual(outcome.cancelled, true);
+		assert.strictEqual(outcome.failedStep, 0);
+		assert.ok(window.engine.requests.some(r => r.command === ACTIONS_CANCEL_COMMAND));
+		assert.match(describeFailure([{ action: 'run.all' }], outcome), /^Step 1 \(run\.all\) was stopped: Stopped/);
+	});
+
+	test('the files saved before a run step are named, and a failure says they were kept', () => {
+		const result = readBatchResult({ ok: false, results: [{ ok: true, message: 'a' }, { ok: false, message: 'No results.', written: ['05 Floor Plan\\floor-plan.json'] }], failed_step: 1, written: ['05 Floor Plan\\floor-plan.json'] });
+		assert.deepStrictEqual(result.results[1].written, [FLOOR_PLAN_FILE]);
+		assert.strictEqual(result.cancelled, false);
+		assert.match(describeFailure([{ action: 'grid.set' }, { action: 'run.all' }], result), /Written before it and kept: 05 Floor Plan\/floor-plan\.json\.$/);
+	});
+
+	test('project.create in a window without a folder asks where, creates a subfolder named after the project and opens it', async () => {
+		const window = await actionsWindow(store, { project: false, noFolder: true });
+		const projects = URI.from({ scheme: Schemas.inMemory, path: '/home/Documents/SAEngine Projects' });
+		await window.fileService.createFolder(projects);
+		window.host.pick = projects;
+		const outcome = await window.service.run([{ action: 'project.create', params: { name: 'Plot 12/A' } }], { apply: true });
+		assert.strictEqual(outcome.ok, true, JSON.stringify(outcome.results));
+		// The picker opened at Documents/SAEngine Projects.
+		assert.strictEqual(window.host.dialogs[0].defaultUri?.path, projects.path);
+		assert.strictEqual(window.host.dialogs[0].canSelectFolders, true);
+		const folder = joinPath(projects, 'Plot 12-A');
+		assert.strictEqual(lastRun(window).projectRoot, folder.fsPath);
+		assert.ok(await window.fileService.exists(joinPath(folder, ...SETTINGS_FILE.split('/'))));
+		assert.strictEqual(outcome.createdIn, folder.fsPath);
+		assert.strictEqual(window.host.opened[0].folderUri?.path, folder.path);
+	});
+
+	test('project.create without a folder: cancelling the picker creates nothing, a taken folder is refused', async () => {
+		const window = await actionsWindow(store, { project: false, noFolder: true });
+		// The in-memory file system outlives a test: make sure Documents is not there.
+		const documents = URI.from({ scheme: Schemas.inMemory, path: '/home/Documents' });
+		if (await window.fileService.exists(documents)) {
+			await window.fileService.del(documents, { recursive: true });
+		}
+		const cancelled = await window.service.run([{ action: 'project.create', params: { name: 'Plot' } }], { apply: true });
+		assert.strictEqual(cancelled.ok, false);
+		assert.match(cancelled.results[0].message, /No folder was chosen/);
+		// Documents/SAEngine Projects does not exist: the picker opens at the home folder.
+		assert.strictEqual(window.host.dialogs[0].defaultUri?.path, '/home');
+		const home = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+		await window.fileService.writeFile(joinPath(home, 'Plot', 'notes.txt'), VSBuffer.fromString('x'));
+		window.host.pick = home;
+		await assert.rejects(() => window.service.run([{ action: 'project.create', params: { name: 'Plot' } }], { apply: true }), /exists already and is not empty/);
+		assert.deepStrictEqual(window.host.opened, []);
+		assert.ok(!window.engine.requests.some(r => r.command === ACTIONS_RUN_COMMAND));
+	});
+
+	test('project.create with an empty folder open works in it, as before', async () => {
+		const window = await actionsWindow(store, { project: false });
+		const outcome = await window.service.run([{ action: 'project.create', params: { name: 'Plot' } }], { apply: true });
+		assert.strictEqual(outcome.ok, true);
+		assert.strictEqual(lastRun(window).projectRoot, window.root.fsPath);
+		assert.deepStrictEqual(window.host.dialogs, []);
+		assert.deepStrictEqual(window.host.opened, []);
+	});
+
 	test('a change outside the project is refused before anything is applied', async () => {
 		const window = await openProject();
 		const plan = await window.textFiles.open(joinPath(window.root, ...FLOOR_PLAN_FILE.split('/')));
@@ -126,7 +208,7 @@ suite('SAEngine - Actions service', () => {
 	});
 
 	test('reading the engine', () => {
-		assert.deepStrictEqual(readCatalogue({ actions: [{ name: 'a.b', kind: 'query', summary: 's', parts: ['x'], paramsSchema: { type: 'object' } }, { kind: 'edit' }]}), [{ name: 'a.b', kind: 'query', summary: 's', parts: ['x'], paramsSchema: { type: 'object' } }]);
+		assert.deepStrictEqual(readCatalogue({ actions: [{ name: 'a.b', kind: 'query', summary: 's', parts: ['x'], paramsSchema: { type: 'object' } }, { kind: 'edit' }]}), [{ name: 'a.b', kind: 'query', writes: false, summary: 's', parts: ['x'], paramsSchema: { type: 'object' } }]);
 		// A refusal of the backend is a failed batch with its message, and never carries changes.
 		const refused = readBatchResult({ ok: false, code: 'noProject', message: 'No project at C.' });
 		assert.deepStrictEqual([refused.ok, refused.failedStep, refused.results[0].message], [false, 0, 'No project at C.']);

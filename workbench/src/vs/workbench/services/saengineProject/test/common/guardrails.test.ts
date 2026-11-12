@@ -46,7 +46,7 @@ suite('SAEngine input guardrails', () => {
 	});
 
 	test('the wizard reads the same ranges', () => {
-		assert.deepStrictEqual([blockRange('storeyHeight').min, blockRange('storeyHeight').max], [1000, 30000]);
+		assert.deepStrictEqual([blockRange('storeyHeight').min, blockRange('storeyHeight').max], [1000, 20000]);
 		assert.strictEqual(blockRange('storeyCount').max, 200);
 	});
 
