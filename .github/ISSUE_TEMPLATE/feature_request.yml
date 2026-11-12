@@ -1,0 +1,24 @@
+name: Feature request
+description: Something SAEngine should do, or do differently.
+title: "[Feature request] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "**Issues are public.** For a private request, e-mail publicrelations@thestudioofsadiq.tech."
+  - type: textarea
+    id: need
+    attributes:
+      label: What you want to do
+      description: The engineering task, and how you do it today (by hand, another program).
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How SAEngine could do it
+  - type: input
+    id: code
+    attributes:
+      label: Code or standard involved
+      description: Part, section and page, if it follows a code.

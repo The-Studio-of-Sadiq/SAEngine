@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { anonymise, buildReport, FEEDBACK_DESTINATION, formProblem, issueRequest, MAX_URL_LENGTH } from '../../common/feedback.js';
+import { anonymise, buildReport, emailRequest, FEEDBACK_DESTINATION, formProblem, issueRequest, MAX_MAILTO_LENGTH, MAX_URL_LENGTH } from '../../common/feedback.js';
 
 suite('SAEngine feedback and diagnostics', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +27,15 @@ suite('SAEngine feedback and diagnostics', () => {
 		const request = issueRequest(report);
 		assert.ok(request.url.length <= MAX_URL_LENGTH);
 		assert.strictEqual(request.clipboard, report.body);
+	});
+
+	test('a private report is an e-mail to the developers, by the clipboard when long', () => {
+		const report = buildReport(form, {}, { version: '1', os: 'os' });
+		assert.ok(emailRequest(report).url.startsWith(`mailto:${FEEDBACK_DESTINATION.privateEmail}?subject=`));
+		const long = buildReport({ ...form, description: 'x'.repeat(MAX_MAILTO_LENGTH) }, {}, { version: '1', os: 'os' });
+		const request = emailRequest(long);
+		assert.ok(request.url.length <= MAX_MAILTO_LENGTH);
+		assert.strictEqual(request.clipboard, long.body);
 	});
 
 	test('the form needs a title and a description', () => {

@@ -35,7 +35,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
-import { buildReport, DIAGNOSTICS_SETTING, FEEDBACK_DESTINATION, FeedbackKind, formProblem, IFeedbackForm, issueRequest, kindLabel } from '../common/feedback.js';
+import { buildReport, DIAGNOSTICS_SETTING, emailRequest, FEEDBACK_DESTINATION, FeedbackKind, FeedbackVisibility, formProblem, IFeedbackForm, issueRequest, kindLabel } from '../common/feedback.js';
 import { ISaengineDiagnosticsService } from './diagnosticsService.js';
 
 const feedbackIcon = registerIcon('saengine-feedback-editor-icon', Codicon.feedback, localize('saengineFeedbackIcon', "Icon of the SAEngine bug report and feedback form."));
@@ -74,6 +74,7 @@ export class FeedbackEditorInput extends EditorInput {
 
 interface IFormControls {
 	readonly kind: HTMLSelectElement;
+	readonly visibility: HTMLSelectElement;
 	readonly title: HTMLInputElement;
 	readonly description: HTMLTextAreaElement;
 	readonly steps: HTMLTextAreaElement;
@@ -87,8 +88,9 @@ interface IFormControls {
 
 /**
  * The bug report and feedback form (U2). It shows the whole report before anything is sent and
- * then opens the destination ({@link FEEDBACK_DESTINATION}: a pre-filled GitHub issue, public) in
- * the browser; the engineer submits it there. Attachments go only when ticked; project files
+ * then opens the destination ({@link FEEDBACK_DESTINATION}): a pre-filled GitHub issue in the
+ * browser (public), or an e-mail to the developers in the mail program (private); the engineer
+ * submits it there. Attachments go only when ticked; project files
  * never, unless the engineer ticks them, and then as an archive they attach themselves.
  */
 export class FeedbackEditor extends EditorPane {
@@ -126,7 +128,7 @@ export class FeedbackEditor extends EditorPane {
 		this.frame = this._register(this.instantiationService.createInstance(EditorFrame, parent, { id: FeedbackEditor.ID, ariaLabel: localize('feedback.toolbar', "Report a Bug / Send Feedback") }));
 		this.frame.element.classList.add('saengine-feedback-editor');
 		this.frame.setTitle(localize('feedback.title', "Report a Bug / Send Feedback"));
-		this.frame.setHelp(localize('feedback.help', "Tell the SAEngine developers about a problem or an idea. You see the whole report before anything is sent; it is then opened as a new GitHub issue in your browser, where you submit it. GitHub issues are public."));
+		this.frame.setHelp(localize('feedback.help', "Tell the SAEngine developers about a problem or an idea. You see the whole report before anything is sent. A public report opens as a new GitHub issue in your browser; a private one opens as an e-mail to the developers in your mail program. You submit it there."));
 		this.body = $('.feedback-body');
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('feedback-scroll');
@@ -144,8 +146,8 @@ export class FeedbackEditor extends EditorPane {
 		clearNode(this.body);
 
 		const notice = append(this.body, $('.feedback-public', { role: 'note' }));
-		append(notice, $(ThemeIcon.asCSSSelector(Codicon.globe)));
-		append(notice, $('span', undefined, localize('feedback.publicNotice', "GitHub issues are public: anyone can read what you send. Leave out client names, addresses and anything confidential about the project.")));
+		const noticeIcon = append(notice, $('span'));
+		const noticeText = append(notice, $('span'));
 
 		const field = (label: string, control: HTMLElement, note?: string) => {
 			const row = append(this.body, $('.feedback-field'));
@@ -164,6 +166,10 @@ export class FeedbackEditor extends EditorPane {
 			option.selected = k === input.kind;
 		}
 		field(localize('feedback.kind', "Kind"), kind);
+		const visibility = $<HTMLSelectElement>('select.feedback-input');
+		append(visibility, $<HTMLOptionElement>('option', { value: 'public' }, localize('feedback.visibility.public', "Public: a GitHub issue anyone can read")));
+		append(visibility, $<HTMLOptionElement>('option', { value: 'private' }, localize('feedback.visibility.private', "Private: an e-mail to the developers ({0})", FEEDBACK_DESTINATION.privateEmail)));
+		field(localize('feedback.visibility', "Send As"), visibility, localize('feedback.visibilityNote', "Choose Private for anything about a client, a site or a project you cannot share."));
 		const title = $<HTMLInputElement>('input.feedback-input', { type: 'text', maxlength: '120', placeholder: localize('feedback.titlePlaceholder', "e.g. Column design stops at storey 7") });
 		field(localize('feedback.titleLabel', "Title"), title);
 		const description = $<HTMLTextAreaElement>('textarea.feedback-input', { rows: '6', placeholder: localize('feedback.descriptionPlaceholder', "What happened, and what you expected (or what you would like SAEngine to do).") });
@@ -171,16 +177,17 @@ export class FeedbackEditor extends EditorPane {
 		const steps = $<HTMLTextAreaElement>('textarea.feedback-input', { rows: '4', placeholder: localize('feedback.stepsPlaceholder', "1. Open the floor plan\n2. ...") });
 		const stepsField = field(localize('feedback.steps', "Steps to reproduce"), steps);
 		const email = $<HTMLInputElement>('input.feedback-input', { type: 'email', placeholder: localize('feedback.emailPlaceholder', "Optional") });
-		field(localize('feedback.email', "E-mail"), email, localize('feedback.emailNote', "Only if you want an answer by e-mail: it is shown in the public issue."));
+		const emailNote = append(field(localize('feedback.email', "E-mail"), email), $('.feedback-note'));
 
 		append(this.body, $('h3.feedback-heading', undefined, localize('feedback.attach', "Attach (only what you tick)")));
+		const notes = new Map<HTMLInputElement, HTMLElement>();
 		const check = (label: string, checked: boolean, note: string) => {
 			const row = append(this.body, $('.feedback-check'));
 			const box = append(row, $<HTMLInputElement>('input', { type: 'checkbox' }));
 			box.checked = checked;
 			const text = append(row, $('label'));
 			append(text, $('span', undefined, label));
-			append(text, $('.feedback-note', undefined, note));
+			notes.set(box, append(text, $('.feedback-note', undefined, note)));
 			this.formDisposables.add(addDisposableListener(text, EventType.CLICK, () => { box.checked = !box.checked; }));
 			return box;
 		};
@@ -196,10 +203,31 @@ export class FeedbackEditor extends EditorPane {
 				? localize('feedback.attachStatusNote', "Each part's state (done, out of date, failing), without names, values or files.")
 				: localize('feedback.attachStatusNone', "No project is open."));
 		status.disabled = !this.projectService.project;
-		const files = check(localize('feedback.attachFiles', "Project files"), false,
-			localize('feedback.attachFilesNote', "Never sent unless you tick this: SAEngine exports the project as a .civil archive and you attach it to the issue yourself. Everyone can download it there."));
+		const files = check(localize('feedback.attachFiles', "Project files"), false, '');
+		const filesNote = notes.get(files);
 		files.disabled = !this.projectService.project;
-		this.controls = { kind, title, description, steps, stepsField, email, diagnostics, screenshot, status, files };
+		this.controls = { kind, visibility, title, description, steps, stepsField, email, diagnostics, screenshot, status, files };
+
+		// Public or private: the notices say who reads the report, and an old preview goes.
+		const showVisibility = () => {
+			const isPublic = visibility.value !== 'private';
+			noticeIcon.className = ThemeIcon.asClassName(isPublic ? Codicon.globe : Codicon.lock);
+			noticeText.textContent = isPublic
+				? localize('feedback.publicNotice', "GitHub issues are public: anyone can read what you send. Leave out client names, addresses and anything confidential about the project, or send it privately.")
+				: localize('feedback.privateNotice', "Private: the report goes by e-mail to the SAEngine developers only ({0}). It is not published.", FEEDBACK_DESTINATION.privateEmail);
+			emailNote.textContent = isPublic
+				? localize('feedback.emailNote', "Only if you want an answer by e-mail: it is shown in the public issue.")
+				: localize('feedback.emailNotePrivate', "Optional: the developers answer the address your e-mail is sent from.");
+			if (filesNote) {
+				filesNote.textContent = isPublic
+					? localize('feedback.attachFilesNote', "Never sent unless you tick this: SAEngine exports the project as a .civil archive and you attach it to the issue yourself. Everyone can download it there.")
+					: localize('feedback.attachFilesNotePrivate', "Never sent unless you tick this: SAEngine exports the project as a .civil archive and you attach it to the e-mail yourself.");
+			}
+			if (this.previewBox) {
+				this.previewDisposables.clear();
+				clearNode(this.previewBox);
+			}
+		};
 
 		const showSteps = () => stepsField.classList.toggle('hidden', kind.value !== 'bug');
 		showSteps();
@@ -210,13 +238,15 @@ export class FeedbackEditor extends EditorPane {
 		preview.label = localize('feedback.preview', "Preview Report");
 		this.formDisposables.add(preview.onDidClick(() => this.preview()));
 		this.previewBox = append(this.body, $('.feedback-preview'));
+		showVisibility();
+		this.formDisposables.add(addDisposableListener(visibility, EventType.CHANGE, showVisibility));
 		this.scrollable.scanDomNode();
 		title.focus();
 	}
 
 	private form(): IFeedbackForm | undefined {
 		const c = this.controls;
-		return c && { kind: c.kind.value as FeedbackKind, title: c.title.value, description: c.description.value, steps: c.steps.value, email: c.email.value };
+		return c && { kind: c.kind.value as FeedbackKind, visibility: c.visibility.value as FeedbackVisibility, title: c.title.value, description: c.description.value, steps: c.steps.value, email: c.email.value };
 	}
 
 	private async preview(): Promise<void> {
@@ -249,23 +279,28 @@ export class FeedbackEditor extends EditorPane {
 		}, { version: this.productService.version, os: `${os.platform} ${os.release} ${os.arch}` });
 
 		append(this.previewBox, $('h3.feedback-heading', undefined, localize('feedback.previewHeading', "This is exactly what will be sent")));
-		append(this.previewBox, $('.feedback-note', undefined, localize('feedback.previewNote', "It opens as a new issue at {0} in your browser; nothing is sent until you submit it there. The issue is public.", FEEDBACK_DESTINATION.url)));
+		const isPrivate = form.visibility === 'private';
+		append(this.previewBox, $('.feedback-note', undefined, isPrivate
+			? localize('feedback.previewNotePrivate', "It opens as an e-mail to {0} in your mail program; nothing is sent until you send it there. Only the developers receive it.", FEEDBACK_DESTINATION.privateEmail)
+			: localize('feedback.previewNote', "It opens as a new issue at {0} in your browser; nothing is sent until you submit it there. The issue is public.", FEEDBACK_DESTINATION.url)));
 		append(this.previewBox, $('pre.feedback-report', { tabIndex: 0, 'aria-label': localize('feedback.reportLabel', "The report") }, `${report.title}\n\n${report.body}`));
 		const actions = append(this.previewBox, $('.feedback-actions'));
 		const open = this.previewDisposables.add(new Button(actions, { ...defaultButtonStyles }));
-		open.label = localize('feedback.openIssue', "Open GitHub Issue");
-		this.previewDisposables.add(open.onDidClick(() => this.send(report, c, input)));
+		open.label = isPrivate ? localize('feedback.openEmail', "Open E-mail") : localize('feedback.openIssue', "Open GitHub Issue");
+		this.previewDisposables.add(open.onDidClick(() => this.send(report, c, input, isPrivate)));
 		const copy = this.previewDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		copy.label = localize('feedback.copy', "Copy Report");
 		this.previewDisposables.add(copy.onDidClick(() => this.clipboardService.writeText(`${report.title}\n\n${report.body}`)));
 		this.scrollable.scanDomNode();
 	}
 
-	private async send(report: { readonly title: string; readonly body: string }, c: IFormControls, input: FeedbackEditorInput): Promise<void> {
-		const request = issueRequest(report);
+	private async send(report: { readonly title: string; readonly body: string }, c: IFormControls, input: FeedbackEditorInput, isPrivate: boolean): Promise<void> {
+		const request = isPrivate ? emailRequest(report) : issueRequest(report);
 		if (request.clipboard) {
 			await this.clipboardService.writeText(request.clipboard);
-			this.notificationService.info(localize('feedback.inClipboard', "The report is long, so it is in the clipboard: paste it into the issue page (Ctrl+V)."));
+			this.notificationService.info(isPrivate
+				? localize('feedback.inClipboardMail', "The report is long, so it is in the clipboard: paste it into the e-mail (Ctrl+V).")
+				: localize('feedback.inClipboard', "The report is long, so it is in the clipboard: paste it into the issue page (Ctrl+V)."));
 		}
 		if (c.files.checked) {
 			await this.commandService.executeCommand(EXPORT_ARCHIVE_COMMAND).catch(error => this.notificationService.warn(localize('feedback.exportFailed', "The project could not be exported: {0}", String(error))));

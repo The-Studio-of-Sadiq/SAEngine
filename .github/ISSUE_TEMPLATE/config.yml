@@ -1,0 +1,10 @@
+# The issue chooser. Blank issues stay enabled: SAEngine's Help > Report a Bug / Send Feedback
+# opens a new issue with the report already filled in.
+blank_issues_enabled: true
+contact_links:
+  - name: Private bug report or feedback
+    url: https://github.com/The-Studio-of-Sadiq/SAEngine/blob/main/SECURITY.md#private-reports
+    about: For anything about a client, a site or a project you cannot share publicly - e-mail the developers (publicrelations@thestudioofsadiq.tech). It is not published.
+  - name: Security problem
+    url: https://github.com/The-Studio-of-Sadiq/SAEngine/blob/main/SECURITY.md#security-problems
+    about: Please report security problems privately by e-mail, not as a public issue.

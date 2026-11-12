@@ -12,15 +12,20 @@ import { localize } from '../../../../nls.js';
  */
 
 /**
- * Where reports go. One constant, so a private endpoint of the developers can replace it later:
- * today a pre-filled GitHub issue opened in the browser, which is public.
+ * Where reports go: a public report as a pre-filled GitHub issue opened in the browser (the
+ * repository's issue templates in .github/ISSUE_TEMPLATE), a private one as an e-mail to the
+ * developers opened in the engineer's mail program. Nothing is sent until the engineer submits
+ * it there.
  */
 export const FEEDBACK_DESTINATION = {
 	kind: 'githubIssue',
 	url: 'https://github.com/The-Studio-of-Sadiq/SAEngine/issues/new',
-	/** What the engineer is told about it, in the form and before anything is sent. */
-	public: true,
+	/** Private reports: the developers' address, also named in the issue chooser (config.yml). */
+	privateEmail: 'publicrelations@thestudioofsadiq.tech',
 } as const;
+
+/** Who can read a report: anyone (a GitHub issue) or only the developers (an e-mail). */
+export type FeedbackVisibility = 'public' | 'private';
 
 /** Setting: help the developers with an anonymised diagnostics bundle (off by default). */
 export const DIAGNOSTICS_SETTING = 'saengine.diagnostics.shareWithDevelopers';
@@ -38,8 +43,10 @@ export interface IFeedbackForm {
 	readonly description: string;
 	/** Bugs: how to make it happen again. */
 	readonly steps: string;
-	/** Optional: for the developers to answer (it is shown in the public issue). */
+	/** Optional: for the developers to answer (in a public report it is shown in the issue). */
 	readonly email: string;
+	/** Public GitHub issue, or a private e-mail to the developers. */
+	readonly visibility?: FeedbackVisibility;
 }
 
 /** What goes with a report, each only when the engineer ticks it. */
@@ -54,6 +61,9 @@ export interface IFeedbackAttachments {
 
 /** The longest URL sent to the browser; a longer report goes by the clipboard. */
 export const MAX_URL_LENGTH = 7500;
+
+/** The longest mailto: link (Windows hands at most about 2,000 characters to the mail program). */
+export const MAX_MAILTO_LENGTH = 1900;
 
 /** The kind's label, as the form and the issue's title name it. */
 export function kindLabel(kind: FeedbackKind): string {
@@ -114,6 +124,21 @@ export function issueRequest(report: { readonly title: string; readonly body: st
 	}
 	const note = localize('feedback.pasteNote', "The report is too long for the link: SAEngine copied it to the clipboard. Paste it here (Ctrl+V), replacing this line.");
 	return { url: `${base}?title=${encodeURIComponent(report.title)}&body=${encodeURIComponent(note)}`, clipboard: report.body };
+}
+
+/**
+ * The private request: a mailto: link to the developers with the title as the subject and the
+ * report as the body. A report too long for the link goes by the clipboard, as in
+ * {@link issueRequest}.
+ */
+export function emailRequest(report: { readonly title: string; readonly body: string }, address: string = FEEDBACK_DESTINATION.privateEmail): { readonly url: string; readonly clipboard?: string } {
+	const subject = `SAEngine ${report.title}`;
+	const full = `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(report.body)}`;
+	if (full.length <= MAX_MAILTO_LENGTH) {
+		return { url: full };
+	}
+	const note = localize('feedback.pasteMailNote', "The report is too long for the link: SAEngine copied it to the clipboard. Paste it here (Ctrl+V), replacing this line.");
+	return { url: `mailto:${address}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(note)}`, clipboard: report.body };
 }
 
 /** What anonymising replaces, so the bundle names no person, computer, project or folder. */

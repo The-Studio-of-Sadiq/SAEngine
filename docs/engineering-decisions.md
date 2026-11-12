@@ -2513,3 +2513,9 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
 - **Order after alpha 10 (2026-11-11):** UI/UX round, then live co-editing (Yjs over the
   office's own relay), then the shared editing actions with the missing terminal commands,
   then the AI assistant built on those actions.
+- **Bug reports: public on GitHub, private by e-mail (2026-11-12).** The repository has issue
+  templates (bug report, feature request, feedback) and Help > Report a Bug / Send Feedback opens
+  a pre-filled GitHub issue. A report the engineer cannot make public (client, site or project
+  details) goes by e-mail to publicrelations@thestudioofsadiq.tech: the form's Send As choice
+  writes that e-mail, and the issue chooser and SECURITY.md name the address. Security problems
+  go privately to the same address.
