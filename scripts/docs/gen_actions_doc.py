@@ -133,9 +133,7 @@ def action_section(info: Any) -> str:
             "| --- | --- | --- | --- |",
         ]
         for name, prop in props.items():
-            default = (
-                "required" if name in required else json.dumps(prop.get("default"))
-            )
+            default = "required" if name in required else json.dumps(prop.get("default"))
             lines.append(
                 f"| `{name}` | {_cell(_type(prop, defs))} | {_cell(default)} | "
                 f"{_cell(prop.get('description') or '')} |"
@@ -202,9 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         current = OUT.read_text(encoding="utf-8") if OUT.is_file() else ""
         if current != text:
-            print(
-                f"{OUT} is out of date: run python -I scripts/docs/gen_actions_doc.py"
-            )
+            print(f"{OUT} is out of date: run python -I scripts/docs/gen_actions_doc.py")
             return 1
         return 0
     OUT.write_bytes(text.encode("utf-8"))

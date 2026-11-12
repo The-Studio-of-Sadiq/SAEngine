@@ -177,8 +177,9 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 	/** Asks where to create a new project: the folder picker opens at Documents/SAEngine Projects (or the nearest folder that exists). */
 	private async chooseLocation(): Promise<URI | undefined> {
 		const home = await this.pathService.userHome();
-		let start = joinPath(home, ...DEFAULT_PROJECTS_FOLDER);
-		for (const candidate of [start, joinPath(home, DEFAULT_PROJECTS_FOLDER[0]), home]) {
+		// The first that exists; else the home folder.
+		let start = home;
+		for (const candidate of [joinPath(home, ...DEFAULT_PROJECTS_FOLDER), joinPath(home, DEFAULT_PROJECTS_FOLDER[0])]) {
 			if (await this.fileService.exists(candidate)) {
 				start = candidate;
 				break;
