@@ -185,7 +185,7 @@ import './contrib/saengineProject/electron-browser/liveCoEditing.contribution.js
 import './contrib/saengineUpdate/electron-browser/saengineUpdate.contribution.js';
 import './contrib/saengineLibrary/electron-browser/packages.contribution.js';
 import './contrib/saengineAi/electron-browser/saengineAi.contribution.js';
-import './contrib/saengineAi/electron-browser/aiAssistant.contribution.js';
+import './contrib/saengineAi/electron-browser/aiChat.contribution.js';
 import './contrib/saengineAutomation/electron-browser/automation.contribution.js';
 import './contrib/saengineFeedback/electron-browser/feedback.contribution.js';
 

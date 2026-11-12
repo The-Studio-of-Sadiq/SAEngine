@@ -25,7 +25,7 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { BUILD_PLAYBOOK } from '../common/aiAssistant.js';
-import { AI_TOOLS, ALLOW_CONTROL_SETTING, PORT_SETTING, toMcpTool, visibleTools } from '../common/aiTools.js';
+import { AI_TOOLS, ALLOW_CONTROL_SETTING, PORT_SETTING, sendsProjectData, toMcpTool, visibleTools } from '../common/aiTools.js';
 import { IAiDataDestination, ISaengineAiDataConsentService } from '../browser/aiDataConsent.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { AiToolRunner } from './aiToolRunner.js';
@@ -145,7 +145,7 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 		}
 		// U2: nothing of the project goes to a connected assistant (and its model provider)
 		// before the engineer allows it for this project.
-		if (sendsProjectData(name) && this.projectService.project && !await this.dataConsent.ensure(this.mcpDestination())) {
+		if (sendsProjectData(AI_TOOLS.find(t => t.name === name)) && this.projectService.project && !await this.dataConsent.ensure(this.mcpDestination())) {
 			this.log(localize('activity.notAllowed', "{0} refused: sending this project's data to AI assistants is not allowed.", name));
 			return { content: [{ type: 'text', text: 'The engineer has not allowed sending this project\'s data to AI assistants (SAEngine: AI Data Sharing for This Project). Ask them to allow it.' }], isError: true };
 		}
@@ -354,13 +354,4 @@ function textOf(result: MCP.CallToolResult): string {
 
 function shorten(text: string, length = 300): string {
 	return text.length > length ? `${text.slice(0, length)}…` : text;
-}
-
-/**
- * Whether a tool's result carries project data to the assistant: what it reads of the project,
- * the open document or the results (its `assistant` scope), and screenshots of the window.
- */
-function sendsProjectData(name: string): boolean {
-	const tool = AI_TOOLS.find(t => t.name === name);
-	return name === 'screenshot' || tool?.assistant === 'project' || tool?.assistant === 'document' || tool?.assistant === 'results';
 }

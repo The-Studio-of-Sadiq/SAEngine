@@ -10,7 +10,7 @@ import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from './ai
 
 /*
  * The AI's tools on the shared editing actions (list_actions, describe_action, run_actions), for
- * the built-in assistant and MCP clients alike. Edits come back as ONE change set per batch that
+ * the chat's assistant and MCP clients alike. Edits come back as ONE change set per batch that
  * the engineer previews and accepts or rejects (nothing changes before); a batch with run steps
  * (Run All, design, exports, creating the project) runs only after the engineer agrees, and saves
  * the project first. A failed batch changes nothing and its guardrail problems go back to the
@@ -20,15 +20,22 @@ import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from './ai
 /** How long run_actions waits for the engineer's decision on a change set before answering "pending" [ms]. */
 export const ACTIONS_DECISION_WAIT = 5 * 60 * 1000;
 
-/** What the window asks the engineer: run these steps (saving the project first)? */
-export type ConfirmRun = (steps: readonly IActionStep[], source: ChangeSetSource) => Promise<boolean>;
+/**
+ * Where the engineer reviews what an assistant asks for: in the chat for the chat's assistant
+ * (aiChatReview.ts), in dialogs for MCP clients (aiDialogReview.ts).
+ */
+export interface IAiReview {
+	/** Shows the change set to accept or reject; resolves once shown (the decision is the set's). */
+	showChangeSet(changeSet: IAiChangeSet): Promise<void>;
+	/** Asks whether to save the project and run these steps. */
+	confirmRun(steps: readonly IActionStep[], source: ChangeSetSource): Promise<boolean>;
+}
 
 export class AiActionTools {
 
 	constructor(
-		private readonly confirmRun: ConfirmRun,
-		/** Shows the change set to the engineer (the AI Assistant view). */
-		private readonly showChangeSet: (changeSet: IAiChangeSet) => Promise<void>,
+		/** The review used when a call brings none of its own. */
+		private readonly review: IAiReview,
 		private readonly decisionWait: number,
 		@ISaengineActionsService private readonly actions: ISaengineActionsService,
 		@ISaengineAiChangeSetService private readonly changeSets: ISaengineAiChangeSetService,
@@ -51,7 +58,7 @@ export class AiActionTools {
 		return jsonResult({ name: info.name, kind: info.kind, summary: info.summary, parts: info.parts, params: info.paramsSchema });
 	}
 
-	async runActions(args: { readonly [key: string]: unknown }, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	async runActions(args: { readonly [key: string]: unknown }, source: ChangeSetSource, review: IAiReview = this.review): Promise<MCP.CallToolResult> {
 		let steps: IActionStep[];
 		try {
 			steps = readSteps(args.steps);
@@ -66,7 +73,7 @@ export class AiActionTools {
 		}
 		const kinds = steps.map(step => catalogue.find(info => info.name === step.action)!.kind);
 		if (await this.actions.needsWrite(steps)) {
-			return this.runWritten(steps, kinds, source);
+			return this.runWritten(steps, kinds, source, review);
 		}
 		const outcome = await this.actions.run(steps, { apply: false });
 		if (!outcome.ok) {
@@ -82,7 +89,7 @@ export class AiActionTools {
 		} catch (error) {
 			return errorResult(`The change set could not be shown: ${error instanceof Error ? error.message : String(error)}`);
 		}
-		await this.showChangeSet(changeSet);
+		await review.showChangeSet(changeSet);
 		const wait = timeout(this.decisionWait);
 		const decision = await Promise.race([changeSet.decision, wait.then(() => 'pending' as const, () => 'pending' as const)]);
 		wait.cancel();
@@ -92,19 +99,19 @@ export class AiActionTools {
 			case 'rejected':
 				return jsonResult({ ok: false, decision: 'rejected', note: `The engineer rejected "${title}". Nothing changed; ask what to do differently.` });
 			case 'pending':
-				return jsonResult({ ok: true, decision: 'pending', note: `"${title}" waits for the engineer's decision in the AI Assistant view. Later batches are worked out on the project without it until it is accepted.`, results });
+				return jsonResult({ ok: true, decision: 'pending', note: `"${title}" waits for the engineer's decision (shown to them with Accept and Reject). Later batches are worked out on the project without it until it is accepted.`, results });
 			default:
 				return errorResult(`The change set was not applied (${decision}): ${changeSet.problem ?? ''}`);
 		}
 	}
 
 	/** Run steps (and creating a project): the engineer agrees, the project is saved, the engine writes. */
-	private async runWritten(steps: readonly IActionStep[], kinds: readonly ActionKind[], source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	private async runWritten(steps: readonly IActionStep[], kinds: readonly ActionKind[], source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
 		const edits = steps.filter((step, index) => kinds[index] === 'edit' && step.action !== 'project.create').map(step => step.action);
 		if (edits.length) {
 			return errorResult(`A batch with run steps (${stepNames(steps.filter((_, i) => kinds[i] === 'run'))}) or project.create holds only those and queries, because the engine writes it to disk. Send the edits (${edits.join(', ')}) as a batch of their own first: the engineer reviews them as a change set.`);
 		}
-		if (!await this.confirmRun(steps, source)) {
+		if (!await review.confirmRun(steps, source)) {
 			return jsonResult({ ok: false, decision: 'declined', note: `The engineer did not run ${stepNames(steps)}. Nothing changed.` });
 		}
 		const outcome = await this.actions.run(steps, { apply: true });

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MCP } from '../../../../../platform/mcp/common/modelContextProtocol.js';
@@ -12,9 +11,11 @@ import { ActionKind, IActionStep } from '../../../../services/saengineProject/co
 import { actionsWindow, DESIGN_SUMMARY, FLOOR_PLAN_FILE, readText, SETTINGS_FILE } from '../../../../services/saengineProject/test/browser/actionsFixture.js';
 import { AiActionTools } from '../../browser/aiActionTools.js';
 import { IAiChangeSet, SaengineAiChangeSetService } from '../../browser/aiChangeSets.js';
-import { runAssistant } from '../../common/aiAssistant.js';
 import { diffJson, planFile } from '../../common/aiChangeSet.js';
-import { AiTurn, IAiToolCall, IAiToolResult, IProviderAnswer, parseAnthropic } from '../../common/aiProviders.js';
+
+/** A tool call of the (scripted) model and the tool's answer. */
+interface IToolCall { readonly id: string; readonly name: string; readonly args: Record<string, unknown> }
+interface IToolAnswer { readonly text: string; readonly isError: boolean }
 
 suite('SAEngine - AI actions', () => {
 
@@ -25,20 +26,22 @@ suite('SAEngine - AI actions', () => {
 		const changeSets = store.add(new SaengineAiChangeSetService(window.projectService, window.textModels, window.fileService, window.textModels.undoRedo, window.commandService));
 		const engineer = { confirmed: [] as string[][], reviewed: [] as IAiChangeSet[] };
 		const tools = new AiActionTools(
-			async (steps: readonly IActionStep[]) => { engineer.confirmed.push(steps.map(s => s.action)); return true; },
-			async changeSet => {
-				engineer.reviewed.push(changeSet);
-				if (options.accept !== false) {
-					await changeSets.accept(changeSet.id);
-				} else {
-					changeSets.reject(changeSet.id);
-				}
+			{
+				confirmRun: async (steps: readonly IActionStep[]) => { engineer.confirmed.push(steps.map(s => s.action)); return true; },
+				showChangeSet: async changeSet => {
+					engineer.reviewed.push(changeSet);
+					if (options.accept !== false) {
+						await changeSets.accept(changeSet.id);
+					} else {
+						changeSets.reject(changeSet.id);
+					}
+				},
 			},
 			100,
 			window.service,
 			changeSets,
 		);
-		const run = async (call: IAiToolCall): Promise<IAiToolResult> => {
+		const run = async (call: IToolCall): Promise<IToolAnswer> => {
 			let result: MCP.CallToolResult;
 			switch (call.name) {
 				case 'list_actions': result = await tools.listActions(call.args.kind as ActionKind | undefined); break;
@@ -47,16 +50,9 @@ suite('SAEngine - AI actions', () => {
 				default: throw new Error(call.name);
 			}
 			const first = result.content[0];
-			return { id: call.id, name: call.name, text: first?.type === 'text' ? first.text : '', isError: !!result.isError };
+			return { text: first?.type === 'text' ? first.text : '', isError: !!result.isError };
 		};
 		return { window, changeSets, engineer, tools, run };
-	}
-
-	/** One answer of a scripted model: tool calls, or the final text. */
-	function answer(calls: { name: string; input: object }[] | string): IProviderAnswer {
-		return typeof calls === 'string'
-			? parseAnthropic({ content: [{ type: 'text', text: calls }], stop_reason: 'end_turn' })
-			: parseAnthropic({ content: calls.map((c, i) => ({ type: 'tool_use', id: `t${i}`, ...c })), stop_reason: 'tool_use' });
 	}
 
 	const model = (heights: number[]) => [
@@ -72,42 +68,20 @@ suite('SAEngine - AI actions', () => {
 
 	test('end to end: a scripted model builds a designed 3-storey building in an empty folder', async () => {
 		const { window, changeSets, engineer, run } = await setup({ project: false });
-		const seen: IAiToolResult[][] = [];
-		const script: ((last: readonly IAiToolResult[]) => IProviderAnswer)[] = [
-			() => answer([{ name: 'list_actions', input: {} }]),
-			() => answer([{ name: 'describe_action', input: { name: 'storeys.set' } }]),
-			() => answer([{ name: 'run_actions', input: { title: 'Create the project', steps: [{ action: 'project.create', params: { name: 'Plot 12' } }] } }]),
-			// A storey of 30 m: the guardrail refuses it and nothing changes.
-			() => answer([{ name: 'run_actions', input: { title: 'The building', steps: model([3200, 30000, 3000]) } }]),
-			last => {
-				assert.ok(last[0].isError && last[0].text.includes('heights[1] = 30000: a storey height is between 2000 and 6000 mm'), last[0].text);
-				return answer([{ name: 'run_actions', input: { title: 'The building', steps: model([3200, 3000, 3000]) } }]);
-			},
-			() => answer([{ name: 'run_actions', input: { title: 'Run All', steps: [{ action: 'run.all' }] } }]),
-			() => answer([{ name: 'run_actions', input: { steps: [{ action: 'results.summary' }] } }]),
-			last => {
-				const summary = JSON.parse(last[0].text);
-				return answer(`Run All checked ${summary.results[0].data.checked} members; ${summary.results[0].data.failed} fails (${summary.results[0].data.governing}). Please check the results.`);
-			},
-		];
-		let step = 0;
-		const turns: AiTurn[] = [{ role: 'user', text: 'Build a 3-storey RC frame, 2x1 bays, in this folder and design it.' }];
-		const added = await runAssistant(turns, {
-			send: async conversation => {
-				const last = conversation.at(-1);
-				const results = last?.role === 'tools' ? last.results : [];
-				seen.push([...results]);
-				return script[step++](results);
-			},
-			runTool: call => run(call),
-			onEvent: () => { },
-		}, CancellationToken.None);
+		// The model's tool calls, each after reading the answer of the one before.
+		const catalogue = await run({ id: '1', name: 'list_actions', args: {} });
+		const described = await run({ id: '2', name: 'describe_action', args: { name: 'storeys.set' } });
+		await run({ id: '3', name: 'run_actions', args: { title: 'Create the project', steps: [{ action: 'project.create', params: { name: 'Plot 12' } }] } });
+		// A storey of 30 m: the guardrail refuses it and nothing changes.
+		const refused = await run({ id: '4', name: 'run_actions', args: { title: 'The building', steps: model([3200, 30000, 3000]) } });
+		assert.ok(refused.isError && refused.text.includes('heights[1] = 30000: a storey height is between 2000 and 6000 mm'), refused.text);
+		await run({ id: '5', name: 'run_actions', args: { title: 'The building', steps: model([3200, 3000, 3000]) } });
+		await run({ id: '6', name: 'run_actions', args: { title: 'Run All', steps: [{ action: 'run.all' }] } });
+		const summary = JSON.parse((await run({ id: '7', name: 'run_actions', args: { steps: [{ action: 'results.summary' }] } })).text);
+		assert.deepStrictEqual([summary.results[0].data.checked, summary.results[0].data.failed, summary.results[0].data.governing], [13, 1, 'B3']);
 
-		assert.strictEqual(step, script.length);
-		const final = added.at(-1);
-		assert.ok(final?.role === 'assistant' && final.text === 'Run All checked 13 members; 1 fails (B3). Please check the results.', JSON.stringify(final));
 		// The catalogue and the description reached the model.
-		assert.ok(seen[1][0].text.includes('"storeys.set"') && seen[2][0].text.includes('"heights"'));
+		assert.ok(catalogue.text.includes('"storeys.set"') && described.text.includes('"heights"'));
 		// The engineer agreed to creating the project and to Run All, and reviewed one change set (the refused batch never reached them).
 		assert.deepStrictEqual(engineer.confirmed, [['project.create'], ['run.all']]);
 		assert.strictEqual(engineer.reviewed.length, 1);
