@@ -21,7 +21,7 @@ import importlib
 from typing import TYPE_CHECKING, Any
 
 #: The version of this API (not of SAEngine): ``saengine.api.API_VERSION``.
-API_VERSION = "1.0.0"
+API_VERSION = "1.1.0"
 
 #: name -> (module, attribute): the versioned API, imported when first used.
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -49,6 +49,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # buildings
     "BuildingSpec": ("saengine.library.generator", "BuildingSpec"),
     "generate_building": ("saengine.library.generator", "generate_building"),
+    # shared editing actions (1.1.0): the catalogue and a batch of actions on a project
+    "list_actions": ("saengine.actions", "list_actions"),
+    "run_actions": ("saengine.actions", "run_actions"),
     # project archives (.civil)
     "export_project": ("saengine.project.archive", "export_project"),
     "import_project": ("saengine.project.archive", "import_project"),
@@ -57,6 +60,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 }
 
 if TYPE_CHECKING:  # the names as the lazy __getattr__ gives them, for type checkers
+    from saengine.actions import list_actions, run_actions
     from saengine.codes.catalogue import building_templates, structure_presets
     from saengine.codes.coded import coded_geometry
     from saengine.codes.contents import CodedTemplate
@@ -98,10 +102,12 @@ __all__ = [
     "insert_geometry",
     "inspect_archive",
     "install_package",
+    "list_actions",
     "list_packages",
     "load_package",
     "package_info",
     "remove_package",
+    "run_actions",
     "shape_geometry",
     "structure_presets",
     "template_problems",

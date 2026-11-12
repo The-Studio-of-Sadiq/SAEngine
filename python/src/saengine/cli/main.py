@@ -17,6 +17,8 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine verify [--out DIR] [--pdf] [--fast] [--cases ID ...]
     saengine codepack list|show <id>|new <id> --extends ID --dest DIR|validate <dir>|diff <a> <b>
     saengine package ...  (the same as codepack; --kind for templates)
+    saengine action list|describe <name>|run <name> --params JSON|batch <steps.json>
+                    [--project DIR] [--dry-run]
 
 Results go to stdout (text, or one JSON document with ``--json``), progress to stderr.
 
@@ -35,6 +37,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from saengine.cli.action import cmd_action
+from saengine.cli.action import register as register_action
 from saengine.cli.codepack import cmd_codepack
 from saengine.cli.codepack import register as register_codepack
 
@@ -810,6 +814,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("server_args", nargs=argparse.REMAINDER)
 
     register_codepack(commands, common)
+    register_action(commands, common)
     return parser
 
 
@@ -830,6 +835,7 @@ HANDLERS = {
     "verify": cmd_verify,
     "codepack": cmd_codepack,
     "office-server": cmd_office_server,
+    "action": cmd_action,
 }
 
 
@@ -855,7 +861,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     out = Output(getattr(args, "json", False), getattr(args, "quiet", False))
     command = (
         f"{args.command} {args.action}"
-        if args.command in ("versions", "codepack")
+        if args.command in ("versions", "codepack", "action")
         else args.command
     )
     try:
@@ -889,7 +895,7 @@ def _guess_command(words: Sequence[str]) -> str:
     names = [w for w in words if not w.startswith("-")]
     if not names or names[0] not in HANDLERS:
         return ""
-    if names[0] == "versions" and len(names) > 1:
+    if names[0] in ("versions", "action") and len(names) > 1:
         return f"versions {names[1]}"
     return names[0]
 
