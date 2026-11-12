@@ -37,6 +37,16 @@ function waitFor(condition: () => boolean, timeout = 5000): Promise<void> {
 suite('SAEngine live co-editing', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// Yjs and its protocols load only under Node (the main process, and the node test run in CI);
+	// the Electron renderer test run cannot resolve npm packages, so the suite is skipped there.
+	suiteSetup(async function () {
+		try {
+			await loadCoEditingLibs();
+		} catch {
+			this.skip();
+		}
+	});
+
 	test('two engineers editing different members and fields both keep their edits', async () => {
 		const { Y } = await loadCoEditingLibs();
 		const docs = jsonDocs(Y);
