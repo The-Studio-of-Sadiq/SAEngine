@@ -2383,6 +2383,35 @@ def share_heartbeat(
     )
 
 
+# ──────────────────────────────────── shared editing actions ────────────────────────────────────
+
+
+def actions_list(kind: str | None = None) -> list[dict[str, Any]]:
+    """The catalogue of shared editing actions (``saengine.actions.list_actions``): each with
+    ``name, summary, kind, parts, params_schema, example``."""
+    from saengine.actions import list_actions
+
+    return [a.model_dump(mode="json") for a in list_actions(kind)]
+
+
+def actions_run(
+    project_root: str,
+    steps: list[dict[str, Any]],
+    overrides: dict[str, str] | None = None,
+    write: bool = False,
+    stop_on_error: bool = True,
+) -> dict[str, Any]:
+    """Runs a batch of actions on the project (``saengine.actions.run_actions``): ``{ok,
+    results, changes, failed_step, written, version}``; all or nothing, ``changes`` the changed
+    part files' texts by path. ``overrides``: the editors' unsaved texts by path."""
+    from saengine.actions import run_actions
+
+    result = run_actions(
+        project_root, steps, overrides=overrides, write=write, stop_on_error=stop_on_error
+    )
+    return result.model_dump(mode="json")
+
+
 # ─────────────────────────────────────── design mode ───────────────────────────────────────
 
 

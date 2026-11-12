@@ -41,6 +41,37 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-12: shared editing actions (actions round, track A)
+
+Owner, 2026-11-12: "make it so that the AI can actually do entire projects from scratch". The
+catalogue is [actions.md](actions.md); these are the choices made building it.
+
+- **Only what an action made worse refuses it.** After each step the changed parts are checked by
+  their models and the input guardrails (the editors' check). A problem the file had before the
+  step is not the step's: it is neither a refusal nor repeated. So an engineer's half-finished
+  project can still be edited by the assistant.
+- **A setting not entered yet is a warning, a wrong one an error.** Switching to a pack whose
+  hazard comes from mapped spectral values, or to a custom location, leaves SDS, SD1 or V to
+  enter: the settings are incomplete, not wrong, and the next action (settings.site) gives them.
+  A value that is entered and outside the pack's range or below its minimum is refused.
+- **A run step is a commit point.** Run All, Design Reinforcement, Size Footings and the exports
+  work on the saved files. With write, the edits before a run step are written first and stay
+  written if a later step is refused (the batch says which files); without write a run step
+  after unsaved edits is refused, since it would not see them.
+- **Run All does not refuse the batch when a step fails** (the design of types without bars, a
+  failing check): its steps' messages come back as warnings, as the app's Run All reports them,
+  so a batch can go on to Design Reinforcement. `strict: true` makes a failed step a refusal.
+- **Design Reinforcement stays an explicit action.** Run All never writes bars (2026-10-27);
+  `design.reinforcement.apply` is the only action that applies the proposal.
+- **Typical floors.** Placing members on a storey of a typical family places them on the whole
+  family, as the floor plan editor does; a member load given by storeys goes on one storey of
+  each family, since a load on a typical floor applies to its family.
+- **Ids** as the floor plan editor makes them: the letter and the lowest free number (C1, B1,
+  W1, S1, F1), LL1 and PL1 for member loads, BH-1 for boreholes, AL1 for new area loads.
+- **Fixed in passing:** `saengine status` called the building model stale when it recorded the
+  floor plan's stamp without the view-only keys (as the app and Run All record it); it now
+  compares the floor plan as the app's part list does.
+
 ## 2026-11-09: any-code readiness (alpha 9 track C26)
 
 Owner, 2026-11-04: "make sure our software works at ease with any country code".

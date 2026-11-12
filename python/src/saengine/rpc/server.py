@@ -1537,6 +1537,24 @@ def create_server() -> JsonRPCServer:
             args["projectRoot"], args["version"], args["label"], args.get("author")
         )
 
+    # The shared editing actions (saengine.actions): a batch runs under the project's versions
+    # lock, so it never interleaves with a save, a restore or another batch on the project.
+    @server.feature("actions/list")
+    def _actions_list(params: Any) -> list[dict[str, Any]]:
+        args = _plain(params) or {}
+        return handlers.actions_list(args.get("kind"))
+
+    @server.feature("actions/run")
+    @_versions_worker
+    def _actions_run(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.actions_run(
+            args["projectRoot"],
+            args.get("steps") or [],
+            args.get("overrides"),
+            bool(args.get("write")),
+            args.get("stopOnError") is not False,
+        )
+
     # Shared projects (saengine.project.share): under the project's versions lock, since a
     # sync saves and merges versions.
     @server.feature("share/status")
