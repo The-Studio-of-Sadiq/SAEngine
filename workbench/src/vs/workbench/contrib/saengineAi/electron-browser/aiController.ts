@@ -24,7 +24,8 @@ import { ISaengineAiClientEvent, ISaengineAiServerInfo, ISaengineAiStartOptions,
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
-import { AI_TOOLS, ALLOW_CONTROL_SETTING, PORT_SETTING, toMcpTool, visibleTools } from '../common/aiTools.js';
+import { BUILD_PLAYBOOK } from '../common/aiAssistant.js';
+import { AI_TOOLS, ALLOW_CONTROL_SETTING, PORT_SETTING, sendsProjectData, toMcpTool, visibleTools } from '../common/aiTools.js';
 import { IAiDataDestination, ISaengineAiDataConsentService } from '../browser/aiDataConsent.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { AiToolRunner } from './aiToolRunner.js';
@@ -144,7 +145,7 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 		}
 		// U2: nothing of the project goes to a connected assistant (and its model provider)
 		// before the engineer allows it for this project.
-		if (sendsProjectData(name) && this.projectService.project && !await this.dataConsent.ensure(this.mcpDestination())) {
+		if (sendsProjectData(AI_TOOLS.find(t => t.name === name)) && this.projectService.project && !await this.dataConsent.ensure(this.mcpDestination())) {
 			this.log(localize('activity.notAllowed', "{0} refused: sending this project's data to AI assistants is not allowed.", name));
 			return { content: [{ type: 'text', text: 'The engineer has not allowed sending this project\'s data to AI assistants (SAEngine: AI Data Sharing for This Project). Ask them to allow it.' }], isError: true };
 		}
@@ -342,7 +343,8 @@ const INSTRUCTIONS = [
 	'Start with get_project to see the project and the status of each part. Use show_message to tell the engineer what you are about to do; they are watching the window.',
 	'Commands run exactly as from the menus (run_command, see list_commands). Edits to the model are off unless the engineer allows them; edits are undoable and stay unsaved until the engineer saves.',
 	'Every call is listed in the window\'s "AI Activity" output. Never claim a design is adequate without the design results (read_results "design").',
-	'Design code questions: answer only from search_code passages and cite their clauses; if it finds nothing, say the code pack does not cover it. Explain failing members with explain_results. Propose model changes with propose_changes (the engineer previews and accepts them) and new buildings with propose_building.',
+	'Design code questions: answer only from search_code passages and cite their clauses; if it finds nothing, say the code pack does not cover it. Explain failing members with explain_results. Change the model with the actions (list_actions, describe_action, run_actions): each edit batch is one change set the engineer accepts or rejects; a failed batch changes nothing and names the refused values, so correct them and send it again. Run steps (run.all, exports) and project.create run after the engineer agrees. The engineer checks every result.',
+	BUILD_PLAYBOOK,
 ].join(' ');
 
 function textOf(result: MCP.CallToolResult): string {
@@ -352,13 +354,4 @@ function textOf(result: MCP.CallToolResult): string {
 
 function shorten(text: string, length = 300): string {
 	return text.length > length ? `${text.slice(0, length)}…` : text;
-}
-
-/**
- * Whether a tool's result carries project data to the assistant: what it reads of the project,
- * the open document or the results (its `assistant` scope), and screenshots of the window.
- */
-function sendsProjectData(name: string): boolean {
-	const tool = AI_TOOLS.find(t => t.name === name);
-	return name === 'screenshot' || tool?.assistant === 'project' || tool?.assistant === 'document' || tool?.assistant === 'results';
 }

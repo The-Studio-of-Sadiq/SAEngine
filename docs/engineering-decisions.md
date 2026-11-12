@@ -41,6 +41,100 @@ here, newest first, with the date, the question, the decision, the reason and wh
 - **No unlicensed software.** ETABS, SAP2000 and STAAD are not used for cross-checks or cited.
   Open-source tools are used instead (2026-10-25).
 
+## 2026-11-12: the assistant in the title-bar chat (AI round, track C)
+
+Owner, 2026-11-11/12: one chat, not two; Copilot sign-in and bring-your-own-key; consent before
+any project data goes to a provider. See [ai-assistants.md](ai-assistants.md#the-assistant-in-the-chat).
+
+- **The AI Assistant view is retired.** SAEngine's assistant is the **SAEngine** agent (mode) of
+  the chat beside Sign In, the default for new chats while a project is open. Its instructions
+  are the playbook SAEngine keeps in code (the same as for MCP clients) and it offers only the
+  **saengine** tool set: no terminal, no direct file edits, no web. The MCP server stays.
+- **One set of tools, two doors.** The chat's tools are the MCP server's tools (one runner);
+  the chat gets the read, explain, screenshot and action tools, not run_command or the
+  edits-switch tools.
+- **Change sets and run steps are SAEngine's own cards in the chat** (Accept / Reject, Save and
+  Run / Cancel), not the chat's tool approval, so the chat's "always allow" and auto-approve
+  settings cannot skip them. An MCP client's change sets are reviewed in a dialog.
+- **Consent covers the whole chat.** With a project open, the first request to a provider in any
+  chat mode asks first (per project and provider, kept in the user's settings), and tools that
+  read project data check it again. The status bar shows where the project's data may go. In
+  SAEngine the chat does not attach the open part by itself and does not save unsaved parts on
+  send.
+- **Providers are the chat's.** Copilot after Sign In, or the engineer's own key through Manage
+  Language Models (Anthropic recommended; an OpenAI-compatible endpoint as a Custom Endpoint).
+  SAEngine no longer sends requests itself (its HTTP relay is removed). The old
+  saengine.ai.assistant.* settings and keys move once into the chat's providers.
+- **The assistant needs the AI component** (the bundled Copilot Chat extension): it runs the
+  chat and the model providers, also for a key of the engineer's own.
+- **Open point, narrowed (track D):** the chat's own Agent mode can still use its file-editing
+  tools on the project's JSON (bypassing change sets); it is not the default in a project. Its
+  edits to a project's part files (`01 Soil Report` to `10 BOQ`, the `.saengine` manifest) now
+  always ask the engineer first (`chat.tools.edits.autoApprove`, always-checked patterns); a hard
+  refusal would need the Copilot extension's own tools changed.
+
+## 2026-11-12: a whole project done reliably (AI round, track D)
+
+The assistant's typical mistakes (lengths in metres instead of mm, loads in N or psf, a 30 m
+"storey", a shallow beam over a long span, a system taller than the code allows) are refused
+where every value is checked: the input guardrails (`python/src/saengine/library/data/guardrails.json`),
+the same rules for the editors, `saengine validate`, imports and the actions. Each refusal names
+the allowed range.
+
+| Rule | Block (refused) | Warn | Source |
+| --- | --- | --- | --- |
+| Storey height | below 1 m or above **20 m** (was 30 m) | outside 2.2–**6 m** (was 8 m) | SAEngine practice (a taller hall is modelled with its intermediate levels; the parameter studies already used 1–20 m) |
+| Grid spacing | below 100 mm or above **60 m** (was 100 m) | outside 1–**12 m** (was 15 m) | SAEngine practice (about the longest roof span) |
+| Beam span / overall depth (rectangular types) | above **35**, with the depth that would pass | above 21 | SAEngine practice; for background only, the least depths of BNBC 2020 Part 6 Table 6.6.1 / ACI 318-19 Table 9.3.1.1 (l/16 to l/21) apply when deflections are not computed, and SAEngine computes them |
+| Slab short span / thickness | above **60**, with the thickness that would pass | above 40 | SAEngine practice (two-way slabs are usually ln/33 to ln/36) |
+| Area live load | above 50 kN/m² | above 15 kN/m² | SAEngine practice (a unit slip: N/m², kg/m², psf); the code's *least* live load per use stays the settings' own check (BNBC 2020 Part 6 Table 6.2.3) |
+| Finish and partition allowance | above 50 kN/m² | above 6 kN/m² | SAEngine practice |
+| Line or point load on a member | above 10 000 kN/m or kN | above 500 | SAEngine practice (N instead of kN) |
+| Building height against its structural system | above the system's height limit in the site's Seismic Design Category | - | **Code value** from the code pack's systems table (default pack: BNBC 2020 Part 6 Table 6.2.19, pp. 621–624), checked on the floor plan with the project settings; the message says how many storeys of the typical height fit |
+
+- **Cancel.** A batch can be stopped (`actions/cancel`; the app's Cancel on the run progress and
+  the chat's Stop): the engine stops before the next step, and a Run All at its next step
+  boundary (the steps not run are "not run"). It answers what was done; files a run step wrote
+  stay written, unwritten edits are dropped. An export in progress finishes first.
+- **All or nothing per segment.** The edits before a run step are written first (the run works
+  on the saved files) and stay written when a later step fails or the batch is stopped. Each
+  run step's result names the files it saved first (`written`); the failed step says which
+  files were kept. The assistant still sends edits and runs as separate batches.
+- **`writes` decides, not the name.** An action that writes files itself (`run` actions and
+  `project.create`) says so in the catalogue; the app saves before it, asks the engineer and
+  reads the files again after it.
+
+## 2026-11-12: shared editing actions (actions round, track A)
+
+Owner, 2026-11-12: "make it so that the AI can actually do entire projects from scratch". The
+catalogue is [actions.md](actions.md); these are the choices made building it.
+
+- **Only what an action made worse refuses it.** After each step the changed parts are checked by
+  their models and the input guardrails (the editors' check). A problem the file had before the
+  step is not the step's: it is neither a refusal nor repeated. So an engineer's half-finished
+  project can still be edited by the assistant.
+- **A setting not entered yet is a warning, a wrong one an error.** Switching to a pack whose
+  hazard comes from mapped spectral values, or to a custom location, leaves SDS, SD1 or V to
+  enter: the settings are incomplete, not wrong, and the next action (settings.site) gives them.
+  A value that is entered and outside the pack's range or below its minimum is refused.
+- **A run step is a commit point.** Run All, Design Reinforcement, Size Footings and the exports
+  work on the saved files. With write, the edits before a run step are written first and stay
+  written if a later step is refused (the batch says which files); without write a run step
+  after unsaved edits is refused, since it would not see them.
+- **Run All does not refuse the batch when a step fails** (the design of types without bars, a
+  failing check): its steps' messages come back as warnings, as the app's Run All reports them,
+  so a batch can go on to Design Reinforcement. `strict: true` makes a failed step a refusal.
+- **Design Reinforcement stays an explicit action.** Run All never writes bars (2026-10-27);
+  `design.reinforcement.apply` is the only action that applies the proposal.
+- **Typical floors.** Placing members on a storey of a typical family places them on the whole
+  family, as the floor plan editor does; a member load given by storeys goes on one storey of
+  each family, since a load on a typical floor applies to its family.
+- **Ids** as the floor plan editor makes them: the letter and the lowest free number (C1, B1,
+  W1, S1, F1), LL1 and PL1 for member loads, BH-1 for boreholes, AL1 for new area loads.
+- **Fixed in passing:** `saengine status` called the building model stale when it recorded the
+  floor plan's stamp without the view-only keys (as the app and Run All record it); it now
+  compares the floor plan as the app's part list does.
+
 ## 2026-11-09: any-code readiness (alpha 9 track C26)
 
 Owner, 2026-11-04: "make sure our software works at ease with any country code".
@@ -2525,3 +2619,9 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   last edit wins per field. The relay is SAEngine's own (y-websocket protocol on `ws`), hosted by
   any engineer's SAEngine on the office network or an office server; no outside service.
   @y/websocket-server was not used: it needs a pre-release Yjs 14.
+- **A new project's default concrete (2026-11-12, #308).** The starting material library names
+  its concrete: the first grade that meets both of the code pack's least f'c, for structural
+  concrete and for members resisting earthquake forces (the default pack: 17 and 21 MPa, so
+  C24.1, the grade the starting section types already use). A new project does not know its
+  seismic system yet, so it starts on the safe side. Before, the first grade in the list (C20.7)
+  was used and a fresh project failed the seismic minimum.

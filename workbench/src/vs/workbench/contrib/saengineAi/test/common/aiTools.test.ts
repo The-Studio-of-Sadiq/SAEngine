@@ -34,7 +34,7 @@ suite('SAEngine - AI tools', () => {
 	test('edit tools are offered only while edits are allowed', () => {
 		const edits = AI_TOOLS.filter(t => t.edits).map(t => t.name);
 		// Alpha 9 L12: the drawing automation changes the drawing sheets.
-		assert.deepStrictEqual(edits, ['set_json_value', 'annotate_drawings']);
+		assert.deepStrictEqual(edits, ['annotate_drawings']);
 		assert.ok(visibleTools(false).every(t => !t.edits));
 		assert.deepStrictEqual(visibleTools(true).length, AI_TOOLS.length);
 	});
@@ -71,8 +71,8 @@ suite('SAEngine - AI tools', () => {
 			range: validateArguments(tool('read_active_document'), { maxChars: 5 }),
 			integer: validateArguments(tool('read_active_document'), { maxChars: 1500.5 }),
 			long: validateArguments(tool('show_message'), { message: 'x'.repeat(501) }),
-			path: validateArguments(tool('set_json_value'), { file: 'a.json', path: ['stories', 0, true], value: 1 }),
-			anyValue: validateArguments(tool('set_json_value'), { file: 'a.json', path: ['a'], value: { nested: [null] } }),
+			steps: validateArguments(tool('run_actions'), { steps: [{ action: 'grid.set', params: {} }, 'storeys.set'] }),
+			anyParams: validateArguments(tool('run_actions'), { title: 'Grid', steps: [{ action: 'grid.set', params: { x: [6000, null] } }] }),
 		}, {
 			ok: [],
 			missing: ['missing "part"'],
@@ -82,8 +82,8 @@ suite('SAEngine - AI tools', () => {
 			range: ['"maxChars" must be between 1000 and 2000000'],
 			integer: ['"maxChars" must be integer'],
 			long: ['"message" is longer than 500 characters'],
-			path: ['"path[2]" must be string or integer'],
-			anyValue: [],
+			steps: ['"steps[1]" must be object'],
+			anyParams: [],
 		});
 	});
 

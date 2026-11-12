@@ -10,6 +10,17 @@ import { BIM_SCHEMA, DEFAULT_BIM, DEFAULT_FLOOR_PLAN, DEFAULT_MATERIALS, DEFAULT
 import { localize } from '../../../../nls.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
+/** Characters Windows does not allow in a folder name (the strictest platform). */
+export const INVALID_FOLDER_NAME = /[\\/:*?"<>|]/;
+
+/** The folder a project named `name` is created in: the name with "-" for what a folder name cannot hold (N8). */
+export function projectFolderName(name: string): string {
+	return name.trim().replace(new RegExp(INVALID_FOLDER_NAME.source, 'g'), '-').replace(/[. ]+$/, '');
+}
+
+/** Where new projects go by default, under the user's home folder: Documents/SAEngine Projects. */
+export const DEFAULT_PROJECTS_FOLDER: readonly string[] = ['Documents', 'SAEngine Projects'];
+
 export const PROJECT_MANIFEST_EXTENSION = '.saengine';
 export const PROJECT_MANIFEST_SCHEMA = 1;
 
@@ -177,4 +188,7 @@ export interface ISaengineProjectService {
 	 * other one stays on disk with its files (no longer a core item).
 	 */
 	setProjectType(type: ProjectType): Promise<void>;
+
+	/** Looks for the project at the open folder again (after something created it there). */
+	refresh(): Promise<void>;
 }

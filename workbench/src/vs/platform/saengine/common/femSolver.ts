@@ -838,7 +838,12 @@ export type ProjectPlatformMethod =
 	| 'components/list'
 	// The AI assistant's code Q&A (`saengine.ai.knowledge`): `ai/searchCode` `{query, projectRoot?, limit?, docs?}`
 	// -> `{pack, query, found, passages: [{id, kind, title, text, citations, score}], note}`.
-	| 'ai/searchCode';
+	| 'ai/searchCode'
+	// The shared editing actions (`saengine.actions`, docs/actions.md): `actions/list` `{kind?}` -> ActionInfo[]
+	// (`name, summary, kind, writes, parts, params_schema`); `actions/run` `{projectRoot, steps: [{action, params}],
+	// overrides?: {path: text}, write?}` -> `{ok, results, changes: {path: text}, failed_step, written, cancelled}` (all or nothing
+	// per segment); `actions/cancel` `{}` -> `{cancelled}` stops the batches in progress before their next step.
+	| 'actions/list' | 'actions/run' | 'actions/cancel';
 
 export interface ICadOpenRequest {
 	/** Absolute path of the `.dxf` file. */

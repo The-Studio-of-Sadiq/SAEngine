@@ -139,6 +139,80 @@ export function valueAt(text: string, path: JSONPath): { readonly found: boolean
 	return node ? { found: true, value: getNodeValue(node) } : { found: false, value: undefined };
 }
 
+/**
+ * The changes that turn the document `before` into `after` (both parsed JSON), as paths: changed
+ * values, added and removed properties, array items changed in place, added at the end or removed
+ * from the end. An array that changed in more than half its items (or in its middle) is one
+ * change. Applied in order with {@link planFile} on `before`'s text they give `after`'s values,
+ * so a change set worked out by the engine on whole texts can be previewed value by value, and
+ * planned again on a document the engineer edited meanwhile.
+ */
+export function diffJson(file: string, before: unknown, after: unknown, path: (string | number)[] = []): IAiChange[] {
+	if (equalJson(before, after)) {
+		return [];
+	}
+	if (path.length === 0 && !(isObject(before) && isObject(after))) {
+		throw new Error(`${file}: the document is not a JSON object`);
+	}
+	if (isObject(before) && isObject(after)) {
+		const changes: IAiChange[] = [];
+		for (const [key, value] of Object.entries(after)) {
+			if (Object.prototype.hasOwnProperty.call(before, key)) {
+				changes.push(...diffJson(file, before[key], value, [...path, key]));
+			} else {
+				changes.push({ file, path: [...path, key], value });
+			}
+		}
+		for (const key of Object.keys(before)) {
+			if (!Object.prototype.hasOwnProperty.call(after, key)) {
+				changes.push({ file, path: [...path, key], remove: true });
+			}
+		}
+		return changes;
+	}
+	if (Array.isArray(before) && Array.isArray(after) && path.length > 0) {
+		const common = Math.min(before.length, after.length);
+		let changedInPlace = 0;
+		for (let i = 0; i < common; i++) {
+			if (!equalJson(before[i], after[i])) {
+				changedInPlace++;
+			}
+		}
+		if (changedInPlace <= Math.max(1, common / 2)) {
+			const changes: IAiChange[] = [];
+			for (let i = 0; i < common; i++) {
+				changes.push(...diffJson(file, before[i], after[i], [...path, i]));
+			}
+			for (let i = common; i < after.length; i++) {
+				changes.push({ file, path: [...path, i], value: after[i] });
+			}
+			for (let i = before.length - 1; i >= after.length; i--) {
+				changes.push({ file, path: [...path, i], remove: true });
+			}
+			return changes;
+		}
+	}
+	return [{ file, path, value: after }];
+}
+
+function isObject(value: unknown): value is { [key: string]: unknown } {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function equalJson(a: unknown, b: unknown): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (Array.isArray(a) && Array.isArray(b)) {
+		return a.length === b.length && a.every((item, i) => equalJson(item, b[i]));
+	}
+	if (isObject(a) && isObject(b)) {
+		const keys = Object.keys(a);
+		return keys.length === Object.keys(b).length && keys.every(key => Object.prototype.hasOwnProperty.call(b, key) && equalJson(a[key], b[key]));
+	}
+	return false;
+}
+
 /** The changes grouped by file, in the order the files first appear. */
 export function changesByFile(changes: readonly IAiChange[]): Map<string, IAiChange[]> {
 	const byFile = new Map<string, IAiChange[]>();
@@ -163,4 +237,40 @@ export function previewValue(value: unknown, found = true, length = 120): string
 /** A path for the preview: `stories[0].height`. */
 export function previewPath(path: JSONPath): string {
 	return path.map((segment, index) => typeof segment === 'number' ? `[${segment}]` : index === 0 ? segment : `.${segment}`).join('');
+}
+
+/** Most values a change set's preview lists: a whole building is thousands. */
+export const MAX_PREVIEW_ROWS = 60;
+
+/** One value of a change set as the engineer previews it. */
+export interface IPreviewRow {
+	readonly file: string;
+	readonly value: string;
+	/** The value before ("—" when it is added). */
+	readonly before: string;
+	/** The value after; undefined when it is removed. */
+	readonly after: string | undefined;
+	readonly reason?: string;
+	readonly noop: boolean;
+}
+
+/** The first `max` values of the files' changes, and how many more there are. */
+export function previewRows(files: readonly IPlannedFile[], max = MAX_PREVIEW_ROWS): { readonly rows: readonly IPreviewRow[]; readonly more: number } {
+	const rows: IPreviewRow[] = [];
+	let total = 0;
+	for (const file of files) {
+		for (const planned of file.changes) {
+			if (total++ < max) {
+				rows.push({
+					file: file.file,
+					value: previewPath(planned.change.path),
+					before: previewValue(planned.before, planned.existed),
+					after: planned.change.remove ? undefined : previewValue(planned.after),
+					reason: planned.change.reason,
+					noop: planned.noop,
+				});
+			}
+		}
+	}
+	return { rows, more: Math.max(0, total - max) };
 }

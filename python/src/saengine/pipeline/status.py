@@ -718,6 +718,19 @@ def _upstream_part(part: str, parts: tuple[Part, ...]) -> str | None:
     return next((p for p in ("floorPlan", "structure") if p in ids), None)
 
 
+def _upstream_current(part: str, recorded: str, text: str | None) -> bool:
+    """``upstreamCurrent`` of partSources.ts: the floor plan by its stamp without the view-only
+    keys (:func:`saengine.library.bim.floor_plan_current`), as the building model records it;
+    the structural model by its whole text."""
+    if text is None:
+        return False
+    if part == "floorPlan":
+        from saengine.library.bim import floor_plan_current
+
+        return floor_plan_current(recorded, text)
+    return recorded == source_stamp(text)
+
+
 def bim_status(parts: tuple[Part, ...], inputs: StatusInputs) -> PartStatus:
     text = inputs.texts.get("bim")
     document = _parse(text) if text is not None else None
@@ -727,7 +740,7 @@ def bim_status(parts: tuple[Part, ...], inputs: StatusInputs) -> PartStatus:
     recorded = recorded_stamp(document, upstream) if document and upstream else None
     if not document or not recorded:
         return _status("bim", "notStarted", "not built", "build the building model")
-    if upstream and _changed(inputs.texts, upstream, recorded):
+    if upstream and not _upstream_current(upstream, recorded, inputs.texts.get(upstream)):
         return _status("bim", "stale", STALE, "build the building model again")
     # N-B1: built from an empty plan, there is nothing to analyse yet.
     if not _length(document.get("elements")):
@@ -966,7 +979,12 @@ def holds_defaults(document: dict[str, Any], part: str) -> bool:
     from saengine.library.settings import default_project_settings
 
     if part == "materials":
-        return _canonical(document) == _canonical(library_json(default_material_library()))
+        expected = library_json(default_material_library())
+        # Projects started before the starting library named its concrete (#308) have no
+        # ``defaults``: nobody chose one, so they still hold the defaults.
+        if "defaults" not in document:
+            expected = {k: v for k, v in expected.items() if k != "defaults"}
+        return _canonical(document) == _canonical(expected)
     defaults = library_json(default_project_settings())
     document = {k: v for k, v in document.items() if k != "codes"}
     expected = {

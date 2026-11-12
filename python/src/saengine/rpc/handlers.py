@@ -212,7 +212,9 @@ def result_view(out_dir: str, project_path: str, key: str, mode: int | None) -> 
     return view(out_dir, project_path, key, mode)
 
 
-def check_library(kind: str, text: str, materials_text: str | None = None) -> dict[str, Any]:
+def check_library(
+    kind: str, text: str, materials_text: str | None = None, settings_text: str | None = None
+) -> dict[str, Any]:
     from saengine.library.check import check_library as check
 
     if kind not in (
@@ -228,7 +230,7 @@ def check_library(kind: str, text: str, materials_text: str | None = None) -> di
         "carbon",
     ):
         raise ValueError(f"unknown library kind: {kind}")
-    return {"problems": check(kind, text, materials_text)}  # type: ignore[arg-type]
+    return {"problems": check(kind, text, materials_text, settings_text)}  # type: ignore[arg-type]
 
 
 def library_limits(kind: str | None = None) -> dict[str, Any]:
@@ -2381,6 +2383,38 @@ def share_heartbeat(
     return _versions_call(
         lambda: share.heartbeat(project_root, user=user, part=part, leaving=leaving)
     )
+
+
+# ──────────────────────────────────── shared editing actions ────────────────────────────────────
+
+
+def actions_list(kind: str | None = None) -> list[dict[str, Any]]:
+    """The catalogue of shared editing actions (``saengine.actions.list_actions``): each with
+    ``name, summary, kind, writes, parts, params_schema, example``."""
+    from saengine.actions import list_actions
+
+    return [a.model_dump(mode="json") for a in list_actions(kind)]
+
+
+def actions_run(
+    project_root: str,
+    steps: list[dict[str, Any]],
+    overrides: dict[str, str] | None = None,
+    write: bool = False,
+    stop_on_error: bool = True,
+) -> dict[str, Any]:
+    """Runs a batch of actions on the project (``saengine.actions.run_actions``): ``{ok,
+    results, changes, failed_step, written, cancelled, version}``; all or nothing per segment
+    (the edits before a run step are written first and stay written: ``written``), ``changes``
+    the changed part files' texts by path. ``overrides``: the editors' unsaved texts by path.
+    A cancelled request (``actions/cancel``) stops before the next step and answers what was
+    done."""
+    from saengine.actions import run_actions
+
+    result = run_actions(
+        project_root, steps, overrides=overrides, write=write, stop_on_error=stop_on_error
+    )
+    return result.model_dump(mode="json")
 
 
 # ─────────────────────────────────────── design mode ───────────────────────────────────────

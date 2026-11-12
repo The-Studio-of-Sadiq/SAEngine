@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { JSONPath } from '../../../../base/common/json.js';
-import { applyEdits, removeProperty, setProperty } from '../../../../base/common/jsonEdit.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -29,13 +27,13 @@ import { generateArgs } from '../../saengineProject/browser/drawingsModel.js';
 import { openPart, partName } from '../../saengineProject/browser/projectParts.js';
 import { AI_TOOLS, ALLOWED_COMMANDS, checkCommand, IAiTool, ResultKind, safeRelativePath, validateArguments } from '../common/aiTools.js';
 import { readProposal } from '../common/aiChangeSet.js';
-import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService, refusedValues } from '../browser/aiChangeSets.js';
-import { ASSISTANT_VIEW_ID } from '../common/aiAssistant.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChangeSetSource, IAiChangeSet, ISaengineAiChangeSetService } from '../browser/aiChangeSets.js';
+import { AiActionTools, ACTIONS_DECISION_WAIT, IAiReview } from '../browser/aiActionTools.js';
+import { AiDialogReview } from '../browser/aiDialogReview.js';
+import { ActionKind } from '../../../services/saengineProject/common/saengineActions.js';
 import { IFemSolverService } from '../../../../platform/saengine/common/femSolver.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
-import { NEW_BUILDING_COMMAND } from '../../saengineProject/browser/newBuildingModel.js';
 
 /** How long run_command waits for a command before reporting it as still running [ms]. */
 const COMMAND_WAIT = 3000;
@@ -76,13 +74,22 @@ export class AiToolRunner {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISaengineModelSelectionService private readonly selectionService: ISaengineModelSelectionService,
 		@ISaengineAiChangeSetService private readonly changeSetService: ISaengineAiChangeSetService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@IFemSolverService private readonly femSolverService: IFemSolverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) { }
+	) {
+		this.dialogReview = instantiationService.createInstance(AiDialogReview);
+		this.actionTools = instantiationService.createInstance(AiActionTools, this.dialogReview, ACTIONS_DECISION_WAIT);
+	}
 
-	/** `source`: who calls, for the change sets' preview (an MCP client or the built-in assistant). */
-	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp'): Promise<MCP.CallToolResult> {
+	/** The review of MCP clients' requests (dialogs); the chat brings its own (aiChatReview). */
+	private readonly dialogReview: IAiReview;
+	private readonly actionTools: AiActionTools;
+
+	/**
+	 * `source`: who calls, for the change sets' preview (an MCP client or the chat's assistant);
+	 * `review`: where the engineer reviews change sets and run steps (default: dialogs).
+	 */
+	async call(name: string, args: Record<string, unknown>, source: ChangeSetSource = 'mcp', review: IAiReview = this.dialogReview, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
 		const tool = AI_TOOLS.find(t => t.name === name);
 		if (!tool) {
 			return errorResult(`Unknown tool "${name}".`);
@@ -95,13 +102,13 @@ export class AiToolRunner {
 			return errorResult(`Invalid arguments: ${problems.join('; ')}.`);
 		}
 		try {
-			return await this.run(tool, args, source);
+			return await this.run(tool, args, source, review, token);
 		} catch (error) {
 			return errorResult(error instanceof ToolError ? error.message : `Failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	private run(tool: IAiTool, args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview, token: CancellationToken): Promise<MCP.CallToolResult> {
 		switch (tool.name) {
 			case 'get_project': return this.getProject();
 			case 'list_editors': return this.listEditors();
@@ -114,11 +121,12 @@ export class AiToolRunner {
 			case 'screenshot': return this.screenshot();
 			case 'show_message': return this.showMessage(args.message as string, args.severity === 'warning' ? Severity.Warning : Severity.Info);
 			case 'reveal_element': return this.reveal(args);
-			case 'set_json_value': return this.setJsonValue(args.file as string, args.path as JSONPath, args.value, args.remove === true);
 			case 'search_code': return this.searchCode(args.query as string, (args.limit as number | undefined) ?? 8);
 			case 'explain_results': return this.explainResults(args.member as string | undefined, args.onlyFailing === true, (args.limit as number | undefined) ?? 20);
-			case 'propose_changes': return this.proposeChanges(args, source);
-			case 'propose_building': return this.proposeBuilding(args);
+			case 'propose_changes': return this.proposeChanges(args, source, review);
+			case 'list_actions': return this.actionTools.listActions(args.kind as ActionKind | undefined);
+			case 'describe_action': return this.actionTools.describeAction(args.name as string);
+			case 'run_actions': return this.actionTools.runActions(args, source, review, token);
 			case 'annotate_drawings': return this.annotateDrawings(args);
 		}
 		throw new ToolError(`Tool "${tool.name}" is not implemented.`);
@@ -361,51 +369,6 @@ export class AiToolRunner {
 		return textResult('Revealed.');
 	}
 
-	private async setJsonValue(file: string, path: JSONPath, value: unknown, remove: boolean): Promise<MCP.CallToolResult> {
-		const project = this.project();
-		if (!/\.json$/i.test(file)) {
-			throw new ToolError('Only .json files of the project can be edited.');
-		}
-		if (!remove && value === undefined) {
-			throw new ToolError('Give "value", or "remove": true.');
-		}
-		const resource = this.resolve(project, file);
-		if (!await this.fileService.exists(resource)) {
-			throw new ToolError(`No file "${file}" in the project.`);
-		}
-		// The shared text model every editor and view uses: the edit is on the undo stack and stays unsaved.
-		const reference = await this.textModelService.createModelReference(resource);
-		try {
-			const model = reference.object.textEditorModel;
-			const text = model.getValue();
-			try {
-				JSON.parse(text);
-			} catch {
-				throw new ToolError(`${file} is not valid JSON now; it is not edited.`);
-			}
-			const options = model.getOptions();
-			const formatting = { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() };
-			const edits = remove ? removeProperty(text, path, formatting) : setProperty(text, path, value, formatting);
-			if (!edits.length) {
-				return textResult('No change.');
-			}
-			// U2: refused like the engineer's entry when it breaks the input guardrails.
-			const refused = await refusedValues(this.commandService, file, text, applyEdits(text, edits));
-			if (refused.length) {
-				throw new ToolError(`SAEngine refuses these values (the same rules as for the engineer): ${refused.slice(0, 10).join('; ')}`);
-			}
-			model.pushStackElement();
-			model.pushEditOperations([], edits.map(edit => ({
-				range: Range.fromPositions(model.getPositionAt(edit.offset), model.getPositionAt(edit.offset + edit.length)),
-				text: edit.content,
-			})), () => null);
-			model.pushStackElement();
-		} finally {
-			reference.dispose();
-		}
-		return textResult(`Edited ${file} (unsaved; the engineer can undo it with Ctrl+Z and saves it).`);
-	}
-
 	private async searchCode(query: string, limit: number): Promise<MCP.CallToolResult> {
 		const python = this.instantiationService.createInstance(FemAnalysisRunner).resolvePython();
 		const answer = await this.femSolverService.projectPlatform(python, 'ai/searchCode', {
@@ -455,7 +418,7 @@ export class AiToolRunner {
 		});
 	}
 
-	private async proposeChanges(args: Record<string, unknown>, source: ChangeSetSource): Promise<MCP.CallToolResult> {
+	private async proposeChanges(args: Record<string, unknown>, source: ChangeSetSource, review: IAiReview): Promise<MCP.CallToolResult> {
 		this.project();
 		const { proposal, problems } = readProposal(args);
 		if (!proposal) {
@@ -467,13 +430,16 @@ export class AiToolRunner {
 		} catch (error) {
 			throw new ToolError(error instanceof Error ? error.message : String(error));
 		}
-		await this.viewsService.openView(ASSISTANT_VIEW_ID, true);
-		const outcome = await Promise.race([changeSet.decision, timeout(DECISION_WAIT).then(() => 'pending' as const)]);
+		await review.showChangeSet(changeSet);
+		// The wait is cancelled once the engineer decides (no timer left running for 5 minutes).
+		const wait = timeout(DECISION_WAIT);
+		const outcome = await Promise.race([changeSet.decision, wait.then(() => 'pending' as const, () => 'pending' as const)]);
+		wait.cancel();
 		const summary = changeSet.files.map(f => ({ file: f.file, changes: f.changes.length }));
 		switch (outcome) {
 			case 'accepted': return textResult(`The engineer accepted the change set "${proposal.title}" (${JSON.stringify(summary)}). It is applied, unsaved until saved, and undoable.`);
 			case 'rejected': return textResult(`The engineer rejected the change set "${proposal.title}". Nothing changed; ask what to do differently.`);
-			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision in the AI Assistant view.`);
+			case 'pending': return textResult(`The change set "${proposal.title}" waits for the engineer's decision.`);
 			default: return errorResult(`The change set was not applied (${outcome}): ${changeSet.problem ?? ''}`);
 		}
 	}
@@ -493,11 +459,6 @@ export class AiToolRunner {
 			throw new ToolError(bag.error);
 		}
 		return jsonResult(answer);
-	}
-
-	private async proposeBuilding(args: Record<string, unknown>): Promise<MCP.CallToolResult> {
-		await this.commandService.executeCommand(NEW_BUILDING_COMMAND, { spec: args });
-		return textResult('The New Project wizard is open with this building filled in. The engineer checks the plan, changes any field and clicks Generate to create the project; nothing is created before that.');
 	}
 }
 

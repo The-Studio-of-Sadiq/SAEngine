@@ -14,6 +14,7 @@ from saengine.library.materials import (
     ConcreteProperties,
     MasonryProperties,
     Material,
+    MaterialDefaults,
     MaterialLibrary,
     Mechanical,
     NominalMix,
@@ -128,8 +129,30 @@ def _pack_rebars() -> list[Material]:
     return out
 
 
+def default_concrete_id(materials: list[Material]) -> str | None:
+    """The concrete a new project uses where a type names none: the first of ``materials`` (in
+    order of strength) that meets both of the default pack's least f'c, for structural concrete
+    and for members resisting earthquake forces (``materials.structuralFcMin`` and
+    ``seismicFcMin``: a new project does not know its seismic system yet), else the strongest.
+    Read from the pack, so another pack's floor gives another default; no grade is fixed here."""
+    concretes = [m for m in materials if m.category == Category.CONCRETE and m.concrete]
+    if not concretes:
+        return None
+    from saengine.codes.tables import builtin_table
+
+    table = builtin_table("materials")
+    floors = [
+        v for v in (table.structuralFcMin, getattr(table, "seismicFcMin", None)) if v is not None
+    ]
+    least = max(floors) if floors else None
+    for material in sorted(concretes, key=lambda m: m.concrete.fc):
+        if least is None or material.concrete.fc >= least:
+            return material.id
+    return max(concretes, key=lambda m: m.concrete.fc).id
+
+
 def default_material_library() -> MaterialLibrary:
-    return MaterialLibrary(
+    library = MaterialLibrary(
         materials=[
             *_pack_rebars(),
             _concrete(3000, NominalMix(ratio=[1, 2, 4], waterCement=0.5, cementType="OPC")),
@@ -155,6 +178,9 @@ def default_material_library() -> MaterialLibrary:
             ),
         ]
     )
+    # The project's concrete is named, so it is not simply the first (weakest) one in the list.
+    library.defaults = MaterialDefaults(concrete=default_concrete_id(library.materials))
+    return library
 
 
 def default_object_library() -> ObjectLibrary:

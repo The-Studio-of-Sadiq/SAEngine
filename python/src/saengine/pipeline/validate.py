@@ -173,8 +173,15 @@ def validate_part(project: Project, part: str) -> PartValidation:
     if part in LIBRARY_KINDS:
         companion = LIBRARY_KINDS[part]
         # The settings' code pack may be one of the project's own (02 Project Settings/code-packs).
+        # A floor plan's height is checked against the settings' structural system.
+        settings = project.text("settings") if part == "floorPlan" else None
         with code_context.project(project.root):
-            found = check_library(part, text, project.text(companion) if companion else None)  # type: ignore[arg-type]
+            found = check_library(
+                part,  # type: ignore[arg-type]
+                text,
+                project.text(companion) if companion else None,
+                settings,
+            )
         problems = [
             _problem(
                 p["message"],

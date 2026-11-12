@@ -28,28 +28,32 @@ export interface IAiTool {
 	/** Only reads: never changes the window or the project. */
 	readonly readOnly?: boolean;
 	/**
-	 * Offered to the built-in assistant too, with what its result sends to the provider: the
-	 * engineer chooses which of these the assistant may read (see {@link ContextScope}).
-	 * Tools without it are for MCP clients on this computer only.
+	 * Offered in the chat too (SAEngine's tool set), with what its result sends to the model
+	 * provider (see {@link ContextScope}). Tools without it are for MCP clients on this computer
+	 * only.
 	 */
 	readonly assistant?: ContextScope;
 }
 
 /**
- * What a tool's result tells the built-in assistant's provider: `code` (passages of the code pack
- * and the manual: no project data), `project` (the project's name, parts and their status, the
- * open editors), `document` (the active editor's document), `results` (design and analysis
- * results), `local` (nothing leaves the computer but the assistant's own words: opening a part,
- * revealing a member, proposing a change set the engineer previews).
+ * What a tool's result tells the chat's model provider: `code` (passages of the code pack, the
+ * manual and the action catalogue: no project data), `project` (the project's name, parts and
+ * their status, the open editors, batches worked out on it), `document` (the active editor's
+ * document, a picture of the window), `results` (design and analysis results), `local` (nothing
+ * leaves the computer but the assistant's own words: opening a part, revealing a member,
+ * proposing a change set the engineer previews). Tools that send project data ask for the
+ * project's consent first (aiDataConsent).
  */
 export type ContextScope = 'code' | 'project' | 'document' | 'results' | 'local';
-/** The scopes the engineer can turn off (code and local are always on). */
-export const OPTIONAL_SCOPES = ['project', 'document', 'results'] as const;
-export type OptionalScope = typeof OPTIONAL_SCOPES[number];
 
-/** The tools the built-in assistant may use with `allowed` scopes. */
-export function assistantTools(allowed: ReadonlySet<OptionalScope>): readonly IAiTool[] {
-	return AI_TOOLS.filter(tool => tool.assistant !== undefined && (tool.assistant === 'code' || tool.assistant === 'local' || allowed.has(tool.assistant)));
+/** Whether a tool's result carries project data to the provider (it needs the project's consent). */
+export function sendsProjectData(tool: IAiTool | undefined): boolean {
+	return tool?.assistant === 'project' || tool?.assistant === 'document' || tool?.assistant === 'results';
+}
+
+/** The tools offered in the chat: SAEngine's tool set (never one that edits directly). */
+export function chatTools(): readonly IAiTool[] {
+	return AI_TOOLS.filter(tool => tool.assistant !== undefined && !tool.edits);
 }
 
 const PART_IDS = ALL_PARTS.map(part => part.id);
@@ -143,6 +147,7 @@ export const AI_TOOLS: readonly IAiTool[] = [
 	},
 	{
 		name: 'screenshot',
+		assistant: 'document',
 		title: 'Screenshot',
 		description: 'A picture of the SAEngine window as it is now (PNG).',
 		inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -179,23 +184,6 @@ export const AI_TOOLS: readonly IAiTool[] = [
 			required: ['kind'],
 			additionalProperties: false,
 		},
-	},
-	{
-		name: 'set_json_value',
-		title: 'Edit a part (JSON)',
-		description: 'Changes one value in a JSON file of the project (e.g. "04 Objects/objects.json") through the editor, like typing it: the change is undoable (Ctrl+Z), shows at once in every view, and stays unsaved until the engineer saves. Only while the engineer allows edits.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				file: { type: 'string', description: 'A .json file relative to the project folder.' },
-				path: { type: 'array', items: { type: ['string', 'integer'] }, description: 'JSON path to the value, e.g. ["stories", 0, "height"]. Missing objects are created.' },
-				value: { description: 'The new value (any JSON). Omit with remove: true to delete the property.' },
-				remove: { type: 'boolean', description: 'Delete the property or array item instead of setting it.' },
-			},
-			required: ['file', 'path'],
-			additionalProperties: false,
-		},
-		edits: true,
 	},
 	{
 		name: 'search_code',
@@ -275,28 +263,53 @@ export const AI_TOOLS: readonly IAiTool[] = [
 		edits: true,
 	},
 	{
-		name: 'propose_building',
-		assistant: 'local',
-		title: 'Propose a new building',
-		description: 'Opens the New Project wizard filled with a building described in words: grids, storeys, structural system, materials, footings, site and occupancy. The engineer sees the plan and the summary, may change any field, and clicks Generate to create the project (a new folder; nothing else changes). Lengths in mm.',
+		name: 'list_actions',
+		assistant: 'code',
+		title: 'List actions',
+		description: 'The catalogue of SAEngine actions (name, kind, writes, summary): typed, validated edits ("edit"), reads ("query") and runs ("run": Run All, design, exports) that build and change a whole project, from project.create to the report. writes: true marks the actions that write to disk themselves (every run, and project.create). The same actions the command line (saengine action) and scripts use.',
+		inputSchema: {
+			type: 'object',
+			properties: { kind: { type: 'string', enum: ['edit', 'query', 'run'], description: 'Only actions of this kind.' } },
+			additionalProperties: false,
+		},
+		readOnly: true,
+	},
+	{
+		name: 'describe_action',
+		assistant: 'code',
+		title: 'Describe an action',
+		description: 'One action of list_actions with its parameters (JSON schema: names, types, units, which are required) and the parts it changes. Read it before using an action the first time.',
+		inputSchema: {
+			type: 'object',
+			properties: { name: { type: 'string', maxLength: 100, description: 'The action, e.g. "columns.place".' } },
+			required: ['name'],
+			additionalProperties: false,
+		},
+		readOnly: true,
+	},
+	{
+		name: 'run_actions',
+		assistant: 'project',
+		title: 'Run actions',
+		description: 'Runs a batch of actions on the open project, in order (later steps see the earlier ones), all or nothing: if one step fails nothing changes and the answer names the step and each refused value (field, value, reason), so correct those and send the batch again. Edits come back as ONE change set the engineer previews and accepts or rejects (the answer says which; accepted, it is one undoable step, unsaved until saved). A batch with steps that write to disk (writes: true in list_actions: run.all, run.step, design.reinforcement.apply, foundations.generate, export.*, project.create) runs only after the engineer agrees, saves the project first and writes to disk; it may hold only those and queries, so send edits in a batch of their own first. Its answer lists what was saved first ("written"); the engineer can stop it ("cancelled": the steps from failedStep were not run, what was written stays). Values outside the input guardrails are refused with the allowed range. Queries answer in "data".',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				name: { type: 'string', maxLength: 100, description: 'Project name.' },
-				gridsX: { type: 'array', items: { type: 'number' }, description: 'Spacings between the X grid lines (A, B, ...) [mm], e.g. [6000, 6000, 4500].' },
-				gridsY: { type: 'array', items: { type: 'number' }, description: 'Spacings between the Y grid lines (1, 2, ...) [mm].' },
-				storyCount: { type: 'integer', minimum: 1, maximum: 80 },
-				groundHeight: { type: 'number', description: 'Ground storey height [mm].' },
-				typicalHeight: { type: 'number', description: 'Typical storey height [mm].' },
-				system: { type: 'string', enum: ['rcFrame', 'rcFrameCore', 'flatSlab', 'masonry', 'steelMomentFrame', 'steelBracedFrame'] },
-				footing: { type: 'string', enum: ['isolated', 'mat', 'none'] },
-				concrete: { type: 'string', description: 'Concrete material id of 03 Materials, e.g. "C24.1".' },
-				rebar: { type: 'string', description: 'Rebar material id, e.g. "B420DWR".' },
-				location: { type: 'string', description: 'Location id of the code pack\'s location table (a town, e.g. "dhaka").' },
-				siteClass: { type: 'string', enum: ['SA', 'SB', 'SC', 'SD', 'SE'] },
-				occupancy: { type: 'string', description: 'Building use, e.g. "residential", "office".' },
-				occupancyCategory: { type: 'string', enum: ['I', 'II', 'III', 'IV'] },
+				title: { type: 'string', maxLength: 200, description: 'What the batch does, for the engineer, e.g. "Grid, storeys and columns of the 3-storey frame".' },
+				steps: {
+					type: 'array',
+					description: 'The steps, in order.',
+					items: {
+						type: 'object',
+						properties: {
+							action: { type: 'string', description: 'An action of list_actions.' },
+							params: { type: 'object', description: 'Its parameters (describe_action).' },
+						},
+						required: ['action'],
+					},
+				},
 			},
+			required: ['steps'],
 			additionalProperties: false,
 		},
 	},

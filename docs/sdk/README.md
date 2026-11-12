@@ -15,7 +15,7 @@ AI assistants connect through the MCP server described in [docs/ai-assistants.md
 ## Versioning
 
 - The **Python API** is `saengine.api`: only the names in its `__all__` are public.
-  `saengine.api.API_VERSION` (now **1.0.0**) follows SemVer: a minor version adds names or
+  `saengine.api.API_VERSION` (now **1.1.0**: 1.1.0 added `list_actions` and `run_actions`) follows SemVer: a minor version adds names or
   optional parameters; a major version may change or remove them, and the release notes say
   how to move. Everything else under `saengine.*` is internal and may change in any release.
 - The **JSON-RPC methods** are versioned with SAEngine itself: a method's name and its required
@@ -42,6 +42,19 @@ for pack in api.list_packages(kind=None):          # every package, every kind
 spec = api.BuildingSpec(gridsX=[6000, 6000], gridsY=[5000], storyCount=4)
 parts = api.generate_building(spec)                 # floor plan, objects, materials, settings
 print(parts["summary"])
+```
+
+Build or change a project with the shared editing actions (the same catalogue as the app, the
+assistant and `saengine action`, see [docs/actions.md](../actions.md)); a batch is all or
+nothing, and the changed files come back as texts unless `write=True`:
+
+```python
+result = api.run_actions("C:/Projects/House", [
+    {"action": "project.create", "params": {"name": "House"}},
+    {"action": "grid.set", "params": {"x": [5000, 5000], "y": [4000]}},
+    {"action": "storeys.set", "params": {"count": 2, "height": 3000}},
+], write=True)
+print(result.ok, [r.message for r in result.results])
 ```
 
 More in [examples/](examples/): `list_packages.py`, `new_building.py`, `rpc_client.py` and a
@@ -110,6 +123,7 @@ templates.
 ## Command line
 
 `saengine` runs the same operations headless: `validate`, `run-all`, `derive`, `analyse`,
-`design`, `report`, `check`, `status`, `export`, `import`, `new-building` and `codepack`
-(`list`, `show`, `new`, `validate`, `diff`, `install`, `remove`). Every command takes `--json`
+`design`, `report`, `check`, `status`, `export`, `import`, `new-building`, `codepack`
+(`list`, `show`, `new`, `validate`, `diff`, `install`, `remove`) and `action` (`list`,
+`describe`, `run`, `batch`). Every command takes `--json`
 for one machine-readable document on stdout. See [docs/cli.md](../cli.md).

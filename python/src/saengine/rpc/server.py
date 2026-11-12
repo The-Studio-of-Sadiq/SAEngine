@@ -8,6 +8,11 @@ Methods:
   server's own thread; the design work runs in threads of its own (``_DESIGN_WORKERS``)
 - ``saengine/cancelJobs`` ``{methods}`` -> ``{cancelled}``: cancels the running requests of
   those methods; their work stops at its next check (``saengine.rpc.jobs.check``)
+- ``actions/list`` ``{kind?}`` -> the actions' catalogue (each with ``kind`` and ``writes``);
+  ``actions/run`` ``{projectRoot, steps, overrides?, write?, stopOnError?}`` -> a batch's
+  ``{ok, results, changes, failed_step, written, cancelled, version}``; ``actions/cancel``
+  ``{}`` -> ``{cancelled}`` stops the batches in progress before their next step (a Run All at
+  its next step boundary); they answer what was done (``saengine.actions``)
 - ``project/validate`` ``{path}`` -> schema and reference check of an ``.osmodel``
 - ``results/tables`` ``{outDir, projectPath?}`` -> result tables of a finished run
 - ``results/list`` ``{outDir, projectPath}`` -> the results that can be shown in 3D
@@ -497,7 +502,7 @@ def create_server() -> JsonRPCServer:
         def decorate(fn: Callable) -> Callable:
             handler = fn if asyncio.iscoroutinefunction(fn) else _scoped(fn)
             name = args[0] if args else kwargs.get("feature_name")
-            quick = name in ("saengine/jobs", "saengine/cancelJobs")
+            quick = name in ("saengine/jobs", "saengine/cancelJobs", "actions/cancel")
             return register(handler if quick else _as_job(str(name), handler))
 
         return decorate
@@ -546,7 +551,9 @@ def create_server() -> JsonRPCServer:
     @server.feature("library/check")
     def _check_library(params: Any) -> dict[str, Any]:
         args = _plain(params)
-        return handlers.check_library(args["kind"], args["text"], args.get("materialsText"))
+        return handlers.check_library(
+            args["kind"], args["text"], args.get("materialsText"), args.get("settingsText")
+        )
 
     @server.feature("library/limits")
     def _library_limits(params: Any) -> dict[str, Any]:
@@ -1535,6 +1542,31 @@ def create_server() -> JsonRPCServer:
     def _versions_mark_issued(args: dict[str, Any]) -> dict[str, Any]:
         return handlers.versions_mark_issued(
             args["projectRoot"], args["version"], args["label"], args.get("author")
+        )
+
+    # The shared editing actions (saengine.actions): a batch runs under the project's versions
+    # lock, so it never interleaves with a save, a restore or another batch on the project.
+    @server.feature("actions/list")
+    def _actions_list(params: Any) -> list[dict[str, Any]]:
+        args = _plain(params) or {}
+        return handlers.actions_list(args.get("kind"))
+
+    # Stop for a batch in progress (the chat's Stop, the progress notification's Cancel): it
+    # stops before its next step, a Run All at its next step boundary, and answers what was done
+    # (``cancelled``). Answered at once on the server's thread.
+    @server.feature("actions/cancel")
+    def _actions_cancel(params: Any) -> dict[str, Any]:
+        return {"cancelled": jobs.cancel(["actions/run"])}
+
+    @server.feature("actions/run")
+    @_versions_worker
+    def _actions_run(args: dict[str, Any]) -> dict[str, Any]:
+        return handlers.actions_run(
+            args["projectRoot"],
+            args.get("steps") or [],
+            args.get("overrides"),
+            bool(args.get("write")),
+            args.get("stopOnError") is not False,
         )
 
     # Shared projects (saengine.project.share): under the project's versions lock, since a

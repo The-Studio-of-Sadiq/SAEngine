@@ -63,15 +63,29 @@ def _problem(index: int | None, path: str, message: str) -> dict[str, Any]:
     return {"index": index, "path": path, "message": message}
 
 
+def _parsed(text: str | None) -> Any:
+    """``text`` as JSON; None without it or when it is not JSON."""
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
 def _clean(message: str) -> str:
     return message.removeprefix("Value error, ")
 
 
-def check_library(kind: Kind, text: str, materials_text: str | None = None) -> list[dict[str, Any]]:
+def check_library(
+    kind: Kind, text: str, materials_text: str | None = None, settings_text: str | None = None
+) -> list[dict[str, Any]]:
     """Problems in a library file, each with the index of its entry (None for the whole file).
 
     ``materials_text`` is the other file the check needs: materials.json for object types,
-    objects.json for the floor plan and the building model.
+    objects.json for the floor plan (its members' sizes against their spans) and the building
+    model. ``settings_text``: the project settings, for a floor plan's height against its
+    structural system.
     """
     try:
         data = json.loads(text)
@@ -79,7 +93,7 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
         return [_problem(None, "", f"Invalid JSON: {exc}")]
 
     if kind == "settings":
-        return _check_settings(data)
+        return _check_settings(data) + guardrails.check(kind, data)
     if kind == "reportTemplate":
         return _check_report_template(data)
     if kind == "worksheet":
@@ -87,7 +101,9 @@ def check_library(kind: Kind, text: str, materials_text: str | None = None) -> l
     if kind in ("rates", "carbon"):
         return _check_schedule(kind, data)
     if kind == "floorPlan":
-        return _check_layout(FloorPlan, data, materials_text) + guardrails.check(kind, data)
+        return _check_layout(FloorPlan, data, materials_text) + guardrails.check(
+            kind, data, objects=_parsed(materials_text), settings=_parsed(settings_text)
+        )
     if kind == "bim":
         return _check_layout(BuildingModel, data, materials_text)
     if kind == "structure":
