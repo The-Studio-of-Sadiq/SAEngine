@@ -2525,3 +2525,9 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   last edit wins per field. The relay is SAEngine's own (y-websocket protocol on `ws`), hosted by
   any engineer's SAEngine on the office network or an office server; no outside service.
   @y/websocket-server was not used: it needs a pre-release Yjs 14.
+- **A new project's default concrete (2026-11-12, #308).** The starting material library names
+  its concrete: the first grade that meets both of the code pack's least f'c, for structural
+  concrete and for members resisting earthquake forces (the default pack: 17 and 21 MPa, so
+  C24.1, the grade the starting section types already use). A new project does not know its
+  seismic system yet, so it starts on the safe side. Before, the first grade in the list (C20.7)
+  was used and a fresh project failed the seismic minimum.

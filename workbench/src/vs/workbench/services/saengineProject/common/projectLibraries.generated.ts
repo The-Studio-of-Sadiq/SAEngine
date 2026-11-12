@@ -10392,6 +10392,9 @@ export const DEFAULT_MATERIALS: object = {
 			},
 		},
 	],
+	defaults: {
+		concrete: 'C24.1',
+	},
 };
 
 export const DEFAULT_OBJECTS: object = {

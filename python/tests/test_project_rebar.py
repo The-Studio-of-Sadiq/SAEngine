@@ -100,8 +100,11 @@ def test_defaults_must_name_a_material_of_their_category() -> None:
     with pytest.raises(ValidationError, match="defaults.concrete 'NOPE' is not a concrete"):
         MaterialLibrary.model_validate({**data, "defaults": {"concrete": "NOPE"}})
     # Without defaults: the first of the category, as before.
-    library = MaterialLibrary.model_validate(data)
+    library = MaterialLibrary.model_validate({k: v for k, v in data.items() if k != "defaults"})
     assert (library.default_concrete(), library.default_rebar()) == ("C20.7", "B420DWR")
+    # A new project names its concrete: the first that meets the pack's least f'c, including the
+    # least for members resisting earthquake forces (the default pack: 21 MPa), not C20.7 (#308).
+    assert default_material_library().default_concrete() == "C24.1"
     # The raw JSON (read leniently): a stale default falls back to the first one.
     assert default_of({**data, "defaults": {"rebar": "B500DWR"}}, Category.REBAR) == "B500DWR"
     assert default_of({**data, "defaults": {"rebar": "GONE"}}, Category.REBAR) == "B420DWR"
