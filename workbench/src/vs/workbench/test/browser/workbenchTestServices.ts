@@ -592,6 +592,7 @@ export class TestSaengineProjectService implements ISaengineProjectService {
 	async findProject(_folder: URI): Promise<ISaengineProject | undefined> { return undefined; }
 	async createProject(folder: URI, name: string, type: ProjectType = 'building'): Promise<ISaengineProject> { return { root: folder, manifest: folder, name, type }; }
 	async setProjectType(_type: ProjectType): Promise<void> { }
+	async refresh(): Promise<void> { }
 }
 
 export class TestMenuService implements IMenuService {

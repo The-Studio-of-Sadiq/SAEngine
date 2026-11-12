@@ -371,6 +371,8 @@ export class FakeProjectService extends mock<ISaengineProjectService>() {
 		return this.current;
 	}
 
+	override async refresh(): Promise<void> { }
+
 	markOpen(): void {
 		this.current = { root: this.root, manifest: joinPath(this.root, 'Plot.saengine'), name: 'Plot', type: 'building' };
 	}

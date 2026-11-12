@@ -177,6 +177,15 @@ def test_project_create_empty(tmp_path):
     assert not (tmp_path / "New").exists()  # write=False writes nothing
 
 
+def test_project_create_accepts_display_names(tmp_path):
+    """The pack and town as written in a prompt: "BNBC 2020", "Dhaka"."""
+    params = {"name": "New", "codePack": "BNBC 2020", "location": "Dhaka"}
+    result = run(tmp_path / "New", ("project.create", params))
+    assert result.ok, result
+    settings = json.loads(result.changes[SETTINGS])
+    assert settings["site"]["location"] == "dhaka"
+
+
 def test_project_create_refuses_an_existing_project(base):
     result = refused(base, "project.create", {"name": "Again"})
     assert "already" in result.message
