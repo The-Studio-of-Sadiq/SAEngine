@@ -1913,7 +1913,20 @@ def main() -> int:
     # put its project's pack in force and the warm-ups import too: a request racing the
     # warm-up thread got "cannot import name 'ProjectSettings' from partially initialized
     # module".
-    import saengine.library.settings  # noqa: F401
+    import saengine.library.settings
+
+    # And the versions and sharing modules (dulwich behind them): a project opens with
+    # versions/status and share/status at once, each on its own versions thread.
+    import saengine.project.share
+    import saengine.project.versions  # noqa: F401
+
+    # Diagnostics: with SAENGINE_HANG_DUMP=<file>, every thread's stack is appended to the file
+    # once a minute, to see where a request hangs.
+    hang_dump = os.environ.get("SAENGINE_HANG_DUMP")
+    if hang_dump:
+        import faulthandler
+
+        faulthandler.dump_traceback_later(60, repeat=True, file=open(hang_dump, "a"))  # noqa: SIM115
 
     def warm() -> None:
         # WNTR's first import takes a second or two: done ahead of the editor's first request.

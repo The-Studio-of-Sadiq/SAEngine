@@ -2519,3 +2519,9 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   details) goes by e-mail to publicrelations@thestudioofsadiq.tech: the form's Send As choice
   writes that e-mail, and the issue chooser and SECURITY.md name the address. Security problems
   go privately to the same address.
+- **Live co-editing engine (2026-11-12).** Yjs 13.6.33, y-protocols 1.0.7, lib0 0.2.119 and
+  y-websocket 3.1.0 (all MIT; owner approved the install). The engine runs in the main process
+  and loads on first use; part files are merged object by object (lists of objects by `id`),
+  last edit wins per field. The relay is SAEngine's own (y-websocket protocol on `ws`), hosted by
+  any engineer's SAEngine on the office network or an office server; no outside service.
+  @y/websocket-server was not used: it needs a pre-release Yjs 14.

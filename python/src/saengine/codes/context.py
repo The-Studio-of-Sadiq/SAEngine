@@ -71,12 +71,16 @@ def default_pack() -> CodePack:
         # Asked again while this thread loads it (a template check that makes the default
         # material set, which reads the pack): an error, not a deadlock on the lock.
         raise CodePackError("the default code pack is used while it is being loaded")
+    # Not under _default_lock: registry.load takes the registry's own lock, and a thread already
+    # holding that one (checking a pack's templates) can ask for the default pack. Holding both
+    # in the other order deadlocked the engine (a project's first requests hung on startup's
+    # warm-up). The registry serialises and caches its loads, so only the memo needs the lock.
+    _loading.active = True
+    try:
+        pack = registry.load(DEFAULT_PACK)
+    finally:
+        _loading.active = False
     with _default_lock:
-        _loading.active = True
-        try:
-            pack = registry.load(DEFAULT_PACK)
-        finally:
-            _loading.active = False
         _default_memo = (generation, now, pack)
     return pack
 

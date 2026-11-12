@@ -154,6 +154,7 @@
     "jschardet": "3.1.4",
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
+    "lib0": "0.2.119",
     "libsodium-wrappers": "^0.8.4",
     "maplibre-gl": "6.12.0",
     "minimist": "^1.2.8",
@@ -172,8 +173,11 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
     "ws": "^8.19.0",
+    "y-protocols": "1.0.7",
+    "y-websocket": "3.1.0",
     "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
+    "yjs": "13.6.33",
     "zod": "^4.4.3"
   },
   "devDependencies": {

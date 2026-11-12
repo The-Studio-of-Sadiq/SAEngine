@@ -50,6 +50,8 @@ import { ExtensionHostStarter } from '../../platform/extensions/electron-main/ex
 import { IExternalTerminalMainService } from '../../platform/externalTerminal/electron-main/externalTerminal.js';
 import { ISaenginePackagesService, PACKAGES_CHANNEL } from '../../platform/saengine/common/packages.js';
 import { SaenginePackagesMainService } from '../../platform/saengine/electron-main/packagesMainService.js';
+import { CO_EDITING_CHANNEL, ISaengineCoEditingService } from '../../platform/saengine/common/coEditing.js';
+import { SaengineCoEditingMainService } from '../../platform/saengine/electron-main/coEditingMainService.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../platform/externalTerminal/node/externalTerminalService.js';
 import { ISandboxHelperMainService } from '../../platform/sandbox/electron-main/sandboxHelperService.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
@@ -1321,6 +1323,9 @@ export class CodeApplication extends Disposable {
 		// SAEngine packages (index fetch, signature check, pinned downloads)
 		services.set(ISaenginePackagesService, new SyncDescriptor(SaenginePackagesMainService));
 
+		// SAEngine live co-editing (Yjs sessions and the office relay)
+		services.set(ISaengineCoEditingService, new SyncDescriptor(SaengineCoEditingMainService));
+
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
@@ -1510,6 +1515,10 @@ export class CodeApplication extends Disposable {
 		// SAEngine packages
 		const saenginePackagesChannel = ProxyChannel.fromService(accessor.get(ISaenginePackagesService), disposables);
 		mainProcessElectronServer.registerChannel(PACKAGES_CHANNEL, saenginePackagesChannel);
+
+		// SAEngine live co-editing
+		const saengineCoEditingChannel = ProxyChannel.fromService(accessor.get(ISaengineCoEditingService), disposables);
+		mainProcessElectronServer.registerChannel(CO_EDITING_CHANNEL, saengineCoEditingChannel);
 
 		// Sandbox Helper
 		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperMainService), disposables);

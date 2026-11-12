@@ -15,8 +15,9 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
  *   awareness for presence, over a WebSocket relay the office runs itself (`y-websocket`'s
  *   server, MIT). SAEngine ships no relay address: without `saengine.collaboration.relayUrl` set
  *   by the office nothing leaves the computer, and no third-party cloud is used.
- * - Until the dependency is added to the workbench, no provider is registered and the commands
- *   say so; office-server sync, part locks and presence (`saengine.project.share`) work without it.
+ * - The desktop app registers the Yjs provider (electron-browser/liveCoEditing.contribution.ts);
+ *   without one (the web build) the commands say so. Office-server sync, part locks and presence
+ *   (`saengine.project.share`) work without it.
  *
  * A part document is a JSON file (`floor-plan.json`, `structure.json`, ...). A provider maps it
  * onto a shared map keyed by the document's object ids, so two engineers editing different
@@ -27,6 +28,9 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 
 /** The setting with the office's own relay (`wss://server.office.local:1234`); empty: off. */
 export const RELAY_URL_SETTING = 'saengine.collaboration.relayUrl';
+
+/** Starts live co-editing for the open project (registered by the desktop app's engine). */
+export const LIVE_START_COMMAND = 'saengine.collaboration.start';
 
 /** The part document as a co-editing session sees it. */
 export interface ICoEditedDocument {
@@ -46,6 +50,8 @@ export interface ICoEditor {
 	readonly name: string;
 	/** The object ids they have selected, for highlighting. */
 	readonly selection: readonly string[];
+	/** Their colour (`#rrggbb`), the same in every window. */
+	readonly color?: string;
 }
 
 export interface ICoEditingSession extends IDisposable {

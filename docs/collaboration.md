@@ -46,17 +46,37 @@ lock left behind by a computer that crashed, after you confirm.
 While a project shared through a folder is open, SAEngine writes a small presence file
 about once a minute. The Versions editor shows who else has the project open.
 
-## Live co-editing (in progress)
+## Live co-editing
 
-Live co-editing means several engineers editing one part at the same moment. It is designed
-behind an interface in the workbench (`saengineProject/browser/liveCoEditing.ts`):
+Live co-editing lets several engineers edit one part at the same moment, like a shared
+document: a colleague's edit appears in your floor plan as they make it.
 
-- The engine will be a CRDT, [Yjs](https://github.com/yjs/yjs) (MIT licence, compatible with
-  AGPL-3.0), with its awareness protocol for presence in the part.
-- It runs over a relay that the office hosts itself (the y-websocket server, MIT). Its
-  address goes in the setting `saengine.collaboration.relayUrl`. The setting is empty by
-  default, so live co-editing is off and no third-party cloud is used.
-- It ships in the setup's **Collaboration** component.
+**Start it:** **Project › Share › Live Co-Editing...** (or *Start Live Co-Editing* in the
+command palette) in a shared project. While it is on, every part you open joins that part's
+session, and the status bar shows how many colleagues are in the parts you have open (the
+tooltip names them and what they have selected). Click it to stop.
 
-Until the engine is added, **Live Co-Editing...** says what is missing. Shared folders, sync,
-locks and presence work without it.
+**How edits merge.** Each part is shared object by object, using
+[Yjs](https://github.com/yjs/yjs) (MIT):
+
+- Two engineers editing different members (or different fields of one member) both keep their
+  edits.
+- The same field edited by both at once keeps the later edit, and both see it.
+- A member deleted by one engineer stays deleted even if the other was editing it.
+
+Save as usual. Everyone ends up with the same part, so **Sync with Office Copy** brings the
+versions together without conflicts.
+
+**The relay.** The engineers' SAEngines meet through a relay on the office network. Nothing
+goes to an outside service, and SAEngine has no relay address of its own:
+
+- **Host on this computer:** *Host Co-Editing Relay on This Computer*. SAEngine listens on port
+  1234 and copies this computer's address (`ws://192.168.x.x:1234`) for colleagues. Windows
+  may ask to allow SAEngine on private networks. The relay runs while SAEngine is open and
+  keeps nothing on disk.
+- **Office server:** any y-websocket-compatible server the office runs. Each engineer puts its
+  address in the setting `saengine.collaboration.relayUrl`.
+
+Anyone on the office network who knows the shared project's office-copy location can join its
+sessions, so use a relay only on a network you trust. Your name in sessions is
+`saengine.collaboration.displayName` (empty: this computer's user name).
