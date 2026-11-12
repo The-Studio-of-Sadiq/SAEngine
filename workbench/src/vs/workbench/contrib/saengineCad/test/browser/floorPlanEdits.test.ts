@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { floorPlanDrawing } from '../../browser/floorPlanDrawing.js';
-import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab } from '../../browser/floorPlanEdits.js';
+import { anchor, basePoint, bayAt, changeMemberType, EditResult, moveMember, parseAngle, pickMember, placeColumn, placeFooting, placeLinear, placePolygonSlab, placeSlab, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab } from '../../browser/floorPlanEdits.js';
 
 suite('SAEngine - Floor plan edits', () => {
 
@@ -203,6 +203,11 @@ suite('SAEngine - Floor plan edits', () => {
 			corners: ['S1: A1 B1 B2 A2', 'S2: B1 C1 C2 B2'],
 			edge: 'B7 does not run across S1.',
 		});
+	});
+
+	test('a typed angle is read in degrees; a blank or non-numeric one is refused, not taken as 0', () => {
+		assert.deepStrictEqual(['90', ' 45.5 ', '90°', '-30', '0'].map(parseAngle), [90, 45.5, 90, -30, 0]);
+		assert.deepStrictEqual(['', '   ', 'abc', '°'].map(t => Number.isNaN(parseAngle(t))), [true, true, true, true]);
 	});
 
 });

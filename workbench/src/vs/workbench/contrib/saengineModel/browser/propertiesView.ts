@@ -135,6 +135,12 @@ export class PropertiesView extends ViewPane {
 		}
 		host?.classList.toggle('hidden', !frame);
 		this.fallback?.classList.toggle('hidden', !!frame);
+		if (frame && this.fallback) {
+			// The editor's properties show the selection: no stale fallback content left to show.
+			this.fallbackScheduler.cancel();
+			this.fallbackStore.clear();
+			clearNode(this.fallback);
+		}
 	}
 
 	private renderFallback(): void {

@@ -215,6 +215,41 @@ export function appendPropertyRow(container: HTMLElement, name: string, value: s
 	return row;
 }
 
+/**
+ * Whether leaving a property field with `text` applies it: the value changed since it was shown
+ * or last applied (Enter), so tabbing through a field leaves the model as it is.
+ */
+export function appliesOnLeave(text: string, applied: string): boolean {
+	return text.trim() !== applied.trim();
+}
+
+/**
+ * A property field applies its value on Enter and when it is left changed (Tab, a click
+ * elsewhere), as an engineer expects of a property sheet. `apply` checks the value and says why
+ * one is refused, as on Enter; a refused value is not tried again until it changes.
+ */
+export function applyPropertyOnCommit(input: HTMLInputElement, apply: (text: string) => void): IDisposable {
+	const store = new DisposableStore();
+	let applied = input.value;
+	const commit = () => {
+		applied = input.value;
+		apply(input.value);
+	};
+	store.add(addDisposableListener(input, EventType.KEY_DOWN, e => {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			e.stopPropagation();
+			commit();
+		}
+	}));
+	store.add(addDisposableListener(input, EventType.BLUR, () => {
+		if (input.isConnected && appliesOnLeave(input.value, applied)) {
+			commit();
+		}
+	}));
+	return store;
+}
+
 /** Appends a muted note of the property sheet (`.sa-props-note`). */
 export function appendPropertyNote(container: HTMLElement, text: string): HTMLElement {
 	return append(container, $('.sa-props-note', undefined, text));

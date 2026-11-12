@@ -14,7 +14,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename, dirname, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -38,6 +38,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { feetInches, isConverted, parseList } from '../../../services/saengineProject/common/displayUnits.js';
+import { ISaengineCoEditingPresenceService } from '../../../services/saengineProject/common/coEditingPresence.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -50,14 +51,15 @@ import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/propertySheetView.js';
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
-import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyPropertyOnCommit, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
 import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
-import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { presenceDrawing } from './floorPlanPresence.js';
+import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
 import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_CUT, DEFAULT_CLOUD_SCALE, DEFAULT_CLOUD_THICKNESS, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor } from './floorPlanUnderlay.js';
@@ -378,12 +380,19 @@ export class FloorPlanEditor extends EditorPane {
 		@ISaenginePartStatusService private readonly partStatusService: ISaenginePartStatusService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ISaengineCoEditingPresenceService private readonly presenceService: ISaengineCoEditingPresenceService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this.viewStorage = storageService;
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
+		// Live co-editing: the colleagues' selections in this plan, outlined in their colours.
+		this._register(this.presenceService.onDidChange(resource => {
+			if (isEqual(resource, this.input?.resource)) {
+				this.renderScheduler.schedule();
+			}
+		}));
 		this._register(this.selectionService.onDidChangeSelection(({ source, selection }) => {
 			if (source !== SELECTION_SOURCE) {
 				// Selected elsewhere (Model Explorer, BIM): that member alone.
@@ -2079,7 +2088,11 @@ export class FloorPlanEditor extends EditorPane {
 		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
 		this.selected = prune(this.selected, this.plan.members);
 		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '', parse(this.objects));
-		this.editor.setGenerated(forCanvas({ layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS], entities: [...this.plan.drawing.entities, ...loads] }, this.lightCanvas));
+		const presence = presenceDrawing(this.plan.members, this.presenceService.colleagues(input.resource));
+		this.editor.setGenerated(forCanvas({
+			layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS, ...presence.layers],
+			entities: [...this.plan.drawing.entities, ...loads, ...presence.entities],
+		}, this.lightCanvas));
 		void this.syncUnderlay(layout, input);
 		if (this.fitPending) {
 			this.fitPending = false;
@@ -2585,23 +2598,27 @@ export class FloorPlanEditor extends EditorPane {
 			}));
 			appendPropertyRow(panel, localize('floorPlan.memberType', "Type"), cell).classList.add('editable');
 		}
-		const input = (label: string, value: string, placeholder: string, apply: (text: string) => void) => {
+		const input = (label: string, value: string, placeholder: string, onLeave: boolean, apply: (text: string) => void) => {
 			const cell = $('.floor-plan-prop-control');
 			const box = store.add(new InputBox(cell, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder, ariaLabel: `${label} ${member.id}` }));
 			box.value = value;
-			store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
-				if (e.key === 'Enter') {
-					e.preventDefault();
-					e.stopPropagation();
-					apply(box.value);
-				}
-			}));
+			if (onLeave) {
+				store.add(applyPropertyOnCommit(box.inputElement, apply));
+			} else {
+				store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						e.stopPropagation();
+						apply(box.value);
+					}
+				}));
+			}
 			appendPropertyRow(panel, label, cell).classList.add('editable');
 		};
 		if (member.group === 'columns') {
-			input(localize('floorPlan.rotation', "Rotation (°)"), String(this.rotationOf(member)), localize('floorPlan.angleHint', "Angle in degrees"), text => this.rotateTo(Number(text), member));
+			input(localize('floorPlan.rotation', "Rotation (°)"), String(this.rotationOf(member)), localize('floorPlan.angleHint', "Angle in degrees"), true, text => this.rotateTo(parseAngle(text), member));
 		}
-		input(localize('floorPlan.moveBy', "Move by (mm)"), '', localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0"), text => {
+		input(localize('floorPlan.moveBy', "Move by (mm)"), '', localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0"), false, text => {
 			const delta = parseDisplacement(text);
 			if (delta) {
 				this.moveBy(delta, member);
@@ -2610,26 +2627,33 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		});
 		this.renderCopyInput(panel);
-		appendPropertyNote(panel, localize('floorPlan.editNote', "Press Enter to apply. Each change is one undoable edit."));
+		appendPropertyNote(panel, localize('floorPlan.editNote', "Press Enter, or leave a changed value, to apply it (Move by and Copy by apply on Enter). Each change is one undoable edit."));
 		this.renderModifierGroups(panel, [{ group: member.group, id: member.id }]);
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);
 		propertyLink(links, localize('floorPlan.deleteMember', "Delete {0}", member.id), () => this.deleteMember(member.group, member.id), store);
 	}
 
-	/** A text box in the properties panel that runs `apply` on Enter. */
-	private propertyInput(panel: HTMLElement, label: string, value: string, placeholder: string, apply: (text: string) => void): void {
+	/**
+	 * A text box in the properties panel that runs `apply` on Enter and, for a value (`onLeave`),
+	 * also when it is left changed; an action field (Copy by) runs on Enter only.
+	 */
+	private propertyInput(panel: HTMLElement, label: string, value: string, placeholder: string, apply: (text: string) => void, onLeave = true): void {
 		const store = this.propertiesDisposables;
 		const cell = $('.floor-plan-prop-control');
 		const box = store.add(new InputBox(cell, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder, ariaLabel: label }));
 		box.value = value;
-		store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				e.stopPropagation();
-				apply(box.value);
-			}
-		}));
+		if (onLeave) {
+			store.add(applyPropertyOnCommit(box.inputElement, apply));
+		} else {
+			store.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					e.stopPropagation();
+					apply(box.value);
+				}
+			}));
+		}
 		appendPropertyRow(panel, label, cell).classList.add('editable');
 	}
 
@@ -2665,7 +2689,7 @@ export class FloorPlanEditor extends EditorPane {
 			} else {
 				this.setNotice(localize('floorPlan.badCopy', "Type the copy distance as two numbers in mm and, for an array, how many copies, e.g. 6000, 0, 3."));
 			}
-		});
+		}, false);
 	}
 
 	/** Mirror and Copy to Stories links for the selection. */
@@ -2713,7 +2737,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		if (common.rotatable) {
-			this.propertyInput(panel, localize('floorPlan.rotation', "Rotation (°)"), common.rotation === undefined ? '' : String(common.rotation), localize('floorPlan.angleAll', "Angle in degrees, for all"), text => this.runCommand({ kind: 'rotate', degrees: Number(text), absolute: true }));
+			this.propertyInput(panel, localize('floorPlan.rotation', "Rotation (°)"), common.rotation === undefined ? '' : String(common.rotation), localize('floorPlan.angleAll', "Angle in degrees, for all"), text => this.runCommand({ kind: 'rotate', degrees: parseAngle(text), absolute: true }));
 		}
 		this.propertyInput(panel, localize('floorPlan.moveBy', "Move by (mm)"), '', localize('floorPlan.displacementHint', "Δx, Δy in mm, e.g. 150, 0"), text => {
 			const delta = parseDisplacement(text);
@@ -2722,10 +2746,10 @@ export class FloorPlanEditor extends EditorPane {
 			} else {
 				this.setNotice(localize('floorPlan.badDisplacement', "Type the displacement as two numbers in mm, e.g. 150, -200."));
 			}
-		});
+		}, false);
 		this.renderCopyInput(panel);
 		this.renderModifierGroups(panel, refs);
-		appendPropertyNote(panel, localize('floorPlan.bulkNote', "Press Enter to apply; each change is one undoable edit of all {0} members. Moved members keep their nearest grid point plus an offset.", refs.length));
+		appendPropertyNote(panel, localize('floorPlan.bulkNote', "Press Enter, or leave a changed value, to apply it (Move by and Copy by apply on Enter); each change is one undoable edit of all {0} members. Moved members keep their nearest grid point plus an offset.", refs.length));
 		const links = append(panel, $('.sa-props-links'));
 		this.renderBulkLinks(links);
 		propertyLink(links, localize('floorPlan.deleteSelected', "Delete {0} Members", refs.length), () => this.runCommand({ kind: 'delete' }), store);

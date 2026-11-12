@@ -54,11 +54,6 @@
 	flex-direction: column;
 }
 
-.saengine-properties-view .sa-properties-dock.hidden,
-.saengine-properties-view .sa-properties-fallback.hidden {
-	display: none;
-}
-
 /* The editor frame's classes come along for its styles; not its layout or canvas colour. */
 .monaco-workbench .saengine-properties-view .sa-docked-frame,
 .monaco-workbench .saengine-properties-view .sa-properties-fallback.saengine-editor-frame {
@@ -71,6 +66,15 @@
 	height: auto;
 	overflow: hidden;
 	background: transparent;
+}
+
+/*
+ * After the rule above and as specific: the fallback carries the editor frame classes too, so a
+ * weaker rule left it showing under the docked editor's properties (the selection twice).
+ */
+.monaco-workbench .saengine-properties-view .sa-properties-dock.hidden,
+.monaco-workbench .saengine-properties-view .sa-properties-fallback.hidden {
+	display: none;
 }
 
 .saengine-properties-view .sa-frame-panel-content {
