@@ -172,6 +172,11 @@ suite('SAEngine - Actions service', () => {
 
 	test('project.create without a folder: cancelling the picker creates nothing, a taken folder is refused', async () => {
 		const window = await actionsWindow(store, { project: false, noFolder: true });
+		// The in-memory file system outlives a test: make sure Documents/SAEngine Projects is not there.
+		const projects = URI.from({ scheme: Schemas.inMemory, path: '/home/Documents/SAEngine Projects' });
+		if (await window.fileService.exists(projects)) {
+			await window.fileService.del(projects, { recursive: true });
+		}
 		const cancelled = await window.service.run([{ action: 'project.create', params: { name: 'Plot' } }], { apply: true });
 		assert.strictEqual(cancelled.ok, false);
 		assert.match(cancelled.results[0].message, /No folder was chosen/);

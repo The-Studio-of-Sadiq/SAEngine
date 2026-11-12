@@ -84,9 +84,7 @@ def ask(key: str, model: str, messages: list[dict[str, Any]]) -> dict[str, Any]:
                 return json.loads(response.read())
         except urllib.error.HTTPError as error:
             if error.code in (429, 500, 502, 503, 529) and attempt < 3:
-                time.sleep(
-                    float(error.headers.get("retry-after") or 10 * (attempt + 1))
-                )
+                time.sleep(float(error.headers.get("retry-after") or 10 * (attempt + 1)))
                 continue
             detail = error.read().decode("utf-8", "replace")
             raise SystemExit(f"The API answered {error.code}: {detail}") from None
@@ -110,9 +108,7 @@ def checks(root: Path, engine: Engine) -> dict[str, Any]:
         summary, failing = (r.get("data") for r in answer["results"][:2])
         out["parts"] = {p["part"]: p["state"] for p in (summary or {}).get("parts", [])}
         out["designCounts"] = (summary or {}).get("design", {}).get("counts")
-        out["failingMembers"] = [
-            m.get("id") for m in (failing or {}).get("members", [])
-        ]
+        out["failingMembers"] = [m.get("id") for m in (failing or {}).get("members", [])]
     except Exception as error:  # noqa: BLE001 - the checks say why they could not be read
         out["error"] = str(error)
     return out
@@ -145,9 +141,7 @@ def main(argv: list[str] | None = None) -> int:
             for k in usage:
                 usage[k] += int((response.get("usage") or {}).get(k) or 0)
             content = response.get("content") or []
-            messages.append(
-                {"role": "assistant", "content": content}
-            )  # thinking blocks kept
+            messages.append({"role": "assistant", "content": content})  # thinking blocks kept
             log.append(
                 {
                     "role": "assistant",
@@ -174,18 +168,12 @@ def main(argv: list[str] | None = None) -> int:
                     {
                         "type": "tool_result",
                         "tool_use_id": block["id"],
-                        "content": answer
-                        if isinstance(answer, str)
-                        else json.dumps(answer),
+                        "content": answer if isinstance(answer, str) else json.dumps(answer),
                         **({} if ok else {"is_error": True}),
                     }
                 )
             messages.append({"role": "user", "content": results})
-        result = (
-            checks(root, engine)
-            if root.exists()
-            else {"error": "no project was created"}
-        )
+        result = checks(root, engine) if root.exists() else {"error": "no project was created"}
     finally:
         engine.close()
     summary = {
@@ -193,9 +181,7 @@ def main(argv: list[str] | None = None) -> int:
         "prompt": args.prompt,
         "stopReason": stop,
         "seconds": round(time.monotonic() - started, 1),
-        "toolSeconds": round(
-            sum(e.get("seconds", 0) for e in log if e["role"] == "tool"), 1
-        ),
+        "toolSeconds": round(sum(e.get("seconds", 0) for e in log if e["role"] == "tool"), 1),
         "toolCalls": sum(1 for e in log if e["role"] == "tool"),
         "refused": sum(1 for e in log if e["role"] == "tool" and not e["ok"]),
         "usage": usage,
