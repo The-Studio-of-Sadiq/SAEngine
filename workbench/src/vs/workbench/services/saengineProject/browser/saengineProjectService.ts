@@ -181,6 +181,17 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 					void this.detect();
 				}
 			}));
+		} else {
+			// A project created in the open folder (the `project.create` action, from the app, the AI
+			// or `saengine action` in the terminal) opens in this window as its manifest appears.
+			const folder = this.contextService.getWorkspace().folders[0]?.uri;
+			if (folder) {
+				this.projectDisposables.add(this.fileService.onDidFilesChange(e => {
+					if (e.gotAdded() && e.affects(folder, FileChangeType.ADDED)) {
+						void this.detect();
+					}
+				}));
+			}
 		}
 
 		this._onDidChangeDecorations.fire([...previous, ...this.protectedResources]);

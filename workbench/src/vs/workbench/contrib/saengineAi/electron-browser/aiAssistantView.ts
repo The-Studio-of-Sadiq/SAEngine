@@ -260,13 +260,25 @@ export class AiAssistantView extends ViewPane {
 		const title = append(card, $('.ai-cs-title'));
 		append(title, $('strong', undefined, set.title));
 		append(title, $('span.ai-cs-source', undefined, set.source === 'mcp' ? localize('changeSet.fromMcp', "from an MCP client") : localize('changeSet.fromAssistant', "from the AI assistant")));
+		if (set.summary?.length) {
+			// A batch of actions: what each step does, in the engineer's words.
+			const list = append(card, $('ul.ai-cs-summary'));
+			for (const line of set.summary) {
+				append(list, $('li', undefined, line));
+			}
+		}
 		const table = append(card, $('table.ai-cs-table'));
 		const head = append(table, $('tr'));
 		for (const label of [localize('cs.file', "File"), localize('cs.path', "Value"), localize('cs.before', "Before"), localize('cs.after', "After")]) {
 			append(head, $('th', undefined, label));
 		}
+		const rows = set.files.reduce((sum, file) => sum + file.changes.length, 0);
+		let shown = 0;
 		for (const file of set.files) {
 			for (const planned of file.changes) {
+				if (shown++ >= MAX_PREVIEW_ROWS) {
+					break;
+				}
 				const row = append(table, $('tr'));
 				append(row, $('td.ai-cs-file', undefined, file.file));
 				const path = append(row, $('td.ai-cs-path', undefined, previewPath(planned.change.path)));
@@ -280,6 +292,9 @@ export class AiAssistantView extends ViewPane {
 					row.classList.add('ai-cs-noop');
 				}
 			}
+		}
+		if (rows > MAX_PREVIEW_ROWS) {
+			append(card, $('.ai-cs-more', undefined, localize('cs.more', "... and {0} more values.", rows - MAX_PREVIEW_ROWS)));
 		}
 		const actions = append(card, $('.ai-cs-actions'));
 		switch (set.state) {
@@ -316,6 +331,9 @@ export class AiAssistantView extends ViewPane {
 		}));
 	}
 }
+
+/** Most values a change set's preview lists: a whole building is thousands. */
+const MAX_PREVIEW_ROWS = 60;
 
 function scopeLabel(scope: string): string {
 	switch (scope) {

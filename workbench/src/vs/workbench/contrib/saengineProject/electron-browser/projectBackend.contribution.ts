@@ -17,6 +17,7 @@ import { ICadOpenResult, IFemSolverService, ProjectPlatformMethod } from '../../
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ACTIONS_LIST_COMMAND, ACTIONS_RUN_COMMAND } from '../../../services/saengineProject/common/saengineActions.js';
 import { FemAnalysisRunner } from '../../saengineFem/electron-browser/femAnalysisRunner.js';
 import { ARCHIVE_EXPORT_COMMAND, ARCHIVE_EXTENSION, ARCHIVE_IMPORT_COMMAND, ARCHIVE_INSPECT_COMMAND, CAD_OPEN_COMMAND, CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_ARCHIVE_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, POINT_CLOUD_VIEW_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../browser/projectArchiveModel.js';
 import { ProjectOverviewInput } from '../browser/projectOverviewInput.js';
@@ -403,6 +404,25 @@ CommandsRegistry.registerCommand(WORKBOOK_EXPORT_COMMAND, async (accessor, raw: 
 CommandsRegistry.registerCommand(WORKBOOK_IMPORT_COMMAND, async (accessor, raw: unknown) => {
 	const args = bag(raw);
 	return call(accessor, 'workbook/import', { path: args.path, floorPlanText: args.floorPlanText, objectsText: args.objectsText, loadsText: args.loadsText });
+});
+
+// --- The shared editing actions (ISaengineActionsService) --------------------------------------
+
+// The catalogue and the batches of `saengine.actions`: the browser service sends the unsaved texts
+// as overrides and applies the answer's texts to the text models itself (docs/actions.md).
+CommandsRegistry.registerCommand(ACTIONS_LIST_COMMAND, (accessor, raw: unknown) => {
+	const kind = str(bag(raw).kind);
+	return call(accessor, 'actions/list', kind ? { kind } : {});
+});
+
+CommandsRegistry.registerCommand(ACTIONS_RUN_COMMAND, (accessor, raw: unknown) => {
+	const args = bag(raw);
+	return call(accessor, 'actions/run', {
+		projectRoot: args.projectRoot,
+		steps: args.steps,
+		...(args.overrides && typeof args.overrides === 'object' ? { overrides: args.overrides } : {}),
+		write: args.write === true,
+	});
 });
 
 // --- A .civil file opened from the operating system ----------------------------------------

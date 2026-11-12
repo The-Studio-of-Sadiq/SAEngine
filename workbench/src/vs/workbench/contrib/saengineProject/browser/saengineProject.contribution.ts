@@ -11,6 +11,7 @@ import './propertiesDock.js';
 import './tablesView.js';
 import './modelView.js';
 import './truncatedText.contribution.js';
+import './actions.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';

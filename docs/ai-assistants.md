@@ -97,11 +97,12 @@ unauthenticated control of the window, so SAEngine does not open it.
 | `screenshot` | A PNG of this window (only this window, never the screen). |
 | `show_message` | A notification for you, always shown as "AI assistant: …". |
 | `reveal_element` | Selects and shows a member (`columns`/`beams`/… and id), story, grid line or object type in its editor. |
-| `set_json_value` | **Edits only.** Changes one value in a project JSON file through the editor (see below). |
 | `search_code` | Passages of the code pack in force (BNBC 2020 unless the project chooses another) and of this manual that answer a question, each with its clauses, tables and pages. |
 | `explain_results` | The design checks of the last run per element, governing check first (demand, capacity, utilisation, combination), for one member or the failing ones. |
 | `propose_changes` | A change set to the project's JSON files that you preview (each value before and after) and accept or reject in the AI Assistant view; accepted, it is one undoable step. Works without the edits switch, because nothing changes until you accept. |
-| `propose_building` | Fills the New Project wizard with a building described in words; you check it and click Generate. |
+| `list_actions` | The catalogue of [shared editing actions](actions.md) (name, kind, summary): edits, queries and runs. |
+| `describe_action` | One action with its parameters (JSON schema) and the parts it changes. |
+| `run_actions` | Runs a batch of actions on the open project, all or nothing (see [Building with actions](#building-with-actions)). Edits come back as one change set you accept or reject; run steps ask you first. |
 
 ### Commands the assistant may run
 
@@ -121,11 +122,46 @@ arguments from the assistant; the few that need the project's folder get it from
 Edits are off for every new session. **Allow AI Edits for This Session** (status bar menu or Command
 Palette) turns them on until you stop them or the server stops. Then:
 
-- `set_json_value` changes one value of a project `.json` file (e.g. a story height in
-  `05 Floor Plan/floor-plan.json`) through the same text model the editors use. The change shows at
-  once in every view, is on the undo stack (Ctrl+Z), and **stays unsaved until you save** — nothing is
-  written behind the editor's back.
 - The edit commands above run as their menus do.
+
+Changes to the model itself never need this switch, because nothing changes until you accept them:
+`run_actions` and `propose_changes` show a change set you accept or reject (below).
+
+## Building with actions
+
+The assistant changes the model with the same [actions](actions.md) as the command line
+(`saengine action ...`), scripts (the SDK) and the app: typed, validated steps such as `grid.set`,
+`storeys.set`, `columns.place`, `load.area.set`, `foundations.generate`, `run.all`. With them it can
+build a whole project from an empty folder to the report. It works through three tools:
+`list_actions`, `describe_action` and `run_actions`.
+
+- **A batch is all or nothing.** The engine works out every step on your project as you see it,
+  unsaved edits included. If one step fails nothing changes. The answer names the step and each
+  refused value (field, value, reason, by the same input rules as for you), and the assistant
+  corrects it and tries again.
+- **Edits are a change set.** A batch that edits comes back as one change set in the AI Assistant view:
+  what each step did ("Placed 6 columns", "3 storeys") and every value before and after.
+  **Accept** applies it to the part files' text models as one step: Undo in the view (or Ctrl+Z)
+  reverts all of it. It shows at once in every editor, live co-editing shares it, and it stays
+  unsaved until you save. **Reject** changes nothing.
+- **Runs ask you first.** A batch with a run step (`run.all`, `run.step`,
+  `design.reinforcement.apply`, `export.*`) or `project.create` runs only after you agree in a
+  dialog. SAEngine then saves your edited parts (as Run All does), the engine writes the results,
+  and the open files are read again. Such a batch holds only run steps and queries; the assistant
+  sends the edits first, as their own change set.
+- **You check the results.** The assistant reports what the run and the checks say. It does not
+  approve a design. Design Reinforcement is never automatic: the assistant applies it only when
+  you ask.
+
+The order the assistant follows for a new project: `project.create` (in the empty folder open in the
+window; the project then opens there) → settings (code pack, site, use, analysis) → soil → grid and
+storeys → materials and types → members → loads → an analysis (`run.step`) → foundations → `run.all` → results and checks →
+Design Reinforcement and exports when you ask.
+
+You can run the same batches yourself: Command Palette → **SAEngine: Run Actions from File...** runs a
+batch file (`[{"action": "grid.set", "params": {...}}, ...]`, the file `saengine action batch` takes)
+on the open project, and **SAEngine: Show Action Catalogue** lists every action with its parameters
+and copies an example step. For the catalogue and the batch format see [actions.md](actions.md).
 
 ## Safety model
 
@@ -148,8 +184,10 @@ SAEngine also has its own assistant, in the **AI Assistant** view of the seconda
 assistant** component; without it the view offers *Add AI Component...*. It uses the same tools as
 the MCP clients above (one set of tools, logged in the same **AI Activity** output), but only these:
 `search_code`, `explain_results`, `read_results`, `get_project`, `list_editors`,
-`read_active_document`, `open_part`, `open_file`, `reveal_element`, `propose_changes` and
-`propose_building`. It never runs commands, takes screenshots or edits directly.
+`read_active_document`, `open_part`, `open_file`, `reveal_element`, `propose_changes`,
+`list_actions`, `describe_action` and `run_actions`. It never runs menu commands, takes screenshots or
+edits directly: its edits are change sets you accept, and its run steps (Run All, exports) ask you
+first.
 
 What it does:
 
@@ -161,7 +199,9 @@ What it does:
 - **Changes** in words ("make the typical storey 3.2 m", "use C28 for the columns") come as a change
   set in the view with every value before and after. **Accept** applies it as one undoable step
   (Undo in the view, or Ctrl+Z); it stays unsaved until you save. **Reject** changes nothing.
-  A new building comes as the New Project wizard filled in.
+- **Whole projects** ("a 3-storey RC frame, 3 by 2 bays of 6 m, in Dhaka, designed"): the assistant
+  builds them with the actions, in a few change sets and one Run All you agree to (see
+  [Building with actions](#building-with-actions)).
 
 ### Provider and key
 

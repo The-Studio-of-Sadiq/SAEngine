@@ -60,7 +60,12 @@ suite('SAEngine - AI assistant', () => {
 		const none = assistantTools(new Set()).map(t => t.name);
 		assert.ok(none.includes('search_code') && none.includes('propose_changes'));
 		assert.ok(!none.includes('read_results') && !none.includes('get_project'));
-		assert.ok(!assistantTools(new Set(['project', 'document', 'results'])).some(t => t.name === 'set_json_value' || t.name === 'run_command' || t.name === 'screenshot'));
+		assert.ok(none.includes('list_actions') && none.includes('describe_action') && !none.includes('run_actions'));
+		const all = assistantTools(new Set(['project', 'document', 'results'])).map(t => t.name);
+		assert.ok(all.includes('run_actions'));
+		assert.ok(!all.some(name => name === 'set_json_value' || name === 'propose_building' || name === 'run_command' || name === 'screenshot'));
+		assert.match(systemPrompt(new Set()), /project\.create[\s\S]*run\.all/);
+		assert.match(systemPrompt(new Set()), /checked by the engineer/);
 		assert.match(systemPrompt(new Set()), /not allowed you to read the project overview, the open document, the results/);
 		assert.deepStrictEqual([...readScopes(undefined)], ['project', 'results']);
 		assert.deepStrictEqual([...readScopes('["document","bogus"]')], ['document']);
