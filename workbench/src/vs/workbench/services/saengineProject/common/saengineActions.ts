@@ -28,6 +28,8 @@ export interface IActionInfo {
 	readonly parts: readonly string[];
 	/** Its parameters (the pydantic model's JSON schema). */
 	readonly paramsSchema: IJSONSchema;
+	/** Example parameters, when the catalogue has them. */
+	readonly example?: { readonly [key: string]: unknown };
 }
 
 /** One step of a batch. */
@@ -39,6 +41,8 @@ export interface IActionStep {
 /** Why a guardrail refused a value: the field, the value given and the reason. */
 export interface IActionProblem {
 	readonly field?: string;
+	/** The part file the field is in; none for a parameter. */
+	readonly part?: string;
 	readonly value?: unknown;
 	readonly reason: string;
 }
@@ -64,6 +68,11 @@ export interface IBatchResult {
 	readonly changes: { readonly [path: string]: string };
 	/** The step that failed (0-based), when one did. */
 	readonly failedStep: number | undefined;
+	/**
+	 * Files the engine wrote (a batch run with write; a run step writes the steps before it first,
+	 * so these may be written even when a later step failed).
+	 */
+	readonly written: readonly string[];
 }
 
 export interface IActionsRunOptions {
@@ -151,12 +160,14 @@ export function readCatalogue(raw: unknown): IActionInfo[] {
 		}
 		const kind = KINDS.find(k => k === entry.kind) ?? 'edit';
 		const schema = bag(entry.params_schema ?? entry.paramsSchema);
+		const example = entry.example;
 		infos.push({
 			name: entry.name,
 			summary: typeof entry.summary === 'string' ? entry.summary : '',
 			kind,
 			parts: strings(entry.parts),
 			paramsSchema: schema as IJSONSchema,
+			...(typeof example === 'object' && example !== null && !Array.isArray(example) ? { example: example as Bag } : {}),
 		});
 	}
 	return infos;
@@ -169,7 +180,8 @@ function readProblem(raw: unknown): IActionProblem {
 	}
 	const entry = bag(raw);
 	return {
-		...(typeof entry.field === 'string' ? { field: entry.field } : {}),
+		...(typeof entry.field === 'string' && entry.field ? { field: entry.field } : {}),
+		...(typeof entry.part === 'string' && entry.part ? { part: entry.part } : {}),
 		...(Object.prototype.hasOwnProperty.call(entry, 'value') ? { value: entry.value } : {}),
 		reason: typeof entry.reason === 'string' ? entry.reason : typeof entry.message === 'string' ? entry.message : JSON.stringify(raw),
 	};
@@ -218,6 +230,7 @@ export function readBatchResult(raw: unknown): IBatchResult {
 		// All or nothing: a failed batch changes nothing, whatever it sent.
 		changes: ok ? changes : {},
 		failedStep: typeof failed === 'number' ? failed : (ok ? undefined : Math.max(0, results.findIndex(r => !r.ok))),
+		written: strings(answer.written).map(path => path.replace(/\\/g, '/')),
 	};
 }
 
@@ -292,8 +305,9 @@ export function describeFailure(steps: readonly IActionStep[], result: IBatchRes
 	const name = index >= 0 && index < steps.length ? steps[index].action : undefined;
 	const lines = [name ? `Step ${index + 1} (${name}) failed: ${failed?.message ?? ''}`.trim() : (failed?.message ?? 'The batch failed.')];
 	for (const problem of failed?.problems ?? []) {
-		const value = problem.value !== undefined ? ` = ${JSON.stringify(problem.value)}` : '';
-		lines.push(`- ${problem.field ? `${problem.field}${value}: ` : ''}${problem.reason}`);
+		const value = problem.value !== undefined && problem.value !== null ? ` = ${JSON.stringify(problem.value)}` : '';
+		const where = problem.part ? ` (${problem.part})` : '';
+		lines.push(`- ${problem.field ? `${problem.field}${where}${value}: ` : ''}${problem.reason}`);
 	}
 	return lines.join('\n');
 }

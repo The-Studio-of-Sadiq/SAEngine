@@ -157,11 +157,9 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 			await this.saveProject(root);
 			const request: IActionsRunRequest = { projectRoot: root.fsPath, steps, write: true };
 			const result = readBatchResult(await this.backend<unknown>(ACTIONS_RUN_COMMAND, request));
-			if (!result.ok) {
-				return { ...result, ran: true, applied: [] };
-			}
+			// What the engine wrote, even for a failed batch (a run step writes the steps before it first).
 			const applied: string[] = [];
-			for (const path of Object.keys(result.changes)) {
+			for (const path of new Set([...Object.keys(result.changes), ...result.written])) {
 				const segments = insideProject(path);
 				const model = segments && this.textFileService.files.get(joinPath(root, ...segments));
 				// Saved before the run, so nothing of the engineer's is lost by reading the file again.

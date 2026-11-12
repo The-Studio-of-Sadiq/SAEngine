@@ -51,6 +51,9 @@ export function describeParams(schema: IJSONSchema): string[] {
 
 /** A step of `info` to start from: its required parameters with their defaults or empty values. */
 export function exampleStep(info: IActionInfo): IActionStep {
+	if (info.example) {
+		return { action: info.name, params: info.example };
+	}
 	const params: { [key: string]: unknown } = {};
 	const properties = info.paramsSchema.properties ?? {};
 	for (const name of info.paramsSchema.required ?? []) {

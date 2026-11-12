@@ -35,7 +35,7 @@ export const MAX_TOOL_RESULT = 60_000;
  */
 export const BUILD_PLAYBOOK = [
 	'Building a project from scratch (or completing one): work in this order, a few batches, each a change set the engineer reviews.',
-	'1. project.create (alone; in the empty folder open in the window; the engineer agrees). Then project.summary to see what is there.',
+	'1. project.create (alone, with queries at most; in the empty folder open in the window; the engineer agrees). For a regular building its "building" parameter (grids, storeys, system) generates the whole frame at once; otherwise it starts empty. Then project.summary to see what is there.',
 	'2. Settings: settings.code_pack, settings.site (location, wind, seismic zone and site class; soil bearing when there is no soil report), settings.use (occupancy, live loads), settings.analysis.',
 	'3. Soil, when there is a soil report: soil.borehole.add, soil.layer.add, soil.spt.add, or soil.allowable_bearing.set.',
 	'4. Geometry: grid.set (x and y lines with spacings), storeys.set (heights), storey.typical for typical floors.',
