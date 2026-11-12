@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { relativePath } from '../../../../base/common/resources.js';
@@ -119,7 +119,8 @@ function textModelDocument(model: ITextFileEditorModel, path: string): ICoEdited
 	return {
 		path,
 		getText: () => textModel.getValue(),
-		onDidChangeLocally: Event.signal(textModel.onDidChangeContent),
+		// The text model's onDidChangeContent is a method: call it on the model.
+		onDidChangeLocally: listener => textModel.onDidChangeContent(() => listener()),
 		applyRemote: text => {
 			textModel.pushStackElement();
 			textModel.pushEditOperations([], [{ range: textModel.getFullModelRange(), text }], () => null);
@@ -362,6 +363,10 @@ registerAction2(class extends Action2 {
 		if (!projectService.project) {
 			notificationService.info(localize('live.noProject', "Open a project first."));
 			return;
+		}
+		if (!shareService.status) {
+			// Not read yet (the engine was starting when the project opened): read it now.
+			await shareService.refresh(false);
 		}
 		if (!shareService.status?.shared) {
 			notificationService.info(localize('live.notShared', "Share the project first (Share Project...): live co-editing joins the engineers of a shared project."));
