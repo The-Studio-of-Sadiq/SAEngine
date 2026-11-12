@@ -188,4 +188,7 @@ export interface ISaengineProjectService {
 	 * other one stays on disk with its files (no longer a core item).
 	 */
 	setProjectType(type: ProjectType): Promise<void>;
+
+	/** Looks for the project at the open folder again (after something created it there). */
+	refresh(): Promise<void>;
 }

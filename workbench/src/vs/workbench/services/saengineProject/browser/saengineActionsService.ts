@@ -118,6 +118,11 @@ export class SaengineActionsService extends Disposable implements ISaengineActio
 				await this.hostService.openWindow([{ folderUri: root.folder }], { forceReuseWindow: true });
 				return { ...outcome, createdIn: root.folder.fsPath };
 			}
+			if (outcome.ok && !this.projectService.project && steps[0].action === PROJECT_CREATE_ACTION) {
+				// Created in the open folder: open it now rather than wait for the file watcher,
+				// so the next request (the AI's next batch) finds the project.
+				await this.projectService.refresh();
+			}
 			return outcome;
 		}
 		return this.runInMemory(root.folder, steps, options);

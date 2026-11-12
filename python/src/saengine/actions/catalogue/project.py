@@ -144,6 +144,7 @@ def project_create(view: ProjectView, p: CreateParams) -> ActionResult:
             "name",
             p.name,
         )
+    p = _resolve_names(p)
     notes: list[str] = []
     file, manifest = project_manifest(p.name)
     view.put(file, manifest)
@@ -198,6 +199,46 @@ def project_create(view: ProjectView, p: CreateParams) -> ActionResult:
         if main is not None:
             view.put(f"{folder}/{main[0]}", json.loads(starting_file(main[1])))
     return ActionResult(message=f"Created {p.name}: {what}.", created=[file], warnings=notes)
+
+
+def _key(text: str) -> str:
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
+def _resolve_names(p: CreateParams) -> CreateParams:
+    """The code pack and the town as the engineer (or the AI) writes them: "BNBC 2020" is the
+    pack bnbc2020 and "Dhaka" its town dhaka. Exact ids pass unchanged; no match is left for
+    the usual refusal, which names the accepted values."""
+    from saengine.codes import context as code_context
+    from saengine.codes import registry
+
+    update: dict[str, Any] = {}
+    pack_id = p.codePack
+    if pack_id:
+        try:
+            packs = registry.list_packs()
+        except Exception:  # noqa: BLE001 - the refusal below reports an unusable pack
+            packs = []
+        ids = [info.id for info in packs]
+        if pack_id not in ids:
+            want = _key(pack_id)
+            for info in packs:
+                if want in {_key(info.id), _key(getattr(info, "name", "") or "")}:
+                    update["codePack"] = pack_id = info.id
+                    break
+    if p.location and p.location != "custom":
+        try:
+            pack = code_context.pack_for({"codePack": pack_id} if pack_id else None, strict=True)
+            towns = pack.table("locations").locations if pack.has("locations") else {}
+        except Exception:  # noqa: BLE001 - the usual validation reports it
+            towns = {}
+        if p.location not in towns:
+            want = _key(p.location)
+            for key, town in towns.items():
+                if want in {_key(key), _key(getattr(town, "name", "") or "")}:
+                    update["location"] = key
+                    break
+    return p.model_copy(update=update) if update else p
 
 
 class GenerateParams(Params):

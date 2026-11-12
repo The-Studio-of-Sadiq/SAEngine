@@ -135,6 +135,10 @@ export class SaengineProjectService extends Disposable implements ISaengineProje
 		await this.createMissing(changed);
 	}
 
+	refresh(): Promise<void> {
+		return this.detect();
+	}
+
 	private async detect(): Promise<void> {
 		const folder = this.contextService.getWorkspace().folders[0]?.uri;
 		const project = folder ? await this.findProject(folder) : undefined;
