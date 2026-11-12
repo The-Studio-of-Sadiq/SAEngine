@@ -22,9 +22,9 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
-import { coEditingBlocker, coEditingProvider, RELAY_URL_SETTING } from './liveCoEditing.js';
+import { coEditingBlocker, coEditingProvider, LIVE_START_COMMAND, RELAY_URL_SETTING } from './liveCoEditing.js';
 import { PROJECT_MENU, ProjectOpenContext } from './projectMenu.js';
-import { isServerLocation, IShareConflict, ISyncResult, Resolution, SHARE_JOIN_COMMAND, shareSummary, syncMessage } from './shareModel.js';
+import { isServerLocation, IShareConflict, ISyncResult, Resolution, SHARE_JOIN_COMMAND, syncMessage } from './shareModel.js';
 import { IProjectShareService } from './shareService.js';
 
 /*
@@ -297,16 +297,9 @@ class ShareFlows {
 			case 'engine':
 				this.notificationService.info(localize('live.engine', "Live co-editing (several engineers in one part at once) is not in this build yet: its co-editing engine is still to be added. Until then, share the project, lock the part you edit and sync; the Versions view shows who else has the project open."));
 				return;
-			case 'notShared':
-				this.notificationService.info(localize('live.notShared', "Share the project first (Share Project...): live co-editing joins the engineers of a shared project."));
-				return;
-			case 'relay':
-				this.notificationService.info(localize('live.relay', "Set the office's co-editing relay ({0}) to start live co-editing. SAEngine uses no outside service for it.", RELAY_URL_SETTING));
-				return;
 		}
-		// With an engine registered, the part editors join their rooms when they open (the engine
-		// registers that behaviour with the provider).
-		this.notificationService.info(localize('live.on', "Live co-editing is on for this project; {0}", shareSummary(this.shareService.status!)));
+		// The engine's own command asks for what is still missing (sharing, the relay) and starts it.
+		await this.commandService.executeCommand(LIVE_START_COMMAND);
 	}
 }
 

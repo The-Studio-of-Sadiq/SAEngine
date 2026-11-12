@@ -1720,7 +1720,14 @@ export default defineConfig(
 						'yauzl',
 						'yazl',
 						'zlib',
-						'chrome-remote-interface'
+						'chrome-remote-interface',
+						// SAEngine live co-editing (loaded on first use: platform/saengine/node/coEditingLibs.ts)
+						'yjs',
+						'y-protocols/awareness',
+						'y-protocols/sync',
+						'y-websocket',
+						'lib0/decoding',
+						'lib0/encoding'
 					]
 				},
 				{
