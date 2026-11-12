@@ -42,8 +42,8 @@ export const BUILD_PLAYBOOK = [
 	'5. Materials and types: material.concrete.add/set, material.steel.add/set, type.column/beam/slab/wall/footing.add/set.',
 	'6. Members: columns.place (grid points or "all"), beams.place, slabs.place, walls.place; member.set for exceptions; members.copy_to_storeys.',
 	'7. Loads: load.area.set (SD, L, Lr per storey or panel), load.line.add, load.wall.add, load.point.add.',
-	'8. Foundations: foundations.generate, footing.set.',
-	'Steps 2 to 8 can be one or two batches. Check with project.summary and members.list.',
+	'Steps 2 to 7 can be one or two batches. Check with project.summary and members.list.',
+	'8. Foundations are sized from an analysis: run.step with step "analyse" (alone; the engineer agrees), then foundations.generate and footing.set as an edit batch.',
 	'9. run.all (alone; the engineer agrees; it saves the project and can take minutes). Then results.summary and checks.list; explain failing members with explain_results and propose fixes as edit batches, then run.all again.',
 	'10. design.reinforcement.apply only when the engineer asks for it (it is never automatic), then export.report, export.drawings, export.boq as asked.',
 ].join('\n');

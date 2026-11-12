@@ -105,18 +105,25 @@ const PYTHON_PATH = (process.env.SAENGINE_TEST_PYTHONPATH ?? '').split(path.deli
 		documents.set(settingsFile, JSON.stringify(typed, undefined, '\t') + '\n');
 		unsaved.add(settingsFile);
 
+		// The steps of the engine's own end-to-end batch (python/tests/data/actions/three-storey-rc.json).
 		const model: IActionStep[] = [
 			{ action: 'settings.site', params: { location: 'dhaka', siteClass: 'SD' } },
-			{ action: 'grid.set', params: { x: [6000, 6000, 6000], y: [5000, 5000] } },
+			{ action: 'grid.set', params: { x: [5000, 5000, 5000], y: [4000, 4000] } },
 			{ action: 'storeys.set', params: { count: 3, height: 3000, typical: true } },
-			{ action: 'columns.place', params: { type: 'C400x400', points: 'all', storeys: 'all' } },
-			{ action: 'beams.place', params: { type: 'B250x450', between: 'all', storeys: 'all' } },
-			{ action: 'slabs.place', params: { type: 'S125', panels: 'all', storeys: 'all' } },
-			{ action: 'foundations.generate', params: {} },
+			{ action: 'material.concrete.add', params: { fc: 28, makeDefault: true } },
+			{ action: 'soil.allowable_bearing.set', params: { value: 150 } },
+			{ action: 'type.column.add', params: { id: 'C400', width: 400, depth: 400 } },
+			{ action: 'type.beam.add', params: { id: 'B300x500', width: 300, depth: 500 } },
+			{ action: 'type.slab.add', params: { id: 'S150', thickness: 150 } },
+			{ action: 'columns.place', params: { type: 'C400' } },
+			{ action: 'beams.place', params: { type: 'B300x500' } },
+			{ action: 'slabs.place', params: { type: 'S150' } },
+			{ action: 'load.area.set', params: { id: 'FL', SD: 1.5 } },
+			{ action: 'load.wall.add', params: { storeys: ['L1'], openings: 25 } },
 		];
 
-		// A storey of 30 m is refused: nothing changes and the problem names the value.
-		const refused = await run([...model.slice(0, 2), { action: 'storeys.set', params: { count: 3, height: 30000 } }], false);
+		// A storey of 100 m (mm taken for cm) is refused: nothing changes and the problem names the value.
+		const refused = await run([...model.slice(0, 2), { action: 'storeys.set', params: { count: 3, height: 100000 } }], false);
 		assert.strictEqual(refused.ok, false);
 		assert.strictEqual(refused.failedStep, 2);
 		assert.deepStrictEqual(refused.changes, {});
@@ -124,12 +131,20 @@ const PYTHON_PATH = (process.env.SAENGINE_TEST_PYTHONPATH ?? '').split(path.deli
 
 		const built = await run(model, false);
 		assert.ok(built.ok, JSON.stringify(built.results));
-		assert.ok(built.results[3].created.length >= 12, JSON.stringify(built.results[3]));
+		assert.ok(built.results[8].created.length >= 12, JSON.stringify(built.results[8]));
 		await apply(built.changes);
 		assert.strictEqual(JSON.parse(documents.get(settingsFile)!).project.engineer, 'Typed, not saved');
 
 		const summary = await run([{ action: 'project.summary' }], false);
 		assert.ok(summary.ok && summary.results[0].data, JSON.stringify(summary.results));
+
+		// The footings are sized from an analysis: the app saves, the engine analyses; then the edit.
+		await save();
+		const analysed = await run([{ action: 'run.step', params: { step: 'analyse' } }], true);
+		assert.ok(analysed.ok, JSON.stringify(analysed.results));
+		const footings = await run([{ action: 'foundations.generate', params: {} }], false);
+		assert.ok(footings.ok && footings.results[0].created.length === 12, JSON.stringify(footings.results));
+		await apply(footings.changes);
 
 		// Run All: the app saves, the engine runs and writes.
 		await save();

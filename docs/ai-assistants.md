@@ -155,7 +155,7 @@ build a whole project from an empty folder to the report. It works through three
 
 The order the assistant follows for a new project: `project.create` (in the empty folder open in the
 window; the project then opens there) → settings (code pack, site, use, analysis) → soil → grid and
-storeys → materials and types → members → loads → foundations → `run.all` → results and checks →
+storeys → materials and types → members → loads → an analysis (`run.step`) → foundations → `run.all` → results and checks →
 Design Reinforcement and exports when you ask.
 
 You can run the same batches yourself: Command Palette → **SAEngine: Run Actions from File...** runs a
