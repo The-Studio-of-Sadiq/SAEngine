@@ -14,7 +14,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename, dirname, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -38,6 +38,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { feetInches, isConverted, parseList } from '../../../services/saengineProject/common/displayUnits.js';
+import { ISaengineCoEditingPresenceService } from '../../../services/saengineProject/common/coEditingPresence.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -57,6 +58,7 @@ import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.j
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
+import { presenceDrawing } from './floorPlanPresence.js';
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
@@ -378,12 +380,19 @@ export class FloorPlanEditor extends EditorPane {
 		@ISaenginePartStatusService private readonly partStatusService: ISaenginePartStatusService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ISaengineCoEditingPresenceService private readonly presenceService: ISaengineCoEditingPresenceService,
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this.viewStorage = storageService;
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
+		// Live co-editing: the colleagues' selections in this plan, outlined in their colours.
+		this._register(this.presenceService.onDidChange(resource => {
+			if (isEqual(resource, this.input?.resource)) {
+				this.renderScheduler.schedule();
+			}
+		}));
 		this._register(this.selectionService.onDidChangeSelection(({ source, selection }) => {
 			if (source !== SELECTION_SOURCE) {
 				// Selected elsewhere (Model Explorer, BIM): that member alone.
@@ -2079,7 +2088,11 @@ export class FloorPlanEditor extends EditorPane {
 		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
 		this.selected = prune(this.selected, this.plan.members);
 		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '', parse(this.objects));
-		this.editor.setGenerated(forCanvas({ layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS], entities: [...this.plan.drawing.entities, ...loads] }, this.lightCanvas));
+		const presence = presenceDrawing(this.plan.members, this.presenceService.colleagues(input.resource));
+		this.editor.setGenerated(forCanvas({
+			layers: [...this.plan.drawing.layers, ...LOAD_LAYER_SPECS, ...presence.layers],
+			entities: [...this.plan.drawing.entities, ...loads, ...presence.entities],
+		}, this.lightCanvas));
 		void this.syncUnderlay(layout, input);
 		if (this.fitPending) {
 			this.fitPending = false;

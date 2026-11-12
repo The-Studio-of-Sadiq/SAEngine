@@ -68,6 +68,7 @@ import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
 import './services/saengineProject/browser/saengineProjectService.js';
 import './services/saengineProject/browser/modelSelectionService.js';
+import './services/saengineProject/browser/coEditingPresenceService.js';
 import './services/dialogs/common/dialogService.js';
 import './services/progress/browser/progressService.js';
 import './services/editor/browser/codeEditorService.js';
