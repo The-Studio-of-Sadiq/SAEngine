@@ -16,6 +16,8 @@ import {
 	IDraftPolyline,
 	nextDraftId,
 	pickDraft,
+	rectangleFromCorners,
+	regularPolygon,
 	removeDraft,
 	replaceDraft,
 } from '../../browser/floorPlanDrafting.js';
@@ -296,5 +298,70 @@ suite('SAEngine - Floor plan drafting', () => {
 		drafts = draftsOf(JSON.parse(text));
 		assert.strictEqual(drafts.length, 2);
 		assert.deepStrictEqual(drafts.map(d => d.id), ['D3', 'D4']);
+	});
+
+	test('rectangleFromCorners returns four corners in cyclical order', () => {
+		const corners1 = rectangleFromCorners([0, 0], [1000, 500]);
+		assert.deepStrictEqual(corners1, [
+			[0, 0],
+			[1000, 0],
+			[1000, 500],
+			[0, 500],
+		]);
+
+		const corners2 = rectangleFromCorners([1000, 500], [0, 0]);
+		assert.deepStrictEqual(corners2, [
+			[1000, 500],
+			[0, 500],
+			[0, 0],
+			[1000, 0],
+		]);
+
+		const cornersNegative = rectangleFromCorners([-200, -100], [300, 400]);
+		assert.deepStrictEqual(cornersNegative, [
+			[-200, -100],
+			[300, -100],
+			[300, 400],
+			[-200, 400],
+		]);
+	});
+
+	test('regularPolygon computes vertices of regular polygons', () => {
+		// Edge cases: sides < 3 or zero radius returns empty
+		assert.deepStrictEqual(regularPolygon([0, 0], [100, 0], 2), []);
+		assert.deepStrictEqual(regularPolygon([100, 100], [100, 100], 6), []);
+
+		// 4-sided square
+		const square = regularPolygon([0, 0], [10, 0], 4);
+		assert.strictEqual(square.length, 4);
+		assert.deepStrictEqual(square, [
+			[10, 0],
+			[0, 10],
+			[-10, 0],
+			[0, -10],
+		]);
+
+		// 6-sided hexagon
+		const hexagon = regularPolygon([0, 0], [1000, 0], 6);
+		assert.strictEqual(hexagon.length, 6);
+		assert.deepStrictEqual(hexagon[0], [1000, 0]);
+		assert.deepStrictEqual(hexagon[1], [500, 866.025]);
+		assert.deepStrictEqual(hexagon[2], [-500, 866.025]);
+		assert.deepStrictEqual(hexagon[3], [-1000, 0]);
+		assert.deepStrictEqual(hexagon[4], [-500, -866.025]);
+		assert.deepStrictEqual(hexagon[5], [500, -866.025]);
+
+		// Distance from center to all vertices should equal radius (1000)
+		for (const pt of hexagon) {
+			const dist = Math.hypot(pt[0], pt[1]);
+			assert.ok(Math.abs(dist - 1000) < 0.01, `Vertex distance ${dist} close to 1000`);
+		}
+
+		// Edge lengths should all equal radius (1000) for a regular hexagon
+		for (let i = 0; i < 6; i++) {
+			const next = hexagon[(i + 1) % 6];
+			const edge = Math.hypot(next[0] - hexagon[i][0], next[1] - hexagon[i][1]);
+			assert.ok(Math.abs(edge - 1000) < 0.01, `Edge length ${edge} close to 1000`);
+		}
 	});
 });

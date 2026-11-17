@@ -69,7 +69,7 @@ import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOA
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { distanceToDraft, draftSegments, removeDraft } from './floorPlanDrafting.js';
+import { addDraft, distanceToDraft, draftSegments, IDraftShape, nextDraftId, rectangleFromCorners, regularPolygon, removeDraft } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -96,7 +96,9 @@ const WINDOW_DASH_PIXELS = 20;
 /** Mouse travel below which a press counts as a click rather than a pan [px]. */
 const CLICK_PIXELS = 5;
 
-type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+type DraftTool = 'draftLine' | 'draftPolyline' | 'draftRect' | 'draftPolygon';
+
+type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete' | DraftTool;
 
 /** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
 type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
@@ -108,6 +110,10 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'wall', label: localize('tool.wall', "Wall"), icon: Codicon.splitHorizontal, hint: localize('hint.wall', "Click the start and end (they snap like beam ends); type a length for the end. Walls chain until Esc or right-click.") },
 	{ tool: 'slab', label: localize('tool.slab', "Slab"), icon: Codicon.layout, hint: localize('hint.slab', "Click inside a bay to place a slab on this story.") },
 	{ tool: 'polygonSlab', label: localize('tool.polygonSlab', "Polygon Slab"), icon: Codicon.symbolConstant, hint: localize('hint.polygonSlab', "Click the slab's corners; finish on the first corner, with Enter or a right-click. Corners snap to intersections and grid lines.") },
+	{ tool: 'draftLine', label: localize('tool.draftLine', "Line"), icon: Codicon.dash, hint: localize('hint.draftLine', "Line: click the start and end points; it continues from the end point. Esc or Enter stops.") },
+	{ tool: 'draftPolyline', label: localize('tool.draftPolyline', "Polyline"), icon: Codicon.graph, hint: localize('hint.draftPolyline', "Polyline: click the points; Enter or a click on the first point ends it (closed when on the first point). Esc cancels.") },
+	{ tool: 'draftRect', label: localize('tool.draftRect', "Rectangle"), icon: Codicon.primitiveSquare, hint: localize('hint.draftRect', "Rectangle: click two opposite corners.") },
+	{ tool: 'draftPolygon', label: localize('tool.draftPolygon', "Polygon"), icon: Codicon.symbolConstant, hint: localize('hint.draftPolygon', "Polygon: click the centre, then a corner (6 sides; type the number of sides in the command line later).") },
 	{ tool: 'fill', label: localize('tool.fill', "Fill"), icon: Codicon.table, hint: localize('hint.fill', "Drag a window over the grid to place members on every intersection, segment or bay inside it.") },
 	{ tool: 'move', label: localize('tool.move', "Move"), icon: Codicon.move, hint: localize('hint.move', "Click the member to move.") },
 	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column to rotate it (footings turn in 9 Substructure).") },
@@ -287,6 +293,8 @@ export class FloorPlanEditor extends EditorPane {
 	private picked: IMemberShape | undefined;
 	/** Corners of the polygon slab being drawn. */
 	private polygon: CadPoint[] = [];
+	/** Clicked points of a draft shape being drawn (Line, Polyline, Rectangle, Polygon). */
+	private draftPoints: CadPoint[] = [];
 	private hover: CadPoint | undefined;
 	private notice: string | undefined;
 	/** Set while this editor writes the floor plan. */
@@ -842,13 +850,23 @@ export class FloorPlanEditor extends EditorPane {
 
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
-		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length || this.selectedDraftIds.size)) {
+		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.drag || this.underlayPick || this.selected.length || this.selectedDraftIds.size)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.cancel();
-		} else if (e.key === 'Enter' && this.tool === 'polygonSlab' && this.polygon.length) {
-			e.preventDefault();
-			this.finishPolygon();
+		} else if (e.key === 'Enter') {
+			if (this.tool === 'polygonSlab' && this.polygon.length) {
+				e.preventDefault();
+				this.finishPolygon();
+			} else if (this.tool === 'draftPolyline' && this.draftPoints.length >= 2) {
+				e.preventDefault();
+				this.finishDraftPolyline(false);
+			} else if (this.tool === 'draftLine' && this.draftPoints.length) {
+				e.preventDefault();
+				this.draftPoints = [];
+				this.schedulePreview();
+				this.updateStatus();
+			}
 		} else if (isEditableElement(e.target as HTMLElement)) {
 			return; // typing in a field, the command line or a picker
 		} else if (this.lengthBox && this.chainStart && !ctrl && !e.altKey && /^[\d.@-]$/.test(e.key)) {
@@ -948,6 +966,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.chainStart = undefined;
 		this.picked = undefined;
 		this.polygon = [];
+		this.draftPoints = [];
 		this.drag = undefined;
 		this.pasting = false;
 		this.underlayPick = undefined;
@@ -971,7 +990,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.selectedDraftIds.clear();
 			this.notice = undefined;
 			this.updateStatus();
-		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick) {
+		} else if (this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.drag || this.underlayPick) {
 			this.resetGesture();
 			this.notice = undefined;
 			this.updateToolbar();
@@ -986,7 +1005,9 @@ export class FloorPlanEditor extends EditorPane {
 	/** The tool whose object types the Type picker offers. */
 	private get placementTool(): PlacementTool | undefined {
 		switch (this.tool) {
-			case 'select': case 'delete': case 'move': case 'rotate': return undefined;
+			case 'select': case 'delete': case 'move': case 'rotate':
+			case 'draftLine': case 'draftPolyline': case 'draftRect': case 'draftPolygon':
+				return undefined;
 			case 'polygonSlab': return 'slab';
 			case 'fill': return FILL_TOOL[FILL_CHOICES[this.fillChoice].kind];
 			default: return this.tool;
@@ -1101,6 +1122,7 @@ export class FloorPlanEditor extends EditorPane {
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
+			...(this.compact ? [] : [...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon']), new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1131,6 +1153,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
+			...(this.compact ? [new Separator(), ...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon'])] : []),
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
@@ -1314,7 +1337,10 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.tool === 'polygonSlab' && this.polygon.length >= 3) {
 				e.preventDefault();
 				this.finishPolygon();
-			} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.underlayPick) {
+			} else if (this.tool === 'draftPolyline' && this.draftPoints.length >= 2) {
+				e.preventDefault();
+				this.finishDraftPolyline(false);
+			} else if (this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.underlayPick) {
 				e.preventDefault();
 				this.cancel();
 			} else if (this.editor && this.layoutState === 'ok') {
@@ -1861,6 +1887,169 @@ export class FloorPlanEditor extends EditorPane {
 		this.schedulePreview();
 	}
 
+	private isDraftTool(tool: Tool): tool is DraftTool {
+		return tool === 'draftLine' || tool === 'draftPolyline' || tool === 'draftRect' || tool === 'draftPolygon';
+	}
+
+	private snapDraft(point: CadPoint, from?: CadPoint): ISnap {
+		const tolerance = this.editor ? SNAP_PIXELS * this.editor.unitsPerPixel() : 0;
+		return snapLinear(parse(this.planModel), this.story ?? '', point, tolerance, from, segmentsNear(this.underlaySegments, point, tolerance));
+	}
+
+	/**
+	 * Appends a finished draft shape to the floor plan text as one undo step and re-renders the plan.
+	 */
+	private commitDraft(draft: IDraftShape): void {
+		const model = this.planModel;
+		if (!model || model.isDisposed() || this.layoutState !== 'ok') {
+			return;
+		}
+		const currentText = model.getValue();
+		const nextText = addDraft(currentText, draft);
+		if (nextText === currentText) {
+			return;
+		}
+		this.writing = true;
+		const before = model.getAlternativeVersionId();
+		try {
+			model.pushStackElement();
+			model.pushEditOperations([], [{ range: model.getFullModelRange(), text: nextText }], () => null);
+			model.pushStackElement();
+		} finally {
+			this.writing = false;
+		}
+		this.pendingWrite = { before, after: model.getAlternativeVersionId() };
+		this.renderScheduler.cancel();
+		this.renderPlan();
+	}
+
+	private finishDraftPolyline(closed: boolean): void {
+		const story = this.story;
+		if (!story || this.layoutState !== 'ok' || this.draftPoints.length < (closed ? 3 : 2)) {
+			this.draftPoints = [];
+			this.schedulePreview();
+			return;
+		}
+		const id = nextDraftId(parse(this.planModel));
+		const shape: IDraftShape = {
+			kind: 'polyline',
+			id,
+			story,
+			layer: 'DRAFT',
+			points: this.draftPoints,
+			closed,
+		};
+		this.draftPoints = [];
+		this.commitDraft(shape);
+		this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
+		this.schedulePreview();
+		this.updateStatus();
+	}
+
+	private draftClick(point: CadPoint): void {
+		const story = this.story;
+		if (!story || this.layoutState !== 'ok') {
+			return;
+		}
+		const tool = this.tool;
+		if (tool === 'draftLine') {
+			const from = this.draftPoints[0];
+			const snap = this.snapDraft(point, from);
+			if (!from) {
+				this.draftPoints = [snap.point];
+				this.setNotice(localize('floorPlan.lineSecondPoint', "Click the end point. Esc or Enter stops."));
+			} else {
+				if (from[0] === snap.point[0] && from[1] === snap.point[1]) {
+					return;
+				}
+				const id = nextDraftId(parse(this.planModel));
+				const shape: IDraftShape = {
+					kind: 'line',
+					id,
+					story,
+					layer: 'DRAFT',
+					start: from,
+					end: snap.point,
+				};
+				this.commitDraft(shape);
+				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
+				this.draftPoints = [snap.point];
+			}
+		} else if (tool === 'draftPolyline') {
+			const from = this.draftPoints[this.draftPoints.length - 1];
+			const snap = this.snapDraft(point, from);
+			if (this.draftPoints.length === 0) {
+				this.draftPoints = [snap.point];
+				this.setNotice(localize('floorPlan.polylineNextPoint', "Click the next point; Enter or click first point ends it."));
+			} else {
+				const first = this.draftPoints[0];
+				const closing = this.editor && Math.hypot(snap.point[0] - first[0], snap.point[1] - first[1]) <= SNAP_PIXELS * this.editor.unitsPerPixel();
+				if (closing && this.draftPoints.length >= 3) {
+					this.finishDraftPolyline(true);
+				} else if (!closing) {
+					if (snap.point[0] !== from[0] || snap.point[1] !== from[1]) {
+						this.draftPoints.push(snap.point);
+						this.setNotice(localize('floorPlan.polylinePoints', "{0} point(s); Enter ends, or click first point to close.", this.draftPoints.length));
+					}
+				}
+			}
+		} else if (tool === 'draftRect') {
+			const first = this.draftPoints[0];
+			const snap = this.snapDraft(point, first);
+			if (!first) {
+				this.draftPoints = [snap.point];
+				this.setNotice(localize('floorPlan.rectSecondCorner', "Click the opposite corner."));
+			} else {
+				const second = snap.point;
+				if (first[0] === second[0] || first[1] === second[1]) {
+					this.setNotice(localize('floorPlan.rectZeroSize', "Rectangle must have non-zero width and height."));
+					this.draftPoints = [];
+					return;
+				}
+				const corners = rectangleFromCorners(first, second);
+				const id = nextDraftId(parse(this.planModel));
+				const shape: IDraftShape = {
+					kind: 'polyline',
+					id,
+					story,
+					layer: 'DRAFT',
+					points: corners,
+					closed: true,
+				};
+				this.draftPoints = [];
+				this.commitDraft(shape);
+				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
+			}
+		} else if (tool === 'draftPolygon') {
+			const center = this.draftPoints[0];
+			const snap = this.snapDraft(point, center);
+			if (!center) {
+				this.draftPoints = [snap.point];
+				this.setNotice(localize('floorPlan.polygonVertex', "Click a corner for the 6-sided polygon."));
+			} else {
+				const vertex = snap.point;
+				if (center[0] === vertex[0] && center[1] === vertex[1]) {
+					this.setNotice(localize('floorPlan.polygonZeroRadius', "Polygon radius must be greater than zero."));
+					this.draftPoints = [];
+					return;
+				}
+				const poly = regularPolygon(center, vertex, 6);
+				const id = nextDraftId(parse(this.planModel));
+				const shape: IDraftShape = {
+					kind: 'polyline',
+					id,
+					story,
+					layer: 'DRAFT',
+					points: poly,
+					closed: true,
+				};
+				this.draftPoints = [];
+				this.commitDraft(shape);
+				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
+			}
+		}
+	}
+
 	private click(point: CadPoint, modifiers?: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const layout = parse(this.planModel);
@@ -1888,7 +2077,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.schedulePreview();
 			return;
 		}
-		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID) {
+		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {
 			return;
 		}
 		if (this.tool === 'fill') {
@@ -1947,6 +2136,11 @@ export class FloorPlanEditor extends EditorPane {
 				this.polygon.push(corner);
 				this.setNotice(localize('floorPlan.corners', "{0} corner(s); finish on the first corner, with Enter or a right-click.", this.polygon.length));
 			}
+			this.schedulePreview();
+			return;
+		}
+		if (this.isDraftTool(this.tool)) {
+			this.draftClick(point);
 			this.schedulePreview();
 			return;
 		}
@@ -2368,6 +2562,32 @@ export class FloorPlanEditor extends EditorPane {
 				if (points.length >= 2) {
 					entities.push({ kind: 'polyline', layer, points, closed: points.length >= 3 });
 				}
+			} else if (this.isDraftTool(this.tool)) {
+				const from = this.draftPoints[this.draftPoints.length - 1];
+				const snap = this.hoverSnap = this.snapDraft(point, from);
+				entities.push(...snapMarker(snap, MARKER_PIXELS * units, layer));
+				this.draftPoints.forEach(marker);
+				if (this.tool === 'draftLine') {
+					if (this.draftPoints.length > 0) {
+						entities.push({ kind: 'line', layer, start: this.draftPoints[0], end: snap.point });
+					}
+				} else if (this.tool === 'draftPolyline') {
+					if (this.draftPoints.length > 0) {
+						entities.push({ kind: 'polyline', layer, points: [...this.draftPoints, snap.point], closed: false });
+					}
+				} else if (this.tool === 'draftRect') {
+					if (this.draftPoints.length > 0) {
+						entities.push({ kind: 'polyline', layer, points: rectangleFromCorners(this.draftPoints[0], snap.point), closed: true });
+					}
+				} else if (this.tool === 'draftPolygon') {
+					if (this.draftPoints.length > 0) {
+						const poly = regularPolygon(this.draftPoints[0], snap.point, 6);
+						if (poly.length >= 3) {
+							entities.push({ kind: 'polyline', layer, points: poly, closed: true });
+						}
+						entities.push({ kind: 'line', layer, start: this.draftPoints[0], end: snap.point });
+					}
+				}
 			} else if (this.tool === 'slab') {
 				const bay = bayAt(parse(this.planModel), point);
 				if (bay) {
@@ -2481,8 +2701,8 @@ export class FloorPlanEditor extends EditorPane {
 			parts.push(warnings === 1 ? plan!.warnings[0] : localize('floorPlan.warnings', "{0} warnings on this story", warnings));
 		}
 		const snap = this.hoverSnap;
-		if (snap && (this.tool === 'beam' || this.tool === 'wall')) {
-			const start = this.chainStart?.point;
+		if (snap && (this.tool === 'beam' || this.tool === 'wall' || this.isDraftTool(this.tool))) {
+			const start = this.chainStart?.point ?? this.draftPoints[this.draftPoints.length - 1];
 			const [dx, dy] = start ? [snap.point[0] - start[0], snap.point[1] - start[1]] : [0, 0];
 			parts.push(start && (dx || dy)
 				? localize('floorPlan.snapLength', "{0}: {1} mm at {2}°", this.snapLabel(snap), Math.round(Math.hypot(dx, dy)), Math.round(Math.atan2(dy, dx) * 180 / Math.PI))

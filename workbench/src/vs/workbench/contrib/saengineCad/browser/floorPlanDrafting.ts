@@ -384,3 +384,48 @@ export function replaceDraft(jsonText: string, draft: IDraftShape, options?: For
 	const edits = replaceDraftEdit(jsonText, draft, options);
 	return edits.length > 0 ? applyEdits(jsonText, edits) : jsonText;
 }
+
+/**
+ * Closed sequence of four corners for an axis-aligned rectangle from two opposite corners `a` and `b`.
+ */
+export function rectangleFromCorners(a: DraftPoint, b: DraftPoint): DraftPoint[] {
+	return [
+		[a[0], a[1]],
+		[b[0], a[1]],
+		[b[0], b[1]],
+		[a[0], b[1]],
+	];
+}
+
+/**
+ * Vertices of a regular polygon with `sides` equal edges centered at `center`,
+ * starting at and passing through `vertex`.
+ */
+export function regularPolygon(center: DraftPoint, vertex: DraftPoint, sides: number): DraftPoint[] {
+	if (sides < 3) {
+		return [];
+	}
+	const [cx, cy] = center;
+	const [vx, vy] = vertex;
+	const radius = Math.hypot(vx - cx, vy - cy);
+	if (radius === 0) {
+		return [];
+	}
+	const startAngle = Math.atan2(vy - cy, vx - cx);
+	const step = (2 * Math.PI) / sides;
+	const points: DraftPoint[] = [];
+	const round = (v: number) => Math.round(v * 1000) / 1000 || 0;
+	for (let i = 0; i < sides; i++) {
+		if (i === 0) {
+			points.push([round(vx), round(vy)]);
+		} else {
+			const angle = startAngle + i * step;
+			points.push([
+				round(cx + radius * Math.cos(angle)),
+				round(cy + radius * Math.sin(angle)),
+			]);
+		}
+	}
+	return points;
+}
+
