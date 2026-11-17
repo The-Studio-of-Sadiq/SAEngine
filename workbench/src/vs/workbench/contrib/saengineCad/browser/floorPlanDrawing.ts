@@ -95,6 +95,12 @@ export interface IPlotUnderlay {
 	readonly envelope?: readonly (readonly number[])[] | null;
 }
 
+/** Options for the floor plan drawing. */
+export interface IFloorPlanOptions {
+	/** Whether to draw the grid lines and their bubbles/labels. Defaults to true. */
+	readonly showGridLines?: boolean;
+}
+
 /** The plot's lines, first in the drawing so the model draws over them. */
 function plotEntities(underlay: IPlotUnderlay | undefined): CadEntitySpec[] {
 	const ring = (points: readonly (readonly number[])[] | null | undefined): CadPoint[] =>
@@ -370,7 +376,7 @@ interface ISupport {
  * look down from just below the level), and the beams, slabs and footings at its level; under
  * them, the site's plot and buildable envelope when `underlay` gives them.
  */
-export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string, underlay?: IPlotUnderlay): IFloorPlan {
+export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string, underlay?: IPlotUnderlay, options?: IFloorPlanOptions): IFloorPlan {
 	const model = isObject(layout) ? layout : {};
 	const { x: xLines, y: yLines } = gridsOf(model);
 	const elevation = new Map(storiesOf(model).map(s => [s.id, s.elevation]));
@@ -399,17 +405,20 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.gridLabels, center, radius: BUBBLE_RADIUS });
 		entities.push({ kind: 'text', layer: FLOOR_PLAN_LAYERS.gridLabels, position: center, height: BUBBLE_TEXT, text: label });
 	};
-	for (const [label, x] of xLines) {
-		const [y0, y1] = [minY - GRID_OVERRUN, maxY + GRID_OVERRUN];
-		entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start: [x, y0], end: [x, y1], linetypeScale: GRID_LINETYPE_SCALE });
-		bubble(label, [x, y0 - BUBBLE_RADIUS]);
-		bubble(label, [x, y1 + BUBBLE_RADIUS]);
-	}
-	for (const [label, y] of yLines) {
-		const [x0, x1] = [minX - GRID_OVERRUN, maxX + GRID_OVERRUN];
-		entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start: [x0, y], end: [x1, y], linetypeScale: GRID_LINETYPE_SCALE });
-		bubble(label, [x0 - BUBBLE_RADIUS, y]);
-		bubble(label, [x1 + BUBBLE_RADIUS, y]);
+	const showGridLines = options?.showGridLines !== false;
+	if (showGridLines) {
+		for (const [label, x] of xLines) {
+			const [y0, y1] = [minY - GRID_OVERRUN, maxY + GRID_OVERRUN];
+			entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start: [x, y0], end: [x, y1], linetypeScale: GRID_LINETYPE_SCALE });
+			bubble(label, [x, y0 - BUBBLE_RADIUS]);
+			bubble(label, [x, y1 + BUBBLE_RADIUS]);
+		}
+		for (const [label, y] of yLines) {
+			const [x0, x1] = [minX - GRID_OVERRUN, maxX + GRID_OVERRUN];
+			entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start: [x0, y], end: [x1, y], linetypeScale: GRID_LINETYPE_SCALE });
+			bubble(label, [x0 - BUBBLE_RADIUS, y]);
+			bubble(label, [x1 + BUBBLE_RADIUS, y]);
+		}
 	}
 	if (level === undefined) {
 		return { drawing: { layers: LAYERS, entities }, members, problems, warnings };

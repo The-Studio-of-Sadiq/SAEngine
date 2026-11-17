@@ -175,6 +175,8 @@ interface IPlanEdit {
 const HIDDEN_UNDERLAYS_KEY = 'saengine.floorPlan.hiddenUnderlays';
 /** Storage of the story shown last, per floor plan. */
 const STORY_KEY = 'saengine.floorPlan.story';
+/** Storage of the user's choice to show or hide grid lines. */
+const SHOW_GRID_LINES_KEY = 'saengine.floorPlan.showGridLines';
 
 /** The selection service's name for this editor. */
 const SELECTION_SOURCE = 'floorPlan';
@@ -322,6 +324,8 @@ export class FloorPlanEditor extends EditorPane {
 		this.userView = false;
 		this.editor?.zoomExtents();
 	}));
+	private showGridLines = true;
+	private readonly gridLinesAction = this._register(new Action('saengine.floorPlan.toggleGridLines', localize('floorPlan.gridLines', "Grid Lines"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.toggleGridLines()));
 	private readonly underlayAction = this._register(new Action('saengine.floorPlan.toggleUnderlay', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
 	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.commandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
 	private readonly gridsAction = this._register(new Action('saengine.floorPlan.editGrids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
@@ -386,6 +390,9 @@ export class FloorPlanEditor extends EditorPane {
 	) {
 		super(FloorPlanEditor.ID, group, telemetryService, themeService, storageService);
 		this.viewStorage = storageService;
+		this.showGridLines = this.viewStorage.getBoolean(SHOW_GRID_LINES_KEY, StorageScope.PROFILE, true);
+		this.gridLinesAction.checked = this.showGridLines;
+		this.gridLinesAction.tooltip = localize('floorPlan.gridLinesTip', "Show or hide the grid lines (the grid stays; snapping to it still works)");
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
@@ -1074,6 +1081,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.importWorkbookAction.enabled = editable;
 		this.typicalAction.enabled = editable && storiesOf(parse(this.planModel)).length > 2;
 		this.exportAction.enabled = editable && !!this.editor;
+		this.gridLinesAction.checked = this.showGridLines;
 		const commandLine = !!this.editor?.getChrome().commandLine;
 		this.commandLineAction.enabled = !!this.editor;
 		this.commandLineAction.checked = commandLine;
@@ -1089,7 +1097,7 @@ export class FloorPlanEditor extends EditorPane {
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
 			...(this.compact ? [] : [this.undoAction, this.redoAction, new Separator()]),
-			this.zoomAction, ...(this.compact ? [] : [this.underlayAction, this.commandLineAction]), frame.togglePropertiesAction,
+			this.zoomAction, ...(this.compact ? [] : [this.gridLinesAction, this.underlayAction, this.commandLineAction]), frame.togglePropertiesAction,
 		];
 		const secondary: IAction[] = [
 			...(state === 'placeholder' ? [this.createAction, new Separator()] : []),
@@ -1115,7 +1123,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
-			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.underlayAction, this.commandLineAction] : []),
+			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
 		const key = `${state}|${this.compact}|${this.narrow}`;
@@ -2134,7 +2142,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.plotKey() !== this.plotCheckKey) {
 			this.plotScheduler.schedule();
 		}
-		const plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '', this.plotCheck);
+		const plan = floorPlanDrawing(layout, parse(this.objects), input.story ?? '', this.plotCheck, { showGridLines: this.showGridLines });
 		const outside = this.plotWarnings(layout, input.story ?? '').map(w => w.message);
 		const loose = unsupportedBeams(layout, input.story ?? '').map(id => localize('floorPlan.beamUnsupported', "{0}: nothing supports it (no column, wall or beam at either end).", id));
 		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
@@ -2868,6 +2876,14 @@ export class FloorPlanEditor extends EditorPane {
 		} catch {
 			return {};
 		}
+	}
+
+	/** Hides or shows the grid lines: a view setting per user, never an edit of the floor plan. */
+	toggleGridLines(): void {
+		this.showGridLines = !this.showGridLines;
+		this.viewStorage.store(SHOW_GRID_LINES_KEY, this.showGridLines, StorageScope.PROFILE, StorageTarget.USER);
+		this.updateToolbar();
+		this.renderPlan();
 	}
 
 	/** Hides or shows the story's underlay: a view setting (kept for the workspace), never an edit of the floor plan. */

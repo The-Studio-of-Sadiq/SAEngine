@@ -87,6 +87,16 @@ suite('SAEngine - Floor plan drawing', () => {
 		});
 	});
 
+	test('with showGridLines off no grid entities are produced while members still are', () => {
+		const full = floorPlanDrawing(layout, objects, 'L1');
+		const plan = floorPlanDrawing(layout, objects, 'L1', undefined, { showGridLines: false });
+		const gridEntities = plan.drawing.entities.filter(e => e.layer === 'S-GRID' || e.layer === 'S-GRID-IDEN');
+		const memberEntities = plan.drawing.entities.filter(e => e.layer !== 'S-GRID' && e.layer !== 'S-GRID-IDEN');
+		assert.strictEqual(gridEntities.length, 0);
+		assert.ok(memberEntities.length > 0);
+		assert.deepStrictEqual(plan.members, full.members);
+	});
+
 	test('slabs on nothing and slabs with a beam across them are warned about', () => {
 		const crossed = {
 			...layout,

@@ -112,8 +112,9 @@ export function partSections(partId: string): readonly IPartSection[] {
 			{ id: 'codeValues', label: localize('partSection.settingsCodeValues', "Code Values"), sections: ['codeOverrides'] },
 		];
 		case 'floorPlan': return [
-			{ id: 'plan', label: localize('partSection.floorPlanPlan', "Plan"), typeId: FLOOR_PLAN_INPUT },
+			// Grids and storeys first: engineers set them before drawing members (peer feedback, #311).
 			{ id: 'grids', label: localize('partSection.floorPlanGrids', "Grids & Stories"), editorId: GRIDS_EDITOR_ID },
+			{ id: 'plan', label: localize('partSection.floorPlanPlan', "Plan"), typeId: FLOOR_PLAN_INPUT },
 			{ id: 'members', label: localize('partSection.floorPlanMembers', "Members Table"), command: 'saengine.floorPlan.openMembersTable', typeId: MEMBERS_TABLE_INPUT },
 		];
 		case 'bim': return [
