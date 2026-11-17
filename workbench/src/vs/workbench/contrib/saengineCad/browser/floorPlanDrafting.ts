@@ -462,3 +462,407 @@ export function regularPolygon(center: DraftPoint, vertex: DraftPoint, sides: nu
 	return points;
 }
 
+// ───────────────────────────── modify operations ─────────────────────────────
+
+export interface IDraftBulkResult {
+	readonly layout: Record<string, unknown>;
+	readonly ids: readonly string[];
+	readonly placed: number;
+	readonly skipped: number;
+	readonly count: number;
+}
+
+function cloneLayout(layout: unknown): Record<string, unknown> {
+	return JSON.parse(JSON.stringify(isObject(layout) ? layout : {})) as Record<string, unknown>;
+}
+
+function roundCoord(v: number): number {
+	const r = Math.round(v * 1000) / 1000;
+	return r === 0 ? 0 : r;
+}
+
+function normalizeAngle(degrees: number): number {
+	const a = Number((((degrees % 360) + 360) % 360).toFixed(3));
+	return a === 360 ? 0 : a;
+}
+
+/**
+ * Axis-aligned bounding box of draft shapes.
+ */
+export function draftBounds(shapes: readonly IDraftShape[]): { readonly min: DraftPoint; readonly max: DraftPoint } | undefined {
+	if (!shapes.length) {
+		return undefined;
+	}
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+	const include = ([x, y]: DraftPoint | CadPoint) => {
+		if (x < minX) { minX = x; }
+		if (x > maxX) { maxX = x; }
+		if (y < minY) { minY = y; }
+		if (y > maxY) { maxY = y; }
+	};
+	for (const shape of shapes) {
+		switch (shape.kind) {
+			case 'line':
+				include(shape.start);
+				include(shape.end);
+				break;
+			case 'polyline':
+				for (const pt of shape.points) {
+					include(pt);
+				}
+				break;
+			case 'circle':
+				include([shape.center[0] - shape.radius, shape.center[1] - shape.radius]);
+				include([shape.center[0] + shape.radius, shape.center[1] + shape.radius]);
+				break;
+			case 'arc':
+				for (const [a, b] of draftSegments(shape)) {
+					include(a);
+					include(b);
+				}
+				break;
+		}
+	}
+	if (!Number.isFinite(minX)) {
+		return undefined;
+	}
+	return { min: [minX, minY], max: [maxX, maxY] };
+}
+
+/**
+ * Geometric center of draft shapes' bounding box.
+ */
+export function draftBoundsCenter(shapes: readonly IDraftShape[]): DraftPoint {
+	const b = draftBounds(shapes);
+	if (!b) {
+		return [0, 0];
+	}
+	return [roundCoord((b.min[0] + b.max[0]) / 2), roundCoord((b.min[1] + b.max[1]) / 2)];
+}
+
+/**
+ * Moves the selected drafts by `delta`. Does not mutate input `layout`.
+ */
+export function moveDrafts(layout: unknown, ids: Iterable<string>, delta: DraftPoint): IDraftBulkResult {
+	const next = cloneLayout(layout);
+	const targetIds = new Set(ids);
+	if (!targetIds.size || !Array.isArray(next.drafting)) {
+		return { layout: next, ids: [], placed: 0, skipped: targetIds.size, count: 0 };
+	}
+	const movedIds: string[] = [];
+	next.drafting = next.drafting.map(item => {
+		if (!isObject(item) || typeof item.id !== 'string' || !targetIds.has(item.id)) {
+			return item;
+		}
+		movedIds.push(item.id);
+		const moved = { ...item };
+		switch (item.kind) {
+			case 'line':
+				if (isPoint(item.start) && isPoint(item.end)) {
+					moved.start = [roundCoord(item.start[0] + delta[0]), roundCoord(item.start[1] + delta[1])];
+					moved.end = [roundCoord(item.end[0] + delta[0]), roundCoord(item.end[1] + delta[1])];
+				}
+				break;
+			case 'polyline':
+				if (Array.isArray(item.points)) {
+					moved.points = item.points.map(p => isPoint(p) ? [roundCoord(p[0] + delta[0]), roundCoord(p[1] + delta[1])] : p);
+				}
+				break;
+			case 'arc':
+				if (isPoint(item.center)) {
+					moved.center = [roundCoord(item.center[0] + delta[0]), roundCoord(item.center[1] + delta[1])];
+				}
+				break;
+			case 'circle':
+				if (isPoint(item.center)) {
+					moved.center = [roundCoord(item.center[0] + delta[0]), roundCoord(item.center[1] + delta[1])];
+				}
+				break;
+		}
+		return moved;
+	});
+	return {
+		layout: next,
+		ids: movedIds,
+		placed: movedIds.length,
+		skipped: targetIds.size - movedIds.length,
+		count: movedIds.length,
+	};
+}
+
+/**
+ * Copies the selected drafts `times` times, each copy shifted by `k * delta`.
+ * New ids are allocated avoiding clashes with existing drafts and members. Does not mutate input `layout`.
+ */
+export function copyDrafts(layout: unknown, ids: Iterable<string>, delta: DraftPoint, times = 1, nextId?: (layout: unknown) => string): IDraftBulkResult {
+	const next = cloneLayout(layout);
+	const targetIds = new Set(ids);
+	if (!targetIds.size || times < 1) {
+		return { layout: next, ids: [], placed: 0, skipped: targetIds.size, count: 0 };
+	}
+	if (!Array.isArray(next.drafting)) {
+		next.drafting = [];
+	}
+	const getNextId = nextId ?? nextDraftId;
+	const originalItems = (next.drafting as unknown[])
+		.filter((item): item is Record<string, unknown> => isObject(item) && typeof item.id === 'string' && targetIds.has(item.id));
+
+	const createdIds: string[] = [];
+	for (let k = 1; k <= times; k++) {
+		const stepDelta: DraftPoint = [k * delta[0], k * delta[1]];
+		for (const item of originalItems) {
+			const newId = getNextId(next);
+			createdIds.push(newId);
+			const copy: Record<string, unknown> = { ...JSON.parse(JSON.stringify(item)), id: newId };
+			switch (copy.kind) {
+				case 'line':
+					if (isPoint(copy.start) && isPoint(copy.end)) {
+						copy.start = [roundCoord(copy.start[0] + stepDelta[0]), roundCoord(copy.start[1] + stepDelta[1])];
+						copy.end = [roundCoord(copy.end[0] + stepDelta[0]), roundCoord(copy.end[1] + stepDelta[1])];
+					}
+					break;
+				case 'polyline':
+					if (Array.isArray(copy.points)) {
+						copy.points = copy.points.map(p => isPoint(p) ? [roundCoord(p[0] + stepDelta[0]), roundCoord(p[1] + stepDelta[1])] : p);
+					}
+					break;
+				case 'arc':
+					if (isPoint(copy.center)) {
+						copy.center = [roundCoord(copy.center[0] + stepDelta[0]), roundCoord(copy.center[1] + stepDelta[1])];
+					}
+					break;
+				case 'circle':
+					if (isPoint(copy.center)) {
+						copy.center = [roundCoord(copy.center[0] + stepDelta[0]), roundCoord(copy.center[1] + stepDelta[1])];
+					}
+					break;
+			}
+			(next.drafting as unknown[]).push(copy);
+		}
+	}
+	return {
+		layout: next,
+		ids: createdIds,
+		placed: createdIds.length,
+		skipped: targetIds.size - originalItems.length,
+		count: createdIds.length,
+	};
+}
+
+/**
+ * Rotates the selected drafts by `degrees` about `centre` (or the bounding box center of the selected drafts if omitted).
+ * Does not mutate input `layout`.
+ */
+export function rotateDrafts(layout: unknown, ids: Iterable<string>, degrees: number, centre?: DraftPoint): IDraftBulkResult {
+	const next = cloneLayout(layout);
+	const targetIds = new Set(ids);
+	if (!targetIds.size || !Array.isArray(next.drafting)) {
+		return { layout: next, ids: [], placed: 0, skipped: targetIds.size, count: 0 };
+	}
+	const shapes = draftsOf(next).filter(s => targetIds.has(s.id));
+	const center = centre ?? draftBoundsCenter(shapes);
+	const rad = degrees * Math.PI / 180;
+	const cos = Math.cos(rad);
+	const sin = Math.sin(rad);
+
+	const rotatePt = ([x, y]: DraftPoint): DraftPoint => {
+		const dx = x - center[0];
+		const dy = y - center[1];
+		return [
+			roundCoord(center[0] + dx * cos - dy * sin),
+			roundCoord(center[1] + dx * sin + dy * cos),
+		];
+	};
+
+	const rotatedIds: string[] = [];
+	next.drafting = next.drafting.map(item => {
+		if (!isObject(item) || typeof item.id !== 'string' || !targetIds.has(item.id)) {
+			return item;
+		}
+		rotatedIds.push(item.id);
+		const rotated = { ...item };
+		switch (item.kind) {
+			case 'line':
+				if (isPoint(item.start) && isPoint(item.end)) {
+					rotated.start = rotatePt(item.start);
+					rotated.end = rotatePt(item.end);
+				}
+				break;
+			case 'polyline':
+				if (Array.isArray(item.points)) {
+					rotated.points = item.points.map(p => isPoint(p) ? rotatePt(p) : p);
+				}
+				break;
+			case 'arc':
+				if (isPoint(item.center) && typeof item.startAngle === 'number' && typeof item.endAngle === 'number') {
+					rotated.center = rotatePt(item.center);
+					rotated.startAngle = normalizeAngle(item.startAngle + degrees);
+					rotated.endAngle = normalizeAngle(item.endAngle + degrees);
+				}
+				break;
+			case 'circle':
+				if (isPoint(item.center)) {
+					rotated.center = rotatePt(item.center);
+				}
+				break;
+		}
+		return rotated;
+	});
+	return {
+		layout: next,
+		ids: rotatedIds,
+		placed: rotatedIds.length,
+		skipped: targetIds.size - rotatedIds.length,
+		count: rotatedIds.length,
+	};
+}
+
+/**
+ * Mirrors the selected drafts about axis `axis` ('x' for vertical grid line at x=coordinate, 'y' for horizontal at y=coordinate).
+ * If `keep` is false, originals are replaced in place; if true (default), original drafts stay and new mirrored copies are created.
+ * Arcs have their angles reflected and start/end angles swapped to maintain CCW orientation.
+ * Does not mutate input `layout`.
+ */
+export function mirrorDrafts(layout: unknown, ids: Iterable<string>, axis: 'x' | 'y', coordinate: number, keep = true): IDraftBulkResult {
+	const next = cloneLayout(layout);
+	const targetIds = new Set(ids);
+	if (!targetIds.size) {
+		return { layout: next, ids: [], placed: 0, skipped: 0, count: 0 };
+	}
+	if (!Array.isArray(next.drafting)) {
+		next.drafting = [];
+	}
+
+	const mapPt = ([x, y]: DraftPoint): DraftPoint => {
+		return axis === 'x'
+			? [roundCoord(2 * coordinate - x), roundCoord(y)]
+			: [roundCoord(x), roundCoord(2 * coordinate - y)];
+	};
+
+	const mirrorArcAngles = (startAngle: number, endAngle: number): { readonly startAngle: number; readonly endAngle: number } => {
+		if (axis === 'x') {
+			return {
+				startAngle: normalizeAngle(180 - endAngle),
+				endAngle: normalizeAngle(180 - startAngle),
+			};
+		} else {
+			return {
+				startAngle: normalizeAngle(-endAngle),
+				endAngle: normalizeAngle(-startAngle),
+			};
+		}
+	};
+
+	const transformShape = (item: Record<string, unknown>, newId?: string): Record<string, unknown> => {
+		const result: Record<string, unknown> = { ...JSON.parse(JSON.stringify(item)) };
+		if (newId) {
+			result.id = newId;
+		}
+		switch (result.kind) {
+			case 'line':
+				if (isPoint(result.start) && isPoint(result.end)) {
+					result.start = mapPt(result.start);
+					result.end = mapPt(result.end);
+				}
+				break;
+			case 'polyline':
+				if (Array.isArray(result.points)) {
+					result.points = result.points.map(p => isPoint(p) ? mapPt(p) : p);
+				}
+				break;
+			case 'arc':
+				if (isPoint(result.center) && typeof result.startAngle === 'number' && typeof result.endAngle === 'number') {
+					result.center = mapPt(result.center);
+					const angles = mirrorArcAngles(result.startAngle, result.endAngle);
+					result.startAngle = angles.startAngle;
+					result.endAngle = angles.endAngle;
+				}
+				break;
+			case 'circle':
+				if (isPoint(result.center)) {
+					result.center = mapPt(result.center);
+				}
+				break;
+		}
+		return result;
+	};
+
+	if (!keep) {
+		const replacedIds: string[] = [];
+		next.drafting = (next.drafting as unknown[]).map(item => {
+			if (!isObject(item) || typeof item.id !== 'string' || !targetIds.has(item.id)) {
+				return item;
+			}
+			replacedIds.push(item.id);
+			return transformShape(item);
+		});
+		return {
+			layout: next,
+			ids: replacedIds,
+			placed: replacedIds.length,
+			skipped: targetIds.size - replacedIds.length,
+			count: replacedIds.length,
+		};
+	}
+
+	const originalItems = (next.drafting as unknown[])
+		.filter((item): item is Record<string, unknown> => isObject(item) && typeof item.id === 'string' && targetIds.has(item.id));
+
+	const createdIds: string[] = [];
+	for (const item of originalItems) {
+		const newId = nextDraftId(next);
+		createdIds.push(newId);
+		const mirrored = transformShape(item, newId);
+		(next.drafting as unknown[]).push(mirrored);
+	}
+
+	return {
+		layout: next,
+		ids: createdIds,
+		placed: createdIds.length,
+		skipped: targetIds.size - originalItems.length,
+		count: createdIds.length,
+	};
+}
+
+/**
+ * Copies selected drafts to each target story with fresh ids. Does not mutate input `layout`.
+ */
+export function copyDraftsToStories(layout: unknown, ids: Iterable<string>, targets: readonly string[]): IDraftBulkResult {
+	const next = cloneLayout(layout);
+	const targetIds = new Set(ids);
+	if (!targetIds.size || !targets.length) {
+		return { layout: next, ids: [], placed: 0, skipped: targetIds.size, count: 0 };
+	}
+	if (!Array.isArray(next.drafting)) {
+		next.drafting = [];
+	}
+	const originalItems = (next.drafting as unknown[])
+		.filter((item): item is Record<string, unknown> => isObject(item) && typeof item.id === 'string' && targetIds.has(item.id));
+
+	const createdIds: string[] = [];
+	for (const storyId of targets) {
+		for (const item of originalItems) {
+			const newId = nextDraftId(next);
+			createdIds.push(newId);
+			const copy: Record<string, unknown> = {
+				...JSON.parse(JSON.stringify(item)),
+				id: newId,
+				story: storyId,
+			};
+			(next.drafting as unknown[]).push(copy);
+		}
+	}
+	return {
+		layout: next,
+		ids: createdIds,
+		placed: createdIds.length,
+		skipped: targetIds.size - originalItems.length,
+		count: createdIds.length,
+	};
+}
+
+
