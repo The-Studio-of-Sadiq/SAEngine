@@ -14,7 +14,7 @@ import type { CadPoint } from '@saengine/cad-editor';
  * (`05 Floor Plan/floor-plan.json`). Draft shapes belong to one story and are not structural members.
  */
 
-export type DraftPoint = [number, number];
+export type DraftPoint = readonly [number, number];
 
 export type DraftShapeKind = 'line' | 'polyline' | 'arc' | 'circle';
 

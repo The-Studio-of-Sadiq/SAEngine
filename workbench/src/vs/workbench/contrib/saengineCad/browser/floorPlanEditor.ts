@@ -68,9 +68,8 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { distanceToDraft, draftSegments, IDraftShape, removeDraft } from './floorPlanDrafting.js';
-import { pickDraftUnlessMemberCloser, selectDraftsInWindow } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { distanceToDraft, draftSegments, removeDraft } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -1710,11 +1709,11 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 		}
-		let result = refs.length ? deleteMembers(parse(this.planModel), refs) : { ok: true as const, layout: parse(this.planModel) as object, ids: [] as IMemberRef[], placed: 0, skipped: 0 };
+		let result: BulkResult = refs.length ? deleteMembers(parse(this.planModel), refs) : { ok: true, layout: parse(this.planModel) as { [key: string]: unknown }, ids: [], placed: 0, skipped: 0 };
 		if (result.ok && draftIds.length) {
 			let text = JSON.stringify(result.layout);
 			for (const id of draftIds) { text = removeDraft(text, id); }
-			result = { ...result, layout: JSON.parse(text) as object };
+			result = { ...result, layout: JSON.parse(text) as { [key: string]: unknown } };
 		}
 		this.selectedDraftIds.clear();
 		this.applyBulk(result, undefined, false, localize('floorPlan.deletedMany', "Deleted {0} selected shape(s).", refs.length + draftIds.length));
