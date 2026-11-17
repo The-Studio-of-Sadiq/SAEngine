@@ -97,6 +97,27 @@ suite('SAEngine - Floor plan drawing', () => {
 		assert.deepStrictEqual(plan.members, full.members);
 	});
 
+	test('story drafts render on DRAFT, with closed polylines and wrapped arcs', () => {
+		const drafting = [
+			{ kind: 'line', id: 'D1', story: 'L1', start: [0, 0], end: [100, 0] },
+			{ kind: 'polyline', id: 'D2', story: 'L1', points: [[0, 0], [100, 0], [100, 100]], closed: true },
+			{ kind: 'arc', id: 'D3', story: 'L1', center: [0, 0], radius: 100, startAngle: 350, endAngle: 10 },
+			{ kind: 'circle', id: 'D4', story: 'L2', center: [0, 0], radius: 50 },
+		];
+		const plan = floorPlanDrawing({ ...layout, drafting }, objects, 'L1', undefined, { showGridLines: false });
+		const drawn = plan.drawing.entities.filter(e => e.layer === 'DRAFT');
+		assert.strictEqual(drawn[0].kind, 'line');
+		assert.strictEqual(drawn[1].kind, 'polyline');
+		assert.strictEqual(drawn[1].kind === 'polyline' && drawn[1].closed, true);
+		assert.strictEqual(drawn[2].kind, 'polyline');
+		if (drawn[2].kind === 'polyline') {
+			assert.ok(Math.abs(drawn[2].points[0][0] - 98.48) < 0.1);
+			assert.ok(Math.abs(drawn[2].points[drawn[2].points.length - 1][0] - 98.48) < 0.1);
+		}
+		assert.deepStrictEqual(plan.drafts.map(d => d.id), ['D1', 'D2', 'D3']);
+		assert.strictEqual(drawn.length, 3);
+	});
+
 	test('slabs on nothing and slabs with a beam across them are warned about', () => {
 		const crossed = {
 			...layout,

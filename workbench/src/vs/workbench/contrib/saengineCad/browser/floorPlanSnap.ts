@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { parseList } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf } from './floorPlanDrawing.js';
+import { draftsOf } from './floorPlanDrafting.js';
 import { resolvePoint } from './floorPlanEdits.js';
 
 /*
@@ -20,7 +21,7 @@ import { resolvePoint } from './floorPlanEdits.js';
 
 type Json = { readonly [key: string]: unknown };
 
-export type SnapKind = 'node' | 'endpoint' | 'midpoint' | 'intersection' | 'perpendicular' | 'nearest' | 'gridLine' | 'free';
+export type SnapKind = 'node' | 'endpoint' | 'midpoint' | 'center' | 'intersection' | 'perpendicular' | 'nearest' | 'gridLine' | 'free';
 
 export interface ISnap {
 	readonly kind: SnapKind;
@@ -42,6 +43,7 @@ export const SNAP_NAMES: { readonly [kind in SnapKind]: string } = {
 	node: localize('snap.node', "Grid intersection"),
 	endpoint: localize('snap.endpoint', "Endpoint"),
 	midpoint: localize('snap.midpoint', "Midpoint"),
+	center: localize('snap.center', "Center"),
 	intersection: localize('snap.intersection', "Intersection"),
 	perpendicular: localize('snap.perpendicular', "Perpendicular"),
 	nearest: localize('snap.nearest', "Nearest"),
@@ -50,7 +52,7 @@ export const SNAP_NAMES: { readonly [kind in SnapKind]: string } = {
 };
 
 /** The order point snaps win in when two are equally near (AutoCAD's markers take the nearest). */
-const PRIORITY: readonly SnapKind[] = ['node', 'endpoint', 'intersection', 'midpoint', 'perpendicular'];
+const PRIORITY: readonly SnapKind[] = ['node', 'endpoint', 'center', 'intersection', 'midpoint', 'perpendicular'];
 
 function isObject(value: unknown): value is Json {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -142,6 +144,25 @@ export function snapLinear(layout: unknown, story: string, point: CadPoint, tole
 	for (const column of columnPoints(layout, story)) {
 		candidates.push({ kind: 'endpoint', point: column.point, on: column.id, exact: true });
 	}
+	for (const draft of draftsOf(layout, story)) {
+		const addEndpoint = (point: CadPoint) => candidates.push({ kind: 'endpoint', point, on: draft.id, exact: true });
+		const addMidpoint = (a: CadPoint, b: CadPoint) => candidates.push({ kind: 'midpoint', point: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], on: draft.id, exact: true });
+		switch (draft.kind) {
+			case 'line': addEndpoint(draft.start); addEndpoint(draft.end); addMidpoint(draft.start, draft.end); break;
+			case 'polyline':
+				draft.points.forEach(addEndpoint);
+				for (let i = 1; i < draft.points.length; i++) { addMidpoint(draft.points[i - 1], draft.points[i]); }
+				if (draft.closed) { addMidpoint(draft.points[draft.points.length - 1], draft.points[0]); }
+				break;
+			case 'arc': {
+				const angle = (degrees: number): CadPoint => [draft.center[0] + draft.radius * Math.cos(degrees * Math.PI / 180), draft.center[1] + draft.radius * Math.sin(degrees * Math.PI / 180)];
+				addEndpoint(angle(draft.startAngle)); addEndpoint(angle(draft.endAngle));
+				candidates.push({ kind: 'center', point: draft.center, on: draft.id, exact: true });
+				break;
+			}
+			case 'circle': candidates.push({ kind: 'center', point: draft.center, on: draft.id, exact: true }); break;
+		}
+	}
 	const gridLines: ISnapSegment[] = [];
 	const [xs, ys] = [[...grids.x.values()], [...grids.y.values()]];
 	if (xs.length && ys.length) {
@@ -213,6 +234,7 @@ export function snapMarker(snap: ISnap, r: number, layer: string): CadEntitySpec
 	const line = (a: CadPoint, b: CadPoint): CadEntitySpec => ({ kind: 'line', layer, start: a, end: b });
 	switch (snap.kind) {
 		case 'node': case 'endpoint': return [squareMarker(snap.point, r, layer)];
+		case 'center': return [{ kind: 'circle', layer, center: snap.point, radius: r }];
 		case 'midpoint': return [{ kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x, y + r]] }];
 		case 'intersection': return [line([x - r, y - r], [x + r, y + r]), line([x - r, y + r], [x + r, y - r])];
 		case 'perpendicular': return [line([x - r, y - r], [x + r, y - r]), line([x - r, y - r], [x - r, y + r]), line([x - r, y], [x, y]), line([x, y], [x, y - r])];
