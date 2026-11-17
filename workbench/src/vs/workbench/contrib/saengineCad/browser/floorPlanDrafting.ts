@@ -16,6 +16,39 @@ import type { CadPoint } from '@saengine/cad-editor';
 
 export type DraftPoint = readonly [number, number];
 
+/** Circle through three points, stored as the CCW arc that passes through the middle point. */
+export function arcThroughPoints(a: DraftPoint, b: DraftPoint, c: DraftPoint): { readonly center: DraftPoint; readonly radius: number; readonly startAngle: number; readonly endAngle: number } | undefined {
+	const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+	if (Math.abs(d) < 1e-9) { return undefined; }
+	const aa = a[0] * a[0] + a[1] * a[1], bb = b[0] * b[0] + b[1] * b[1], cc = c[0] * c[0] + c[1] * c[1];
+	const center: DraftPoint = [(aa * (b[1] - c[1]) + bb * (c[1] - a[1]) + cc * (a[1] - b[1])) / d, (aa * (c[0] - b[0]) + bb * (a[0] - c[0]) + cc * (b[0] - a[0])) / d];
+	const angle = (p: DraftPoint) => (Math.atan2(p[1] - center[1], p[0] - center[0]) * 180 / Math.PI + 360) % 360;
+	const startAngle = angle(a), middleAngle = angle(b), end = angle(c);
+	const ccw = (x: number, y: number) => (y - x + 360) % 360;
+	const radius = Math.hypot(a[0] - center[0], a[1] - center[1]);
+	// Stored arcs run counter-clockwise: when the points were picked clockwise, the same arc runs
+	// counter-clockwise from the last point to the first.
+	return ccw(startAngle, middleAngle) <= ccw(startAngle, end)
+		? { center, radius, startAngle, endAngle: end }
+		: { center, radius, startAngle: end, endAngle: startAngle };
+}
+
+/** Parses a typed draft point: absolute, relative, polar, or direct-distance along cursor direction. */
+export function parseDraftPoint(text: string, last: DraftPoint, cursorDirection: DraftPoint): DraftPoint | undefined {
+	const value = text.trim();
+	const number = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)`;
+	const pair = new RegExp(String.raw`^(@)?\s*(${number})\s*[,;]\s*(${number})$`).exec(value);
+	if (pair) { const x = Number(pair[2]), y = Number(pair[3]); return pair[1] ? [last[0] + x, last[1] + y] : [x, y]; }
+	const polar = new RegExp(String.raw`^@\s*(${number})\s*<\s*(${number})$`).exec(value);
+	if (polar) { const length = Number(polar[1]), angle = Number(polar[2]) * Math.PI / 180; return [last[0] + length * Math.cos(angle), last[1] + length * Math.sin(angle)]; }
+	if (new RegExp(`^${number}$`).test(value)) {
+		const length = Number(value), magnitude = Math.hypot(cursorDirection[0], cursorDirection[1]);
+		if (!magnitude) { return undefined; }
+		return [last[0] + length * cursorDirection[0] / magnitude, last[1] + length * cursorDirection[1] / magnitude];
+	}
+	return undefined;
+}
+
 export type DraftShapeKind = 'line' | 'polyline' | 'arc' | 'circle';
 
 export interface IDraftBase {
