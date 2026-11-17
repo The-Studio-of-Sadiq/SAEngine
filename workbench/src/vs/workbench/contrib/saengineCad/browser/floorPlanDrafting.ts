@@ -25,8 +25,12 @@ export function arcThroughPoints(a: DraftPoint, b: DraftPoint, c: DraftPoint): {
 	const angle = (p: DraftPoint) => (Math.atan2(p[1] - center[1], p[0] - center[0]) * 180 / Math.PI + 360) % 360;
 	const startAngle = angle(a), middleAngle = angle(b), end = angle(c);
 	const ccw = (x: number, y: number) => (y - x + 360) % 360;
-	const endAngle = ccw(startAngle, middleAngle) <= ccw(startAngle, end) ? end : startAngle + (ccw(startAngle, end) - 360);
-	return { center, radius: Math.hypot(a[0] - center[0], a[1] - center[1]), startAngle, endAngle };
+	const radius = Math.hypot(a[0] - center[0], a[1] - center[1]);
+	// Stored arcs run counter-clockwise: when the points were picked clockwise, the same arc runs
+	// counter-clockwise from the last point to the first.
+	return ccw(startAngle, middleAngle) <= ccw(startAngle, end)
+		? { center, radius, startAngle, endAngle: end }
+		: { center, radius, startAngle: end, endAngle: startAngle };
 }
 
 /** Parses a typed draft point: absolute, relative, polar, or direct-distance along cursor direction. */
