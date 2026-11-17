@@ -8,6 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import {
 	addDraft,
 	arcThroughPoints,
+	copyDrafts,
+	copyDraftsToStories,
 	distanceToDraft,
 	draftInWindow,
 	draftsOf,
@@ -15,6 +17,9 @@ import {
 	IDraftCircle,
 	IDraftLine,
 	IDraftPolyline,
+	IDraftShape,
+	mirrorDrafts,
+	moveDrafts,
 	nextDraftId,
 	parseDraftPoint,
 	pickDraft,
@@ -22,6 +27,7 @@ import {
 	regularPolygon,
 	removeDraft,
 	replaceDraft,
+	rotateDrafts,
 } from '../../browser/floorPlanDrafting.js';
 
 suite('SAEngine - Floor plan drafting', () => {
@@ -390,4 +396,185 @@ suite('SAEngine - Floor plan drafting', () => {
 			assert.ok(Math.abs(edge - 1000) < 0.01, `Edge length ${edge} close to 1000`);
 		}
 	});
+
+	test('moveDrafts moves a line by delta without mutating input', () => {
+		const line: IDraftLine = {
+			kind: 'line',
+			id: 'D1',
+			story: 'L1',
+			start: [1000, 2000],
+			end: [4000, 6000],
+		};
+		const layout = { drafting: [line] };
+		const result = moveDrafts(layout, ['D1'], [500, -1000]);
+
+		assert.strictEqual(result.placed, 1);
+		assert.strictEqual(result.skipped, 0);
+		assert.strictEqual(result.count, 1);
+		assert.deepStrictEqual(result.ids, ['D1']);
+
+		// Original layout drafting should not be mutated
+		assert.deepStrictEqual((layout.drafting[0] as IDraftLine).start, [1000, 2000]);
+		assert.deepStrictEqual((layout.drafting[0] as IDraftLine).end, [4000, 6000]);
+
+		// Result layout should have line moved by [500, -1000]
+		// start: [1000 + 500, 2000 + (-1000)] = [1500, 1000]
+		// end: [4000 + 500, 6000 + (-1000)] = [4500, 5000]
+		const moved = (result.layout.drafting as IDraftShape[])[0] as IDraftLine;
+		assert.strictEqual(moved.id, 'D1');
+		assert.deepStrictEqual(moved.start, [1500, 1000]);
+		assert.deepStrictEqual(moved.end, [4500, 5000]);
+	});
+
+	test('copyDrafts twice gives two new ids without clashing', () => {
+		const line: IDraftLine = {
+			kind: 'line',
+			id: 'D1',
+			story: 'L1',
+			start: [1000, 2000],
+			end: [4000, 6000],
+		};
+		const layout = { drafting: [line] };
+		const result = copyDrafts(layout, ['D1'], [100, 200], 2);
+
+		assert.strictEqual(result.placed, 2);
+		assert.strictEqual(result.skipped, 0);
+		assert.strictEqual(result.count, 2);
+		assert.deepStrictEqual(result.ids, ['D2', 'D3']);
+
+		// Original layout drafting should not be mutated
+		assert.strictEqual(layout.drafting.length, 1);
+
+		// Result layout should have 3 shapes: original D1 and copies D2, D3
+		const shapes = result.layout.drafting as IDraftLine[];
+		assert.strictEqual(shapes.length, 3);
+		assert.strictEqual(shapes[0].id, 'D1');
+		assert.deepStrictEqual(shapes[0].start, [1000, 2000]);
+		assert.deepStrictEqual(shapes[0].end, [4000, 6000]);
+
+		// Copy 1 (k=1): [1000 + 100, 2000 + 200] = [1100, 2200], [4000 + 100, 6000 + 200] = [4100, 6200]
+		assert.strictEqual(shapes[1].id, 'D2');
+		assert.deepStrictEqual(shapes[1].start, [1100, 2200]);
+		assert.deepStrictEqual(shapes[1].end, [4100, 6200]);
+
+		// Copy 2 (k=2): [1000 + 200, 2000 + 400] = [1200, 2400], [4000 + 200, 6000 + 400] = [4200, 6400]
+		assert.strictEqual(shapes[2].id, 'D3');
+		assert.deepStrictEqual(shapes[2].start, [1200, 2400]);
+		assert.deepStrictEqual(shapes[2].end, [4200, 6400]);
+	});
+
+	test('rotateDrafts rotates a line 90 degrees about the origin', () => {
+		const line: IDraftLine = {
+			kind: 'line',
+			id: 'D1',
+			story: 'L1',
+			start: [1000, 0],
+			end: [2000, 0],
+		};
+		const layout = { drafting: [line] };
+		const result = rotateDrafts(layout, ['D1'], 90, [0, 0]);
+
+		assert.strictEqual(result.placed, 1);
+		assert.strictEqual(result.skipped, 0);
+		assert.strictEqual(result.count, 1);
+		assert.deepStrictEqual(result.ids, ['D1']);
+
+		// Original layout not mutated
+		assert.deepStrictEqual((layout.drafting[0] as IDraftLine).start, [1000, 0]);
+
+		// [1000, 0] rotated 90° CCW about [0, 0] gives [0, 1000]
+		// [2000, 0] rotated 90° CCW about [0, 0] gives [0, 2000]
+		const rotated = (result.layout.drafting as IDraftLine[])[0];
+		assert.deepStrictEqual(rotated.start, [0, 1000]);
+		assert.deepStrictEqual(rotated.end, [0, 2000]);
+	});
+
+	test('mirrorDrafts mirrors an arc about x=0 keeping it CCW with right angles', () => {
+		const arc: IDraftArc = {
+			kind: 'arc',
+			id: 'D1',
+			story: 'L1',
+			center: [1000, 0],
+			radius: 500,
+			startAngle: 0,
+			endAngle: 90,
+		};
+		const layout = { drafting: [arc] };
+
+		// axis 'x' is a vertical line at x = coordinate (x = 0)
+		// With keep = true (default): original stays, new copy created with new id
+		const resultKeep = mirrorDrafts(layout, ['D1'], 'x', 0, true);
+		assert.strictEqual(resultKeep.placed, 1);
+		assert.strictEqual(resultKeep.count, 1);
+		assert.deepStrictEqual(resultKeep.ids, ['D2']);
+
+		const shapes = resultKeep.layout.drafting as IDraftArc[];
+		assert.strictEqual(shapes.length, 2);
+		assert.strictEqual(shapes[0].id, 'D1');
+		assert.deepStrictEqual(shapes[0].center, [1000, 0]);
+
+		// Expected mirrored arc:
+		// center x' = 2 * 0 - 1000 = -1000, y' = 0 -> [-1000, 0]
+		// radius: 500
+		// startAngle: 180 - oldEndAngle(90) = 90
+		// endAngle: 180 - oldStartAngle(0) = 180
+		assert.strictEqual(shapes[1].id, 'D2');
+		assert.deepStrictEqual(shapes[1].center, [-1000, 0]);
+		assert.strictEqual(shapes[1].radius, 500);
+		assert.strictEqual(shapes[1].startAngle, 90);
+		assert.strictEqual(shapes[1].endAngle, 180);
+
+		// With keep = false: original replaced in place keeping id 'D1'
+		const resultReplace = mirrorDrafts(layout, ['D1'], 'x', 0, false);
+		assert.strictEqual(resultReplace.placed, 1);
+		assert.deepStrictEqual(resultReplace.ids, ['D1']);
+		const replacedShapes = resultReplace.layout.drafting as IDraftArc[];
+		assert.strictEqual(replacedShapes.length, 1);
+		assert.strictEqual(replacedShapes[0].id, 'D1');
+		assert.deepStrictEqual(replacedShapes[0].center, [-1000, 0]);
+		assert.strictEqual(replacedShapes[0].startAngle, 90);
+		assert.strictEqual(replacedShapes[0].endAngle, 180);
+	});
+
+	test('mirrorDrafts mirrors an arc about y=0 keeping it CCW with right angles', () => {
+		const arc: IDraftArc = {
+			kind: 'arc',
+			id: 'D1',
+			story: 'L1',
+			center: [0, 1000],
+			radius: 500,
+			startAngle: 0,
+			endAngle: 90,
+		};
+		const layout = { drafting: [arc] };
+		const result = mirrorDrafts(layout, ['D1'], 'y', 0, false);
+
+		// center y' = 2 * 0 - 1000 = -1000 -> [0, -1000]
+		// startAngle = normalizeAngle(-oldEndAngle) = normalizeAngle(-90) = 270
+		// endAngle = normalizeAngle(-oldStartAngle) = normalizeAngle(-0) = 0
+		const mirrored = (result.layout.drafting as IDraftArc[])[0];
+		assert.deepStrictEqual(mirrored.center, [0, -1000]);
+		assert.strictEqual(mirrored.startAngle, 270);
+		assert.strictEqual(mirrored.endAngle, 0);
+	});
+
+	test('copyDraftsToStories copies drafts to target stories with new ids', () => {
+		const line: IDraftLine = {
+			kind: 'line',
+			id: 'D1',
+			story: 'L1',
+			start: [0, 0],
+			end: [1000, 1000],
+		};
+		const layout = { drafting: [line] };
+		const result = copyDraftsToStories(layout, ['D1'], ['L2', 'L3']);
+
+		assert.strictEqual(result.placed, 2);
+		assert.deepStrictEqual(result.ids, ['D2', 'D3']);
+		const shapes = result.layout.drafting as IDraftLine[];
+		assert.strictEqual(shapes.length, 3);
+		assert.strictEqual(shapes[1].story, 'L2');
+		assert.strictEqual(shapes[2].story, 'L3');
+	});
+
 });

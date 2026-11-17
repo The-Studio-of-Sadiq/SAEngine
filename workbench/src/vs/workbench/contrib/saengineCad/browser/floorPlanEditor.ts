@@ -69,7 +69,7 @@ import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOA
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { addDraft, arcThroughPoints, distanceToDraft, draftSegments, IDraftShape, nextDraftId, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft } from './floorPlanDrafting.js';
+import { addDraft, arcThroughPoints, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, rotateDrafts } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -1722,18 +1722,85 @@ export class FloorPlanEditor extends EditorPane {
 				this.runFill(command.fill, command.direction, command.rect);
 				break;
 			case 'copy':
-			case 'array':
-				this.applyBulk(copyMembers(layout, refs, command.delta, command.times), 'copied');
+			case 'array': {
+				if (!refs.length && !this.selectedDraftIds.size) {
+					this.applyBulk(copyMembers(layout, refs, command.delta, command.times), 'copied');
+					break;
+				}
+				if (!command.delta[0] && !command.delta[1]) {
+					this.setNotice(localize('bulk.noCopyDistance', "Give the copy a distance; a copy on top of the original is skipped."));
+					break;
+				}
+				const times = command.times ?? 1;
+				if (!Number.isInteger(times) || times < 1 || times > 100) {
+					this.setNotice(localize('bulk.badTimes', "Copy 1 to 100 times."));
+					break;
+				}
+				let result: BulkResult = refs.length ? copyMembers(layout, refs, command.delta, times) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
+				if (result.ok && this.selectedDraftIds.size) {
+					const draftResult = copyDrafts(result.layout, this.selectedDraftIds, command.delta, times);
+					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
+				}
+				this.applyBulk(result, 'copied');
 				break;
-			case 'move':
-				this.applyBulk(moveMembers(layout, refs, command.delta), 'moved');
+			}
+			case 'move': {
+				if (!refs.length && !this.selectedDraftIds.size) {
+					this.applyBulk(moveMembers(layout, refs, command.delta), 'moved');
+					break;
+				}
+				if (!command.delta[0] && !command.delta[1]) {
+					this.setNotice(localize('edit.noMove', "Choose a different point to move to."));
+					break;
+				}
+				let result: BulkResult = refs.length ? moveMembers(layout, refs, command.delta) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
+				if (result.ok && this.selectedDraftIds.size) {
+					const draftResult = moveDrafts(result.layout, this.selectedDraftIds, command.delta);
+					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
+				}
+				this.applyBulk(result, 'moved');
 				break;
-			case 'mirror':
-				this.applyBulk(mirrorMembers(layout, refs, command.axis, command.label, command.keep), 'mirrored');
+			}
+			case 'mirror': {
+				if (!refs.length && !this.selectedDraftIds.size) {
+					this.applyBulk(mirrorMembers(layout, refs, command.axis, command.label, command.keep), 'mirrored');
+					break;
+				}
+				const line = gridsOf(layout)[command.axis].get(command.label);
+				if (line === undefined) {
+					this.setNotice(localize('bulk.noLine', "There is no grid line {0}.", command.label));
+					break;
+				}
+				let result: BulkResult = refs.length ? mirrorMembers(layout, refs, command.axis, command.label, command.keep) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
+				if (result.ok && this.selectedDraftIds.size) {
+					const draftResult = mirrorDrafts(result.layout, this.selectedDraftIds, command.axis, line, command.keep);
+					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
+				}
+				this.applyBulk(result, 'mirrored');
 				break;
-			case 'rotate':
-				this.applyBulk(rotateMembers(layout, refs, command.degrees, command.absolute), 'rotated');
+			}
+			case 'rotate': {
+				if (!Number.isFinite(command.degrees)) {
+					this.setNotice(localize('edit.badAngle', "Enter an angle in degrees."));
+					break;
+				}
+				if (!refs.length && !this.selectedDraftIds.size) {
+					this.applyBulk(rotateMembers(layout, refs, command.degrees, command.absolute), 'rotated');
+					break;
+				}
+				const turning = refs.filter(r => r.group === 'columns');
+				if (!turning.length && !this.selectedDraftIds.size) {
+					this.setNotice(notRotatableMessage());
+					break;
+				}
+				let result: BulkResult = turning.length ? rotateMembers(layout, refs, command.degrees, command.absolute) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: refs.length };
+				if (result.ok && this.selectedDraftIds.size) {
+					const draftResult = rotateDrafts(result.layout, this.selectedDraftIds, command.degrees);
+					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
+				}
+				this.applyBulk(result, 'rotated');
 				break;
+			}
 			case 'tostories':
 				if (command.stories) {
 					this.copyTo(command.stories);
@@ -1782,7 +1849,26 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const layout = parse(this.planModel);
-		const result = copyToStories(layout, this.editableSelection, story, stories);
+		const refs = this.editableSelection;
+		const draftIds = [...this.selectedDraftIds];
+		if (!refs.length && !draftIds.length) {
+			this.setNotice(localize('bulk.nothing', "Select members first."));
+			return;
+		}
+		let result: BulkResult = refs.length ? copyToStories(layout, refs, story, stories) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
+		if (result.ok && draftIds.length) {
+			const own = new Set(familyOf(result.layout, story));
+			const destStories = new Set<string>();
+			for (const target of stories) {
+				for (const s of familyOf(result.layout, target)) {
+					if (!own.has(s)) {
+						destStories.add(s);
+					}
+				}
+			}
+			const draftResult = copyDraftsToStories(result.layout, draftIds, [...destStories]);
+			result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
+		}
 		const names = storiesOf(layout).filter(s => stories.includes(s.id)).map(s => s.name);
 		let notice = result.ok ? localize('floorPlan.copiedToStories', "Copied {0} member(s) to {1} (and their typical floors); skipped {2} already there.", result.placed, names.join(', '), result.skipped) : undefined;
 		if (result.ok) {
@@ -1800,7 +1886,7 @@ export class FloorPlanEditor extends EditorPane {
 	private async pickCopyToStories(): Promise<void> {
 		const story = this.story;
 		const layout = parse(this.planModel);
-		if (!story || !this.selected.length) {
+		if (!story || (!this.selected.length && !this.selectedDraftIds.size)) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
 		}
@@ -1815,8 +1901,11 @@ export class FloorPlanEditor extends EditorPane {
 				detail: family > 1 ? localize('floorPlan.copyFamily', "Typical floor: the copies go to all its {0} stories", family) : undefined,
 			};
 		});
+		const memberSummary = this.selected.length ? selectionSummary(this.selected) : undefined;
+		const draftSummary = this.selectedDraftIds.size ? localize('floorPlan.draftsCount', "{0} draft shape(s)", this.selectedDraftIds.size) : undefined;
+		const summary = [memberSummary, draftSummary].filter(Boolean).join(', ');
 		const picked = await this.quickInputService.pick(items, {
-			title: localize('floorPlan.copyToStoriesTitle', "Copy to Stories: {0}", selectionSummary(this.selected)),
+			title: localize('floorPlan.copyToStoriesTitle', "Copy to Stories: {0}", summary),
 			placeHolder: localize('floorPlan.copyToStoriesHint', "Stories to copy the selection to (columns and walls rise from the story below each)"),
 			canPickMany: true,
 		});
@@ -1827,7 +1916,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Asks for the grid line to mirror the selection about. */
 	private async pickMirror(): Promise<void> {
-		if (!this.selected.length) {
+		if (!this.selected.length && !this.selectedDraftIds.size) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
 		}
@@ -1839,8 +1928,11 @@ export class FloorPlanEditor extends EditorPane {
 			label: localize('floorPlan.gridLine', "Grid Line {0}", line),
 			description: axis === 'x' ? localize('floorPlan.atX', "x = {0} mm", position) : localize('floorPlan.atY', "y = {0} mm", position),
 		})));
+		const memberSummary = this.selected.length ? selectionSummary(this.selected) : undefined;
+		const draftSummary = this.selectedDraftIds.size ? localize('floorPlan.draftsCount', "{0} draft shape(s)", this.selectedDraftIds.size) : undefined;
+		const summary = [memberSummary, draftSummary].filter(Boolean).join(', ');
 		const picked = await this.quickInputService.pick(items, {
-			title: localize('floorPlan.mirrorTitle', "Mirror: {0}", selectionSummary(this.selected)),
+			title: localize('floorPlan.mirrorTitle', "Mirror: {0}", summary),
 			placeHolder: localize('floorPlan.mirrorHint', "The grid line to mirror about; the originals stay (type mirror <line> move on the command line to move them)"),
 		});
 		if (picked) {
