@@ -132,16 +132,19 @@ suite('SAEngine - Floor plan drafting', () => {
 		assert.strictEqual(distanceToDraft(arc1, [3000, 3000]), 0);
 		assert.strictEqual(distanceToDraft(arc1, [2500, 2500]), Math.sqrt(500 * 500 + 500 * 500));
 		assert.strictEqual(pickDraft([line1, circle1], [3000, 2500], 10)?.id, 'D1');
-		assert.strictEqual(pickDraft([line1], [3000, 2505], 4), undefined);
+		assert.strictEqual(pickDraft([line1], [3000, 2510], 4), undefined); // 7.7 mm off the line
 	});
 
 	test('draft window selection includes full shapes and crossing segments', () => {
 		assert.strictEqual(draftInWindow(line1, [0, 0], [6000, 5000], false), true);
 		assert.strictEqual(draftInWindow(line1, [100, 100], [200, 200], false), false);
-		assert.strictEqual(draftInWindow(line1, [100, 100], [200, 200], true), false);
-		assert.strictEqual(draftInWindow(polylineClosed, [400, 100], [600, 300], true), true);
+		assert.strictEqual(draftInWindow(line1, [100, 100], [200, 200], true), true); // the line runs through it
+		assert.strictEqual(draftInWindow(line1, [3000, 100], [3100, 200], true), false);
+		assert.strictEqual(draftInWindow(polylineClosed, [900, 100], [1100, 300], true), true); // across its right edge
+		assert.strictEqual(draftInWindow(polylineClosed, [400, 100], [600, 300], true), false); // inside it, touching no edge (as AutoCAD)
 		assert.strictEqual(draftInWindow(circle1, [700, 700], [1300, 1300], false), true);
-		assert.strictEqual(draftInWindow(arc1, [3400, 2900], [3600, 3100], true), true);
+		assert.strictEqual(draftInWindow(arc1, [3300, 2800], [3400, 2900], true), true); // the arc's 45° point (3354, 2854)
+		assert.strictEqual(draftInWindow(arc1, [3400, 2900], [3600, 3100], true), false);
 	});
 
 	test('draftsOf filters by storyId', () => {
