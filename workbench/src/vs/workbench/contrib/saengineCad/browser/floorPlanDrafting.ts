@@ -481,6 +481,150 @@ function roundCoord(v: number): number {
 	return r === 0 ? 0 : r;
 }
 
+const cross = (a: DraftPoint, b: DraftPoint) => a[0] * b[1] - a[1] * b[0];
+const sub = (a: DraftPoint, b: DraftPoint): DraftPoint => [a[0] - b[0], a[1] - b[1]];
+const add = (a: DraftPoint, b: DraftPoint): DraftPoint => [a[0] + b[0], a[1] + b[1]];
+const mul = (a: DraftPoint, n: number): DraftPoint => [a[0] * n, a[1] * n];
+function lineIntersection(p: DraftPoint, r: DraftPoint, q: DraftPoint, s: DraftPoint): DraftPoint | undefined {
+	const d = cross(r, s);
+	if (Math.abs(d) < 1e-9) { return undefined; }
+	return add(p, mul(r, cross(sub(q, p), s) / d));
+}
+function lineHits(line: IDraftLine, shape: IDraftShape): { point: DraftPoint; t: number }[] {
+	const p = line.start, v = sub(line.end, line.start), vv = v[0] * v[0] + v[1] * v[1];
+	if (!vv) { return []; }
+	const hits: DraftPoint[] = [];
+	const segmentHit = (a: DraftPoint, b: DraftPoint) => {
+		const w = sub(b, a), den = cross(v, w);
+		if (Math.abs(den) < 1e-9) { return; }
+		const t = cross(sub(a, p), w) / den, u = cross(sub(a, p), v) / den;
+		if (t >= -1e-9 && t <= 1 + 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) { hits.push(add(p, mul(v, t))); }
+	};
+	if (shape.kind === 'line') { segmentHit(shape.start, shape.end); }
+	else if (shape.kind === 'polyline') { draftSegments(shape).forEach(([a, b]) => segmentHit(a, b)); }
+	else {
+		const d = sub(p, shape.center), b = 2 * (d[0] * v[0] + d[1] * v[1]), c = d[0] * d[0] + d[1] * d[1] - shape.radius * shape.radius;
+		const disc = b * b - 4 * vv * c;
+		if (disc >= -1e-8) {
+			for (const t of disc <= 1e-8 ? [-b / (2 * vv)] : [(-b - Math.sqrt(disc)) / (2 * vv), (-b + Math.sqrt(disc)) / (2 * vv)]) {
+				if (t < -1e-9 || t > 1 + 1e-9) { continue; }
+				const hit = add(p, mul(v, t));
+				if (shape.kind === 'circle' || normalizedSweep(shape.startAngle, Math.atan2(hit[1] - shape.center[1], hit[0] - shape.center[0]) * 180 / Math.PI) <= normalizedSweep(shape.startAngle, shape.endAngle) + 1e-8) { hits.push(hit); }
+			}
+		}
+	}
+	return hits.map(point => ({ point, t: ((point[0] - p[0]) * v[0] + (point[1] - p[1]) * v[1]) / vv }));
+}
+
+/** Offset a draft to the side indicated by `sidePoint`; polyline corners use mitres. */
+export function offsetDraft(shape: IDraftShape, distance: number, sidePoint: DraftPoint): IDraftShape | undefined {
+	if (!Number.isFinite(distance) || distance < 0) { return undefined; }
+	if (shape.kind === 'line') {
+		const v = sub(shape.end, shape.start), len = Math.hypot(v[0], v[1]); if (!len) { return undefined; }
+		const n: DraftPoint = [-v[1] / len, v[0] / len], sign = (sidePoint[0] - shape.start[0]) * n[0] + (sidePoint[1] - shape.start[1]) * n[1] < 0 ? -1 : 1;
+		return { ...shape, start: [roundCoord(shape.start[0] + sign * distance * n[0]), roundCoord(shape.start[1] + sign * distance * n[1])], end: [roundCoord(shape.end[0] + sign * distance * n[0]), roundCoord(shape.end[1] + sign * distance * n[1])] };
+	}
+	if (shape.kind === 'circle' || shape.kind === 'arc') {
+		const radial = Math.hypot(sidePoint[0] - shape.center[0], sidePoint[1] - shape.center[1]);
+		const radius = shape.radius + (radial >= shape.radius ? distance : -distance);
+		return radius > 0 ? { ...shape, radius: roundCoord(radius) } : undefined;
+	}
+	const pts = shape.points, closed = !!shape.closed, area = pts.reduce((sum, p, i) => { const q = pts[(i + 1) % pts.length]; return sum + p[0] * q[1] - q[0] * p[1]; }, 0);
+	let inward = false;
+	if (closed) {
+		let inside = false;
+		for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+			const a = pts[i], b = pts[j];
+			if ((a[1] > sidePoint[1]) !== (b[1] > sidePoint[1]) && sidePoint[0] < (b[0] - a[0]) * (sidePoint[1] - a[1]) / (b[1] - a[1]) + a[0]) { inside = !inside; }
+		}
+		inward = inside;
+		if (inward && pts.length === 4 && Math.abs(distance) * 2 >= Math.min(Math.max(...pts.map(p => p[0])) - Math.min(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1])) - Math.min(...pts.map(p => p[1])))) { return undefined; }
+	}
+	const segCount = closed ? pts.length : pts.length - 1;
+	const offsets: { p: DraftPoint; v: DraftPoint }[] = [];
+	for (let i = 0; i < segCount; i++) {
+		const a = pts[i], b = pts[(i + 1) % pts.length], d = sub(b, a), len = Math.hypot(d[0], d[1]); if (!len) { return undefined; }
+		let n: DraftPoint = [-d[1] / len, d[0] / len];
+		if (closed && ((area > 0) !== inward)) { n = mul(n, -1); }
+		else { const mid: DraftPoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; if ((sidePoint[0] - mid[0]) * n[0] + (sidePoint[1] - mid[1]) * n[1] < 0) { n = mul(n, -1); } }
+		offsets.push({ p: add(a, mul(n, distance)), v: d });
+	}
+	const result: DraftPoint[] = [];
+	for (let i = 0; i < pts.length; i++) {
+		if (!closed && i === 0) { result.push(offsets[0].p); continue; }
+		if (!closed && i === pts.length - 1) { result.push(add(offsets[offsets.length - 1].p, offsets[offsets.length - 1].v)); continue; }
+		const before = offsets[(i - 1 + segCount) % segCount], after = offsets[i % segCount];
+		result.push(lineIntersection(before.p, before.v, after.p, after.v) ?? after.p);
+	}
+	return { ...shape, points: result.map(p => [roundCoord(p[0]), roundCoord(p[1])]) };
+}
+
+/** Remove the picked interval of a line; no hits removes the whole line. */
+export function trimLine(line: IDraftLine, cutters: readonly IDraftShape[], pickPoint: DraftPoint): IDraftLine[] {
+	const hits = cutters.flatMap(c => lineHits(line, c)).map(h => h.t).filter(t => t > 1e-8 && t < 1 - 1e-8).sort((a, b) => a - b).filter((t, i, a) => !i || Math.abs(t - a[i - 1]) > 1e-7);
+	if (!hits.length) { return []; }
+	const v = sub(line.end, line.start), vv = v[0] * v[0] + v[1] * v[1], t = Math.max(0, Math.min(1, ((pickPoint[0] - line.start[0]) * v[0] + (pickPoint[1] - line.start[1]) * v[1]) / vv));
+	const left = [...hits].reverse().find(h => h < t), right = hits.find(h => h > t);
+	const lo = left ?? 0, hi = right ?? 1;
+	const point = (n: number): DraftPoint => [roundCoord(line.start[0] + n * v[0]), roundCoord(line.start[1] + n * v[1])];
+	const out: IDraftLine[] = [];
+	if (lo > 1e-8) { out.push({ ...line, end: point(lo) }); }
+	if (hi < 1 - 1e-8) { out.push({ ...line, id: out.length ? `${line.id}_trim` : line.id, start: point(hi) }); }
+	return out;
+}
+
+/** Extend the end nearest the pick point to the nearest boundary intersection. */
+export function extendLine(line: IDraftLine, boundaries: readonly IDraftShape[], pickPoint: DraftPoint): IDraftLine | undefined {
+	const fromStart = Math.hypot(pickPoint[0] - line.start[0], pickPoint[1] - line.start[1]) < Math.hypot(pickPoint[0] - line.end[0], pickPoint[1] - line.end[1]);
+	const origin = fromStart ? line.start : line.end, other = fromStart ? line.end : line.start, v = sub(origin, other), len2 = v[0] * v[0] + v[1] * v[1];
+	if (!len2) { return undefined; }
+	const ray: IDraftLine = { ...line, start: origin, end: add(origin, mul(v, 1e6)) };
+	const hit = boundaries.flatMap(b => lineHits(ray, b)).filter(h => h.t > 1e-8).sort((a, b) => a.t - b.t)[0];
+	if (!hit) { return undefined; }
+	const end: DraftPoint = [roundCoord(hit.point[0]), roundCoord(hit.point[1])];
+	return fromStart ? { ...line, start: end } : { ...line, end: end };
+}
+
+/** Fillet two finite lines, preserving each picked side. */
+export function filletLines(l1: IDraftLine, l2: IDraftLine, radius: number, pick1: DraftPoint, pick2: DraftPoint): { readonly lines: readonly [IDraftLine, IDraftLine]; readonly arc?: IDraftArc } | undefined {
+	const v1 = sub(l1.end, l1.start), v2 = sub(l2.end, l2.start), corner = lineIntersection(l1.start, v1, l2.start, v2);
+	if (!corner || radius < 0) { return undefined; }
+	const dot = (a: DraftPoint, b: DraftPoint) => a[0] * b[0] + a[1] * b[1];
+	// AutoCAD: each line keeps its end on the picked side of the corner; the other end moves to
+	// the corner (radius 0) or to the arc's tangent point.
+	const side = (line: IDraftLine, pick: DraftPoint) => {
+		const along = sub(line.end, line.start), length = Math.hypot(along[0], along[1]);
+		if (!length) { return undefined; }
+		const unit: DraftPoint = [along[0] / length, along[1] / length];
+		const sign = Math.sign(dot(sub(pick, corner), unit));
+		if (!sign) { return undefined; }
+		const w: DraftPoint = [unit[0] * sign, unit[1] * sign];
+		const keepEnd = dot(sub(line.end, corner), w) >= dot(sub(line.start, corner), w);
+		const reach = dot(sub(keepEnd ? line.end : line.start, corner), w);
+		return reach > 0 ? { w, keepEnd, reach } : undefined;
+	};
+	const s1 = side(l1, pick1), s2 = side(l2, pick2);
+	if (!s1 || !s2) { return undefined; }
+	const theta = Math.acos(Math.max(-1, Math.min(1, dot(s1.w, s2.w))));
+	if (theta < 1e-6 || Math.PI - theta < 1e-6) { return undefined; }
+	const moved = (line: IDraftLine, at: { readonly keepEnd: boolean }, point: DraftPoint): IDraftLine => at.keepEnd ? { ...line, start: point } : { ...line, end: point };
+	if (!radius) {
+		const p: DraftPoint = [roundCoord(corner[0]), roundCoord(corner[1])];
+		return { lines: [moved(l1, s1, p), moved(l2, s2, p)] };
+	}
+	const d = radius / Math.tan(theta / 2);
+	if (d > s1.reach + 1e-9 || d > s2.reach + 1e-9) { return undefined; }
+	const tangent = (w: DraftPoint): DraftPoint => [roundCoord(corner[0] + w[0] * d), roundCoord(corner[1] + w[1] * d)];
+	const t1 = tangent(s1.w), t2 = tangent(s2.w);
+	const bis: DraftPoint = [s1.w[0] + s2.w[0], s1.w[1] + s2.w[1]], bl = Math.hypot(bis[0], bis[1]), h = radius / Math.sin(theta / 2);
+	const center: DraftPoint = [roundCoord(corner[0] + bis[0] / bl * h), roundCoord(corner[1] + bis[1] / bl * h)];
+	const angle = (p: DraftPoint) => normalizeAngle(Math.atan2(p[1] - center[1], p[0] - center[0]) * 180 / Math.PI);
+	const a1 = angle(t1), a2 = angle(t2), ccw = normalizedSweep(a1, a2);
+	// The fillet arc spans less than 180°: stored counter-clockwise from whichever end that makes it.
+	const arc: IDraftArc = { kind: 'arc', id: `${l1.id}_fillet`, story: l1.story, layer: l1.layer, center, radius: roundCoord(radius), startAngle: ccw < 180 ? a1 : a2, endAngle: ccw < 180 ? a2 : a1 };
+	return { lines: [moved(l1, s1, t1), moved(l2, s2, t2)], arc };
+}
+
 function normalizeAngle(degrees: number): number {
 	const a = Number((((degrees % 360) + 360) % 360).toFixed(3));
 	return a === 360 ? 0 : a;

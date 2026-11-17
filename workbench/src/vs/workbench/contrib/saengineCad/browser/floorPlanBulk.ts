@@ -507,7 +507,7 @@ export function bulkNotice(result: Extract<BulkResult, { ok: true }>, verb: Bulk
 // ───────────────────────────── command line ─────────────────────────────
 
 export type FloorPlanCommand =
-	| { readonly kind: 'tool'; readonly tool: 'draftLine' | 'draftPolyline' | 'draftRect' | 'draftPolygon' | 'draftCircle' | 'draftArc' }
+	| { readonly kind: 'tool'; readonly tool: 'draftLine' | 'draftPolyline' | 'draftRect' | 'draftPolygon' | 'draftCircle' | 'draftArc' | 'draftOffset' | 'draftTrim' | 'draftExtend' | 'draftFillet' }
 	| { readonly kind: 'select'; readonly what: 'all' } | { readonly kind: 'select'; readonly what: 'none' } | { readonly kind: 'select'; readonly what: 'type'; readonly type: string } | { readonly kind: 'select'; readonly what: 'ids'; readonly ids: readonly string[] }
 	| { readonly kind: 'fill'; readonly fill: FillKind; readonly direction: FillDirection; readonly rect?: IRect }
 	| { readonly kind: 'copy' | 'array'; readonly delta: CadPoint; readonly times: number }
@@ -521,7 +521,7 @@ export type FloorPlanCommand =
 	| { readonly kind: 'error'; readonly message: string };
 
 /** The command words the floor plan answers on the command line; the rest go to the CAD editor. */
-export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete', 'help', '?', 'undo', 'u', 'redo', 'line', 'l', 'pline', 'pl', 'rectangle', 'rec', 'polygon', 'pol', 'circle', 'c', 'arc', 'a'] as const;
+export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete', 'help', '?', 'undo', 'u', 'redo', 'line', 'l', 'pline', 'pl', 'rectangle', 'rec', 'polygon', 'pol', 'circle', 'c', 'arc', 'a', 'offset', 'trim', 'extend', 'fillet', 'o', 'tr', 'ex', 'f'] as const;
 
 /** The floor plan's commands with how to type them, for `help` and the command line's suggestions. */
 export const COMMAND_HELP: readonly { readonly usage: string; readonly description: string }[] = [
@@ -531,6 +531,10 @@ export const COMMAND_HELP: readonly { readonly usage: string; readonly descripti
 	{ usage: 'POLYGON | POL', description: localize('help.polygon', "Draw a six-sided polygon") },
 	{ usage: 'CIRCLE | C', description: localize('help.circle', "Draw a circle") },
 	{ usage: 'ARC | A', description: localize('help.arc', "Draw an arc through three points") },
+	{ usage: 'OFFSET | O', description: localize('help.offset', "Offset draft shapes by a typed distance") },
+	{ usage: 'TRIM | TR', description: localize('help.trim', "Trim a draft line at other drafts") },
+	{ usage: 'EXTEND | EX', description: localize('help.extend', "Extend a draft line to another draft") },
+	{ usage: 'FILLET | F', description: localize('help.fillet', "Fillet two draft lines") },
 	{ usage: 'select all | none | type <type> | <id> ...', description: localize('help.select', "Select members on this story") },
 	{ usage: 'fill columns | beams | slabs | walls [x | y] [A-1 C-3]', description: localize('help.fill', "Place members on the grid (all of it, or a window)") },
 	{ usage: 'copy dx, dy [times]', description: localize('help.copy', "Copy the selection by dx, dy mm (times copies)") },
@@ -585,6 +589,10 @@ export function parseCommand(text: string, layout: unknown): FloorPlanCommand | 
 		case 'polygon': case 'pol': return { kind: 'tool', tool: 'draftPolygon' };
 		case 'circle': case 'c': return { kind: 'tool', tool: 'draftCircle' };
 		case 'arc': case 'a': return { kind: 'tool', tool: 'draftArc' };
+		case 'offset': case 'o': return { kind: 'tool', tool: 'draftOffset' };
+		case 'trim': case 'tr': return { kind: 'tool', tool: 'draftTrim' };
+		case 'extend': case 'ex': return { kind: 'tool', tool: 'draftExtend' };
+		case 'fillet': case 'f': return { kind: 'tool', tool: 'draftFillet' };
 		case 'select': {
 			const what = rest[0]?.toLowerCase();
 			if (what === 'all' || what === 'none') {
