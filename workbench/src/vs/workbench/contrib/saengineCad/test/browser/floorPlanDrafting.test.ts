@@ -7,12 +7,15 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
 	addDraft,
+	distanceToDraft,
+	draftInWindow,
 	draftsOf,
 	IDraftArc,
 	IDraftCircle,
 	IDraftLine,
 	IDraftPolyline,
 	nextDraftId,
+	pickDraft,
 	removeDraft,
 	replaceDraft,
 } from '../../browser/floorPlanDrafting.js';
@@ -119,6 +122,24 @@ suite('SAEngine - Floor plan drafting', () => {
 			center: [1000, 1000],
 			radius: 250,
 		});
+	});
+
+	test('draft picking measures segments, circle edges and arc sweeps', () => {
+		assert.strictEqual(distanceToDraft(line1, [3000, 2500]), 0);
+		assert.strictEqual(distanceToDraft(circle1, [1250, 1000]), 0);
+		assert.strictEqual(distanceToDraft(arc1, [3000, 3000]), 0);
+		assert.strictEqual(distanceToDraft(arc1, [2500, 2500]), Math.sqrt(500 * 500 + 500 * 500));
+		assert.strictEqual(pickDraft([line1, circle1], [3000, 2500], 10)?.id, 'D1');
+		assert.strictEqual(pickDraft([line1], [3000, 2505], 4), undefined);
+	});
+
+	test('draft window selection includes full shapes and crossing segments', () => {
+		assert.strictEqual(draftInWindow(line1, [0, 0], [6000, 5000], false), true);
+		assert.strictEqual(draftInWindow(line1, [100, 100], [200, 200], false), false);
+		assert.strictEqual(draftInWindow(line1, [100, 100], [200, 200], true), false);
+		assert.strictEqual(draftInWindow(polylineClosed, [400, 100], [600, 300], true), true);
+		assert.strictEqual(draftInWindow(circle1, [700, 700], [1300, 1300], false), true);
+		assert.strictEqual(draftInWindow(arc1, [3400, 2900], [3600, 3100], true), true);
 	});
 
 	test('draftsOf filters by storyId', () => {

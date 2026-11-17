@@ -6,6 +6,8 @@
 import { findNodeAtLocation, Node, parseTree } from '../../../../base/common/json.js';
 import { applyEdits, removeProperty, setProperty, withFormatting } from '../../../../base/common/jsonEdit.js';
 import type { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
+import { distanceToSegment } from './floorPlanDrawing.js';
+import type { CadPoint } from '@saengine/cad-editor';
 
 /*
  * 2D drafting geometry (AutoCAD-like lines, polylines, arcs, circles) on the floor plan
@@ -49,6 +51,84 @@ export interface IDraftCircle extends IDraftBase {
 }
 
 export type IDraftShape = IDraftLine | IDraftPolyline | IDraftArc | IDraftCircle;
+
+/** A draft represented as line segments for window selection and crossing tests. */
+export function draftSegments(shape: IDraftShape): readonly (readonly [CadPoint, CadPoint])[] {
+	if (shape.kind === 'line') {
+		return [[shape.start, shape.end]];
+	}
+	if (shape.kind === 'polyline') {
+		const segments: [CadPoint, CadPoint][] = shape.points.slice(1).map((point, i) => [shape.points[i], point]);
+		if (shape.closed) {
+			segments.push([shape.points[shape.points.length - 1], shape.points[0]]);
+		}
+		return segments;
+	}
+	const points: CadPoint[] = [];
+	const start = shape.kind === 'arc' ? shape.startAngle : 0;
+	const sweep = shape.kind === 'arc' ? normalizedSweep(shape.startAngle, shape.endAngle) : 360;
+	const count = Math.max(8, Math.ceil(sweep / 5));
+	for (let i = 0; i <= count; i++) {
+		const angle = (start + sweep * i / count) * Math.PI / 180;
+		points.push([shape.center[0] + Math.cos(angle) * shape.radius, shape.center[1] + Math.sin(angle) * shape.radius]);
+	}
+	return points.slice(1).map((point, i) => [points[i], point]);
+}
+
+function normalizedSweep(start: number, end: number): number {
+	return ((end - start) % 360 + 360) % 360;
+}
+
+/** Distance from a point to a draft curve. */
+export function distanceToDraft(shape: IDraftShape, point: CadPoint): number {
+	if (shape.kind === 'circle') {
+		return Math.abs(Math.hypot(point[0] - shape.center[0], point[1] - shape.center[1]) - shape.radius);
+	}
+	if (shape.kind === 'arc') {
+		const angle = Math.atan2(point[1] - shape.center[1], point[0] - shape.center[0]) * 180 / Math.PI;
+		const sweep = normalizedSweep(shape.startAngle, shape.endAngle);
+		const offset = normalizedSweep(shape.startAngle, angle);
+		if (offset <= sweep) {
+			return Math.abs(Math.hypot(point[0] - shape.center[0], point[1] - shape.center[1]) - shape.radius);
+		}
+		const start = shape.startAngle * Math.PI / 180;
+		const end = shape.endAngle * Math.PI / 180;
+		const endpoints = [[shape.center[0] + Math.cos(start) * shape.radius, shape.center[1] + Math.sin(start) * shape.radius] as CadPoint, [shape.center[0] + Math.cos(end) * shape.radius, shape.center[1] + Math.sin(end) * shape.radius] as CadPoint];
+		return Math.min(...endpoints.map(p => Math.hypot(point[0] - p[0], point[1] - p[1])));
+	}
+	return Math.min(...draftSegments(shape).map(([a, b]) => distanceToSegment(point, a, b)));
+}
+
+/** Drafts within the given pick tolerance, nearest first (ties retain input order). */
+export function pickDraft(shapes: readonly IDraftShape[], point: CadPoint, tolerance: number): IDraftShape | undefined {
+	return shapes.map(shape => ({ shape, distance: distanceToDraft(shape, point) }))
+		.filter(hit => hit.distance <= tolerance)
+		.sort((a, b) => a.distance - b.distance)[0]?.shape;
+}
+
+/** Whether a draft is fully within a window or touches a crossing window. */
+export function draftInWindow(shape: IDraftShape, min: CadPoint, max: CadPoint, crossing: boolean): boolean {
+	const inside = ([x, y]: CadPoint) => min[0] <= x && x <= max[0] && min[1] <= y && y <= max[1];
+	const segments = draftSegments(shape);
+	if (!crossing) {
+		if (shape.kind === 'circle') {
+			return inside([shape.center[0] - shape.radius, shape.center[1] - shape.radius]) && inside([shape.center[0] + shape.radius, shape.center[1] + shape.radius]);
+		}
+		if (shape.kind === 'arc') {
+			return inside([shape.center[0] - shape.radius, shape.center[1] - shape.radius]) && inside([shape.center[0] + shape.radius, shape.center[1] + shape.radius]);
+		}
+		return segments.every(([a, b]) => inside(a) && inside(b));
+	}
+	const intersects = (a: CadPoint, b: CadPoint, c: CadPoint, d: CadPoint) => {
+		const cross = (p: CadPoint, q: CadPoint, r: CadPoint) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+		const abC = cross(a, b, c), abD = cross(a, b, d), cdA = cross(c, d, a), cdB = cross(c, d, b);
+		return Math.min(a[0], b[0]) <= Math.max(c[0], d[0]) && Math.min(c[0], d[0]) <= Math.max(a[0], b[0])
+			&& Math.min(a[1], b[1]) <= Math.max(c[1], d[1]) && Math.min(c[1], d[1]) <= Math.max(a[1], b[1])
+			&& abC * abD <= 0 && cdA * cdB <= 0;
+	};
+	const corners: CadPoint[] = [min, [max[0], min[1]], max, [min[0], max[1]]];
+	return segments.some(([a, b]) => inside(a) || inside(b) || corners.some((c, i) => intersects(a, b, c, corners[(i + 1) % 4])));
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
