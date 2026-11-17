@@ -129,16 +129,18 @@ suite('SAEngine - Floor plan drafting', () => {
 	});
 
 	test('arcThroughPoints stores the CCW arc containing the middle point', () => {
+		// 359.9999° is 0°: compare angles around the circle.
+		const angleOff = (angle: number, expected: number) => { const d = ((angle - expected) % 360 + 360) % 360; return Math.min(d, 360 - d); };
 		const first = arcThroughPoints([1000, 0], [707.107, 707.107], [0, 1000]);
 		assert.ok(first);
 		assert.ok(Math.abs(first.center[0]) < 0.001 && Math.abs(first.center[1]) < 0.001);
 		assert.ok(Math.abs(first.radius - 1000) < 0.001);
-		assert.ok(Math.abs(first.startAngle) < 0.001 && Math.abs(first.endAngle - 90) < 0.001);
+		assert.ok(angleOff(first.startAngle, 0) < 0.001 && angleOff(first.endAngle, 90) < 0.001);
 		const reversed = arcThroughPoints([0, 1000], [707.107, 707.107], [1000, 0]);
 		assert.ok(reversed);
 		assert.ok(Math.abs(reversed.center[0]) < 0.001 && Math.abs(reversed.center[1]) < 0.001);
 		assert.ok(Math.abs(reversed.radius - 1000) < 0.001);
-		assert.ok(Math.abs(reversed.startAngle) < 0.001 && Math.abs(reversed.endAngle - 90) < 0.001);
+		assert.ok(angleOff(reversed.startAngle, 0) < 0.001 && angleOff(reversed.endAngle, 90) < 0.001);
 		assert.strictEqual(arcThroughPoints([0, 0], [1, 1], [2, 2]), undefined);
 	});
 

@@ -167,7 +167,7 @@ suite('SAEngine - Floor plan bulk edits', () => {
 		assert.deepStrictEqual([
 			'select all', 'select type C400', 'select c1 b2', 'fill columns', 'fill walls x A-1 C-2', 'fill beams A-1 Q-9',
 			'copy 6000,0', 'array @6000, 0 x 3', 'array 6000 0', 'move -150 200', 'mirror B', 'mirror y 2 move', 'mirror Z',
-			'rotate 90', 'rotate to 45', 'tostories', 'tostories all', 'tostories level 2', 'tostories L2 L3', 'delete', 'line', '',
+			'rotate 90', 'rotate to 45', 'tostories', 'tostories all', 'tostories level 2', 'tostories L2 L3', 'delete', 'line', 'zoom', '',
 		].map(text => parseCommand(text, empty)), [
 			{ kind: 'select', what: 'all' },
 			{ kind: 'select', what: 'type', type: 'C400' },
@@ -189,7 +189,8 @@ suite('SAEngine - Floor plan bulk edits', () => {
 			{ kind: 'tostories', stories: ['L2'] },
 			{ kind: 'tostories', stories: ['L2', 'L3'] },
 			{ kind: 'delete' },
-			undefined,
+			{ kind: 'tool', tool: 'draftLine' }, // the floor plan's own drafting (#311)
+			undefined, // left to the CAD editor
 			undefined,
 		]);
 	});
