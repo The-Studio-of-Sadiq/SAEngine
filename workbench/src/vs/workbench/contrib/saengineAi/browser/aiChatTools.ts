@@ -57,7 +57,6 @@ export function toChatToolData(tool: IAiTool): IToolData {
 		inputSchema: tool.inputSchema,
 		source: ToolDataSource.Internal,
 		icon: ThemeIcon.fromId(Codicon.symbolStructure.id),
-		canBeReferencedInPrompt: true,
 	};
 }
 
