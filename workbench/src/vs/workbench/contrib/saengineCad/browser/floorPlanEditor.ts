@@ -69,7 +69,7 @@ import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOA
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { addDraft, arcThroughPoints, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, rotateDrafts } from './floorPlanDrafting.js';
+import { addDraft, arcThroughPoints, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, extendLine, filletLines, IDraftLine, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, offsetDraft, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, replaceDraft, rotateDrafts, trimLine } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -97,8 +97,9 @@ const WINDOW_DASH_PIXELS = 20;
 const CLICK_PIXELS = 5;
 
 type DraftTool = 'draftLine' | 'draftPolyline' | 'draftRect' | 'draftPolygon' | 'draftCircle' | 'draftArc';
+type ModifyTool = 'draftOffset' | 'draftTrim' | 'draftExtend' | 'draftFillet';
 
-type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete' | DraftTool;
+type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete' | DraftTool | ModifyTool;
 
 /** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
 type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
@@ -116,6 +117,10 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'draftPolygon', label: localize('tool.draftPolygon', "Polygon"), icon: Codicon.symbolConstant, hint: localize('hint.draftPolygon', "Polygon: click the centre, then a corner (6 sides; type the number of sides in the command line later).") },
 	{ tool: 'draftCircle', label: localize('tool.draftCircle', "Circle"), icon: Codicon.circle, hint: localize('hint.draftCircle', "Circle: click the centre, then a point on the circle or type a radius.") },
 	{ tool: 'draftArc', label: localize('tool.draftArc', "Arc"), icon: Codicon.circle, hint: localize('hint.draftArc', "Arc: click start, a point on the arc, then end.") },
+	{ tool: 'draftOffset', label: localize('tool.draftOffset', "Offset"), icon: Codicon.move, hint: localize('hint.draftOffset', "Type a distance, click a draft, then click the side to offset to. Esc stops.") },
+	{ tool: 'draftTrim', label: localize('tool.draftTrim', "Trim"), icon: Codicon.debugDisconnect, hint: localize('hint.draftTrim', "Click a line to trim it against other drafts. Esc stops.") },
+	{ tool: 'draftExtend', label: localize('tool.draftExtend', "Extend"), icon: Codicon.arrowUp, hint: localize('hint.draftExtend', "Click a line to extend its nearer end to another draft. Esc stops.") },
+	{ tool: 'draftFillet', label: localize('tool.draftFillet', "Fillet"), icon: Codicon.circle, hint: localize('hint.draftFillet', "Type a radius, then click two lines. Esc stops.") },
 	{ tool: 'fill', label: localize('tool.fill', "Fill"), icon: Codicon.table, hint: localize('hint.fill', "Drag a window over the grid to place members on every intersection, segment or bay inside it.") },
 	{ tool: 'move', label: localize('tool.move', "Move"), icon: Codicon.move, hint: localize('hint.move', "Click the member to move.") },
 	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column to rotate it (footings turn in 9 Substructure).") },
@@ -297,6 +302,11 @@ export class FloorPlanEditor extends EditorPane {
 	private polygon: CadPoint[] = [];
 	/** Clicked points of a draft shape being drawn (Line, Polyline, Rectangle, Polygon). */
 	private draftPoints: CadPoint[] = [];
+	private modifyPoints: CadPoint[] = [];
+	private modifyTarget: IDraftShape | undefined;
+	private modifyFirstLine: IDraftLine | undefined;
+	private readonly modifyValues = new Map<ModifyTool, number>();
+	private modifyValue = 0;
 	private hover: CadPoint | undefined;
 	private notice: string | undefined;
 	/** Set while this editor writes the floor plan. */
@@ -936,6 +946,14 @@ export class FloorPlanEditor extends EditorPane {
 			if (typed) { target.value = ''; e.preventDefault(); e.stopImmediatePropagation(); this.draftClick(typed); this.schedulePreview(); this.updateStatus(); }
 			return;
 		}
+		if ((this.tool === 'draftOffset' || this.tool === 'draftFillet') && target.value.trim()) {
+			const value = Number(target.value.trim());
+			if (Number.isFinite(value) && value >= 0) {
+				target.value = ''; e.preventDefault(); e.stopImmediatePropagation(); this.modifyValue = value; this.modifyValues.set(this.tool, value);
+				this.setNotice(this.tool === 'draftOffset' ? localize('floorPlan.offsetPick', "Click a draft to offset.") : localize('floorPlan.filletPick', "Click the first line."));
+			}
+			return;
+		}
 		const command = parseCommand(target.value, parse(this.planModel));
 		if (!command) {
 			return;
@@ -996,6 +1014,9 @@ export class FloorPlanEditor extends EditorPane {
 		this.picked = undefined;
 		this.polygon = [];
 		this.draftPoints = [];
+		this.modifyPoints = [];
+		this.modifyTarget = undefined;
+		this.modifyFirstLine = undefined;
 		this.drag = undefined;
 		this.pasting = false;
 		this.underlayPick = undefined;
@@ -1034,7 +1055,7 @@ export class FloorPlanEditor extends EditorPane {
 	/** The tool whose object types the Type picker offers. */
 	private get placementTool(): PlacementTool | undefined {
 		switch (this.tool) {
-			case 'select': case 'delete': case 'move': case 'rotate':
+			case 'select': case 'delete': case 'move': case 'rotate': case 'draftOffset': case 'draftTrim': case 'draftExtend': case 'draftFillet':
 			case 'draftLine': case 'draftPolyline': case 'draftRect': case 'draftPolygon': case 'draftCircle': case 'draftArc':
 				return undefined;
 			case 'polygonSlab': return 'slab';
@@ -1151,7 +1172,7 @@ export class FloorPlanEditor extends EditorPane {
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
-			...(this.compact ? [] : [...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc']), new Separator()]),
+			...(this.compact ? [] : [...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc']), new Separator(), ...tools(['draftOffset', 'draftTrim', 'draftExtend', 'draftFillet']), new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1182,7 +1203,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
-			...(this.compact ? [new Separator(), ...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc'])] : []),
+			...(this.compact ? [new Separator(), ...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc']), new Separator(), ...tools(['draftOffset', 'draftTrim', 'draftExtend', 'draftFillet'])] : []),
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
@@ -1223,7 +1244,8 @@ export class FloorPlanEditor extends EditorPane {
 		const picked = this.picked;
 		const tool = this.tool;
 		const length = (tool === 'beam' || tool === 'wall') && !!this.chainStart;
-		const key = length ? `length|${tool}` : picked && (tool === 'move' || tool === 'rotate') ? `${tool}|${picked.group}|${picked.id}` : '';
+		const modify = tool === 'draftOffset' || tool === 'draftFillet';
+		const key = modify ? `${tool}|${this.story ?? ''}` : length ? `length|${tool}` : picked && (tool === 'move' || tool === 'rotate') ? `${tool}|${picked.group}|${picked.id}` : '';
 		if (key === this.typedKey) {
 			return;
 		}
@@ -1234,6 +1256,14 @@ export class FloorPlanEditor extends EditorPane {
 		this.typedGroup.classList.toggle('hidden', !key);
 		if (length) {
 			this.renderLengthEntry();
+			return;
+		}
+		if (modify) {
+			const box = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder: tool === 'draftOffset' ? localize('floorPlan.offsetDistance', "Offset distance (mm)") : localize('floorPlan.filletRadius', "Fillet radius (mm)"), ariaLabel: tool === 'draftOffset' ? localize('floorPlan.offsetDistanceAria', "Offset distance") : localize('floorPlan.filletRadiusAria', "Fillet radius") }));
+			box.value = String(this.modifyValues.get(tool as ModifyTool) ?? 0);
+			const apply = () => { const value = Number(box.value); if (!Number.isFinite(value) || value < 0) { this.setNotice(localize('floorPlan.badModifyDistance', "Enter a non-negative distance in mm.")); return; } this.modifyValue = value; this.modifyValues.set(tool as ModifyTool, value); this.frame.element.focus(); };
+			this.typedControls.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); apply(); } }));
+			this.typedControls.add(this.frame.createIconButton(this.typedGroup, Codicon.check, localize('floorPlan.applyModify', "Use distance"), apply));
 			return;
 		}
 		if (!picked || (tool !== 'move' && tool !== 'rotate')) {
@@ -2222,6 +2252,41 @@ export class FloorPlanEditor extends EditorPane {
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {
 			return;
 		}
+		if (this.tool === 'draftOffset' || this.tool === 'draftTrim' || this.tool === 'draftExtend' || this.tool === 'draftFillet') {
+			const drafts = this.plan?.drafts.filter(d => d.story === story) ?? [];
+			if (this.tool === 'draftOffset' && this.modifyTarget) {
+				const target = this.modifyTarget, result = offsetDraft(target, this.modifyValue, point);
+				if (result) { this.commitDraft({ ...result, id: nextDraftId(layout) }); this.setNotice(localize('floorPlan.offsetDone', "Offset {0}.", nextDraftId(layout))); }
+				this.modifyTarget = undefined; return;
+			}
+			if (this.tool === 'draftFillet' && this.modifyFirstLine) {
+				const selectedSecond = pickDraftUnlessMemberCloser(drafts.filter(d => d.id !== this.modifyFirstLine!.id), point, this.editor ? PICK_PIXELS * this.editor.unitsPerPixel() : 1e-6, undefined);
+				if (!selectedSecond || selectedSecond.kind !== 'line') { this.setNotice(localize('floorPlan.modifyPickLine', "Click a draft line.")); return; }
+				const first = this.modifyFirstLine, result = filletLines(first, selectedSecond, this.modifyValue, this.modifyPoints[0], point);
+				if (result) { let text = this.planModel?.getValue() ?? ''; text = replaceDraft(text, result.lines[0]); text = replaceDraft(text, result.lines[1]); if (result.arc) { text = addDraft(text, { ...result.arc, id: nextDraftId(JSON.parse(text)) }); } this.writePlanText(text, localize('floorPlan.filletDone', "Filleted {0} and {1}.", first.id, selectedSecond.id)); } else { this.setNotice(localize('floorPlan.filletImpossible', "Those lines cannot be filleted.")); }
+				this.modifyPoints = []; this.modifyFirstLine = undefined; return;
+			}
+			const selected = pickDraftUnlessMemberCloser(drafts, point, this.editor ? PICK_PIXELS * this.editor.unitsPerPixel() : 1e-6, undefined);
+			if (!selected || selected.kind !== 'line' && this.tool !== 'draftOffset') { this.setNotice(localize('floorPlan.modifyPickLine', "Click a draft line.")); return; }
+			if (this.tool === 'draftOffset') {
+				this.modifyTarget = selected; this.setNotice(localize('floorPlan.offsetSide', "Click the side for the offset.")); return;
+			}
+			if (this.tool === 'draftTrim' || this.tool === 'draftExtend') {
+				const line = selected as IDraftLine, others = drafts.filter(d => d.id !== line.id);
+				if (this.tool === 'draftTrim') {
+					const pieces = trimLine(line, others, point);
+					let text = this.planModel?.getValue() ?? '';
+					text = removeDraft(text, line.id);
+					for (const [i, piece] of pieces.entries()) { text = addDraft(text, { ...piece, id: i === 0 ? line.id : nextDraftId(JSON.parse(text)) }); }
+					this.writePlanText(text, localize('floorPlan.trimDone', "Trimmed {0}.", line.id));
+				} else {
+					const result = extendLine(line, others, point); if (result) { this.writePlanTextForDraft(result, localize('floorPlan.extendDone', "Extended {0}.", line.id)); } else { this.setNotice(localize('floorPlan.extendNoHit', "No boundary found in that direction.")); }
+				}
+				return;
+			}
+			const line = selected as IDraftLine;
+			this.modifyPoints = [point]; this.modifyFirstLine = line; this.setNotice(localize('floorPlan.filletSecondLine', "Click the second line.")); return;
+		}
 		if (this.tool === 'fill') {
 			this.setNotice(localize('floorPlan.fillDrag', "Drag a window over the grid to fill it; type fill columns, beams, slabs or walls on the command line (:) to fill the whole story."));
 			return;
@@ -2320,6 +2385,17 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(result.error);
 		}
 		this.schedulePreview();
+	}
+
+	private writePlanTextForDraft(draft: IDraftShape, notice: string): void {
+		this.writePlanText(replaceDraft(this.planModel?.getValue() ?? '', draft), notice);
+	}
+
+	private writePlanText(text: string, notice: string): void {
+		const model = this.planModel; if (!model || model.isDisposed() || text === model.getValue()) { return; }
+		this.writing = true; const before = model.getAlternativeVersionId();
+		try { model.pushStackElement(); model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null); model.pushStackElement(); } finally { this.writing = false; }
+		this.pendingWrite = { before, after: model.getAlternativeVersionId() }; this.renderScheduler.cancel(); this.renderPlan(); this.setNotice(notice);
 	}
 
 	/** Where a beam or wall end at `point` snaps (see {@link snapLinear}). */

@@ -8,6 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import {
 	addDraft,
 	arcThroughPoints,
+	extendLine,
+	filletLines,
 	copyDrafts,
 	copyDraftsToStories,
 	distanceToDraft,
@@ -21,6 +23,7 @@ import {
 	mirrorDrafts,
 	moveDrafts,
 	nextDraftId,
+	offsetDraft,
 	parseDraftPoint,
 	pickDraft,
 	rectangleFromCorners,
@@ -28,6 +31,7 @@ import {
 	removeDraft,
 	replaceDraft,
 	rotateDrafts,
+	trimLine,
 } from '../../browser/floorPlanDrafting.js';
 
 suite('SAEngine - Floor plan drafting', () => {
@@ -76,6 +80,36 @@ suite('SAEngine - Floor plan drafting', () => {
 		center: [1000, 1000],
 		radius: 250,
 	};
+
+	test('OFFSET, TRIM, EXTEND and FILLET use verified coordinates', () => {
+		const horizontal: IDraftLine = { kind: 'line', id: 'H', story: 'L1', start: [0, 0], end: [100, 0] };
+		assert.deepStrictEqual(offsetDraft(horizontal, 100, [50, 200])?.kind === 'line' ? (offsetDraft(horizontal, 100, [50, 200]) as IDraftLine).start : undefined, [0, 100]);
+		const rectangleOutside = offsetDraft(polylineClosed, 100, [-50, 250]) as IDraftPolyline;
+		assert.deepStrictEqual(rectangleOutside.points, [[-100, -100], [1100, -100], [1100, 600], [-100, 600]]);
+		const rectangleInside = offsetDraft(polylineClosed, 100, [500, 250]) as IDraftPolyline;
+		assert.deepStrictEqual(rectangleInside.points, [[100, 100], [900, 100], [900, 400], [100, 400]]);
+		const rectangleClockwise: IDraftPolyline = { ...polylineClosed, points: [...polylineClosed.points].reverse() };
+		assert.deepStrictEqual((offsetDraft(rectangleClockwise, 100, [500, 250]) as IDraftPolyline).points, [[100, 400], [900, 400], [900, 100], [100, 100]]);
+		const crossing: IDraftLine = { kind: 'line', id: 'T', story: 'L1', start: [0, 0], end: [100, 0] };
+		const cuts: IDraftShape[] = [25, 75].map((x, i) => ({ kind: 'line', id: `C${i}`, story: 'L1', start: [x, -10], end: [x, 10] }));
+		assert.deepStrictEqual(trimLine(crossing, cuts, [50, 0]).map(l => [l.start, l.end]), [[[0, 0], [25, 0]], [[75, 0], [100, 0]]]);
+		const ext: IDraftLine = { kind: 'line', id: 'E', story: 'L1', start: [0, 0], end: [10, 0] };
+		const boundary: IDraftLine = { kind: 'line', id: 'B', story: 'L1', start: [20, -10], end: [20, 10] };
+		assert.deepStrictEqual(extendLine(ext, [boundary], [9, 0])?.end, [20, 0]);
+		const vertical: IDraftLine = { kind: 'line', id: 'V', story: 'L1', start: [0, 0], end: [0, 100] };
+		const horizontal2: IDraftLine = { kind: 'line', id: 'H2', story: 'L1', start: [0, 0], end: [100, 0] };
+		const sharp = filletLines({ ...horizontal2, end: [500, 0] }, { ...vertical, end: [0, 500] }, 0, [300, 0], [0, 300])!;
+		assert.deepStrictEqual(sharp.lines.map(l => [l.start, l.end]), [[[0, 0], [500, 0]], [[0, 0], [0, 500]]]);
+		const rounded = filletLines({ ...horizontal2, start: [-50, 0], end: [500, 0] }, { ...vertical, start: [0, -50], end: [0, 500] }, 100, [300, 0], [0, 300])!;
+		assert.deepStrictEqual(rounded.lines.map(l => [l.start, l.end]), [[[100, 0], [500, 0]], [[0, 100], [0, 500]]]);
+		assert.strictEqual(rounded.arc?.radius, 100);
+		assert.deepStrictEqual(rounded.arc?.center, [100, 100]);
+		assert.deepStrictEqual([rounded.arc?.startAngle, rounded.arc?.endAngle], [180, 270]);
+		const negative = filletLines({ ...horizontal2, start: [-500, 0], end: [50, 0] }, { ...vertical, start: [0, -500], end: [0, 50] }, 100, [-300, 0], [0, -300])!;
+		assert.deepStrictEqual(negative.lines.map(l => [l.start, l.end]), [[[-500, 0], [-100, 0]], [[0, -500], [0, -100]]]);
+		assert.deepStrictEqual(negative.arc?.center, [-100, -100]);
+		assert.deepStrictEqual([negative.arc?.startAngle, negative.arc?.endAngle], [0, 90]);
+	});
 
 	test('draftsOf reads valid shapes of all kinds and defaults layer to DRAFT', () => {
 		const layout = {
