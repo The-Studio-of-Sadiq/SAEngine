@@ -38,6 +38,7 @@ SECTIONS = [
     ("Grid and storeys", ("grid.", "storeys.", "storey.")),
     ("Materials and object types", ("material.", "type.")),
     ("Members", ("columns.", "beams.", "slabs.", "walls.", "member.", "members.")),
+    ("Drafting", ("drafting.",)),
     ("Loads", ("load.",)),
     ("Foundations", ("foundations.", "footing.")),
     ("Run and export", ("run.", "design.", "export.")),

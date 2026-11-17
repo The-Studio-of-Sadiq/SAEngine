@@ -69,7 +69,7 @@ import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOA
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
 import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { addDraft, arcThroughPoints, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, extendLine, filletLines, IDraftLine, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, offsetDraft, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, replaceDraft, rotateDrafts, trimLine } from './floorPlanDrafting.js';
+import { addDraft, arcThroughPoints, conversionSteps, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, extendLine, filletLines, IDraftLine, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, offsetDraft, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, replaceDraft, rotateDrafts, trimLine } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -373,6 +373,9 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
 	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
 	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
+	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convertBeam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
+	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convertWall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
+	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convertSlab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
 	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
 	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.membersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
 	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
@@ -1185,6 +1188,9 @@ export class FloorPlanEditor extends EditorPane {
 			this.selectTypeAction,
 			this.copyStoriesAction,
 			this.mirrorAction,
+			this.convertBeamAction,
+			this.convertWallAction,
+			this.convertSlabAction,
 			this.deleteSelectionAction,
 			this.membersTableAction,
 			new Separator(),
@@ -1217,6 +1223,8 @@ export class FloorPlanEditor extends EditorPane {
 		const hasSelection = editable && (this.selected.length > 0 || this.selectedDraftIds.size > 0);
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
+		const hasDraftSelection = editable && this.selectedDraftIds.size > 0;
+		this.convertBeamAction.enabled = this.convertWallAction.enabled = this.convertSlabAction.enabled = hasDraftSelection;
 		this.deleteSelectionAction.enabled = hasSelection;
 		this.selectAllAction.enabled = this.selectTypeAction.enabled = !!this.plan?.members.length;
 
@@ -1841,6 +1849,9 @@ export class FloorPlanEditor extends EditorPane {
 			case 'delete':
 				void this.deleteSelection(refs);
 				break;
+			case 'convert':
+				void this.pickConversion(command.target);
+				break;
 		}
 	}
 
@@ -1968,6 +1979,54 @@ export class FloorPlanEditor extends EditorPane {
 		if (picked) {
 			this.runCommand({ kind: 'mirror', axis: picked.axis, label: picked.line, keep: true });
 		}
+	}
+
+	/** Picks a matching object type, then converts selected drafts in one shared-action batch. */
+	private async pickConversion(kind: 'beam' | 'wall' | 'slab'): Promise<void> {
+		const story = this.story;
+		if (!story || !this.selectedDraftIds.size || this.layoutState !== 'ok') {
+			return;
+		}
+		const tool: PlacementTool = kind;
+		const types = this.typesOfKinds([kind]);
+		if (!types.length) {
+			this.setNotice(localize('floorPlan.noConversionTypes', "No {0} object types are defined in 04 Objects.", kind));
+			return;
+		}
+		type Item = IQuickPickItem & { readonly objectType: string };
+		const current = this.types.get(tool);
+		const items: Item[] = types.map(([id, name]) => ({ objectType: id, label: name, description: id === current ? localize('floorPlan.currentType', "Currently chosen") : undefined }));
+		const picked = await this.quickInputService.pick(items, {
+			title: localize('floorPlan.convertTypeTitle', "Convert Drafts to {0}", kind),
+			placeHolder: localize('floorPlan.convertTypeHint', "Choose the object type for the converted members"),
+			activeItem: items.find(item => item.objectType === current),
+		});
+		if (!picked || story !== this.story) {
+			return;
+		}
+		this.types.set(tool, picked.objectType);
+		this.updateToolbar();
+		const selected = new Set(this.selectedDraftIds);
+		const drafts = (this.plan?.drafts ?? []).filter(draft => selected.has(draft.id));
+		const result = conversionSteps(drafts, kind, picked.objectType, story, gridsOf(parse(this.planModel)));
+		if (!result.steps.length) {
+			this.setNotice(localize('floorPlan.convertNone', "No selected drafts can be converted. Skipped: {0}.", result.skipped.join(', ')));
+			return;
+		}
+		if (!CommandsRegistry.getCommand(ACTIONS_RUN_COMMAND)) {
+			this.setNotice(localize('floorPlan.convertActionsUnavailable', "Draft conversion needs the shared actions service."));
+			return;
+		}
+		const outcome = await this.memberAction(result.steps, story, () => undefined);
+		if (!outcome) {
+			return;
+		}
+		this.selectedDraftIds.clear();
+		this.updateToolbar();
+		this.updateStatus();
+		this.schedulePreview();
+		this.renderProperties();
+		this.setNotice(localize('floorPlan.convertedNotice', "Converted {0} draft shape(s) to {1}{2}.", drafts.length - result.skipped.length, kind, result.skipped.length ? localize('floorPlan.convertSkipped', "; skipped {0}: {1}", result.skipped.length, result.skipped.join(', ')) : ''));
 	}
 
 	/** Asks for an object type on the story and selects its members. */

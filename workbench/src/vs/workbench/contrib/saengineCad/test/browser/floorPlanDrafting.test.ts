@@ -12,6 +12,7 @@ import {
 	filletLines,
 	copyDrafts,
 	copyDraftsToStories,
+	conversionSteps,
 	distanceToDraft,
 	draftInWindow,
 	draftsOf,
@@ -32,11 +33,28 @@ import {
 	replaceDraft,
 	rotateDrafts,
 	trimLine,
+	toPointRef,
 } from '../../browser/floorPlanDrafting.js';
+import { gridsOf } from '../../browser/floorPlanDrawing.js';
 
 suite('SAEngine - Floor plan drafting', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('draft conversion names the nearest grid lines and preserves offsets to 1 mm', () => {
+		const grids = gridsOf({ grids: { x: [{ label: 'A', position: 0 }, { label: 'B', position: 6000 }], y: [{ label: '1', position: 0 }, { label: '2', position: 5000 }] } });
+		assert.deepStrictEqual(toPointRef([6100, 4900], grids), { x: 'B', y: '2', dx: 100, dy: -100 });
+		assert.strictEqual(toPointRef([1, 2], { x: new Map(), y: new Map() }), undefined);
+		assert.deepStrictEqual(conversionSteps([line1], 'beam', 'B250', 'L1', grids).steps, [
+			{ action: 'beams.place', params: { type: 'B250', between: [[{ x: 'A', y: '1', dx: 0, dy: 0 }, { x: 'B', y: '2', dx: 0, dy: 0 }]], storeys: ['L1'] } },
+			{ action: 'drafting.delete', params: { ids: ['D1'] } },
+		]);
+		assert.deepStrictEqual(conversionSteps([polylineClosed], 'slab', 'S125', 'L1', grids).steps, [
+			{ action: 'slabs.place', params: { type: 'S125', panels: [[{ x: 'A', y: '1', dx: 0, dy: 0 }, { x: 'A', y: '1', dx: 1000, dy: 0 }, { x: 'A', y: '1', dx: 1000, dy: 500 }, { x: 'A', y: '1', dx: 0, dy: 500 }]], storeys: ['L1'] } },
+			{ action: 'drafting.delete', params: { ids: ['D3'] } },
+		]);
+		assert.deepStrictEqual(conversionSteps([circle1], 'beam', 'B250', 'L1', grids).skipped, ['D5']);
+	});
 
 	const line1: IDraftLine = {
 		kind: 'line',
