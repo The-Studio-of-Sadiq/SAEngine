@@ -131,6 +131,11 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 		}
 
+		// SAEngine: never auto-open welcome page or restorable walkthroughs when startupEditor is 'none'
+		if (this.configurationService.getValue<string>(configurationKey) === 'none') {
+			return;
+		}
+
 		if (this.tryOpenWalkthroughForFolder()) {
 			return;
 		}
