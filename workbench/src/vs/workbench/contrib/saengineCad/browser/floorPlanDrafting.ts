@@ -6,7 +6,8 @@
 import { findNodeAtLocation, Node, parseTree } from '../../../../base/common/json.js';
 import { applyEdits, removeProperty, setProperty, withFormatting } from '../../../../base/common/jsonEdit.js';
 import type { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
-import { distanceToSegment } from './floorPlanDrawing.js';
+import { distanceToSegment, type gridsOf } from './floorPlanDrawing.js';
+import type { IActionStep } from '../../../services/saengineProject/common/saengineActions.js';
 import type { CadPoint } from '@saengine/cad-editor';
 
 /*
@@ -84,6 +85,70 @@ export interface IDraftCircle extends IDraftBase {
 }
 
 export type IDraftShape = IDraftLine | IDraftPolyline | IDraftArc | IDraftCircle;
+
+/** A grid intersection and its offsets, in the actions catalogue's point format. */
+export interface IDraftPointRef {
+	readonly x: string;
+	readonly y: string;
+	readonly dx: number;
+	readonly dy: number;
+}
+
+/** Names a draft point by its nearest grid lines, keeping its distance from each in mm. */
+export function toPointRef(point: DraftPoint, grids: ReturnType<typeof gridsOf>): IDraftPointRef | undefined {
+	const nearest = (lines: ReadonlyMap<string, number>, value: number): [string, number] | undefined => {
+		let result: [string, number] | undefined;
+		for (const [label, position] of lines) {
+			if (!result || Math.abs(value - position) < Math.abs(value - result[1])) {
+				result = [label, position];
+			}
+		}
+		return result;
+	};
+	const x = nearest(grids.x, point[0]);
+	const y = nearest(grids.y, point[1]);
+	return x && y ? { x: x[0], y: y[0], dx: Math.round(point[0] - x[1]), dy: Math.round(point[1] - y[1]) } : undefined;
+}
+
+/** Builds shared actions for converting selected drafts on one story. */
+export function conversionSteps(drafts: readonly IDraftShape[], kind: 'beam' | 'wall' | 'slab', type: string, story: string, grids: ReturnType<typeof gridsOf>): { readonly steps: IActionStep[]; readonly skipped: string[] } {
+	const steps: IActionStep[] = [];
+	const skipped: string[] = [];
+	const converted: string[] = [];
+	const ref = (point: DraftPoint) => toPointRef(point, grids);
+	for (const draft of drafts) {
+		if (draft.kind === 'circle' || draft.kind === 'arc' || kind === 'slab' && (draft.kind !== 'polyline' || !draft.closed)) {
+			skipped.push(draft.id);
+			continue;
+		}
+		if (kind === 'slab') {
+			const points = (draft as IDraftPolyline).points.map(ref);
+			if (points.length < 3 || points.some(point => !point)) {
+				skipped.push(draft.id);
+				continue;
+			}
+			steps.push({ action: 'slabs.place', params: { type, panels: [points], storeys: [story] } });
+			converted.push(draft.id);
+			continue;
+		}
+		const segments: (readonly [DraftPoint, DraftPoint])[] = draft.kind === 'line' ? [[draft.start, draft.end]]
+			: draft.points.slice(1).map((point, index) => [draft.points[index], point] as const);
+		if (draft.kind === 'polyline' && draft.closed && draft.points.length > 1) {
+			segments.push([draft.points[draft.points.length - 1], draft.points[0]]);
+		}
+		const between = segments.map(([start, end]) => [ref(start), ref(end)]);
+		if (!between.length || between.some(pair => pair.some(point => !point))) {
+			skipped.push(draft.id);
+			continue;
+		}
+		steps.push({ action: kind === 'beam' ? 'beams.place' : 'walls.place', params: { type, between, storeys: [story] } });
+		converted.push(draft.id);
+	}
+	if (converted.length) {
+		steps.push({ action: 'drafting.delete', params: { ids: converted } });
+	}
+	return { steps, skipped };
+}
 
 /** A draft represented as line segments for window selection and crossing tests. */
 export function draftSegments(shape: IDraftShape): readonly (readonly [CadPoint, CadPoint])[] {
