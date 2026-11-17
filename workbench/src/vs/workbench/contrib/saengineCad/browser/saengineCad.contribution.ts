@@ -180,6 +180,26 @@ registerAction2(class extends Action2 {
 	}
 });
 
+/** Shows or hides the floor plan's grid lines (the grid stays; snapping to it still works). */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.floorPlan.toggleGridLines',
+			title: localize2('floorPlan.toggleGridLines', "Toggle Grid Lines"),
+			category: localize2('floorPlan.category', "Floor Plan"),
+			f1: true,
+			precondition: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const pane = accessor.get(IEditorService).activeEditorPane;
+		if (pane instanceof FloorPlanEditor) {
+			pane.toggleGridLines();
+		}
+	}
+});
+
 /*
  * Integrator glue: the floor plan's selection and bulk tools in the command palette. The keys
  * (Ctrl+A, Ctrl+C, Ctrl+V, Delete, ":") are the editor's own (FloorPlanEditor.onKey), so these
