@@ -23,6 +23,7 @@ suite('SAEngine - Floor plan snaps', () => {
 		],
 		walls: [], slabs: [], footings: [],
 	};
+	const draftedPlan = { ...plan, drafting: [{ kind: 'line', id: 'D1', story: 'L1', start: [3000, 2000], end: [4000, 2000] }] };
 	const model = (result: EditResult) => {
 		assert.ok(result.ok, result.ok ? '' : result.error);
 		return result.layout;
@@ -51,6 +52,13 @@ suite('SAEngine - Floor plan snaps', () => {
 			gridLine: ['gridLine', '', 6000, 2500, false],
 			free: ['free', '', 7500, 2501, false],
 		});
+	});
+
+	test('draft line endpoints and midpoint are snap candidates', () => {
+		assert.deepStrictEqual(
+			[snapLinear(draftedPlan, 'L1', [3000, 2000], 10), snapLinear(draftedPlan, 'L1', [3500, 2000], 10)].map(s => [s.kind, s.on, s.point]),
+			[['endpoint', 'D1', [3000, 2000]], ['midpoint', 'D1', [3500, 2000]]],
+		);
 	});
 
 	test('a secondary beam on a diagonal beam is stored on it, a cantilever is free, a near miss is reported', () => {

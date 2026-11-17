@@ -2625,3 +2625,10 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   C24.1, the grade the starting section types already use). A new project does not know its
   seismic system yet, so it starts on the safe side. Before, the first grade in the list (C20.7)
   was used and a fresh project failed the seismic minimum.
+- **Drafting on the floor plan (2026-11-17, owner, #311).** AutoCAD-like lines, polylines
+  (closed ones are rectangles and polygons), arcs and circles are stored in `floor-plan.json`
+  under `drafting`, separate from the members. Each shape belongs to one storey, as members do,
+  and typical-floor copy copies it. A drafted line or closed shape can become a beam, wall or
+  slab at any coordinates, not only on grid points: the member actions will take coordinates.
+  Drafts export to the DXF/DWG drawings on their own layer (`DRAFT`), which the engineer can turn
+  off.

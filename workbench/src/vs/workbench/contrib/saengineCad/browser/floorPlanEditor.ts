@@ -68,7 +68,8 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { distanceToDraft, draftSegments, removeDraft } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -306,6 +307,8 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** The members selected on the plan; the selection service holds the one picked last. */
 	private selected: IMemberRef[] = [];
+	/** Draft ids are local view selection, not model members in the shared selection service. */
+	private selectedDraftIds = new Set<string>();
 	/** The fill tool's choice in {@link FILL_CHOICES}. */
 	private fillChoice = 0;
 	private fillPicker!: SelectBox;
@@ -346,7 +349,7 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly typicalAction = this._register(new Action('saengine.floorPlan.typicalFloors', localize('floorPlan.typicalFloors', "Typical Floors..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.editTypicalFloors()));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
-	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => this.select(selectAll(this.plan?.members ?? []))));
+	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.selectedDraftIds = new Set((this.plan?.drafts ?? []).map(d => d.id)); this.updateToolbar(); this.schedulePreview(); }));
 	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
 	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
 	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
@@ -406,6 +409,7 @@ export class FloorPlanEditor extends EditorPane {
 			if (source !== SELECTION_SOURCE) {
 				// Selected elsewhere (Model Explorer, BIM): that member alone.
 				this.selected = selection?.kind === 'member' ? [{ group: selection.group, id: selection.id }] : [];
+				this.selectedDraftIds.clear();
 				this.followSelection();
 			}
 			this.schedulePreview();
@@ -838,7 +842,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
-		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length)) {
+		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length || this.selectedDraftIds.size)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.cancel();
@@ -855,7 +859,7 @@ export class FloorPlanEditor extends EditorPane {
 		} else if (e.key === ':') {
 			e.preventDefault();
 			this.toggleCommandLine();
-		} else if (e.key === 'Delete' && this.tool === 'select' && this.selected.length) {
+		} else if (e.key === 'Delete' && this.tool === 'select' && (this.selected.length || this.selectedDraftIds.size)) {
 			e.preventDefault();
 			this.runCommand({ kind: 'delete' });
 		} else if (ctrl && !e.altKey && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
@@ -870,6 +874,9 @@ export class FloorPlanEditor extends EditorPane {
 			if (key === 'a') {
 				this.setTool('select');
 				this.select(selectAll(this.plan?.members ?? []));
+				this.selectedDraftIds = new Set((this.plan?.drafts ?? []).map(d => d.id));
+				this.updateToolbar();
+				this.schedulePreview();
 			} else if (key === 'c') {
 				this.copySelection();
 			} else {
@@ -959,8 +966,9 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Esc: drops the gesture in progress (a beam's first point, a picked member, corners), then the tool. */
 	private cancel(): void {
-		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && this.selected.length) {
+		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && (this.selected.length || this.selectedDraftIds.size)) {
 			this.select([]);
+			this.selectedDraftIds.clear();
 			this.notice = undefined;
 			this.updateStatus();
 		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick) {
@@ -1133,7 +1141,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 
 		this.fillGroup.classList.toggle('hidden', this.tool !== 'fill');
-		const hasSelection = editable && this.selected.length > 0;
+		const hasSelection = editable && (this.selected.length > 0 || this.selectedDraftIds.size > 0);
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
 		this.deleteSelectionAction.enabled = hasSelection;
@@ -1409,6 +1417,17 @@ export class FloorPlanEditor extends EditorPane {
 		return this.plan && this.editor ? pickMember(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel()) : undefined;
 	}
 
+	private memberPickDistance(shape: IMemberShape, point: CadPoint): number {
+		const outline = shape.outline;
+		if (outline.kind === 'circle') {
+			return Math.abs(Math.hypot(point[0] - outline.center[0], point[1] - outline.center[1]) - outline.radius);
+		}
+		return Math.min(...outline.points.map((p, i) => {
+			const next = outline.points[(i + 1) % outline.points.length];
+			return distanceToDraft({ kind: 'line', id: '', story: '', start: p, end: next }, point);
+		}));
+	}
+
 	/**
 	 * The member under `point` that the edit tools (move, rotate, delete) may change: footings are
 	 * shown on the plan but owned by 9 Substructure, so picking one says so (`notify`) and gives none.
@@ -1554,6 +1573,9 @@ export class FloorPlanEditor extends EditorPane {
 	/** Selects `refs` on the plan; the selection service gets the one picked last. */
 	private select(refs: readonly IMemberRef[]): void {
 		this.selected = [...refs];
+		if (!refs.length) {
+			this.selectedDraftIds.clear();
+		}
 		const last = refs[refs.length - 1];
 		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
 		this.updateToolbar();
@@ -1570,10 +1592,23 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const refs = selectInWindow(this.plan?.members ?? [], start, end);
-		this.select(combine(this.selected, refs, modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace'));
+		this.selected = combine(this.selected, refs, modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace');
+		const draftIds = selectDraftsInWindow(this.plan?.drafts ?? [], start, end);
+		const windowModeSelection = modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace';
+		if (windowModeSelection === 'replace') {
+			this.selectedDraftIds = new Set(draftIds);
+		} else {
+			this.selectedDraftIds = new Set([...this.selectedDraftIds, ...draftIds]);
+		}
+		const last = this.selected[this.selected.length - 1];
+		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
+		this.updateStatus();
+		this.renderProperties();
+		this.updateToolbar();
+		this.schedulePreview();
 		this.setNotice(windowMode(start, end) === 'window'
-			? localize('floorPlan.windowSelected', "Window: {0} member(s) fully inside.", refs.length)
-			: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s) touched.", refs.length));
+			? localize('floorPlan.windowSelected', "Window: {0} member(s), {1} draft(s) fully inside.", refs.length, draftIds.length)
+			: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s), {1} draft(s) touched.", refs.length, draftIds.length));
 	}
 
 	private get story(): string | undefined {
@@ -1611,7 +1646,7 @@ export class FloorPlanEditor extends EditorPane {
 	private runCommand(command: Exclude<FloorPlanCommand, { readonly kind: 'error' }>): void {
 		const layout = parse(this.planModel);
 		const refs = command.kind === 'select' ? this.selected : this.editableSelection;
-		if (!refs.length && this.selected.length && command.kind !== 'select' && command.kind !== 'fill') {
+		if (!refs.length && this.selected.length && !this.selectedDraftIds.size && command.kind !== 'select' && command.kind !== 'fill') {
 			this.setNotice(footingsOwnedMessage()); // only footings are selected
 			return;
 		}
@@ -1624,6 +1659,7 @@ export class FloorPlanEditor extends EditorPane {
 							: selectAll(shapes).filter(r => command.ids.includes(r.id.toUpperCase()));
 				this.notice = chosen.length || command.what === 'none' ? undefined : localize('floorPlan.noneMatched', "No member on this story matches.");
 				this.select(chosen); // the status line shows what is selected
+				if (command.what === 'none') { this.selectedDraftIds.clear(); }
 				break;
 			}
 			case 'fill':
@@ -1660,11 +1696,12 @@ export class FloorPlanEditor extends EditorPane {
 	 * naming them. One member or a few are a small edit and go at once.
 	 */
 	private async deleteSelection(refs: readonly IMemberRef[]): Promise<void> {
-		if (needsBulkConfirmation(refs.length)) {
+		const draftIds = [...this.selectedDraftIds];
+		if (needsBulkConfirmation(refs.length + draftIds.length)) {
 			const story = this.story;
 			const confirmed = await confirmDelete(this.dialogService, {
-				message: localize('floorPlan.confirmDeleteMany', "Delete {0} members?", refs.length),
-				items: refs.map(r => r.id),
+				message: localize('floorPlan.confirmDeleteMany', "Delete {0} selected shapes?", refs.length + draftIds.length),
+				items: [...refs.map(r => r.id), ...draftIds],
 				consequences: localize('floorPlan.confirmDeleteTypical', "They go from this storey and from the storeys that repeat it (typical floors)."),
 				recovery: 'undo',
 			});
@@ -1672,7 +1709,14 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 		}
-		this.applyBulk(deleteMembers(parse(this.planModel), refs), undefined, false, localize('floorPlan.deletedMany', "Deleted {0} member(s).", refs.length));
+		let result: BulkResult = refs.length ? deleteMembers(parse(this.planModel), refs) : { ok: true, layout: parse(this.planModel) as { [key: string]: unknown }, ids: [], placed: 0, skipped: 0 };
+		if (result.ok && draftIds.length) {
+			let text = JSON.stringify(result.layout);
+			for (const id of draftIds) { text = removeDraft(text, id); }
+			result = { ...result, layout: JSON.parse(text) as { [key: string]: unknown } };
+		}
+		this.selectedDraftIds.clear();
+		this.applyBulk(result, undefined, false, localize('floorPlan.deletedMany', "Deleted {0} selected shape(s).", refs.length + draftIds.length));
 	}
 
 	/** Copies the selection to `stories` (and their typical floors). */
@@ -1832,8 +1876,16 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.tool === 'select') {
 			// Selecting shows the members (properties panel, Model Explorer); it never changes them.
 			const shape = this.pick(point);
+			const draft = this.plan && this.editor ? pickDraftUnlessMemberCloser(this.plan.drafts, point, PICK_PIXELS * this.editor.unitsPerPixel(), shape ? this.memberPickDistance(shape, point) : undefined) : undefined;
 			const mode = modifiers?.ctrlKey || modifiers?.metaKey ? 'toggle' : modifiers?.shiftKey ? 'add' : 'replace';
 			this.select(combine(this.selected, shape ? [{ group: shape.group, id: shape.id }] : [], mode));
+			const nextDrafts = mode === 'replace' ? new Set<string>() : new Set(this.selectedDraftIds);
+			if (draft) {
+				if (mode === 'toggle' && nextDrafts.has(draft.id)) { nextDrafts.delete(draft.id); } else { nextDrafts.add(draft.id); }
+			}
+			this.selectedDraftIds = nextDrafts;
+			this.updateToolbar();
+			this.schedulePreview();
 			return;
 		}
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID) {
@@ -2147,6 +2199,8 @@ export class FloorPlanEditor extends EditorPane {
 		const loose = unsupportedBeams(layout, input.story ?? '').map(id => localize('floorPlan.beamUnsupported', "{0}: nothing supports it (no column, wall or beam at either end).", id));
 		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
 		this.selected = prune(this.selected, this.plan.members);
+		const validDrafts = new Set(this.plan.drafts.map(d => d.id));
+		this.selectedDraftIds = new Set([...this.selectedDraftIds].filter(id => validDrafts.has(id)));
 		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '', parse(this.objects));
 		const presence = presenceDrawing(this.plan.members, this.presenceService.colleagues(input.resource));
 		this.editor.setGenerated(forCanvas({
@@ -2357,6 +2411,13 @@ export class FloorPlanEditor extends EditorPane {
 		const selected = this.picked ? [this.picked] : (this.plan?.members ?? []).filter(m => this.selected.some(r => sameMember(r, m)));
 		for (const shape of selected) {
 			entities.push(...outlineEntities(shape, PREVIEW_LAYERS[2].name));
+		}
+		for (const draft of this.plan?.drafts ?? []) {
+			if (this.selectedDraftIds.has(draft.id)) {
+				for (const [start, end] of draftSegments(draft)) {
+					entities.push({ kind: 'line', layer: PREVIEW_LAYERS[2].name, start, end });
+				}
+			}
 		}
 		editor.setPreview(forCanvas({ layers: PREVIEW_LAYERS, entities }, this.lightCanvas));
 	}
