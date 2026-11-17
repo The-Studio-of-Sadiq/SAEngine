@@ -63,6 +63,7 @@ A batch file is a list of steps (or `{"steps": [...]}`); `python/tests/data/acti
 - [Grid and storeys](#grid-and-storeys): `grid.line.add`, `grid.line.delete`, `grid.line.move`, `grid.set`, `storey.add`, `storey.delete`, `storey.height`, `storey.typical`, `storeys.set`
 - [Materials and object types](#materials-and-object-types): `material.concrete.add`, `material.concrete.set`, `material.steel.add`, `material.steel.set`, `type.beam.add`, `type.beam.set`, `type.column.add`, `type.column.set`, `type.footing.add`, `type.footing.set`, `type.slab.add`, `type.slab.set`, `type.wall.add`, `type.wall.set`
 - [Members](#members): `beams.place`, `columns.place`, `member.delete`, `member.set`, `members.copy_to_storeys`, `slabs.place`, `walls.place`
+- [Drafting](#drafting): `drafting.add`, `drafting.delete`, `drafting.list`
 - [Loads](#loads): `load.area.set`, `load.line.add`, `load.point.add`, `load.wall.add`
 - [Foundations](#foundations): `footing.set`, `foundations.generate`
 - [Run and export](#run-and-export): `design.reinforcement.apply`, `export.archive`, `export.boq`, `export.drawings`, `export.ifc`, `export.report`, `run.all`, `run.step`
@@ -944,6 +945,50 @@ Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 ```json
 {"action": "walls.place", "params": {"type": "W200", "between": [["A-1", "B-1"]], "storeys": ["L1"]}}
+```
+
+## Drafting
+
+### `drafting.add`
+
+Add 2D drafting geometry (lines, polylines, arcs, circles) to the floor plan.
+
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `shapes` | list of object | required | Draft shapes to add ({kind, story, ...}, id optional). |
+
+```json
+{"action": "drafting.add", "params": {"shapes": [{"kind": "line", "story": "L1", "start": [0, 0], "end": [5000, 0]}]}}
+```
+
+### `drafting.delete`
+
+Delete 2D drafting shapes by their ids.
+
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ids` | list of string | required | Draft shape ids to delete. |
+
+```json
+{"action": "drafting.delete", "params": {"ids": ["D1"]}}
+```
+
+### `drafting.list`
+
+The floor plan's 2D draft shapes, all or of one story.
+
+Kind: **query**. Writes: no. Parts: `floorPlan`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `story` | string or null | null | Only the draft shapes on this story. |
+
+```json
+{"action": "drafting.list", "params": {"story": "L1"}}
 ```
 
 ## Loads
