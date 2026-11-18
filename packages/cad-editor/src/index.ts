@@ -8,6 +8,7 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } 
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { registerAnnotationCommands } from './annotationCommands.js';
 import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 
@@ -16,7 +17,7 @@ export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export {
 	alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
-	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPromptEntityOptions, type CadSelection,
+	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPointPickResult, type CadPromptEntityOptions, type CadPromptPointOptions, type CadSelection,
 } from './commands.js';
 export * from './modifyGeometry.js';
 export * from './modifyGeometry2.js';
@@ -162,6 +163,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
 	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
 	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerAnnotationCommands();
 	registerHatchCommands();
 	registerDimensionCommands();
 
