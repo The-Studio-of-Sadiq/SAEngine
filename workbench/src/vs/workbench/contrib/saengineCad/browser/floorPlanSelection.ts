@@ -7,7 +7,6 @@ import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { IMemberShape, MemberGroup } from './floorPlanDrawing.js';
 import { insidePolygon, members } from './floorPlanEdits.js';
-import { distanceToDraft, draftInWindow, IDraftShape, pickDraft } from './floorPlanDrafting.js';
 
 /*
  * Selecting members on the plan of one story, as in AutoCAD and ETABS: a click picks one member,
@@ -31,19 +30,6 @@ export interface IRect {
 }
 
 export type WindowMode = 'window' | 'crossing';
-
-/** The ids of drafts inside a window or touched by a crossing window. */
-export function selectDraftsInWindow(shapes: readonly IDraftShape[], start: CadPoint, end: CadPoint): string[] {
-	const rect = rectOf(start, end);
-	const crossing = windowMode(start, end) === 'crossing';
-	return shapes.filter(shape => draftInWindow(shape, rect.min, rect.max, crossing)).map(shape => shape.id);
-}
-
-/** The nearest draft hit, unless a member is closer or tied (members retain pick priority). */
-export function pickDraftUnlessMemberCloser(drafts: readonly IDraftShape[], point: CadPoint, tolerance: number, memberDistance: number | undefined): IDraftShape | undefined {
-	const draft = pickDraft(drafts, point, tolerance);
-	return draft && (memberDistance === undefined || distanceToDraft(draft, point) < memberDistance) ? draft : undefined;
-}
 
 /** The groups in the order the status line and properties list them. */
 export const GROUP_ORDER: readonly MemberGroup[] = ['columns', 'beams', 'walls', 'slabs', 'footings'];

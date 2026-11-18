@@ -9,7 +9,7 @@ import { centroid } from '../../../../platform/saengine/common/geometry.js';
 import { sizeText } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
-import { draftsOf, type IDraftShape } from './floorPlanDrafting.js';
+import type { IDraftShape } from './floorPlanDrafting.js';
 
 export type { MemberGroup };
 
@@ -34,7 +34,6 @@ export const FLOOR_PLAN_LAYERS = {
 	/** The plot (property line) and its buildable envelope from 01 Soil Report: a read-only underlay. */
 	plot: 'C-PROP',
 	envelope: 'C-PROP-SETB',
-	drafts: 'DRAFT',
 } as const;
 
 const LAYERS: readonly CadLayerSpec[] = [
@@ -49,7 +48,6 @@ const LAYERS: readonly CadLayerSpec[] = [
 	{ name: FLOOR_PLAN_LAYERS.slabs, color: 6, description: 'Slab edges' },
 	{ name: FLOOR_PLAN_LAYERS.footings, color: 30, description: 'Footings and pile caps' },
 	{ name: FLOOR_PLAN_LAYERS.labels, color: 7, description: 'Member labels' },
-	{ name: FLOOR_PLAN_LAYERS.drafts, color: 8, linetype: 'CONTINUOUS', description: 'Draft geometry' },
 ];
 
 /** Drawing sizes for a 1:100 plan [mm]: 8 mm bubbles, 3.5 mm grid text, 2.5 mm member text. */
@@ -389,28 +387,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 	const types = new Map(list(isObject(objects) ? objects.objects : undefined).filter(o => typeof o.id === 'string').map(o => [o.id as string, o]));
 
 	const entities: CadEntitySpec[] = plotEntities(underlay);
-	const drafts = draftsOf(model, storyId);
-	for (const draft of drafts) {
-		// One declared layer for now; the shape's own layer name is kept in the file for the DXF export.
-		const layer = FLOOR_PLAN_LAYERS.drafts;
-		switch (draft.kind) {
-			case 'line': entities.push({ kind: 'line', layer, start: draft.start, end: draft.end }); break;
-			case 'polyline': entities.push({ kind: 'polyline', layer, points: draft.points, closed: draft.closed }); break;
-			case 'circle': entities.push({ kind: 'circle', layer, center: draft.center, radius: draft.radius }); break;
-			case 'arc': {
-				let endAngle = draft.endAngle;
-				if (endAngle < draft.startAngle) { endAngle += 360; }
-				const sweep = endAngle - draft.startAngle;
-				const segments = Math.max(8, Math.ceil(sweep / 5));
-				const points: CadPoint[] = Array.from({ length: segments + 1 }, (_, i) => {
-					const angle = (draft.startAngle + sweep * i / segments) * Math.PI / 180;
-					return [draft.center[0] + draft.radius * Math.cos(angle), draft.center[1] + draft.radius * Math.sin(angle)];
-				});
-				entities.push({ kind: 'polyline', layer, points });
-				break;
-			}
-		}
-	}
+	const drafts: IDraftShape[] = [];
 	const problems: string[] = [];
 	const warnings: string[] = [];
 	const members: IMemberShape[] = [];

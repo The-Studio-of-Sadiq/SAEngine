@@ -192,7 +192,7 @@ suite('SAEngine - Floor plan bulk edits', () => {
 			{ kind: 'convert', target: 'beam' },
 			{ kind: 'convert', target: 'wall' },
 			{ kind: 'error', message: 'convert beam | wall | slab' },
-			{ kind: 'tool', tool: 'draftLine' }, // the floor plan's own drafting (#311)
+			undefined, // left to the CAD editor
 			undefined, // left to the CAD editor
 			undefined,
 		]);

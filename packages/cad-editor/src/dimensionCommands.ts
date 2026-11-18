@@ -20,6 +20,7 @@ import {
 	AcGePoint3d,
 } from '@mlightcad/data-model';
 import { AcApDocManager } from '@mlightcad/cad-simple-viewer';
+import { polylineVertices } from './entityAccess.js';
 import { CadCommandContext, registerCommand } from './commands.js';
 import {
 	angleBetweenLines,
@@ -579,10 +580,7 @@ export async function qdimCommand(ctx: CadCommandContext): Promise<void> {
 			}
 		} else if (e instanceof AcDbPolyline || e.dxfTypeName === 'LWPOLYLINE') {
 			const poly = e as AcDbPolyline;
-			for (let i = 0; i < poly.numberOfVertices; i++) {
-				const pt = poly.getPoint2dAt(i);
-				pts.push([pt.x, pt.y]);
-			}
+			pts.push(...polylineVertices(poly));
 		}
 	}
 

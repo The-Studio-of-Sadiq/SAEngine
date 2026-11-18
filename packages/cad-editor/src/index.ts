@@ -5,11 +5,13 @@
 
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
+import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
+export { polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export {
@@ -93,6 +95,12 @@ export interface CadEditor {
 	toDxf(options?: ToDxfOptions): string;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
+	/** Whether an interactive CAD command is currently active. */
+	isCommandActive(): boolean;
+	/** Selected drafting entities' geometry (excluding generated / preview entities). */
+	getSelectedEntities(): readonly CadSelectedEntity[];
+	/** Erases entities by handle from the drawing in an undoable transaction and clears selection. */
+	eraseEntities(handles: readonly string[]): void;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
 	setBackground(rgb: number): void;
 	/** Shows or hides mlightcad's own controls (fields left out stay as they are). */
@@ -174,6 +182,12 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	let preview = new Set<string>();
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
+	let activeCommand = false;
+	const viewEditor = (manager.curView as any)?.editor;
+	if (viewEditor?.events) {
+		viewEditor.events.commandWillStart?.addEventListener(() => { activeCommand = true; });
+		viewEditor.events.commandEnded?.addEventListener(() => { activeCommand = false; });
+	}
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
 	// is what lands on the undo stack (every command runs in an undoable transaction).
 	let checkQueued = false;
@@ -298,6 +312,58 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			generatedLayers,
 		}),
 		execute: command => manager.executeCommandString(command),
+		isCommandActive: () => {
+			try {
+				return activeCommand || !!(manager.curView as any)?.editor?.isActive;
+			} catch {
+				return activeCommand;
+			}
+		},
+		getSelectedEntities: () => {
+			const selection = manager.curView?.selectionSet;
+			if (!selection || selection.count === 0) {
+				return [];
+			}
+			const db = manager.curDocument?.database;
+			if (!db) {
+				return [];
+			}
+			const result: CadSelectedEntity[] = [];
+			for (const id of selection.ids) {
+				if (generated.has(id) || preview.has(id)) {
+					continue;
+				}
+				const entity = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+				if (entity) {
+					const geom = entityToSelectedGeometry(entity);
+					if (geom) {
+						result.push(geom);
+					}
+				}
+			}
+			return result;
+		},
+		eraseEntities: (handles: readonly string[]) => {
+			const db = manager.curDocument?.database;
+			if (!db) {
+				return;
+			}
+			const handleSet = new Set(handles.map(String));
+			const erase = () => {
+				for (const h of handleSet) {
+					const ent = db.openEntityForWrite?.(h) ?? db.tables?.blockTable?.modelSpace?.getIdAt(h);
+					if (ent && typeof (ent as any).erase === 'function') {
+						(ent as any).erase();
+					}
+				}
+			};
+			if (typeof (db as any).runDatabaseEdit === 'function') {
+				(db as any).runDatabaseEdit('Erase', erase);
+			} else {
+				erase();
+			}
+			manager.curView?.selectionSet?.delete([...handleSet]);
+		},
 		setBackground: rgb => {
 			background = rgb & 0xffffff;
 			applyBackground();

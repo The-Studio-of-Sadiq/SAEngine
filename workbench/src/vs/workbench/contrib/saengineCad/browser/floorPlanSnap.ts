@@ -8,7 +8,6 @@ import { localize } from '../../../../nls.js';
 import { parseList } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { gridsOf } from './floorPlanDrawing.js';
-import { draftsOf } from './floorPlanDrafting.js';
 import { resolvePoint } from './floorPlanEdits.js';
 
 /*
@@ -143,25 +142,6 @@ export function snapLinear(layout: unknown, story: string, point: CadPoint, tole
 	}
 	for (const column of columnPoints(layout, story)) {
 		candidates.push({ kind: 'endpoint', point: column.point, on: column.id, exact: true });
-	}
-	for (const draft of draftsOf(layout, story)) {
-		const addEndpoint = (point: CadPoint) => candidates.push({ kind: 'endpoint', point, on: draft.id, exact: true });
-		const addMidpoint = (a: CadPoint, b: CadPoint) => candidates.push({ kind: 'midpoint', point: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], on: draft.id, exact: true });
-		switch (draft.kind) {
-			case 'line': addEndpoint(draft.start); addEndpoint(draft.end); addMidpoint(draft.start, draft.end); break;
-			case 'polyline':
-				draft.points.forEach(addEndpoint);
-				for (let i = 1; i < draft.points.length; i++) { addMidpoint(draft.points[i - 1], draft.points[i]); }
-				if (draft.closed) { addMidpoint(draft.points[draft.points.length - 1], draft.points[0]); }
-				break;
-			case 'arc': {
-				const angle = (degrees: number): CadPoint => [draft.center[0] + draft.radius * Math.cos(degrees * Math.PI / 180), draft.center[1] + draft.radius * Math.sin(degrees * Math.PI / 180)];
-				addEndpoint(angle(draft.startAngle)); addEndpoint(angle(draft.endAngle));
-				candidates.push({ kind: 'center', point: draft.center, on: draft.id, exact: true });
-				break;
-			}
-			case 'circle': candidates.push({ kind: 'center', point: draft.center, on: draft.id, exact: true }); break;
-		}
 	}
 	const gridLines: ISnapSegment[] = [];
 	const [xs, ys] = [[...grids.x.values()], [...grids.y.values()]];

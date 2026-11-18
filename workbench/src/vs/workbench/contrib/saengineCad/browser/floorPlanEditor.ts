@@ -68,8 +68,8 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, pickDraftUnlessMemberCloser, prune, rectOf, sameMember, selectAll, selectByType, selectDraftsInWindow, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
-import { addDraft, arcThroughPoints, conversionSteps, copyDrafts, copyDraftsToStories, distanceToDraft, draftSegments, extendLine, filletLines, IDraftLine, IDraftShape, mirrorDrafts, moveDrafts, nextDraftId, offsetDraft, parseDraftPoint, rectangleFromCorners, regularPolygon, removeDraft, replaceDraft, rotateDrafts, trimLine } from './floorPlanDrafting.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { conversionSteps } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
 function storyLevel(elevation: number): string {
@@ -96,10 +96,7 @@ const WINDOW_DASH_PIXELS = 20;
 /** Mouse travel below which a press counts as a click rather than a pan [px]. */
 const CLICK_PIXELS = 5;
 
-type DraftTool = 'draftLine' | 'draftPolyline' | 'draftRect' | 'draftPolygon' | 'draftCircle' | 'draftArc';
-type ModifyTool = 'draftOffset' | 'draftTrim' | 'draftExtend' | 'draftFillet';
-
-type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete' | DraftTool | ModifyTool;
+type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
 
 /** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
 type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
@@ -111,16 +108,6 @@ const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly ic
 	{ tool: 'wall', label: localize('tool.wall', "Wall"), icon: Codicon.splitHorizontal, hint: localize('hint.wall', "Click the start and end (they snap like beam ends); type a length for the end. Walls chain until Esc or right-click.") },
 	{ tool: 'slab', label: localize('tool.slab', "Slab"), icon: Codicon.layout, hint: localize('hint.slab', "Click inside a bay to place a slab on this story.") },
 	{ tool: 'polygonSlab', label: localize('tool.polygonSlab', "Polygon Slab"), icon: Codicon.symbolConstant, hint: localize('hint.polygonSlab', "Click the slab's corners; finish on the first corner, with Enter or a right-click. Corners snap to intersections and grid lines.") },
-	{ tool: 'draftLine', label: localize('tool.draftLine', "Line"), icon: Codicon.dash, hint: localize('hint.draftLine', "Line: click the start and end points; it continues from the end point. Esc or Enter stops.") },
-	{ tool: 'draftPolyline', label: localize('tool.draftPolyline', "Polyline"), icon: Codicon.graph, hint: localize('hint.draftPolyline', "Polyline: click the points; Enter or a click on the first point ends it (closed when on the first point). Esc cancels.") },
-	{ tool: 'draftRect', label: localize('tool.draftRect', "Rectangle"), icon: Codicon.primitiveSquare, hint: localize('hint.draftRect', "Rectangle: click two opposite corners.") },
-	{ tool: 'draftPolygon', label: localize('tool.draftPolygon', "Polygon"), icon: Codicon.symbolConstant, hint: localize('hint.draftPolygon', "Polygon: click the centre, then a corner (6 sides; type the number of sides in the command line later).") },
-	{ tool: 'draftCircle', label: localize('tool.draftCircle', "Circle"), icon: Codicon.circle, hint: localize('hint.draftCircle', "Circle: click the centre, then a point on the circle or type a radius.") },
-	{ tool: 'draftArc', label: localize('tool.draftArc', "Arc"), icon: Codicon.circle, hint: localize('hint.draftArc', "Arc: click start, a point on the arc, then end.") },
-	{ tool: 'draftOffset', label: localize('tool.draftOffset', "Offset"), icon: Codicon.move, hint: localize('hint.draftOffset', "Type a distance, click a draft, then click the side to offset to. Esc stops.") },
-	{ tool: 'draftTrim', label: localize('tool.draftTrim', "Trim"), icon: Codicon.debugDisconnect, hint: localize('hint.draftTrim', "Click a line to trim it against other drafts. Esc stops.") },
-	{ tool: 'draftExtend', label: localize('tool.draftExtend', "Extend"), icon: Codicon.arrowUp, hint: localize('hint.draftExtend', "Click a line to extend its nearer end to another draft. Esc stops.") },
-	{ tool: 'draftFillet', label: localize('tool.draftFillet', "Fillet"), icon: Codicon.circle, hint: localize('hint.draftFillet', "Type a radius, then click two lines. Esc stops.") },
 	{ tool: 'fill', label: localize('tool.fill', "Fill"), icon: Codicon.table, hint: localize('hint.fill', "Drag a window over the grid to place members on every intersection, segment or bay inside it.") },
 	{ tool: 'move', label: localize('tool.move', "Move"), icon: Codicon.move, hint: localize('hint.move', "Click the member to move.") },
 	{ tool: 'rotate', label: localize('tool.rotate', "Rotate"), icon: Codicon.refresh, hint: localize('hint.rotate', "Click a column to rotate it (footings turn in 9 Substructure).") },
@@ -300,13 +287,6 @@ export class FloorPlanEditor extends EditorPane {
 	private picked: IMemberShape | undefined;
 	/** Corners of the polygon slab being drawn. */
 	private polygon: CadPoint[] = [];
-	/** Clicked points of a draft shape being drawn (Line, Polyline, Rectangle, Polygon). */
-	private draftPoints: CadPoint[] = [];
-	private modifyPoints: CadPoint[] = [];
-	private modifyTarget: IDraftShape | undefined;
-	private modifyFirstLine: IDraftLine | undefined;
-	private readonly modifyValues = new Map<ModifyTool, number>();
-	private modifyValue = 0;
 	private hover: CadPoint | undefined;
 	private notice: string | undefined;
 	/** Set while this editor writes the floor plan. */
@@ -327,8 +307,6 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** The members selected on the plan; the selection service holds the one picked last. */
 	private selected: IMemberRef[] = [];
-	/** Draft ids are local view selection, not model members in the shared selection service. */
-	private selectedDraftIds = new Set<string>();
 	/** The fill tool's choice in {@link FILL_CHOICES}. */
 	private fillChoice = 0;
 	private fillPicker!: SelectBox;
@@ -369,13 +347,32 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly typicalAction = this._register(new Action('saengine.floorPlan.typicalFloors', localize('floorPlan.typicalFloors', "Typical Floors..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.editTypicalFloors()));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
-	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.selectedDraftIds = new Set((this.plan?.drafts ?? []).map(d => d.id)); this.updateToolbar(); this.schedulePreview(); }));
+	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.updateToolbar(); this.schedulePreview(); }));
 	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
 	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
 	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
 	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convertBeam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
 	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convertWall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
 	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convertSlab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
+
+	private readonly cadLineAction = this._register(new Action('saengine.floorPlan.cadLine', localize('tool.draftLine', "Line"), ThemeIcon.asClassName(Codicon.dash), true, async () => { void this.editor?.execute('line'); }));
+	private readonly cadPlineAction = this._register(new Action('saengine.floorPlan.cadPline', localize('tool.draftPolyline', "Polyline"), ThemeIcon.asClassName(Codicon.graph), true, async () => { void this.editor?.execute('pline'); }));
+	private readonly cadRectAction = this._register(new Action('saengine.floorPlan.cadRect', localize('tool.draftRect', "Rectangle"), ThemeIcon.asClassName(Codicon.primitiveSquare), true, async () => { void this.editor?.execute('rectang'); }));
+	private readonly cadPolygonAction = this._register(new Action('saengine.floorPlan.cadPolygon', localize('tool.draftPolygon', "Polygon"), ThemeIcon.asClassName(Codicon.symbolConstant), true, async () => { void this.editor?.execute('polygon'); }));
+	private readonly cadCircleAction = this._register(new Action('saengine.floorPlan.cadCircle', localize('tool.draftCircle', "Circle"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('circle'); }));
+	private readonly cadArcAction = this._register(new Action('saengine.floorPlan.cadArc', localize('tool.draftArc', "Arc"), ThemeIcon.asClassName(Codicon.circleOutline), true, async () => { void this.editor?.execute('arc'); }));
+	private readonly cadEllipseAction = this._register(new Action('saengine.floorPlan.cadEllipse', localize('cad.ellipse', "Ellipse"), ThemeIcon.asClassName(Codicon.circleLarge), true, async () => { void this.editor?.execute('ellipse'); }));
+	private readonly cadSplineAction = this._register(new Action('saengine.floorPlan.cadSpline', localize('cad.spline', "Spline"), ThemeIcon.asClassName(Codicon.pulse), true, async () => { void this.editor?.execute('spline'); }));
+	private readonly cadHatchAction = this._register(new Action('saengine.floorPlan.cadHatch', localize('cad.hatch', "Hatch"), ThemeIcon.asClassName(Codicon.paintcan), true, async () => { void this.editor?.execute('hatch'); }));
+	private readonly cadTextAction = this._register(new Action('saengine.floorPlan.cadText', localize('cad.text', "Text"), ThemeIcon.asClassName(Codicon.symbolText), true, async () => { void this.editor?.execute('mtext'); }));
+	private readonly cadDimensionAction = this._register(new Action('saengine.floorPlan.cadDimension', localize('cad.dimension', "Dimension"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => { void this.editor?.execute('dimlinear'); }));
+
+	private readonly cadOffsetAction = this._register(new Action('saengine.floorPlan.cadOffset', localize('tool.draftOffset', "Offset"), ThemeIcon.asClassName(Codicon.move), true, async () => { void this.editor?.execute('offset'); }));
+	private readonly cadTrimAction = this._register(new Action('saengine.floorPlan.cadTrim', localize('tool.draftTrim', "Trim"), ThemeIcon.asClassName(Codicon.debugDisconnect), true, async () => { void this.editor?.execute('trim'); }));
+	private readonly cadExtendAction = this._register(new Action('saengine.floorPlan.cadExtend', localize('tool.draftExtend', "Extend"), ThemeIcon.asClassName(Codicon.arrowUp), true, async () => { void this.editor?.execute('extend'); }));
+	private readonly cadFilletAction = this._register(new Action('saengine.floorPlan.cadFillet', localize('tool.draftFillet', "Fillet"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('fillet'); }));
+	private readonly cadMirrorAction = this._register(new Action('saengine.floorPlan.cadMirror', localize('cad.mirror', "Mirror"), ThemeIcon.asClassName(Codicon.mirror), true, async () => { void this.editor?.execute('mirror'); }));
+	private readonly cadScaleAction = this._register(new Action('saengine.floorPlan.cadScale', localize('cad.scale', "Scale"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => { void this.editor?.execute('scale'); }));
 	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
 	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.membersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
 	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
@@ -434,7 +431,6 @@ export class FloorPlanEditor extends EditorPane {
 			if (source !== SELECTION_SOURCE) {
 				// Selected elsewhere (Model Explorer, BIM): that member alone.
 				this.selected = selection?.kind === 'member' ? [{ group: selection.group, id: selection.id }] : [];
-				this.selectedDraftIds.clear();
 				this.followSelection();
 			}
 			this.schedulePreview();
@@ -566,7 +562,18 @@ export class FloorPlanEditor extends EditorPane {
 		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => this.updateToolbar()));
 
 		// Resolve the initial story so the drafting drawing can be opened.
-		const layout = parse(this.planModel);
+		let layout = parse(this.planModel);
+		if (Array.isArray((layout as any)?.drafting) && (layout as any).drafting.length > 0) {
+			try {
+				const outcome = await this.actionsService.run([{ action: 'drafting.migrate', params: {} }], { apply: true });
+				if (outcome.ok) {
+					this.notificationService.info(localize('drafting.migrated', "Drafting moved to 05 Floor Plan/drafting (one DXF per storey)."));
+					layout = parse(this.planModel);
+				}
+			} catch {
+				// Ignore migration errors on open
+			}
+		}
 		const stories = storiesOf(layout);
 		this.storyIds = stories.map(s => s.id);
 		const storyKey = `${STORY_KEY}|${input.resource.toString()}`;
@@ -900,7 +907,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
-		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.drag || this.underlayPick || this.selected.length || this.selectedDraftIds.size)) {
+		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.cancel();
@@ -908,19 +915,6 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.tool === 'polygonSlab' && this.polygon.length) {
 				e.preventDefault();
 				this.finishPolygon();
-			} else if (this.tool === 'draftPolyline' && this.draftPoints.length >= 2) {
-				e.preventDefault();
-				this.finishDraftPolyline(false);
-			} else if (this.tool === 'draftArc' && this.draftPoints.length) {
-				e.preventDefault();
-				this.draftPoints = [];
-				this.schedulePreview();
-				this.updateStatus();
-			} else if (this.tool === 'draftLine' && this.draftPoints.length) {
-				e.preventDefault();
-				this.draftPoints = [];
-				this.schedulePreview();
-				this.updateStatus();
 			}
 		} else if (isEditableElement(e.target as HTMLElement)) {
 			return; // typing in a field, the command line or a picker
@@ -932,7 +926,7 @@ export class FloorPlanEditor extends EditorPane {
 		} else if (e.key === ':') {
 			e.preventDefault();
 			this.toggleCommandLine();
-		} else if (e.key === 'Delete' && this.tool === 'select' && (this.selected.length || this.selectedDraftIds.size)) {
+		} else if (e.key === 'Delete' && this.tool === 'select' && this.selected.length) {
 			e.preventDefault();
 			this.runCommand({ kind: 'delete' });
 		} else if (ctrl && !e.altKey && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
@@ -947,7 +941,6 @@ export class FloorPlanEditor extends EditorPane {
 			if (key === 'a') {
 				this.setTool('select');
 				this.select(selectAll(this.plan?.members ?? []));
-				this.selectedDraftIds = new Set((this.plan?.drafts ?? []).map(d => d.id));
 				this.updateToolbar();
 				this.schedulePreview();
 			} else if (key === 'c') {
@@ -962,34 +955,6 @@ export class FloorPlanEditor extends EditorPane {
 	private onCommandLineKey(e: KeyboardEvent): void {
 		const target = e.target;
 		if (e.key !== 'Enter' || !isHTMLInputElement(target) || !target.classList.contains('ml-cli-text') || !this.host.contains(target)) {
-			return;
-		}
-		if (this.isDraftTool(this.tool) && this.draftPoints.length && target.value.trim()) {
-			const last = this.draftPoints[this.draftPoints.length - 1];
-			if (this.tool === 'draftCircle' && this.draftPoints.length === 1 && /^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(target.value.trim())) {
-				const radius = Number(target.value.trim());
-				if (radius > 0 && this.story) {
-					target.value = ''; e.preventDefault(); e.stopImmediatePropagation(); this.draftPoints = [];
-					const id = nextDraftId(parse(this.planModel));
-					this.commitDraft({ kind: 'circle', id, story: this.story, layer: 'DRAFT', center: last, radius });
-					this.setNotice(localize('floorPlan.placed', "Placed {0}.", id)); this.schedulePreview(); this.updateStatus();
-				}
-				return;
-			}
-			const cursor = this.hover ?? last;
-			const direction = this.tool === 'draftArc' && this.draftPoints.length === 2
-				? [cursor[0] - this.draftPoints[1][0], cursor[1] - this.draftPoints[1][1]] as CadPoint
-				: [cursor[0] - last[0], cursor[1] - last[1]] as CadPoint;
-			const typed = parseDraftPoint(target.value, last, direction);
-			if (typed) { target.value = ''; e.preventDefault(); e.stopImmediatePropagation(); this.draftClick(typed); this.schedulePreview(); this.updateStatus(); }
-			return;
-		}
-		if ((this.tool === 'draftOffset' || this.tool === 'draftFillet') && target.value.trim()) {
-			const value = Number(target.value.trim());
-			if (Number.isFinite(value) && value >= 0) {
-				target.value = ''; e.preventDefault(); e.stopImmediatePropagation(); this.modifyValue = value; this.modifyValues.set(this.tool, value);
-				this.setNotice(this.tool === 'draftOffset' ? localize('floorPlan.offsetPick', "Click a draft to offset.") : localize('floorPlan.filletPick', "Click the first line."));
-			}
 			return;
 		}
 		const command = parseCommand(target.value, parse(this.planModel));
@@ -1051,10 +1016,6 @@ export class FloorPlanEditor extends EditorPane {
 		this.chainStart = undefined;
 		this.picked = undefined;
 		this.polygon = [];
-		this.draftPoints = [];
-		this.modifyPoints = [];
-		this.modifyTarget = undefined;
-		this.modifyFirstLine = undefined;
 		this.drag = undefined;
 		this.pasting = false;
 		this.underlayPick = undefined;
@@ -1073,12 +1034,11 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Esc: drops the gesture in progress (a beam's first point, a picked member, corners), then the tool. */
 	private cancel(): void {
-		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && (this.selected.length || this.selectedDraftIds.size)) {
+		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && this.selected.length) {
 			this.select([]);
-			this.selectedDraftIds.clear();
 			this.notice = undefined;
 			this.updateStatus();
-		} else if (this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.drag || this.underlayPick) {
+		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick) {
 			this.resetGesture();
 			this.notice = undefined;
 			this.updateToolbar();
@@ -1093,8 +1053,7 @@ export class FloorPlanEditor extends EditorPane {
 	/** The tool whose object types the Type picker offers. */
 	private get placementTool(): PlacementTool | undefined {
 		switch (this.tool) {
-			case 'select': case 'delete': case 'move': case 'rotate': case 'draftOffset': case 'draftTrim': case 'draftExtend': case 'draftFillet':
-			case 'draftLine': case 'draftPolyline': case 'draftRect': case 'draftPolygon': case 'draftCircle': case 'draftArc':
+			case 'select': case 'delete': case 'move': case 'rotate':
 				return undefined;
 			case 'polygonSlab': return 'slab';
 			case 'fill': return FILL_TOOL[FILL_CHOICES[this.fillChoice].kind];
@@ -1204,13 +1163,23 @@ export class FloorPlanEditor extends EditorPane {
 		this.commandLineAction.checked = commandLine;
 		this.commandLineAction.label = commandLine ? localize('floorPlan.hideCommandLine', "Hide Command Line (:)") : localize('floorPlan.showCommandLine', "Show Command Line (:)");
 
+		const cadDrawActions = [
+			this.cadLineAction, this.cadPlineAction, this.cadRectAction, this.cadPolygonAction, this.cadCircleAction, this.cadArcAction,
+			this.cadEllipseAction, this.cadSplineAction, this.cadHatchAction, this.cadTextAction, this.cadDimensionAction
+		];
+		const cadModifyActions = [
+			this.cadOffsetAction, this.cadTrimAction, this.cadExtendAction, this.cadFilletAction, this.cadMirrorAction, this.cadScaleAction
+		];
+		cadDrawActions.forEach(a => a.enabled = editable && !!this.editor);
+		cadModifyActions.forEach(a => a.enabled = editable && !!this.editor);
+
 		const tools = (names: readonly Tool[]) => names.map(name => this.toolActions.get(name)!);
 		const primary: IAction[] = [
 			...tools(['select']),
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
-			...(this.compact ? [] : [...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc']), new Separator(), ...tools(['draftOffset', 'draftTrim', 'draftExtend', 'draftFillet']), new Separator()]),
+			...(this.compact ? [] : [...cadDrawActions, new Separator(), ...cadModifyActions, new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1244,7 +1213,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
-			...(this.compact ? [new Separator(), ...tools(['draftLine', 'draftPolyline', 'draftRect', 'draftPolygon', 'draftCircle', 'draftArc']), new Separator(), ...tools(['draftOffset', 'draftTrim', 'draftExtend', 'draftFillet'])] : []),
+			...(this.compact ? [new Separator(), ...cadDrawActions, new Separator(), ...cadModifyActions] : []),
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
@@ -1255,11 +1224,10 @@ export class FloorPlanEditor extends EditorPane {
 		}
 
 		this.fillGroup.classList.toggle('hidden', this.tool !== 'fill');
-		const hasSelection = editable && (this.selected.length > 0 || this.selectedDraftIds.size > 0);
+		const hasSelection = editable && this.selected.length > 0;
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
-		const hasDraftSelection = editable && this.selectedDraftIds.size > 0;
-		this.convertBeamAction.enabled = this.convertWallAction.enabled = this.convertSlabAction.enabled = hasDraftSelection;
+		this.convertBeamAction.enabled = this.convertWallAction.enabled = this.convertSlabAction.enabled = editable && !!this.editor;
 		this.deleteSelectionAction.enabled = hasSelection;
 		this.selectAllAction.enabled = this.selectTypeAction.enabled = !!this.plan?.members.length;
 
@@ -1287,8 +1255,7 @@ export class FloorPlanEditor extends EditorPane {
 		const picked = this.picked;
 		const tool = this.tool;
 		const length = (tool === 'beam' || tool === 'wall') && !!this.chainStart;
-		const modify = tool === 'draftOffset' || tool === 'draftFillet';
-		const key = modify ? `${tool}|${this.story ?? ''}` : length ? `length|${tool}` : picked && (tool === 'move' || tool === 'rotate') ? `${tool}|${picked.group}|${picked.id}` : '';
+		const key = length ? `length|${tool}` : picked && (tool === 'move' || tool === 'rotate') ? `${tool}|${picked.group}|${picked.id}` : '';
 		if (key === this.typedKey) {
 			return;
 		}
@@ -1299,14 +1266,6 @@ export class FloorPlanEditor extends EditorPane {
 		this.typedGroup.classList.toggle('hidden', !key);
 		if (length) {
 			this.renderLengthEntry();
-			return;
-		}
-		if (modify) {
-			const box = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder: tool === 'draftOffset' ? localize('floorPlan.offsetDistance', "Offset distance (mm)") : localize('floorPlan.filletRadius', "Fillet radius (mm)"), ariaLabel: tool === 'draftOffset' ? localize('floorPlan.offsetDistanceAria', "Offset distance") : localize('floorPlan.filletRadiusAria', "Fillet radius") }));
-			box.value = String(this.modifyValues.get(tool as ModifyTool) ?? 0);
-			const apply = () => { const value = Number(box.value); if (!Number.isFinite(value) || value < 0) { this.setNotice(localize('floorPlan.badModifyDistance', "Enter a non-negative distance in mm.")); return; } this.modifyValue = value; this.modifyValues.set(tool as ModifyTool, value); this.frame.element.focus(); };
-			this.typedControls.add(addDisposableListener(box.inputElement, EventType.KEY_DOWN, e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); apply(); } }));
-			this.typedControls.add(this.frame.createIconButton(this.typedGroup, Codicon.check, localize('floorPlan.applyModify', "Use distance"), apply));
 			return;
 		}
 		if (!picked || (tool !== 'move' && tool !== 'rotate')) {
@@ -1392,6 +1351,9 @@ export class FloorPlanEditor extends EditorPane {
 		const onCanvas = (e: MouseEvent) => isHTMLElement(e.target) && e.target.tagName === 'CANVAS';
 		this._register(addDisposableListener(this.host, EventType.WHEEL, () => this.userView = true, { passive: true }));
 		this._register(addDisposableListener(this.host, EventType.POINTER_DOWN, e => {
+			if (this.editor?.isCommandActive()) {
+				return;
+			}
 			if (e.button === 1) {
 				this.userView = true; // a middle-button pan
 			}
@@ -1403,11 +1365,19 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.MOUSE_DOWN, e => {
+			if (this.editor?.isCommandActive()) {
+				return;
+			}
 			if (e.button === 0 && this.windowTool && onCanvas(e)) {
 				e.stopPropagation();
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.POINTER_UP, e => {
+			if (this.editor?.isCommandActive()) {
+				down = undefined;
+				this.drag = undefined;
+				return;
+			}
 			const start = down;
 			const drag = this.drag;
 			down = undefined;
@@ -1423,6 +1393,9 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.POINTER_MOVE, e => {
+			if (this.editor?.isCommandActive()) {
+				return;
+			}
 			if (this.editor) {
 				this.hover = this.editor.toWorld(e.clientX, e.clientY);
 				if (this.drag && (e.buttons & 1) && Math.hypot(e.clientX - this.drag.client.x, e.clientY - this.drag.client.y) >= CLICK_PIXELS) {
@@ -1436,13 +1409,13 @@ export class FloorPlanEditor extends EditorPane {
 			this.schedulePreview();
 		}));
 		this._register(addDisposableListener(this.host, EventType.CONTEXT_MENU, e => {
+			if (this.editor?.isCommandActive()) {
+				return;
+			}
 			if (this.tool === 'polygonSlab' && this.polygon.length >= 3) {
 				e.preventDefault();
 				this.finishPolygon();
-			} else if (this.tool === 'draftPolyline' && this.draftPoints.length >= 2) {
-				e.preventDefault();
-				this.finishDraftPolyline(false);
-			} else if (this.chainStart || this.picked || this.polygon.length || this.draftPoints.length || this.pasting || this.underlayPick) {
+			} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.underlayPick) {
 				e.preventDefault();
 				this.cancel();
 			} else if (this.editor && this.layoutState === 'ok') {
@@ -1543,17 +1516,6 @@ export class FloorPlanEditor extends EditorPane {
 
 	private pick(point: CadPoint): IMemberShape | undefined {
 		return this.plan && this.editor ? pickMember(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel()) : undefined;
-	}
-
-	private memberPickDistance(shape: IMemberShape, point: CadPoint): number {
-		const outline = shape.outline;
-		if (outline.kind === 'circle') {
-			return Math.abs(Math.hypot(point[0] - outline.center[0], point[1] - outline.center[1]) - outline.radius);
-		}
-		return Math.min(...outline.points.map((p, i) => {
-			const next = outline.points[(i + 1) % outline.points.length];
-			return distanceToDraft({ kind: 'line', id: '', story: '', start: p, end: next }, point);
-		}));
 	}
 
 	/**
@@ -1701,9 +1663,6 @@ export class FloorPlanEditor extends EditorPane {
 	/** Selects `refs` on the plan; the selection service gets the one picked last. */
 	private select(refs: readonly IMemberRef[]): void {
 		this.selected = [...refs];
-		if (!refs.length) {
-			this.selectedDraftIds.clear();
-		}
 		const last = refs[refs.length - 1];
 		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
 		this.updateToolbar();
@@ -1721,13 +1680,6 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const refs = selectInWindow(this.plan?.members ?? [], start, end);
 		this.selected = combine(this.selected, refs, modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace');
-		const draftIds = selectDraftsInWindow(this.plan?.drafts ?? [], start, end);
-		const windowModeSelection = modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace';
-		if (windowModeSelection === 'replace') {
-			this.selectedDraftIds = new Set(draftIds);
-		} else {
-			this.selectedDraftIds = new Set([...this.selectedDraftIds, ...draftIds]);
-		}
 		const last = this.selected[this.selected.length - 1];
 		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
 		this.updateStatus();
@@ -1735,8 +1687,8 @@ export class FloorPlanEditor extends EditorPane {
 		this.updateToolbar();
 		this.schedulePreview();
 		this.setNotice(windowMode(start, end) === 'window'
-			? localize('floorPlan.windowSelected', "Window: {0} member(s), {1} draft(s) fully inside.", refs.length, draftIds.length)
-			: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s), {1} draft(s) touched.", refs.length, draftIds.length));
+			? localize('floorPlan.windowSelected', "Window: {0} member(s) fully inside.", refs.length)
+			: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s) touched.", refs.length));
 	}
 
 	private get story(): string | undefined {
@@ -1774,8 +1726,7 @@ export class FloorPlanEditor extends EditorPane {
 	private runCommand(command: Exclude<FloorPlanCommand, { readonly kind: 'error' }>): void {
 		const layout = parse(this.planModel);
 		const refs = command.kind === 'select' ? this.selected : this.editableSelection;
-		if (command.kind === 'tool') { this.setTool(command.tool); return; }
-		if (!refs.length && this.selected.length && !this.selectedDraftIds.size && command.kind !== 'select' && command.kind !== 'fill') {
+		if (!refs.length && this.selected.length && command.kind !== 'select' && command.kind !== 'fill') {
 			this.setNotice(footingsOwnedMessage()); // only footings are selected
 			return;
 		}
@@ -1788,7 +1739,6 @@ export class FloorPlanEditor extends EditorPane {
 							: selectAll(shapes).filter(r => command.ids.includes(r.id.toUpperCase()));
 				this.notice = chosen.length || command.what === 'none' ? undefined : localize('floorPlan.noneMatched', "No member on this story matches.");
 				this.select(chosen); // the status line shows what is selected
-				if (command.what === 'none') { this.selectedDraftIds.clear(); }
 				break;
 			}
 			case 'fill':
@@ -1796,7 +1746,7 @@ export class FloorPlanEditor extends EditorPane {
 				break;
 			case 'copy':
 			case 'array': {
-				if (!refs.length && !this.selectedDraftIds.size) {
+				if (!refs.length) {
 					this.applyBulk(copyMembers(layout, refs, command.delta, command.times), 'copied');
 					break;
 				}
@@ -1809,16 +1759,12 @@ export class FloorPlanEditor extends EditorPane {
 					this.setNotice(localize('bulk.badTimes', "Copy 1 to 100 times."));
 					break;
 				}
-				let result: BulkResult = refs.length ? copyMembers(layout, refs, command.delta, times) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
-				if (result.ok && this.selectedDraftIds.size) {
-					const draftResult = copyDrafts(result.layout, this.selectedDraftIds, command.delta, times);
-					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
-				}
+				const result: BulkResult = copyMembers(layout, refs, command.delta, times);
 				this.applyBulk(result, 'copied');
 				break;
 			}
 			case 'move': {
-				if (!refs.length && !this.selectedDraftIds.size) {
+				if (!refs.length) {
 					this.applyBulk(moveMembers(layout, refs, command.delta), 'moved');
 					break;
 				}
@@ -1826,16 +1772,12 @@ export class FloorPlanEditor extends EditorPane {
 					this.setNotice(localize('edit.noMove', "Choose a different point to move to."));
 					break;
 				}
-				let result: BulkResult = refs.length ? moveMembers(layout, refs, command.delta) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
-				if (result.ok && this.selectedDraftIds.size) {
-					const draftResult = moveDrafts(result.layout, this.selectedDraftIds, command.delta);
-					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
-				}
+				const result: BulkResult = moveMembers(layout, refs, command.delta);
 				this.applyBulk(result, 'moved');
 				break;
 			}
 			case 'mirror': {
-				if (!refs.length && !this.selectedDraftIds.size) {
+				if (!refs.length) {
 					this.applyBulk(mirrorMembers(layout, refs, command.axis, command.label, command.keep), 'mirrored');
 					break;
 				}
@@ -1844,11 +1786,7 @@ export class FloorPlanEditor extends EditorPane {
 					this.setNotice(localize('bulk.noLine', "There is no grid line {0}.", command.label));
 					break;
 				}
-				let result: BulkResult = refs.length ? mirrorMembers(layout, refs, command.axis, command.label, command.keep) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
-				if (result.ok && this.selectedDraftIds.size) {
-					const draftResult = mirrorDrafts(result.layout, this.selectedDraftIds, command.axis, line, command.keep);
-					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
-				}
+				const result: BulkResult = mirrorMembers(layout, refs, command.axis, command.label, command.keep);
 				this.applyBulk(result, 'mirrored');
 				break;
 			}
@@ -1857,20 +1795,16 @@ export class FloorPlanEditor extends EditorPane {
 					this.setNotice(localize('edit.badAngle', "Enter an angle in degrees."));
 					break;
 				}
-				if (!refs.length && !this.selectedDraftIds.size) {
+				if (!refs.length) {
 					this.applyBulk(rotateMembers(layout, refs, command.degrees, command.absolute), 'rotated');
 					break;
 				}
 				const turning = refs.filter(r => r.group === 'columns');
-				if (!turning.length && !this.selectedDraftIds.size) {
+				if (!turning.length) {
 					this.setNotice(notRotatableMessage());
 					break;
 				}
-				let result: BulkResult = turning.length ? rotateMembers(layout, refs, command.degrees, command.absolute) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: refs.length };
-				if (result.ok && this.selectedDraftIds.size) {
-					const draftResult = rotateDrafts(result.layout, this.selectedDraftIds, command.degrees);
-					result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
-				}
+				const result: BulkResult = rotateMembers(layout, refs, command.degrees, command.absolute);
 				this.applyBulk(result, 'rotated');
 				break;
 			}
@@ -1895,12 +1829,11 @@ export class FloorPlanEditor extends EditorPane {
 	 * naming them. One member or a few are a small edit and go at once.
 	 */
 	private async deleteSelection(refs: readonly IMemberRef[]): Promise<void> {
-		const draftIds = [...this.selectedDraftIds];
-		if (needsBulkConfirmation(refs.length + draftIds.length)) {
+		if (needsBulkConfirmation(refs.length)) {
 			const story = this.story;
 			const confirmed = await confirmDelete(this.dialogService, {
-				message: localize('floorPlan.confirmDeleteMany', "Delete {0} selected shapes?", refs.length + draftIds.length),
-				items: [...refs.map(r => r.id), ...draftIds],
+				message: localize('floorPlan.confirmDeleteMany', "Delete {0} selected shapes?", refs.length),
+				items: refs.map(r => r.id),
 				consequences: localize('floorPlan.confirmDeleteTypical', "They go from this storey and from the storeys that repeat it (typical floors)."),
 				recovery: 'undo',
 			});
@@ -1908,14 +1841,8 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 		}
-		let result: BulkResult = refs.length ? deleteMembers(parse(this.planModel), refs) : { ok: true, layout: parse(this.planModel) as { [key: string]: unknown }, ids: [], placed: 0, skipped: 0 };
-		if (result.ok && draftIds.length) {
-			let text = JSON.stringify(result.layout);
-			for (const id of draftIds) { text = removeDraft(text, id); }
-			result = { ...result, layout: JSON.parse(text) as { [key: string]: unknown } };
-		}
-		this.selectedDraftIds.clear();
-		this.applyBulk(result, undefined, false, localize('floorPlan.deletedMany', "Deleted {0} selected shape(s).", refs.length + draftIds.length));
+		const result: BulkResult = refs.length ? deleteMembers(parse(this.planModel), refs) : { ok: true, layout: parse(this.planModel) as { [key: string]: unknown }, ids: [], placed: 0, skipped: 0 };
+		this.applyBulk(result, undefined, false, localize('floorPlan.deletedMany', "Deleted {0} selected shape(s).", refs.length));
 	}
 
 	/** Copies the selection to `stories` (and their typical floors). */
@@ -1926,25 +1853,11 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const layout = parse(this.planModel);
 		const refs = this.editableSelection;
-		const draftIds = [...this.selectedDraftIds];
-		if (!refs.length && !draftIds.length) {
+		if (!refs.length) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
 		}
-		let result: BulkResult = refs.length ? copyToStories(layout, refs, story, stories) : { ok: true, layout: layout as Record<string, unknown>, ids: [], placed: 0, skipped: 0 };
-		if (result.ok && draftIds.length) {
-			const own = new Set(familyOf(result.layout, story));
-			const destStories = new Set<string>();
-			for (const target of stories) {
-				for (const s of familyOf(result.layout, target)) {
-					if (!own.has(s)) {
-						destStories.add(s);
-					}
-				}
-			}
-			const draftResult = copyDraftsToStories(result.layout, draftIds, [...destStories]);
-			result = { ...result, layout: draftResult.layout, placed: result.placed + draftResult.placed, skipped: result.skipped + draftResult.skipped };
-		}
+		const result: BulkResult = copyToStories(layout, refs, story, stories);
 		const names = storiesOf(layout).filter(s => stories.includes(s.id)).map(s => s.name);
 		let notice = result.ok ? localize('floorPlan.copiedToStories', "Copied {0} member(s) to {1} (and their typical floors); skipped {2} already there.", result.placed, names.join(', '), result.skipped) : undefined;
 		if (result.ok) {
@@ -1962,7 +1875,7 @@ export class FloorPlanEditor extends EditorPane {
 	private async pickCopyToStories(): Promise<void> {
 		const story = this.story;
 		const layout = parse(this.planModel);
-		if (!story || (!this.selected.length && !this.selectedDraftIds.size)) {
+		if (!story || !this.selected.length) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
 		}
@@ -1977,9 +1890,7 @@ export class FloorPlanEditor extends EditorPane {
 				detail: family > 1 ? localize('floorPlan.copyFamily', "Typical floor: the copies go to all its {0} stories", family) : undefined,
 			};
 		});
-		const memberSummary = this.selected.length ? selectionSummary(this.selected) : undefined;
-		const draftSummary = this.selectedDraftIds.size ? localize('floorPlan.draftsCount', "{0} draft shape(s)", this.selectedDraftIds.size) : undefined;
-		const summary = [memberSummary, draftSummary].filter(Boolean).join(', ');
+		const summary = selectionSummary(this.selected);
 		const picked = await this.quickInputService.pick(items, {
 			title: localize('floorPlan.copyToStoriesTitle', "Copy to Stories: {0}", summary),
 			placeHolder: localize('floorPlan.copyToStoriesHint', "Stories to copy the selection to (columns and walls rise from the story below each)"),
@@ -1992,7 +1903,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Asks for the grid line to mirror the selection about. */
 	private async pickMirror(): Promise<void> {
-		if (!this.selected.length && !this.selectedDraftIds.size) {
+		if (!this.selected.length) {
 			this.setNotice(localize('bulk.nothing', "Select members first."));
 			return;
 		}
@@ -2004,9 +1915,7 @@ export class FloorPlanEditor extends EditorPane {
 			label: localize('floorPlan.gridLine', "Grid Line {0}", line),
 			description: axis === 'x' ? localize('floorPlan.atX', "x = {0} mm", position) : localize('floorPlan.atY', "y = {0} mm", position),
 		})));
-		const memberSummary = this.selected.length ? selectionSummary(this.selected) : undefined;
-		const draftSummary = this.selectedDraftIds.size ? localize('floorPlan.draftsCount', "{0} draft shape(s)", this.selectedDraftIds.size) : undefined;
-		const summary = [memberSummary, draftSummary].filter(Boolean).join(', ');
+		const summary = selectionSummary(this.selected);
 		const picked = await this.quickInputService.pick(items, {
 			title: localize('floorPlan.mirrorTitle', "Mirror: {0}", summary),
 			placeHolder: localize('floorPlan.mirrorHint', "The grid line to mirror about; the originals stay (type mirror <line> move on the command line to move them)"),
@@ -2019,7 +1928,12 @@ export class FloorPlanEditor extends EditorPane {
 	/** Picks a matching object type, then converts selected drafts in one shared-action batch. */
 	private async pickConversion(kind: 'beam' | 'wall' | 'slab'): Promise<void> {
 		const story = this.story;
-		if (!story || !this.selectedDraftIds.size || this.layoutState !== 'ok') {
+		if (!story || this.layoutState !== 'ok' || !this.editor) {
+			return;
+		}
+		const entities = this.editor.getSelectedEntities();
+		if (!entities.length) {
+			this.setNotice(localize('floorPlan.convertNoSelection', "Select drafting lines or polylines in the drawing first."));
 			return;
 		}
 		const tool: PlacementTool = kind;
@@ -2041,10 +1955,9 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		this.types.set(tool, picked.objectType);
 		this.updateToolbar();
-		const selected = new Set(this.selectedDraftIds);
-		const drafts = (this.plan?.drafts ?? []).filter(draft => selected.has(draft.id));
-		const result = conversionSteps(drafts, kind, picked.objectType, story, gridsOf(parse(this.planModel)));
-		if (!result.steps.length) {
+		const result = conversionSteps(entities, kind, picked.objectType, story, gridsOf(parse(this.planModel)));
+		const memberSteps = result.steps.filter(s => s.action !== 'drafting.delete');
+		if (!memberSteps.length) {
 			this.setNotice(localize('floorPlan.convertNone', "No selected drafts can be converted. Skipped: {0}.", result.skipped.join(', ')));
 			return;
 		}
@@ -2052,16 +1965,22 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(localize('floorPlan.convertActionsUnavailable', "Draft conversion needs the shared actions service."));
 			return;
 		}
-		const outcome = await this.memberAction(result.steps, story, () => undefined);
+		const outcome = await this.memberAction(memberSteps, story, () => undefined);
 		if (!outcome) {
 			return;
 		}
-		this.selectedDraftIds.clear();
+		const convertedHandles = entities.filter(e => !result.skipped.includes(e.handle)).map(e => e.handle);
+		if (convertedHandles.length > 0) {
+			this.editor.eraseEntities(convertedHandles);
+			if (this.currentDraftingStory && this.input) {
+				(this.input as FloorPlanEditorInput).setDraftingDirty(this.currentDraftingStory, true);
+			}
+		}
 		this.updateToolbar();
 		this.updateStatus();
 		this.schedulePreview();
 		this.renderProperties();
-		this.setNotice(localize('floorPlan.convertedNotice', "Converted {0} draft shape(s) to {1}{2}.", drafts.length - result.skipped.length, kind, result.skipped.length ? localize('floorPlan.convertSkipped', "; skipped {0}: {1}", result.skipped.length, result.skipped.join(', ')) : ''));
+		this.setNotice(localize('floorPlan.convertedNotice', "Converted {0} draft shape(s) to {1}{2}.", entities.length - result.skipped.length, kind, result.skipped.length ? localize('floorPlan.convertSkipped', "; skipped {0}: {1}", result.skipped.length, result.skipped.join(', ')) : ''));
 	}
 
 	/** Asks for an object type on the story and selects its members. */

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AcDbArc, AcDbCircle, AcDbEntity, AcDbLine, AcDbPolyline, AcGeMatrix3d, AcGePoint2d, AcGePoint3d, AcGePoint3dLike } from '@mlightcad/data-model';
+import { polylineVertices } from './entityAccess.js';
 import {
 	AcApDocManager, AcEdCommand, AcEdOpenMode, AcEdPromptAngleOptions, AcEdPromptDistanceOptions,
 	AcEdPromptEntityOptions, AcEdPromptKeywordOptions, AcEdPromptPointOptions, AcEdPromptSelectionOptions,
@@ -521,14 +522,9 @@ function entityToGeom(e: AcDbEntity): GeomShape | undefined {
 	}
 	if (e instanceof AcDbPolyline || e.dxfTypeName === 'LWPOLYLINE') {
 		const poly = e as AcDbPolyline;
-		const points: GeomPoint[] = [];
-		for (let i = 0; i < poly.numberOfVertices; i++) {
-			const p = poly.getPoint2dAt(i);
-			points.push([p.x, p.y]);
-		}
 		return {
 			kind: 'polyline',
-			points,
+			points: polylineVertices(poly),
 			closed: poly.closed,
 		};
 	}
