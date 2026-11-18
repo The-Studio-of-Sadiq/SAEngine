@@ -13,6 +13,11 @@ import {
 	chamferLines, extendArc, extendLine, extendPolyline, filletLines, GeomArc, GeomCircle, GeomLine,
 	GeomPoint, GeomPolyline, GeomShape, normalizeAngle, trimArc, trimCircle, trimLine, trimPolyline,
 } from './modifyGeometry.js';
+import {
+	alignPoint, arcToBulge, breakArc, breakCircle, breakLine, breakPolyline, bulgeToArc,
+	explodePolyline, joinArcs, lengthenArc, lengthenLine, polarArray, rectangularArray, scalePoint,
+	stretchPolyline, type P2,
+} from './modifyGeometry2.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -193,6 +198,298 @@ export async function mirrorCommand(ctx: CadCommandContext): Promise<void> {
 		ctx.database.add(copies);
 		if (choice.toLowerCase() === 'yes') for (const entity of selected) ctx.database.erase(String(entity.objectId));
 	});
+}
+
+function copyProperties<T extends AcDbEntity>(source: AcDbEntity, target: T): T {
+	try {
+		if (source.layer) target.layer = source.layer;
+		if (source.color !== undefined) target.color = source.color;
+		if (source.lineType) target.lineType = source.lineType;
+	} catch {
+		// ignore property copy errors
+	}
+	return target;
+}
+
+function cloneTransform(entity: AcDbEntity, matrix: AcGeMatrix3d): AcDbEntity {
+	const copy = entity.clone() as AcDbEntity;
+	copy.transformBy(matrix);
+	return copyProperties(entity, copy);
+}
+function translation(dx: number, dy: number): AcGeMatrix3d { return new AcGeMatrix3d().makeTranslation(dx, dy, 0); }
+function pointTransform(base: CadPoint3, scale: number, angle = 0, shift: CadPoint3 = base): AcGeMatrix3d {
+ return new AcGeMatrix3d().makeTranslation(-base.x,-base.y,-base.z).premultiply(new AcGeMatrix3d().makeScale(scale,scale,scale)).premultiply(new AcGeMatrix3d().makeRotationZ(angle)).premultiply(new AcGeMatrix3d().makeTranslation(shift.x,shift.y,shift.z));
+}
+export async function scaleCommand(ctx: CadCommandContext): Promise<void> {
+ const selected = await ctx.getSelection('Select objects to scale:'); const base = await ctx.getPoint('Specify base point:');
+ const option = await ctx.getKeyword('Specify scale factor or [Copy/Reference] <1>:', ['Copy', 'Reference'], { default: 'Factor' });
+ let factor: number;
+ if (option.toLowerCase() === 'reference') { const ref = await ctx.getDistance('Specify reference length:'); const next = await ctx.getDistance('Specify new length:'); factor = next / ref; }
+ else factor = await ctx.getDistance('Specify scale factor <1>:');
+ if (!(factor > 0)) throw new Error('Scale factor must be positive');
+ const copy = option.toLowerCase() === 'copy'; const matrix = pointTransform(base, factor);
+ if (copy) ctx.database.add(selected.map(e => cloneTransform(e, matrix)));
+ else for (const e of selected) { const c = cloneTransform(e, matrix); ctx.database.replace(String(e.objectId), c); }
+}
+export async function arrayRectCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getSelection('Select objects to array:'); const rows = Math.max(1, Math.round(await ctx.getDistance('Rows <1>:'))); const columns = Math.max(1, Math.round(await ctx.getDistance('Columns <1>:'))); const rs = await ctx.getDistance('Row spacing:'); const cs = await ctx.getDistance('Column spacing:');
+ ctx.database.add(rectangularArray(src, rows, columns, rs, cs).flatMap(x => src.map(e => cloneTransform(e, translation(...x.offset)))));
+}
+export async function arrayPolarCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getSelection('Select objects to array:'); const center = await ctx.getPoint('Specify center point:'); const count = Math.max(1, Math.round(await ctx.getDistance('Number of items:'))); const fill = await ctx.getAngle('Angle to fill <360>:'); const rotate = (await ctx.getKeyword('Rotate items? [Yes/No] <Yes>', ['Yes', 'No'], { default: 'Yes' })).toLowerCase() === 'yes';
+ let sumX = 0, sumY = 0, ptCount = 0;
+ for (const e of src) {
+  if (e instanceof AcDbCircle || e instanceof AcDbArc) { sumX += e.center.x; sumY += e.center.y; ptCount++; }
+  else if (e instanceof AcDbLine) { sumX += e.startPoint.x + e.endPoint.x; sumY += e.startPoint.y + e.endPoint.y; ptCount += 2; }
+  else if (e instanceof AcDbPolyline) { for (let i = 0; i < e.numberOfVertices; i++) { const p = e.getPoint2dAt(i); sumX += p.x; sumY += p.y; ptCount++; } }
+ }
+ const refX = ptCount > 0 ? sumX / ptCount : center.x;
+ const refY = ptCount > 0 ? sumY / ptCount : center.y;
+ const all: AcDbEntity[] = [];
+ for (let i = 1; i < count; i++) {
+  const a = fill * i / count;
+  if (rotate) {
+   const radial = pointTransform(center, 1, a, center);
+   for (const e of src) all.push(cloneTransform(e, radial));
+  } else {
+   const rad = a * Math.PI / 180;
+   const rx = refX - center.x, ry = refY - center.y;
+   const rotX = center.x + rx * Math.cos(rad) - ry * Math.sin(rad);
+   const rotY = center.y + rx * Math.sin(rad) + ry * Math.cos(rad);
+   const matrix = translation(rotX - refX, rotY - refY);
+   for (const e of src) all.push(cloneTransform(e, matrix));
+  }
+ }
+ ctx.database.add(all);
+}
+export async function breakCommand(ctx: CadCommandContext): Promise<void> {
+ const pick = await ctx.getEntityPick('Select object (first break point):'); if (!pick.entity || !pick.point) return; const second = await ctx.getPoint('Specify second break point:'); const e = pick.entity;
+ const p1: P2 = [pick.point.x, pick.point.y], p2: P2 = [second.x, second.y];
+ if (e instanceof AcDbLine) {
+  const parts = breakLine([e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y], p1, p2);
+  if (parts.length >= 1) ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbLine(new AcGePoint3d(...parts[0].start, e.startPoint.z), new AcGePoint3d(...parts[0].end, e.endPoint.z))));
+  if (parts.length >= 2) ctx.database.add(copyProperties(e, new AcDbLine(new AcGePoint3d(...parts[1].start, e.startPoint.z), new AcGePoint3d(...parts[1].end, e.endPoint.z))));
+ } else if (e instanceof AcDbCircle) {
+  const arcGeom = breakCircle([e.center.x, e.center.y], e.radius, p1, p2);
+  ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbArc(new AcGePoint3d(arcGeom.center[0], arcGeom.center[1], e.center.z), arcGeom.radius, arcGeom.startAngle * Math.PI / 180, arcGeom.endAngle * Math.PI / 180)));
+ } else if (e instanceof AcDbArc) {
+  const parts = breakArc([e.center.x, e.center.y], e.radius, e.startAngle * 180 / Math.PI, e.endAngle * 180 / Math.PI, p1, p2);
+  if (parts.length >= 1) ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbArc(new AcGePoint3d(parts[0].center[0], parts[0].center[1], e.center.z), parts[0].radius, parts[0].startAngle * Math.PI / 180, parts[0].endAngle * Math.PI / 180)));
+  if (parts.length >= 2) ctx.database.add(copyProperties(e, new AcDbArc(new AcGePoint3d(parts[1].center[0], parts[1].center[1], e.center.z), parts[1].radius, parts[1].startAngle * Math.PI / 180, parts[1].endAngle * Math.PI / 180)));
+ } else if (e instanceof AcDbPolyline && !e.closed) {
+  const pts: P2[] = Array.from({ length: e.numberOfVertices }, (_, i) => [e.getPoint2dAt(i).x, e.getPoint2dAt(i).y]);
+  const parts = breakPolyline(pts, p1, p2);
+  if (parts.length >= 1) { const p1Ent = new AcDbPolyline(); parts[0].forEach((pt, i) => p1Ent.addVertexAt(i, new AcGePoint2d(...pt))); ctx.database.replace(String(e.objectId), copyProperties(e, p1Ent)); }
+  if (parts.length >= 2) { const p2Ent = new AcDbPolyline(); parts[1].forEach((pt, i) => p2Ent.addVertexAt(i, new AcGePoint2d(...pt))); ctx.database.add(copyProperties(e, p2Ent)); }
+ } else {
+  ctx.message('BREAK supports lines, circles, arcs, and open polylines');
+ }
+}
+export async function breakAtPointCommand(ctx: CadCommandContext): Promise<void> {
+ const e = await ctx.getEntity('Select object to break:'); const p = await ctx.getPoint('Specify break point:');
+ const pt: P2 = [p.x, p.y];
+ if (e instanceof AcDbLine) {
+  const parts = breakLine([e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y], pt, pt);
+  if (parts.length >= 2) {
+   ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbLine(new AcGePoint3d(...parts[0].start, e.startPoint.z), new AcGePoint3d(...parts[0].end, e.startPoint.z))));
+   ctx.database.add(copyProperties(e, new AcDbLine(new AcGePoint3d(...parts[1].start, e.startPoint.z), new AcGePoint3d(...parts[1].end, e.endPoint.z))));
+  }
+ } else if (e instanceof AcDbArc) {
+  const parts = breakArc([e.center.x, e.center.y], e.radius, e.startAngle * 180 / Math.PI, e.endAngle * 180 / Math.PI, pt, pt);
+  if (parts.length >= 2) {
+   ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbArc(new AcGePoint3d(parts[0].center[0], parts[0].center[1], e.center.z), parts[0].radius, parts[0].startAngle * Math.PI / 180, parts[0].endAngle * Math.PI / 180)));
+   ctx.database.add(copyProperties(e, new AcDbArc(new AcGePoint3d(parts[1].center[0], parts[1].center[1], e.center.z), parts[1].radius, parts[1].startAngle * Math.PI / 180, parts[1].endAngle * Math.PI / 180)));
+  }
+ } else if (e instanceof AcDbPolyline && !e.closed) {
+  const pts: P2[] = Array.from({ length: e.numberOfVertices }, (_, i) => [e.getPoint2dAt(i).x, e.getPoint2dAt(i).y]);
+  const parts = breakPolyline(pts, pt, pt);
+  if (parts.length >= 2) {
+   const p1Ent = new AcDbPolyline(); parts[0].forEach((v, i) => p1Ent.addVertexAt(i, new AcGePoint2d(...v))); ctx.database.replace(String(e.objectId), copyProperties(e, p1Ent));
+   const p2Ent = new AcDbPolyline(); parts[1].forEach((v, i) => p2Ent.addVertexAt(i, new AcGePoint2d(...v))); ctx.database.add(copyProperties(e, p2Ent));
+  }
+ }
+}
+
+interface ChainSegment { points: P2[]; bulges: number[]; }
+function entityToChainSegment(e: AcDbEntity): ChainSegment | undefined {
+ if (e instanceof AcDbLine) return { points: [[e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y]], bulges: [0] };
+ if (e instanceof AcDbArc) {
+  const p1: P2 = [e.center.x + e.radius * Math.cos(e.startAngle), e.center.y + e.radius * Math.sin(e.startAngle)];
+  const p2: P2 = [e.center.x + e.radius * Math.cos(e.endAngle), e.center.y + e.radius * Math.sin(e.endAngle)];
+  const b = arcToBulge(p1, p2, [e.center.x, e.center.y], true);
+  return { points: [p1, p2], bulges: [b] };
+ }
+ if (e instanceof AcDbPolyline && !e.closed) {
+  const points: P2[] = [], bulges: number[] = [];
+  for (let i = 0; i < e.numberOfVertices; i++) {
+   const p = e.getPoint2dAt(i); points.push([p.x, p.y]);
+   if (i < e.numberOfVertices - 1) bulges.push((e as any)._geo?.vertices?.[i]?.bulge ?? 0);
+  }
+  return { points, bulges };
+ }
+ return undefined;
+}
+
+export async function joinCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getEntity('Select source object:'); const others = await ctx.getSelection('Select objects to join:');
+ if (src instanceof AcDbArc) {
+  let curArc = { center: [src.center.x, src.center.y] as P2, radius: src.radius, startAngle: src.startAngle * 180 / Math.PI, endAngle: src.endAngle * 180 / Math.PI };
+  const joinedArcs: AcDbEntity[] = [];
+  for (const e of others) if (e instanceof AcDbArc && String(e.objectId) !== String(src.objectId)) {
+   const cand = { center: [e.center.x, e.center.y] as P2, radius: e.radius, startAngle: e.startAngle * 180 / Math.PI, endAngle: e.endAngle * 180 / Math.PI };
+   const merged = joinArcs(curArc, cand);
+   if (merged) { curArc = merged; joinedArcs.push(e); }
+  }
+  if (joinedArcs.length > 0) {
+   const newArc = new AcDbArc(new AcGePoint3d(curArc.center[0], curArc.center[1], src.center.z), curArc.radius, curArc.startAngle * Math.PI / 180, curArc.endAngle * Math.PI / 180);
+   ctx.database.replace(String(src.objectId), copyProperties(src, newArc));
+   for (const e of joinedArcs) ctx.database.erase(String(e.objectId));
+   return;
+  }
+ }
+ const srcSeg = entityToChainSegment(src);
+ if (!srcSeg) { ctx.message('JOIN supports lines, arcs, and open polylines'); return; }
+ const currentPoints = [...srcSeg.points], currentBulges = [...srcSeg.bulges];
+ const joined: AcDbEntity[] = []; const pool = others.filter(e => String(e.objectId) !== String(src.objectId));
+ const near = (p: P2, q: P2) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-4;
+ let progressed = true;
+ while (progressed) {
+  progressed = false;
+  for (let i = 0; i < pool.length; i++) {
+   const cand = pool[i]; const cSeg = entityToChainSegment(cand); if (!cSeg) continue;
+   const head = currentPoints[0], tail = currentPoints[currentPoints.length - 1];
+   const candHead = cSeg.points[0], candTail = cSeg.points[cSeg.points.length - 1];
+   if (near(tail, candHead)) {
+    currentPoints.push(...cSeg.points.slice(1)); currentBulges.push(...cSeg.bulges);
+    joined.push(cand); pool.splice(i, 1); progressed = true; break;
+   } else if (near(tail, candTail)) {
+    const revPts = [...cSeg.points].reverse(), revBulges = [...cSeg.bulges].reverse().map(b => -b);
+    currentPoints.push(...revPts.slice(1)); currentBulges.push(...revBulges);
+    joined.push(cand); pool.splice(i, 1); progressed = true; break;
+   } else if (near(head, candTail)) {
+    currentPoints.unshift(...cSeg.points.slice(0, -1)); currentBulges.unshift(...cSeg.bulges);
+    joined.push(cand); pool.splice(i, 1); progressed = true; break;
+   } else if (near(head, candHead)) {
+    const revPts = [...cSeg.points].reverse(), revBulges = [...cSeg.bulges].reverse().map(b => -b);
+    currentPoints.unshift(...revPts.slice(0, -1)); currentBulges.unshift(...revBulges);
+    joined.push(cand); pool.splice(i, 1); progressed = true; break;
+   }
+  }
+ }
+ if (joined.length > 0) {
+  if (src instanceof AcDbLine && currentBulges.every(b => Math.abs(b) < 1e-6) && currentPoints.length === 2) {
+   const newLine = new AcDbLine(new AcGePoint3d(...currentPoints[0], src.startPoint.z), new AcGePoint3d(...currentPoints[1], src.endPoint.z));
+   ctx.database.replace(String(src.objectId), copyProperties(src, newLine));
+  } else {
+   const poly = new AcDbPolyline();
+   currentPoints.forEach((p, i) => poly.addVertexAt(i, new AcGePoint2d(...p), currentBulges[i] ?? 0));
+   ctx.database.replace(String(src.objectId), copyProperties(src, poly));
+  }
+  for (const e of joined) ctx.database.erase(String(e.objectId));
+ } else {
+  ctx.message('Objects cannot be joined');
+ }
+}
+
+export async function explodeCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getSelection('Select objects to explode:');
+ for (const e of src) {
+  if (e instanceof AcDbPolyline) {
+   const pts: P2[] = [], bulges: number[] = [], z = e.elevation ?? 0;
+   for (let i = 0; i < e.numberOfVertices; i++) {
+    const p = e.getPoint2dAt(i); pts.push([p.x, p.y]);
+    bulges.push((e as any)._geo?.vertices?.[i]?.bulge ?? 0);
+   }
+   const segs = explodePolyline(pts, e.closed, bulges);
+   const newEntities = segs.map(s => s.kind === 'arc'
+    ? copyProperties(e, new AcDbArc(new AcGePoint3d(s.center[0], s.center[1], z), s.radius, s.startAngle * Math.PI / 180, s.endAngle * Math.PI / 180))
+    : copyProperties(e, new AcDbLine(new AcGePoint3d(...s.start, z), new AcGePoint3d(...s.end, z)))
+   );
+   ctx.database.erase(String(e.objectId));
+   ctx.database.add(newEntities);
+  }
+ }
+}
+
+export async function stretchCommand(ctx: CadCommandContext): Promise<void> {
+ const a = await ctx.getPoint('Specify first corner:');
+ const b = await ctx.getPoint('Specify opposite corner:', { base: a });
+ const base = await ctx.getPoint('Specify base point:');
+ const to = await ctx.getPoint('Specify second point:', { base });
+ const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+ const minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
+ const isCrossing = b.x <= a.x;
+ const inside = (p: P2 | CadPoint3) => {
+  const x = Array.isArray(p) ? p[0] : (p as CadPoint3).x;
+  const y = Array.isArray(p) ? p[1] : (p as CadPoint3).y;
+  return x >= minX && x <= maxX && y >= minY && y <= maxY;
+ };
+ const dx = to.x - base.x, dy = to.y - base.y;
+ for (const e of ctx.database.all()) {
+  if (e instanceof AcDbLine) {
+   const sIn = inside(e.startPoint), eIn = inside(e.endPoint);
+   if (sIn && eIn) {
+    ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbLine(new AcGePoint3d(e.startPoint.x + dx, e.startPoint.y + dy, e.startPoint.z), new AcGePoint3d(e.endPoint.x + dx, e.endPoint.y + dy, e.endPoint.z))));
+   } else if (isCrossing && (sIn || eIn)) {
+    ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbLine(sIn ? new AcGePoint3d(e.startPoint.x + dx, e.startPoint.y + dy, e.startPoint.z) : e.startPoint, eIn ? new AcGePoint3d(e.endPoint.x + dx, e.endPoint.y + dy, e.endPoint.z) : e.endPoint)));
+   }
+  } else if (e instanceof AcDbPolyline) {
+   const pts: P2[] = Array.from({ length: e.numberOfVertices }, (_, i) => [e.getPoint2dAt(i).x, e.getPoint2dAt(i).y]);
+   const insideFlags = pts.map(p => inside(p));
+   if (insideFlags.every(Boolean) || (isCrossing && insideFlags.some(Boolean))) {
+    const newPts = stretchPolyline(pts, inside, [dx, dy]);
+    const c = new AcDbPolyline(); c.closed = e.closed;
+    newPts.forEach((p, i) => c.addVertexAt(i, new AcGePoint2d(...p), (e as any)._geo?.vertices?.[i]?.bulge ?? 0));
+    ctx.database.replace(String(e.objectId), copyProperties(e, c));
+   }
+  } else if (e instanceof AcDbCircle) {
+   if (inside([e.center.x, e.center.y])) {
+    ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbCircle(new AcGePoint3d(e.center.x + dx, e.center.y + dy, e.center.z), e.radius)));
+   }
+  } else if (e instanceof AcDbArc) {
+   const sPt: P2 = [e.center.x + e.radius * Math.cos(e.startAngle), e.center.y + e.radius * Math.sin(e.startAngle)];
+   const ePt: P2 = [e.center.x + e.radius * Math.cos(e.endAngle), e.center.y + e.radius * Math.sin(e.endAngle)];
+   if (inside([e.center.x, e.center.y]) && inside(sPt) && inside(ePt)) {
+    ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbArc(new AcGePoint3d(e.center.x + dx, e.center.y + dy, e.center.z), e.radius, e.startAngle, e.endAngle)));
+   }
+  }
+ }
+}
+
+export async function lengthenCommand(ctx: CadCommandContext): Promise<void> {
+ const mode = (await ctx.getKeyword('Specify [Delta/Percent/Total] <Delta>:', ['Delta', 'Percent', 'Total'], { default: 'Delta' })).toLowerCase();
+ let value: number;
+ if (mode === 'percent') value = await ctx.getDistance('Enter percent length:');
+ else if (mode === 'total') value = await ctx.getDistance('Enter total length:');
+ else value = await ctx.getDistance('Enter delta length:');
+ const pick = await ctx.getEntityPick('Select object to lengthen:'); if (!pick.entity || !pick.point) return; const e = pick.entity;
+ const pickPt: P2 = [pick.point.x, pick.point.y];
+ if (e instanceof AcDbLine) {
+  const curLen = Math.hypot(e.endPoint.x - e.startPoint.x, e.endPoint.y - e.startPoint.y);
+  let delta = 0;
+  if (mode === 'delta') delta = value;
+  else if (mode === 'total') delta = value - curLen;
+  else if (mode === 'percent') delta = curLen * (value / 100 - 1);
+  const r = lengthenLine([e.startPoint.x, e.startPoint.y], [e.endPoint.x, e.endPoint.y], delta, pickPt);
+  ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbLine(new AcGePoint3d(...r.start, e.startPoint.z), new AcGePoint3d(...r.end, e.endPoint.z))));
+ } else if (e instanceof AcDbArc) {
+  const sDeg = e.startAngle * 180 / Math.PI, eDeg = e.endAngle * 180 / Math.PI;
+  const sweep = ((eDeg - sDeg) % 360 + 360) % 360 || 360;
+  const curLen = e.radius * (sweep * Math.PI / 180);
+  let delta = 0;
+  if (mode === 'delta') delta = value;
+  else if (mode === 'total') delta = value - curLen;
+  else if (mode === 'percent') delta = curLen * (value / 100 - 1);
+  const r = lengthenArc([e.center.x, e.center.y], e.radius, sDeg, eDeg, delta, pickPt);
+  ctx.database.replace(String(e.objectId), copyProperties(e, new AcDbArc(new AcGePoint3d(r.center[0], r.center[1], e.center.z), r.radius, r.startAngle * Math.PI / 180, r.endAngle * Math.PI / 180)));
+ } else {
+  ctx.message('LENGTHEN supports lines and arcs');
+ }
+}
+
+export async function alignCommand(ctx: CadCommandContext): Promise<void> {
+ const selected = await ctx.getSelection('Select objects to align:'); const s1 = await ctx.getPoint('Specify first source point:'); const d1 = await ctx.getPoint('Specify first destination point:'); const s2 = await ctx.getPoint('Specify second source point:'); const d2 = await ctx.getPoint('Specify second destination point:'); const scale = (await ctx.getKeyword('Scale objects based on alignment points? [Yes/No] <No>', ['Yes', 'No'], { default: 'No' })).toLowerCase() === 'yes'; const angle = Math.atan2(d2.y - d1.y, d2.x - d1.x) - Math.atan2(s2.y - s1.y, s2.x - s1.x); const factor = scale ? Math.hypot(d2.x - d1.x, d2.y - d1.y) / Math.hypot(s2.x - s1.x, s2.y - s1.y) : 1; const matrix = pointTransform(s1, factor, angle, d1);
+ for (const e of selected) ctx.database.replace(String(e.objectId), cloneTransform(e, matrix));
 }
 
 function entityToGeom(e: AcDbEntity): GeomShape | undefined {
