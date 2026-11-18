@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) SAEngine contributors. All rights reserved.
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -11,6 +11,7 @@ import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measur
 import { registerAnnotationCommands } from './annotationCommands.js';
 import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
+import { registerBlockCommands } from './blockCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -124,6 +125,8 @@ export interface CadEditor {
 	focusCommandLine(): void;
 	/** Called when the user changes the open drawing (an undoable edit); returns an unsubscribe function. */
 	onDidChange(listener: () => void): () => void;
+	/** Called with the WBLOCK output name and DXF text so the host can present a save dialog. */
+	onWblock(listener: (name: string, dxfText: string) => void): () => void;
 	dispose(): Promise<void>;
 }
 
@@ -166,6 +169,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerAnnotationCommands();
 	registerHatchCommands();
 	registerDimensionCommands();
+	registerBlockCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
@@ -179,6 +183,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 		}
 	};
+	const wblockListeners = new Set<(name: string, dxfText: string) => void>();
+	(globalThis as any).__saengineWblockListeners = wblockListeners;
 	setChrome({ commandLine: true, shortcutToolbar: true, ...options.chrome });
 	const chromeListeners = new Set<() => void>();
 	const onSettingChanged = (args: { key: string }) => {
@@ -341,15 +347,25 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
 		},
+		onWblock: listener => {
+			wblockListeners.add(listener);
+			return () => wblockListeners.delete(listener);
+		},
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
 				AcApXrefManager.instance.unload(underlaySession);
 			}
 			listeners.clear();
+			wblockListeners.clear();
+			delete (globalThis as any).__saengineWblockListeners;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			await manager.destroy();
 		},
 	};
 }
+
+
+
+
