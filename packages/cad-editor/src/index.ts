@@ -13,6 +13,10 @@ import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands 
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
 import { registerDrawCommands } from './drawCommands.js';
+import {
+	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
+	setActiveDraftingManager,
+} from './draftingAids.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -43,6 +47,18 @@ export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
+export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
+export {
+	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
+	OSNAP_MODE_BY_KEYWORD, OSNAP_OVERRIDE_KEYWORDS,
+	osnapCommand, polarangCommand, orthoCommand, polarCommand, dynCommand,
+	registerDraftingCommands,
+} from './draftingAids.js';
+export {
+	perpendicularFoot, tangentPointsToCircle, polarSnapAngle, snapPointToPolarRay,
+	orthoConstraint, snapToGrid, geometricCenter,
+	type DraftingPoint2D, type DraftingPoint3D,
+} from './draftingAidsGeometry.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -84,6 +100,15 @@ export interface CadUnderlay {
 	readonly scale?: number;
 	/** Rotation about its origin, in degrees. */
 	readonly rotation?: number;
+}
+
+export interface CadDraftingApi {
+	/** Gets current drafting aid settings. */
+	get(): DraftingSettings;
+	/** Updates drafting aid settings. */
+	set(settings: Partial<DraftingSettings>): void;
+	/** Called when drafting aids settings change; returns an unsubscribe function. */
+	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
 }
 
 export interface CadEditor {
@@ -130,6 +155,10 @@ export interface CadEditor {
 	onDidChange(listener: () => void): () => void;
 	/** Called with the WBLOCK output name and DXF text so the host can present a save dialog. */
 	onWblock(listener: (name: string, dxfText: string) => void): () => void;
+	/** Drafting aids controls and settings (OSNAP, ORTHO, POLAR, DYN, GRID, SNAP, OTRACK). */
+	readonly drafting: CadDraftingApi;
+	/** Called when drafting aids settings change; returns an unsubscribe function. */
+	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
 	dispose(): Promise<void>;
 }
 
@@ -174,6 +203,16 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerDimensionCommands();
 	registerBlockCommands();
 	registerDrawCommands();
+
+	const draftingManager = new DraftingAidsManager(options.container, () => {
+		try {
+			return manager.curDocument.database;
+		} catch {
+			return undefined;
+		}
+	});
+	setActiveDraftingManager(draftingManager);
+	registerDraftingCommands(registerCommand);
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
@@ -355,6 +394,12 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			wblockListeners.add(listener);
 			return () => wblockListeners.delete(listener);
 		},
+		drafting: {
+			get: () => draftingManager.get(),
+			set: settings => draftingManager.set(settings),
+			onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
+		},
+		onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
@@ -365,6 +410,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			delete (globalThis as any).__saengineWblockListeners;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
+			draftingManager.dispose();
+			setActiveDraftingManager(undefined);
 			await manager.destroy();
 		},
 	};
