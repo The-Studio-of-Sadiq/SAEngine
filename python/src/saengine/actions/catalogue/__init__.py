@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from saengine.actions.catalogue import (  # noqa: F401 - each module registers its actions
+    drafting,
     foundations,
     grid,
     loads,

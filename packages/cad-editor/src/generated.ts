@@ -118,3 +118,44 @@ export function applyGenerated(database: AcDbDatabase, previous: ReadonlySet<str
 	}
 	return new Set(entities.map(e => e.objectId));
 }
+
+export interface DxfOutOptions {
+	readonly excludeGenerated?: boolean;
+	readonly generated?: ReadonlySet<string>;
+	readonly preview?: ReadonlySet<string>;
+	readonly generatedLayers?: ReadonlySet<string>;
+}
+
+/**
+ * Serializes the database to DXF text (AutoCAD 2018 format), optionally excluding
+ * generated/preview entities and their layers.
+ */
+export function dxfOut(database: AcDbDatabase, options?: DxfOutOptions): string {
+	if (options?.excludeGenerated) {
+		const db = database as any;
+		const origWriteEntity = db.writeDxfEntity;
+		const origWriteTable = db.writeDxfTable;
+		try {
+			db.writeDxfEntity = function (filer: any, entity: any) {
+				if (options.generated?.has(entity.objectId) || options.preview?.has(entity.objectId) || (entity.layer && options.generatedLayers?.has(entity.layer))) {
+					return;
+				}
+				return origWriteEntity.call(this, filer, entity);
+			};
+			db.writeDxfTable = function (filer: any, tableName: string, table: any, records: any, recordType: string) {
+				if (tableName === 'LAYER' && options.generatedLayers?.size) {
+					const filtered = Array.from(records).filter((r: any) => r.name !== '0' && !options.generatedLayers!.has(r.name));
+					return origWriteTable.call(this, filer, tableName, table, filtered, recordType);
+				}
+				return origWriteTable.call(this, filer, tableName, table, records, recordType);
+			};
+			const out = database.dxfOut(undefined, 6, 'AC1032');
+			return typeof out === 'string' ? out : new TextDecoder().decode(out);
+		} finally {
+			db.writeDxfEntity = origWriteEntity;
+			db.writeDxfTable = origWriteTable;
+		}
+	}
+	const out = database.dxfOut(undefined, 6, 'AC1032');
+	return typeof out === 'string' ? out : new TextDecoder().decode(out);
+}

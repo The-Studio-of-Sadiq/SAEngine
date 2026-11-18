@@ -2625,3 +2625,23 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   C24.1, the grade the starting section types already use). A new project does not know its
   seismic system yet, so it starts on the safe side. Before, the first grade in the list (C20.7)
   was used and a fresh project failed the seismic minimum.
+- **Drafting on the floor plan (2026-11-17, owner, #311).** AutoCAD-like lines, polylines
+  (closed ones are rectangles and polygons), arcs and circles are stored in `floor-plan.json`
+  under `drafting`, separate from the members. Each shape belongs to one storey, as members do,
+  and typical-floor copy copies it. A drafted line or closed shape can become a beam, wall or
+  slab at any coordinates, not only on grid points: the member actions will take coordinates.
+  Drafts export to the DXF/DWG drawings on their own layer (`DRAFT`), which the engineer can turn
+  off.
+- **One drafting system: the CAD library's DXF model (2026-11-18, owner).** Floor plan drafting
+  moves onto the CAD library's own editable drawing (mlightcad, MIT): an editable DXF per storey
+  beside the floor plan, so its AutoCAD-style commands work there and the entities (ellipse,
+  spline, hatch, text, dimensions, blocks) round-trip with AutoCAD and LibreCAD. The drafts added
+  for #311 in floor-plan.json move onto it; convert-to-members reads it. The missing commands
+  (trim, extend, fillet, chamfer, mirror, stretch, scale, arrays, hatch, dimension types, blocks
+  and the rest) are added to the library's command set, not built a second time.
+- **Floor plan CAD parity target (2026-11-18, owner).** AutoCAD 2D drafting: draw, modify,
+  annotation (text, every dimension type, leaders, hatch, tables), blocks with attributes,
+  layers and properties, all object snaps, ortho, polar and object snap tracking, selection
+  modes, inquiry and grips. Layouts, viewports and plotting stay in 11 Drawings. This replaces
+  the earlier decision that trim, extend, fillet and the like were out of scope because LibreCAD
+  is bundled.

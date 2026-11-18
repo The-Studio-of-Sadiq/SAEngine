@@ -567,6 +567,7 @@ def test_release_version() -> None:
         release.release_version("Pre-Alpha-v5", None, "Fix the soil page")
     with pytest.raises(release.ReleaseError, match="Pre-Alpha-v"):
         release.release_number("v1.0")
+    assert release.release_version("Alpha-v1", None, "v0.0.50") == "0.0.50-alpha.1"
 
 
 def test_test_build_version() -> None:

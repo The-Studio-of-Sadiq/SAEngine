@@ -514,13 +514,14 @@ export type FloorPlanCommand =
 	| { readonly kind: 'mirror'; readonly axis: 'x' | 'y'; readonly label: string; readonly keep: boolean }
 	| { readonly kind: 'rotate'; readonly degrees: number; readonly absolute: boolean }
 	| { readonly kind: 'tostories'; readonly stories?: readonly string[] }
+	| { readonly kind: 'convert'; readonly target: 'beam' | 'wall' | 'slab' }
 	| { readonly kind: 'delete' }
 	| { readonly kind: 'help' }
 	| { readonly kind: 'undo'; readonly redo: boolean }
 	| { readonly kind: 'error'; readonly message: string };
 
 /** The command words the floor plan answers on the command line; the rest go to the CAD editor. */
-export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete', 'help', '?', 'undo', 'u', 'redo'] as const;
+export const FLOOR_PLAN_COMMANDS = ['select', 'fill', 'copy', 'move', 'mirror', 'array', 'tostories', 'rotate', 'delete', 'convert', 'help', '?', 'undo', 'u', 'redo'] as const;
 
 /** The floor plan's commands with how to type them, for `help` and the command line's suggestions. */
 export const COMMAND_HELP: readonly { readonly usage: string; readonly description: string }[] = [
@@ -533,6 +534,7 @@ export const COMMAND_HELP: readonly { readonly usage: string; readonly descripti
 	{ usage: 'rotate <degrees> | rotate to <degrees>', description: localize('help.rotate', "Rotate the selected columns") },
 	{ usage: 'tostories [all | <story> ...]', description: localize('help.tostories', "Copy the selection to other stories") },
 	{ usage: 'delete', description: localize('help.delete', "Delete the selection") },
+	{ usage: 'convert beam | wall | slab', description: localize('help.convert', "Convert selected draft shapes to structural members") },
 	{ usage: 'undo | redo', description: localize('help.undo', "Undo or redo the last change of the plan") },
 	{ usage: 'help', description: localize('help.help', "This list") },
 ];
@@ -664,6 +666,11 @@ export function parseCommand(text: string, layout: unknown): FloorPlanCommand | 
 		}
 		case 'delete':
 			return { kind: 'delete' };
+		case 'convert': {
+			const targets: { [word: string]: 'beam' | 'wall' | 'slab' } = { beam: 'beam', beams: 'beam', wall: 'wall', walls: 'wall', slab: 'slab', slabs: 'slab' };
+			const target = targets[rest[0]?.toLowerCase() ?? ''];
+			return rest.length === 1 && target ? { kind: 'convert', target } : usage(localize('cmd.convertUsage', "convert beam | wall | slab"));
+		}
 		case 'help':
 		case '?':
 			return { kind: 'help' };

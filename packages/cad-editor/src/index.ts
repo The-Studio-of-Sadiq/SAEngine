@@ -1,17 +1,122 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) SAEngine contributors. All rights reserved.
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
-import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
+import { AcDbSystemVariables, AcDbSysVarManager } from '@mlightcad/data-model';
+import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
+import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
+import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
+import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { registerAnnotationCommands } from './annotationCommands.js';
+import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
+import { registerDimensionCommands } from './dimensionCommands.js';
+import { registerBlockCommands } from './blockCommands.js';
+import { registerDrawCommands } from './drawCommands.js';
+import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
+import {
+	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
+	setActiveDraftingManager,
+} from './draftingAids.js';
+import {
+	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
+} from './selectionModes.js';
+import { pickDrafting, pickDraftingWindow } from './selectionGeometry.js';
+import {
+	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
+	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
+	layonCommand, laythwCommand, laymcurCommand, laymrgCommand, matchpropCommand,
+	type CadLayerProps, type CadLayerPatch, type CadLayerInfo,
+} from './layerCommands.js';
+import {
+	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	colorCommand, lweightCommand, chpropCommand,
+	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+} from './properties.js';
+import {
+	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
+	linetypeCommand, ltscaleCommand, celtscaleCommand,
+	type BuiltinLinetypeDefinition,
+} from './linetypes.js';
 
-export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
+export {
+	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
+	type CadLayerProps, type CadLayerPatch, type CadLayerInfo,
+	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
+	layonCommand, laythwCommand, laymcurCommand, laymrgCommand, matchpropCommand,
+} from './layerCommands.js';
+export {
+	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+	colorCommand, lweightCommand, chpropCommand,
+} from './properties.js';
+export {
+	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
+	linetypeCommand, ltscaleCommand, celtscaleCommand,
+	type BuiltinLinetypeDefinition,
+} from './linetypes.js';
+
+export { SelectionWorkingSet, filterSelection, getPreviousSelection, setPreviousSelection } from './selectionModes.js';
+export * from './selectionGeometry.js';
+
+export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
+export { entityToSelectedGeometry, type CadSelectedEntity } from './entityAccess.js';
+export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
+export {
+	alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
+	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPointPickResult, type CadPromptEntityOptions, type CadPromptPointOptions, type CadSelection,
+} from './commands.js';
+export * from './modifyGeometry.js';
+export * from './modifyGeometry2.js';
+export {
+	arcFromBulge, polylineMetrics, curveSegments, totalLength, pointAlong, divideCurve, measureCurve,
+	circleMetrics, ellipseMetrics, arcSegmentMetrics, arcIncludedAngle, angleBetweenVectors, angleBetweenLines,
+	threePointAngle,
+} from './inquiryGeometry.js';
+export {
+	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
+} from './inquiryCommands.js';
+export {
+	boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands,
+} from './hatchCommands.js';
+export {
+	detectBoundaryFromPoint, detectLoopsFromObjects, extractSegmentsFromEntity,
+	findMinimalEnclosingLoop, isPointInside, type HatchLoop, type HatchSegment, type HatchVertex,
+} from './hatchGeometry.js';
+export { polylineVertices, type PolylineData } from './entityAccess.js';
+export * from './dimensionCommands.js';
+export * from './dimensionGeometry.js';
+export * from './drawCommands.js';
+export * from './drawGeometry.js';
+export {
+	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
+	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
+	type GripPoint2D,
+} from './gripGeometry.js';
+export * from './gripEdit.js';
+export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
+export {
+	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
+	OSNAP_MODE_BY_KEYWORD, OSNAP_OVERRIDE_KEYWORDS,
+	osnapCommand, polarangCommand, orthoCommand, polarCommand, dynCommand,
+	registerDraftingCommands,
+} from './draftingAids.js';
+export {
+	perpendicularFoot, tangentPointsToCircle, polarSnapAngle, snapPointToPolarRay,
+	orthoConstraint, snapToGrid, geometricCenter,
+	type DraftingPoint2D, type DraftingPoint3D,
+} from './draftingAidsGeometry.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
+
+export interface ToDxfOptions {
+	/** When true, entities and layers created by {@link CadEditor.setGenerated} or {@link CadEditor.setPreview} are excluded. */
+	readonly excludeGenerated?: boolean;
+}
 
 export interface CadEditorOptions {
 	readonly container: HTMLElement;
@@ -47,7 +152,35 @@ export interface CadUnderlay {
 	readonly rotation?: number;
 }
 
+export interface CadDraftingApi {
+	/** Gets current drafting aid settings. */
+	get(): DraftingSettings;
+	/** Updates drafting aid settings. */
+	set(settings: Partial<DraftingSettings>): void;
+	/** Called when drafting aids settings change; returns an unsubscribe function. */
+	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
+}
+
+export interface CadGripSettings {
+	readonly enabled: boolean;
+	readonly size: number;
+	readonly objLimit: number;
+}
+
+export interface CadGripApi {
+	/** Gets current grip settings from system variables (GRIPS, GRIPSIZE, GRIPOBJLIMIT). */
+	get(): CadGripSettings;
+	/** Updates grip settings via system variables. */
+	set(settings: Partial<CadGripSettings>): void;
+}
+
 export interface CadEditor {
+	readonly selection: {
+		get(): readonly string[];
+		set(ids: readonly string[]): void;
+		previous(): readonly string[];
+		onDidChangeSelection(listener: (ids: readonly string[]) => void): () => void;
+	};
 	/** Opens DXF text as the drawing; `name` is its title. */
 	openDxf(name: string, dxf: string): Promise<boolean>;
 	/**
@@ -74,9 +207,19 @@ export interface CadEditor {
 	/** Fits the whole drawing in the view. */
 	zoomExtents(): void;
 	/** The drawing as DXF text (AutoCAD 2018 format). */
-	toDxf(): string;
+	toDxf(options?: ToDxfOptions): string;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
+	/** Whether an interactive CAD command is currently active. */
+	isCommandActive(): boolean;
+	/** Selected drafting entities' geometry (excluding generated / preview entities). */
+	getSelectedEntities(): readonly CadSelectedEntity[];
+	/** Ids of non-generated, non-locked, visible entities whose geometry is within tolerancePx (screen) of the point, nearest first. */
+	pickDrafting(clientX: number, clientY: number, tolerancePx?: number): string[];
+	/** Ids of non-generated, non-locked, visible entities matching a window or crossing box selection. */
+	pickDraftingWindow(start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[];
+	/** Erases entities by handle from the drawing in an undoable transaction and clears selection. */
+	eraseEntities(handles: readonly string[]): void;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
 	setBackground(rgb: number): void;
 	/** Shows or hides mlightcad's own controls (fields left out stay as they are). */
@@ -89,6 +232,29 @@ export interface CadEditor {
 	focusCommandLine(): void;
 	/** Called when the user changes the open drawing (an undoable edit); returns an unsubscribe function. */
 	onDidChange(listener: () => void): () => void;
+	/** Called with the WBLOCK output name and DXF text so the host can present a save dialog. */
+	onWblock(listener: (name: string, dxfText: string) => void): () => void;
+	/** Drafting aids controls and settings (OSNAP, ORTHO, POLAR, DYN, GRID, SNAP, OTRACK). */
+	readonly drafting: CadDraftingApi;
+	/** Called when drafting aids settings change; returns an unsubscribe function. */
+	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
+	/** Grip editing settings (enabled, size, objLimit). */
+	readonly grips: CadGripApi;
+	/** Layer management API (list, add, set, delete, current, setCurrent, onDidChangeLayers). */
+	readonly layers: {
+		list(): readonly CadLayerInfo[];
+		add(name: string, props?: CadLayerProps): void;
+		set(name: string, patch: CadLayerPatch): void;
+		delete(name: string): void;
+		current(): string;
+		setCurrent(name: string): void;
+		onDidChangeLayers(listener: () => void): () => void;
+	};
+	/** Object properties API (get common values with 'varies', set inside one transaction). */
+	readonly properties: {
+		get(ids?: readonly string[]): CadPropertiesResult;
+		set(ids: readonly string[], patch: CadPropertiesPatch): void;
+	};
 	dispose(): Promise<void>;
 }
 
@@ -106,6 +272,174 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	if (!manager) {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
+	registerCommand('MIRROR', mirrorCommand);
+	registerCommand('SCALE', scaleCommand);
+	registerCommand('ARRAYRECT', arrayRectCommand, { aliases: ['AR'] });
+	registerCommand('ARRAYPOLAR', arrayPolarCommand);
+	registerCommand('BREAK', breakCommand);
+	registerCommand('BREAKATPOINT', breakAtPointCommand);
+	registerCommand('JOIN', joinCommand);
+	registerCommand('EXPLODE', explodeCommand);
+	registerCommand('STRETCH', stretchCommand);
+	registerCommand('LENGTHEN', lengthenCommand);
+	registerCommand('ALIGN', alignCommand);
+	registerCommand('TRIM', trimCommand, { aliases: ['TR'] });
+	registerCommand('EXTEND', extendCommand, { aliases: ['EX'] });
+	registerCommand('FILLET', filletCommand, { aliases: ['F'] });
+	registerCommand('CHAMFER', chamferCommand, { aliases: ['CHA'] });
+	registerCommand('DIST', distCommand, { aliases: ['DI'], mode: AcEdOpenMode.Read });
+	registerCommand('MEASUREGEOM', measureGeomCommand, { aliases: ['MEA'], mode: AcEdOpenMode.Read });
+	registerCommand('AREA', areaCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('ID', idCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
+	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
+	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerCommand('SELECT', async ctx => {
+		const picked = await ctx.getSelection('Select objects:');
+		const ids = picked.map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+	});
+	registerCommand('QSELECT', async ctx => {
+		const prop = await ctx.getKeyword('Filter by [Type/Layer/Colour] <Type>:', ['Type', 'Layer', 'Colour', 'Color'], { default: 'Type' });
+		const upper = prop.toUpperCase();
+		let filters: SelectionFilters = {};
+		if (upper.startsWith('T')) {
+			const type = await ctx.getString('Entity type (blank for any):', { allowEmpty: true });
+			filters = { type };
+		} else if (upper.startsWith('L')) {
+			const layer = await ctx.getString('Layer (blank for any):', { allowEmpty: true });
+			filters = { layer };
+		} else {
+			const color = await ctx.getString('Color (blank for any):', { allowEmpty: true });
+			filters = { color };
+		}
+		const ids = filterSelection(ctx.database.all(), filters).map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} object(s) selected`);
+	});
+	registerCommand('SELECTSIMILAR', async ctx => {
+		const selected = await ctx.getSelection('Select objects to match:');
+		const keys = new Set(selected.map(e => `${e.dxfTypeName}\u0000${e.layer}`));
+		const ids = ctx.database.all().filter(e => keys.has(`${e.dxfTypeName}\u0000${e.layer}`)).map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} similar object(s) selected`);
+	});
+	registerCommand('SELECTALL', async ctx => {
+		const ids = ctx.database.all().map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} object(s) selected`);
+	});
+	registerAnnotationCommands();
+	registerHatchCommands();
+	registerDimensionCommands();
+	registerBlockCommands();
+	registerDrawCommands();
+	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
+	registerCommand('-LAYER', layerCommand);
+	registerCommand('LAYCUR', laycurCommand);
+	registerCommand('LAYISO', layisoCommand);
+	registerCommand('LAYUNISO', layunisoCommand);
+	registerCommand('LAYOFF', layoffCommand);
+	registerCommand('LAYFRZ', layfrzCommand);
+	registerCommand('LAYON', layonCommand);
+	registerCommand('LAYTHW', laythwCommand);
+	registerCommand('LAYMCUR', laymcurCommand);
+	registerCommand('LAYMRG', laymrgCommand);
+	registerCommand('MATCHPROP', matchpropCommand, { aliases: ['MA'] });
+	registerCommand('CHPROP', chpropCommand);
+	registerCommand('CHANGE', chpropCommand);
+	registerCommand('COLOR', colorCommand, { aliases: ['COL'] });
+	registerCommand('LWEIGHT', lweightCommand, { aliases: ['LW'] });
+	registerCommand('LINETYPE', linetypeCommand, { aliases: ['LT', '-LINETYPE'] });
+	registerCommand('LTSCALE', ltscaleCommand);
+	registerCommand('CELTSCALE', celtscaleCommand);
+	registerGripCommands(registerCommand);
+
+	let gripDefaults: CadGripSettings = {
+		enabled: true,
+		size: 5,
+		objLimit: 100,
+	};
+	const getDb = () => {
+		try {
+			return manager.curDocument.database;
+		} catch {
+			return undefined;
+		}
+	};
+	const sysVars = AcDbSysVarManager.instance();
+	const grips: CadGripApi = {
+		get: () => {
+			const db = getDb();
+			if (!db) return { ...gripDefaults };
+			const gripsVar = sysVars.getVar(AcDbSystemVariables.GRIPS, db);
+			const sizeVar = sysVars.getVar(AcDbSystemVariables.GRIPSIZE, db);
+			const limitVar = sysVars.getVar(AcDbSystemVariables.GRIPOBJLIMIT, db);
+			return {
+				enabled: gripsVar !== undefined ? Number(gripsVar) !== 0 : gripDefaults.enabled,
+				size: sizeVar !== undefined ? Number(sizeVar) : gripDefaults.size,
+				objLimit: limitVar !== undefined ? Number(limitVar) : gripDefaults.objLimit,
+			};
+		},
+		set: (patch: Partial<CadGripSettings>) => {
+			const db = getDb();
+			if (patch.enabled !== undefined) {
+				gripDefaults = { ...gripDefaults, enabled: patch.enabled };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPS, patch.enabled ? 2 : 0, db);
+			}
+			if (patch.size !== undefined) {
+				gripDefaults = { ...gripDefaults, size: patch.size };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPSIZE, patch.size, db);
+			}
+			if (patch.objLimit !== undefined) {
+				gripDefaults = { ...gripDefaults, objLimit: patch.objLimit };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPOBJLIMIT, patch.objLimit, db);
+			}
+			try {
+				(manager.curView as any)?.gripManager?.refresh?.();
+			} catch {}
+		},
+	};
+
+	const attachViewGripHook = () => {
+		try {
+			const view = manager.curView as any;
+			if (view?.gripManager && !view._saengineGripHookAttached) {
+				view._saengineGripHookAttached = true;
+				const origStartEdit = view.gripManager.startEdit.bind(view.gripManager);
+				view.gripManager.startEdit = function (entry: any) {
+					setActiveGripContext({
+						entityId: entry.entityId,
+						gripIndex: entry.gripIndex,
+						basePoint: entry.wcsPoint,
+						selectedIds: [...(view.selectionSet?.ids ?? [])],
+					});
+					const gripManager = view.gripManager;
+					// GRIPEDIT replaces the library's drag session, so clear the hot grip and rebuild
+					// the handles from the edited geometry when it ends (the library's endEdit does both).
+					manager.executeCommandString('GRIPEDIT').then(
+						() => gripManager.endEdit?.(),
+						() => origStartEdit(entry),
+					);
+				};
+			}
+		} catch {}
+	};
+	attachViewGripHook();
+
+	const draftingManager = new DraftingAidsManager(options.container, () => {
+		try {
+			return manager.curDocument.database;
+		} catch {
+			return undefined;
+		}
+	});
+	setActiveDraftingManager(draftingManager);
+	registerDraftingCommands(registerCommand);
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
@@ -119,6 +453,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 		}
 	};
+	const wblockListeners = new Set<(name: string, dxfText: string) => void>();
+	(globalThis as any).__saengineWblockListeners = wblockListeners;
 	setChrome({ commandLine: true, shortcutToolbar: true, ...options.chrome });
 	const chromeListeners = new Set<() => void>();
 	const onSettingChanged = (args: { key: string }) => {
@@ -137,10 +473,21 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	applyBackground();
 
 	const listeners = new Set<() => void>();
+	const layerListeners = new Set<() => void>();
+	const selectionListeners = new Set<(ids: readonly string[]) => void>();
+	let committedSelection: readonly string[] = [];
 	let generated = new Set<string>();
+	let generatedLayers = new Set<string>();
+	(globalThis as any).__saengineGeneratedLayers = generatedLayers;
 	let preview = new Set<string>();
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
+	let activeCommand = false;
+	const viewEditor = (manager.curView as any)?.editor;
+	if (viewEditor?.events) {
+		viewEditor.events.commandWillStart?.addEventListener(() => { activeCommand = true; });
+		viewEditor.events.commandEnded?.addEventListener(() => { activeCommand = false; });
+	}
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
 	// is what lands on the undo stack (every command runs in an undoable transaction).
 	let checkQueued = false;
@@ -157,10 +504,21 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 		});
 	};
+	const notifyLayersChanged = () => {
+		layerListeners.forEach(listener => listener());
+	};
 	// Generated entities belong to the host's model: keep them out of every selection, so no
 	// command can move or erase them.
-	const deselectGenerated = ({ ids }: { ids: string[] }) => {
-		const owned = ids.filter(id => generated.has(id) || preview.has(id));
+	const deselectGeneratedAndLocked = ({ ids }: { ids: string[] }) => {
+		const db = getDb();
+		const owned = ids.filter(id => {
+			if (generated.has(id) || preview.has(id)) return true;
+			if (db) {
+				const ent = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+				if (ent?.layer && db.tables?.layerTable?.getAt(ent.layer)?.isLocked) return true;
+			}
+			return false;
+		});
 		if (owned.length) {
 			manager.curView.selectionSet.delete(owned);
 		}
@@ -171,20 +529,33 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		const events = manager.curDocument.database.events;
 		const managers = [events.entityAppended, events.entityModified, events.entityErased, events.layerAppended, events.layerModified, events.layerErased];
 		managers.forEach(m => m.addEventListener(fire));
+		const layerManagers = [events.layerAppended, events.layerModified, events.layerErased];
+		layerManagers.forEach(m => m.addEventListener(notifyLayersChanged));
 		const selection = manager.curView.selectionSet;
-		selection.events.selectionAdded.addEventListener(deselectGenerated);
+		const onSelectionChanged = () => {
+			committedSelection = [...selection.ids];
+			selectionListeners.forEach(listener => listener(committedSelection));
+		};
+		selection.events.selectionAdded.addEventListener(onSelectionChanged);
+		selection.events.selectionRemoved.addEventListener(onSelectionChanged);
+		selection.events.selectionAdded.addEventListener(deselectGeneratedAndLocked);
 		unsubscribeDocument = () => {
 			managers.forEach(m => m.removeEventListener(fire));
-			selection.events.selectionAdded.removeEventListener(deselectGenerated);
+			layerManagers.forEach(m => m.removeEventListener(notifyLayersChanged));
+			selection.events.selectionAdded.removeEventListener(onSelectionChanged);
+			selection.events.selectionRemoved.removeEventListener(onSelectionChanged);
+			selection.events.selectionAdded.removeEventListener(deselectGeneratedAndLocked);
 		};
 	};
 	const opened = (ok: boolean) => {
 		if (ok) {
 			generated = new Set();
+			generatedLayers = new Set();
 			preview = new Set();
 			watchDocument();
 			// Opening a drawing applies its own background (MODELBKCOLOR); the host's wins.
 			applyBackground();
+			attachViewGripHook();
 		}
 		return ok;
 	};
@@ -195,6 +566,29 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		opened(await manager.openDocument(name, encoder.encode(dxf).buffer as ArrayBuffer, { mode, openViewMode: AcApOpenViewMode.Extents }));
 
 	return {
+		selection: {
+			get: () => [...(manager.curView?.selectionSet?.ids ?? [])],
+			set: ids => {
+				const selection = manager.curView?.selectionSet;
+				if (!selection) return;
+				selection.clear();
+				const db = getDb();
+				const filtered = ids.filter(id => {
+					if (generated.has(id) || preview.has(id)) return false;
+					if (db) {
+						const ent = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+						if (ent?.layer && db.tables?.layerTable?.getAt(ent.layer)?.isLocked) return false;
+					}
+					return true;
+				});
+				if (filtered.length) selection.add(filtered);
+				setPreviousSelection(filtered);
+				committedSelection = [...selection.ids];
+				selectionListeners.forEach(listener => listener(committedSelection));
+			},
+			previous: () => [...getPreviousSelection()],
+			onDidChangeSelection: listener => { selectionListeners.add(listener); return () => selectionListeners.delete(listener); },
+		},
 		openDxf: (name, dxf) => open(name, dxf, AcEdOpenMode.Write),
 		newDrawing: async drawingOptions => {
 			if (!drawingOptions?.readOnly) {
@@ -205,7 +599,19 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return template.ok && open('', await template.text(), AcEdOpenMode.Read);
 		},
 		setGenerated: drawing => {
+			const sel = manager.curView?.selectionSet;
+			const saved = sel ? [...sel.ids] : [];
+			for (const layer of drawing.layers) {
+				generatedLayers.add(layer.name);
+			}
 			generated = applyGenerated(manager.curDocument.database, generated, drawing);
+			if (sel && saved.length > 0) {
+				const current = new Set(sel.ids);
+				const missing = saved.filter(id => !current.has(id));
+				if (missing.length > 0) {
+					sel.add(missing);
+				}
+			}
 		},
 		setUnderlay: async underlay => {
 			const version = ++underlayVersion;
@@ -236,7 +642,19 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			underlaySession = session.id;
 		},
 		setPreview: drawing => {
+			const sel = manager.curView?.selectionSet;
+			const saved = sel ? [...sel.ids] : [];
+			for (const layer of drawing.layers) {
+				generatedLayers.add(layer.name);
+			}
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);
+			if (sel && saved.length > 0) {
+				const current = new Set(sel.ids);
+				const missing = saved.filter(id => !current.has(id));
+				if (missing.length > 0) {
+					sel.add(missing);
+				}
+			}
 		},
 		toWorld: (clientX, clientY) => {
 			const view = manager.curView;
@@ -251,11 +669,85 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return Math.hypot(b.x - a.x, b.y - a.y) / 100;
 		},
 		zoomExtents: () => manager.curView.zoomToFitDrawing(),
-		toDxf: () => {
-			const out = manager.curDocument.database.dxfOut(undefined, 6);
-			return typeof out === 'string' ? out : new TextDecoder().decode(out);
-		},
+		toDxf: dxfOptions => dxfOut(manager.curDocument.database, {
+			excludeGenerated: dxfOptions?.excludeGenerated,
+			generated,
+			preview,
+			generatedLayers,
+		}),
 		execute: command => manager.executeCommandString(command),
+		isCommandActive: () => {
+			try {
+				return activeCommand || !!(manager.curView as any)?.editor?.isActive;
+			} catch {
+				return activeCommand;
+			}
+		},
+		getSelectedEntities: () => {
+			const selection = manager.curView?.selectionSet;
+			if (!selection || selection.count === 0) {
+				return [];
+			}
+			const db = manager.curDocument?.database;
+			if (!db) {
+				return [];
+			}
+			const result: CadSelectedEntity[] = [];
+			for (const id of selection.ids) {
+				if (generated.has(id) || preview.has(id)) {
+					continue;
+				}
+				const entity = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+				if (entity) {
+					if (entity.layer && db.tables?.layerTable?.getAt(entity.layer)?.isLocked) {
+						continue;
+					}
+					const geom = entityToSelectedGeometry(entity);
+					if (geom) {
+						result.push(geom);
+					}
+				}
+			}
+			return result;
+		},
+		pickDrafting: (clientX: number, clientY: number, tolerancePx = 5): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			const view = manager.curView;
+			if (!view) return [];
+			const rect = view.canvas.getBoundingClientRect();
+			const world = view.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+			const a = view.screenToWorld({ x: 0, y: 0 });
+			const b = view.screenToWorld({ x: 100, y: 0 });
+			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
+			return pickDrafting(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
+		},
+		pickDraftingWindow: (start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			return pickDraftingWindow(db, start, end, mode, { generated, preview, generatedLayers });
+		},
+		eraseEntities: (handles: readonly string[]) => {
+			const db = manager.curDocument?.database;
+			if (!db) {
+				return;
+			}
+			const handleSet = new Set(handles.map(String));
+			const erase = () => {
+				for (const h of handleSet) {
+					const ent = db.openEntityForWrite?.(h) ?? db.tables?.blockTable?.modelSpace?.getIdAt(h);
+					if (ent && typeof (ent as any).erase === 'function') {
+						(ent as any).erase();
+					}
+				}
+			};
+			if (typeof (db as any).runDatabaseEdit === 'function') {
+				(db as any).runDatabaseEdit('Erase', erase);
+			} else {
+				erase();
+			}
+			manager.curView?.selectionSet?.delete([...handleSet]);
+		},
 		setBackground: rgb => {
 			background = rgb & 0xffffff;
 			applyBackground();
@@ -271,15 +763,95 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
 		},
+		onWblock: listener => {
+			wblockListeners.add(listener);
+			return () => wblockListeners.delete(listener);
+		},
+		drafting: {
+			get: () => draftingManager.get(),
+			set: settings => draftingManager.set(settings),
+			onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
+		},
+		onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
+		grips,
+		layers: {
+			list: () => {
+				const db = getDb();
+				return db ? listLayers(db, generatedLayers) : [];
+			},
+			add: (name, props) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				ensureLayer(db, name, props);
+				notifyLayersChanged();
+			},
+			set: (name, patch) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setLayer(db, name, patch, generatedLayers, (rec, ch) => {
+					try {
+						(manager.curView as any)?.updateLayer?.(rec, ch);
+					} catch {}
+					try {
+						db.events?.layerModified?.dispatch?.({ database: db, layer: rec, changes: ch });
+					} catch {}
+				});
+				notifyLayersChanged();
+			},
+			delete: name => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				deleteLayer(db, name, generatedLayers);
+				notifyLayersChanged();
+			},
+			current: () => {
+				const db = getDb();
+				return db?.clayer || '0';
+			},
+			setCurrent: name => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setCurrentLayer(db, name);
+				notifyLayersChanged();
+			},
+			onDidChangeLayers: listener => {
+				layerListeners.add(listener);
+				return () => layerListeners.delete(listener);
+			},
+		},
+		properties: {
+			get: ids => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				return getProperties(db, ids ?? [...(manager.curView?.selectionSet?.ids ?? [])], generated);
+			},
+			set: (ids, patch) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setProperties(db, ids, patch, generated);
+				fire();
+			},
+		},
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
 				AcApXrefManager.instance.unload(underlaySession);
 			}
 			listeners.clear();
+			layerListeners.clear();
+			wblockListeners.clear();
+			delete (globalThis as any).__saengineWblockListeners;
+			delete (globalThis as any).__saengineGeneratedLayers;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
+			draftingManager.dispose();
+			selectionListeners.clear();
+			setActiveDraftingManager(undefined);
 			await manager.destroy();
 		},
 	};
 }
+
+
+
+

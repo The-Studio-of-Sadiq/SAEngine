@@ -255,6 +255,72 @@ class Tower(_Model):
     )
 
 
+# ────────────────────────────────────────── drafting ──────────────────────────────────────────
+
+Coord = Annotated[float, Field(allow_inf_nan=False, description="Coordinate in mm.")]
+Point2D = Annotated[list[Coord], Field(min_length=2, max_length=2, description="[x, y] in mm.")]
+
+
+class _DraftBase(_Model):
+    id: Id
+    story: Id = Field(description="Story whose plan shows the drafting geometry.")
+    layer: str = Field(default="DRAFT", description="CAD layer name.")
+
+
+class DraftLine(_DraftBase):
+    """A straight 2D drafting line."""
+
+    kind: Literal["line"] = "line"
+    start: Point2D = Field(description="Start point [x, y] in mm.")
+    end: Point2D = Field(description="End point [x, y] in mm.")
+
+
+class DraftPolyline(_DraftBase):
+    """A 2D drafting polyline (open or closed)."""
+
+    kind: Literal["polyline"] = "polyline"
+    points: Annotated[
+        list[Point2D],
+        Field(min_length=2, description="Vertices [x, y] in mm (at least 2 points)."),
+    ]
+    closed: bool = Field(
+        default=False,
+        description="Whether the polyline is closed (at least 3 points required).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_closed(self) -> DraftPolyline:
+        if self.closed and len(self.points) < 3:
+            raise ValueError(f"draft {self.id}: a closed polyline needs at least 3 points")
+        return self
+
+
+class DraftArc(_DraftBase):
+    """A circular drafting arc, defined CCW from startAngle to endAngle."""
+
+    kind: Literal["arc"] = "arc"
+    center: Point2D = Field(description="Center [x, y] in mm.")
+    radius: float = Field(gt=0, allow_inf_nan=False, description="Radius [mm].")
+    startAngle: float = Field(
+        allow_inf_nan=False, description="Start angle in degrees CCW from +X."
+    )
+    endAngle: float = Field(allow_inf_nan=False, description="End angle in degrees CCW from +X.")
+
+
+class DraftCircle(_DraftBase):
+    """A full drafting circle."""
+
+    kind: Literal["circle"] = "circle"
+    center: Point2D = Field(description="Center [x, y] in mm.")
+    radius: float = Field(gt=0, allow_inf_nan=False, description="Radius [mm].")
+
+
+DraftShape = Annotated[
+    DraftLine | DraftPolyline | DraftArc | DraftCircle,
+    Field(discriminator="kind"),
+]
+
+
 # Object kinds each member may use.
 _ALLOWED_KINDS = {
     "columns": ("column",),
@@ -287,6 +353,11 @@ class FloorPlan(_Model):
         default_factory=list,
         description="The towers above the podium, each a plan region (needs a podium top).",
     )
+    drafting: list[DraftShape] = Field(
+        default_factory=list,
+        description="Deprecated: moved to 05 Floor Plan/drafting/<story>.dxf; migrated "
+        "automatically.",
+    )
 
     def members(self) -> list[tuple[str, _Placed]]:
         return [(group, m) for group in _ALLOWED_KINDS for m in getattr(self, group)]
@@ -302,6 +373,14 @@ class FloorPlan(_Model):
         duplicates = sorted({i for i in member_ids if member_ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate member ids: {', '.join(duplicates)}")
+
+        draft_ids = [d.id for d in self.drafting]
+        duplicate_drafts = sorted({i for i in draft_ids if draft_ids.count(i) > 1})
+        if duplicate_drafts:
+            raise ValueError(f"duplicate draft ids: {', '.join(duplicate_drafts)}")
+        clashes = sorted(set(draft_ids) & set(member_ids))
+        if clashes:
+            raise ValueError(f"draft ids clash with member ids: {', '.join(clashes)}")
 
         for s in self.stories:
             if s.similarTo is None:
@@ -351,6 +430,10 @@ class FloorPlan(_Model):
         underlay_stories = [u.story for u in self.underlays]
         if len(set(underlay_stories)) != len(underlay_stories):
             raise ValueError("each story can have one underlay")
+
+        for draft in self.drafting:
+            if draft.story not in elevation:
+                raise ValueError(f"draft {draft.id}: no story '{draft.story}'")
 
         for _, member in self.members():
             for field in ("story", "base", "top"):

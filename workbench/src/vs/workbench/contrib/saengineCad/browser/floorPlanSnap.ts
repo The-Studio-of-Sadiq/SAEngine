@@ -20,7 +20,7 @@ import { resolvePoint } from './floorPlanEdits.js';
 
 type Json = { readonly [key: string]: unknown };
 
-export type SnapKind = 'node' | 'endpoint' | 'midpoint' | 'intersection' | 'perpendicular' | 'nearest' | 'gridLine' | 'free';
+export type SnapKind = 'node' | 'endpoint' | 'midpoint' | 'center' | 'intersection' | 'perpendicular' | 'nearest' | 'gridLine' | 'free';
 
 export interface ISnap {
 	readonly kind: SnapKind;
@@ -42,6 +42,7 @@ export const SNAP_NAMES: { readonly [kind in SnapKind]: string } = {
 	node: localize('snap.node', "Grid intersection"),
 	endpoint: localize('snap.endpoint', "Endpoint"),
 	midpoint: localize('snap.midpoint', "Midpoint"),
+	center: localize('snap.center', "Center"),
 	intersection: localize('snap.intersection', "Intersection"),
 	perpendicular: localize('snap.perpendicular', "Perpendicular"),
 	nearest: localize('snap.nearest', "Nearest"),
@@ -50,7 +51,7 @@ export const SNAP_NAMES: { readonly [kind in SnapKind]: string } = {
 };
 
 /** The order point snaps win in when two are equally near (AutoCAD's markers take the nearest). */
-const PRIORITY: readonly SnapKind[] = ['node', 'endpoint', 'intersection', 'midpoint', 'perpendicular'];
+const PRIORITY: readonly SnapKind[] = ['node', 'endpoint', 'center', 'intersection', 'midpoint', 'perpendicular'];
 
 function isObject(value: unknown): value is Json {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -213,6 +214,7 @@ export function snapMarker(snap: ISnap, r: number, layer: string): CadEntitySpec
 	const line = (a: CadPoint, b: CadPoint): CadEntitySpec => ({ kind: 'line', layer, start: a, end: b });
 	switch (snap.kind) {
 		case 'node': case 'endpoint': return [squareMarker(snap.point, r, layer)];
+		case 'center': return [{ kind: 'circle', layer, center: snap.point, radius: r }];
 		case 'midpoint': return [{ kind: 'polyline', layer, closed: true, points: [[x - r, y - r], [x + r, y - r], [x, y + r]] }];
 		case 'intersection': return [line([x - r, y - r], [x + r, y + r]), line([x - r, y + r], [x + r, y - r])];
 		case 'perpendicular': return [line([x - r, y - r], [x + r, y - r]), line([x - r, y - r], [x - r, y + r]), line([x - r, y], [x, y]), line([x, y], [x, y - r])];

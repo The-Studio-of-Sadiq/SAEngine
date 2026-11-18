@@ -37,6 +37,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	overrides: {
 		'workbench.startupEditor': 'none',
 		'workbench.welcomePage.experimentalOnboarding': false,
+		'workbench.welcomePage.walkthroughs.openOnInstall': false,
 		'files.associations': { '*.saengine': 'json' },
 	},
 }]);
