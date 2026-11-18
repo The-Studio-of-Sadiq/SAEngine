@@ -13,6 +13,7 @@ import {
 	chamferLines, extendArc, extendLine, extendPolyline, filletLines, GeomArc, GeomCircle, GeomLine,
 	GeomPoint, GeomPolyline, GeomShape, normalizeAngle, trimArc, trimCircle, trimLine, trimPolyline,
 } from './modifyGeometry.js';
+import { alignPoint, breakLine, explodePolyline, lengthenLine, polarArray, rectangularArray, scalePoint, stretchPolyline, type P2 } from './modifyGeometry2.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -194,6 +195,44 @@ export async function mirrorCommand(ctx: CadCommandContext): Promise<void> {
 		if (choice.toLowerCase() === 'yes') for (const entity of selected) ctx.database.erase(String(entity.objectId));
 	});
 }
+
+function cloneTransform(entity: AcDbEntity, matrix: AcGeMatrix3d): AcDbEntity { const copy = entity.clone() as AcDbEntity; copy.transformBy(matrix); return copy; }
+function translation(dx: number, dy: number): AcGeMatrix3d { return new AcGeMatrix3d().makeTranslation(dx, dy, 0); }
+function pointTransform(base: CadPoint3, scale: number, angle = 0, shift: CadPoint3 = base): AcGeMatrix3d {
+ return new AcGeMatrix3d().makeTranslation(-base.x,-base.y,-base.z).premultiply(new AcGeMatrix3d().makeScale(scale,scale,scale)).premultiply(new AcGeMatrix3d().makeRotationZ(angle)).premultiply(new AcGeMatrix3d().makeTranslation(shift.x,shift.y,shift.z));
+}
+export async function scaleCommand(ctx: CadCommandContext): Promise<void> {
+ const selected = await ctx.getSelection('Select objects to scale:'); const base = await ctx.getPoint('Specify base point:');
+ const option = await ctx.getKeyword('Specify scale factor or [Copy/Reference] <1>:', ['Copy', 'Reference'], { default: 'Factor' });
+ let factor: number;
+ if (option.toLowerCase() === 'reference') { const ref = await ctx.getDistance('Specify reference length:'); const next = await ctx.getDistance('Specify new length:'); factor = next / ref; }
+ else factor = await ctx.getDistance('Specify scale factor <1>:');
+ if (!(factor > 0)) throw new Error('Scale factor must be positive');
+ const copy = option.toLowerCase() === 'copy'; const matrix = pointTransform(base, factor);
+ if (copy) ctx.database.add(selected.map(e => cloneTransform(e, matrix)));
+ else for (const e of selected) { const c = cloneTransform(e, matrix); ctx.database.replace(String(e.objectId), c); }
+}
+export async function arrayRectCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getSelection('Select objects to array:'); const rows = Math.max(1, Math.round(await ctx.getDistance('Rows <1>:'))); const columns = Math.max(1, Math.round(await ctx.getDistance('Columns <1>:'))); const rs = await ctx.getDistance('Row spacing:'); const cs = await ctx.getDistance('Column spacing:');
+ ctx.database.add(rectangularArray(src, rows, columns, rs, cs).flatMap(x => src.map(e => cloneTransform(e, translation(...x.offset)))));
+}
+export async function arrayPolarCommand(ctx: CadCommandContext): Promise<void> {
+ const src = await ctx.getSelection('Select objects to array:'); const center = await ctx.getPoint('Specify center point:'); const count = Math.max(1, Math.round(await ctx.getDistance('Number of items:'))); const fill = await ctx.getAngle('Angle to fill <360>:'); const rotate = (await ctx.getKeyword('Rotate items? [Yes/No] <Yes>', ['Yes', 'No'], { default: 'Yes' })).toLowerCase() === 'yes';
+ const all: AcDbEntity[] = [];
+ for (let i = 1; i < count; i++) { const a = fill * i / count; for (const e of src) { const radial = pointTransform(center, 1, a, center), c = e.clone() as AcDbEntity; c.transformBy(radial); if (!rotate) c.transformBy(pointTransform(center, 1, -a, center)); all.push(c); } }
+ ctx.database.add(all);
+}
+export async function breakCommand(ctx: CadCommandContext): Promise<void> {
+ const pick = await ctx.getEntityPick('Select object (first break point):'); if (!pick.entity || !pick.point) return; const second = await ctx.getPoint('Specify second break point:'); const e = pick.entity;
+ if (!(e instanceof AcDbLine)) { ctx.message('BREAK currently supports lines'); return; }
+ const parts = breakLine([e.startPoint.x,e.startPoint.y], [e.endPoint.x,e.endPoint.y], [pick.point.x,pick.point.y], [second.x,second.y]); ctx.database.replace(String(e.objectId), new AcDbLine(new AcGePoint3d(...parts[0].start, e.startPoint.z), new AcGePoint3d(...parts[0].end, e.endPoint.z))); ctx.database.add(new AcDbLine(new AcGePoint3d(...parts[1].start,e.startPoint.z), new AcGePoint3d(...parts[1].end,e.endPoint.z)));
+}
+export async function breakAtPointCommand(ctx: CadCommandContext): Promise<void> { const e = await ctx.getEntity('Select object to break:'); const p = await ctx.getPoint('Specify break point:'); if (e instanceof AcDbLine) { const line=e as AcDbLine; const t=Math.hypot(p.x-line.startPoint.x,p.y-line.startPoint.y)/Math.hypot(line.endPoint.x-line.startPoint.x,line.endPoint.y-line.startPoint.y); const q=new AcGePoint3d(line.startPoint.x+(line.endPoint.x-line.startPoint.x)*t,line.startPoint.y+(line.endPoint.y-line.startPoint.y)*t,line.startPoint.z); ctx.database.replace(String(e.objectId), new AcDbLine(line.startPoint,q)); ctx.database.add(new AcDbLine(q,line.endPoint)); } }
+export async function joinCommand(ctx: CadCommandContext): Promise<void> { const src=await ctx.getEntity('Select source object:'); const others=await ctx.getSelection('Select objects to join:'); if (!(src instanceof AcDbLine)) { ctx.message('JOIN currently supports collinear lines'); return; } let a=[src.startPoint.x,src.startPoint.y] as P2, b=[src.endPoint.x,src.endPoint.y] as P2; const joined: AcDbEntity[]=[]; for (const e of others) if (e instanceof AcDbLine) { const j=(await import('./modifyGeometry2.js')).joinLines({start:a,end:b},{start:[e.startPoint.x,e.startPoint.y],end:[e.endPoint.x,e.endPoint.y]}); if (j) { a=j.start;b=j.end; joined.push(e); } } if (joined.length) { ctx.database.replace(String(src.objectId),new AcDbLine(new AcGePoint3d(...a,src.startPoint.z),new AcGePoint3d(...b,src.endPoint.z))); for(const e of joined)ctx.database.erase(String(e.objectId)); } }
+export async function explodeCommand(ctx: CadCommandContext): Promise<void> { const src=await ctx.getSelection('Select objects to explode:'); for(const e of src) if(e instanceof AcDbPolyline) { const pts=Array.from({length:e.numberOfVertices},(_,i)=>e.getPoint3dAt(i)); const segs=explodePolyline(pts.map(p=>[p.x,p.y] as P2),e.closed); ctx.database.erase(String(e.objectId)); ctx.database.add(segs.map(s=>new AcDbLine(new AcGePoint3d(...s.start,pts[0].z),new AcGePoint3d(...s.end,pts[0].z)))); } }
+export async function stretchCommand(ctx: CadCommandContext): Promise<void> { const selected=await ctx.getSelection('Select crossing objects:'); const a=await ctx.getPoint('Specify first corner:'); const b=await ctx.getPoint('Specify opposite corner:'); const base=await ctx.getPoint('Specify base point:'); const to=await ctx.getPoint('Specify second point:',{base}); const inside=(p:P2)=>p[0]>=Math.min(a.x,b.x)&&p[0]<=Math.max(a.x,b.x)&&p[1]>=Math.min(a.y,b.y)&&p[1]<=Math.max(a.y,b.y); const dx=to.x-base.x,dy=to.y-base.y; for(const e of selected){ if(e instanceof AcDbLine){const moved=(p:CadPoint3)=>inside([p.x,p.y])?new AcGePoint3d(p.x+dx,p.y+dy,p.z):p;ctx.database.replace(String(e.objectId),new AcDbLine(moved(e.startPoint),moved(e.endPoint)));} else if(e instanceof AcDbPolyline){const pts=stretchPolyline(Array.from({length:e.numberOfVertices},(_,i)=>{const p=e.getPoint2dAt(i);return [p.x,p.y] as P2}),inside,[dx,dy]);const c=new AcDbPolyline();c.closed=e.closed;pts.forEach((p,i)=>c.addVertexAt(i,new AcGePoint2d(...p)));ctx.database.replace(String(e.objectId),c);} } }
+export async function lengthenCommand(ctx: CadCommandContext): Promise<void> { const mode=(await ctx.getKeyword('Specify [Delta/Total] <Delta>:', ['Delta','Total'],{default:'Delta'})).toLowerCase(); const value=await ctx.getDistance(mode==='delta'?'Enter delta length:':'Enter total length:');const pick=await ctx.getEntityPick('Select object to lengthen:');if(!pick.entity||!pick.point)return;const e=pick.entity;if(e instanceof AcDbLine){const d=mode==='delta'?value:value-Math.hypot(e.endPoint.x-e.startPoint.x,e.endPoint.y-e.startPoint.y);const r=lengthenLine([e.startPoint.x,e.startPoint.y],[e.endPoint.x,e.endPoint.y],d,[pick.point.x,pick.point.y]);ctx.database.replace(String(e.objectId),new AcDbLine(new AcGePoint3d(...r.start,e.startPoint.z),new AcGePoint3d(...r.end,e.endPoint.z)));} }
+export async function alignCommand(ctx: CadCommandContext): Promise<void> { const selected=await ctx.getSelection('Select objects to align:');const s1=await ctx.getPoint('Specify first source point:');const d1=await ctx.getPoint('Specify first destination point:');const s2=await ctx.getPoint('Specify second source point:');const d2=await ctx.getPoint('Specify second destination point:');const scale=(await ctx.getKeyword('Scale objects based on alignment points? [Yes/No] <No>', ['Yes','No'],{default:'No'})).toLowerCase()==='yes';const angle=Math.atan2(d2.y-d1.y,d2.x-d1.x)-Math.atan2(s2.y-s1.y,s2.x-s1.x);const factor=scale?Math.hypot(d2.x-d1.x,d2.y-d1.y)/Math.hypot(s2.x-s1.x,s2.y-s1.y):1;const matrix=pointTransform(s1,factor,angle,d1);for(const e of selected)ctx.database.replace(String(e.objectId),cloneTransform(e,matrix)); }
 
 function entityToGeom(e: AcDbEntity): GeomShape | undefined {
 	if (e instanceof AcDbLine || e.dxfTypeName === 'LINE') {

@@ -6,16 +6,17 @@
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { greyDxf } from './underlay.js';
-import { chamferCommand, extendCommand, filletCommand, mirrorCommand, registerCommand, trimCommand } from './commands.js';
+import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export {
-	chamferCommand, extendCommand, filletCommand, mirrorCommand, mirrorPoint, registerCommand, trimCommand,
+	alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
 	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPromptEntityOptions, type CadSelection,
 } from './commands.js';
 export * from './modifyGeometry.js';
+export * from './modifyGeometry2.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -119,6 +120,16 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
 	registerCommand('MIRROR', mirrorCommand);
+	registerCommand('SCALE', scaleCommand);
+	registerCommand('ARRAYRECT', arrayRectCommand, { aliases: ['AR'] });
+	registerCommand('ARRAYPOLAR', arrayPolarCommand);
+	registerCommand('BREAK', breakCommand);
+	registerCommand('BREAKATPOINT', breakAtPointCommand);
+	registerCommand('JOIN', joinCommand);
+	registerCommand('EXPLODE', explodeCommand);
+	registerCommand('STRETCH', stretchCommand);
+	registerCommand('LENGTHEN', lengthenCommand);
+	registerCommand('ALIGN', alignCommand);
 	registerCommand('TRIM', trimCommand, { aliases: ['TR'] });
 	registerCommand('EXTEND', extendCommand, { aliases: ['EX'] });
 	registerCommand('FILLET', filletCommand, { aliases: ['F'] });
