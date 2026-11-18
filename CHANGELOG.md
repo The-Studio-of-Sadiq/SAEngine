@@ -1,8 +1,29 @@
 # Changelog
 
 What changed in each release, for engineers. Each release's full notes and setup are on
-[Releases](https://github.com/The-Studio-of-Sadiq/SAEngine/releases). SAEngine is pre-alpha:
+[Releases](https://github.com/The-Studio-of-Sadiq/SAEngine/releases). SAEngine is alpha:
 check every result independently.
+
+## Alpha 1 — 0.0.50 (19 Nov 2026)
+
+The first alpha.
+
+- **The floor plan is a CAD drawing:** each storey has its own editable drawing (saved as a DXF
+  beside the floor plan) with AutoCAD-style 2D drafting: lines, polylines, circles, arcs,
+  rectangles, polygons and donuts; trim, extend, offset, fillet, chamfer, scale, stretch, arrays,
+  break, join, explode, lengthen, align and mirror; dimensions, text, leaders, tables, centre
+  marks and hatch; blocks and attributes; layers, colours, linetypes and lineweights, MATCHPROP;
+  distance, area and list inquiries. Commands can be typed in the command line as in AutoCAD.
+- **Drafting aids:** a status bar under the plan with SNAP, GRID, ORTHO (F8), POLAR, OSNAP with
+  all its modes, OTRACK and dynamic input, the cursor position, and the current layer and
+  properties. New drafting goes on the DRAFT layer.
+- **Selection and grips:** window, crossing, fence, polygon, All, Last, Previous, Remove and Undo
+  at every Select objects prompt; click a drafted object for its grips and Stretch, Move, Rotate,
+  Scale or Mirror it.
+- **Drafting to members:** drafted shapes become beams, walls or slabs (the `convert` command);
+  `drafting.*` actions for the AI and scripts.
+- **Grid Lines toggle**, and Grids & Stories before Plan in the project parts.
+- No stock VS Code Welcome page.
 
 ## Pre-Alpha 10 — 0.0.49 (13 Nov 2026)
 

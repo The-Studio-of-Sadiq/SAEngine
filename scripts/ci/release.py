@@ -3,8 +3,8 @@
 python -I release.py version --tag Pre-Alpha-v5 [--version 0.0.35-alpha.5]
     Prints (and writes to GITHUB_OUTPUT) ``version``, ``title`` and ``tag``. The version is
     ``<x.y.z>-alpha.<N>``: x.y.z from HEAD's commit title ``v<x.y.z>`` (a release commit, as
-    for every manual release so far), N from the tag ``Pre-Alpha-v<N>``. The title is
-    ``Pre Alpha Version <N>``. Fails when HEAD is not a release commit and no --version is
+    for every manual release so far), N from the tag ``Alpha-v<N>`` (``Pre-Alpha-v<N>`` up to Pre-Alpha 10). The
+    title is ``Alpha Version <N>`` (``Pre Alpha Version <N>``). Fails when HEAD is not a release commit and no --version is
     given, so a release is never cut from an arbitrary commit by accident.
 
 python -I release.py version --tag "" [--version X]
@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-TAG = re.compile(r"^Pre-Alpha-v(?P<n>[0-9]+)$")
+TAG = re.compile(r"^(?P<kind>Pre-Alpha|Alpha)-v(?P<n>[0-9]+)$")
 RELEASE_TITLE = re.compile(r"^v(?P<v>[0-9]+\.[0-9]+\.[0-9]+)\s*$")
 SAMPLE = Path("workbench/resources/saengine/samples/Sample Frame")
 NOTES_FILES = {"notes.md", "title.txt"}
@@ -81,7 +81,7 @@ def git(*args: str, cwd: Path = REPO) -> str:
 def release_number(tag: str) -> int:
     match = TAG.match(tag)
     if not match:
-        raise ReleaseError(f"tag '{tag}' is not Pre-Alpha-v<N>")
+        raise ReleaseError(f"tag '{tag}' is not Alpha-v<N> or Pre-Alpha-v<N>")
     return int(match["n"])
 
 
@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
             title = (
                 title_file.read_text(encoding="utf-8").strip()
                 if title_file.is_file()
-                else f"Pre Alpha Version {number}"
+                else f"{args.tag.rsplit('-v', 1)[0].replace('-', ' ')} Version {number}"
             )
             write_outputs({"tag": args.tag, "version": value, "title": title})
         else:
