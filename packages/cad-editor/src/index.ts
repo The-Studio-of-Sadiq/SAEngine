@@ -8,6 +8,7 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } 
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
@@ -27,6 +28,13 @@ export {
 export {
 	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
 } from './inquiryCommands.js';
+export {
+	boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands,
+} from './hatchCommands.js';
+export {
+	detectBoundaryFromPoint, detectLoopsFromObjects, extractSegmentsFromEntity,
+	findMinimalEnclosingLoop, isPointInside, type HatchLoop, type HatchSegment, type HatchVertex,
+} from './hatchGeometry.js';
 export { polylineVertices, type PolylineData } from './entityAccess.js';
 export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
@@ -154,6 +162,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
 	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
 	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerHatchCommands();
 	registerDimensionCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
