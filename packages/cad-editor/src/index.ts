@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
-import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
+import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { greyDxf } from './underlay.js';
 import { mirrorCommand, registerCommand } from './commands.js';
 
-export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
+export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
+export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export { mirrorCommand, mirrorPoint, registerCommand, type CadCommandContext, type CadCommandOptions, type CadPoint3, type CadSelection } from './commands.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
+
+export interface ToDxfOptions {
+	/** When true, entities and layers created by {@link CadEditor.setGenerated} or {@link CadEditor.setPreview} are excluded. */
+	readonly excludeGenerated?: boolean;
+}
 
 export interface CadEditorOptions {
 	readonly container: HTMLElement;
@@ -76,7 +82,7 @@ export interface CadEditor {
 	/** Fits the whole drawing in the view. */
 	zoomExtents(): void;
 	/** The drawing as DXF text (AutoCAD 2018 format). */
-	toDxf(): string;
+	toDxf(options?: ToDxfOptions): string;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
@@ -141,6 +147,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 
 	const listeners = new Set<() => void>();
 	let generated = new Set<string>();
+	let generatedLayers = new Set<string>();
 	let preview = new Set<string>();
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
@@ -184,6 +191,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	const opened = (ok: boolean) => {
 		if (ok) {
 			generated = new Set();
+			generatedLayers = new Set();
 			preview = new Set();
 			watchDocument();
 			// Opening a drawing applies its own background (MODELBKCOLOR); the host's wins.
@@ -208,6 +216,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return template.ok && open('', await template.text(), AcEdOpenMode.Read);
 		},
 		setGenerated: drawing => {
+			for (const layer of drawing.layers) {
+				generatedLayers.add(layer.name);
+			}
 			generated = applyGenerated(manager.curDocument.database, generated, drawing);
 		},
 		setUnderlay: async underlay => {
@@ -239,6 +250,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			underlaySession = session.id;
 		},
 		setPreview: drawing => {
+			for (const layer of drawing.layers) {
+				generatedLayers.add(layer.name);
+			}
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);
 		},
 		toWorld: (clientX, clientY) => {
@@ -254,10 +268,12 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return Math.hypot(b.x - a.x, b.y - a.y) / 100;
 		},
 		zoomExtents: () => manager.curView.zoomToFitDrawing(),
-		toDxf: () => {
-			const out = manager.curDocument.database.dxfOut(undefined, 6);
-			return typeof out === 'string' ? out : new TextDecoder().decode(out);
-		},
+		toDxf: dxfOptions => dxfOut(manager.curDocument.database, {
+			excludeGenerated: dxfOptions?.excludeGenerated,
+			generated,
+			preview,
+			generatedLayers,
+		}),
 		execute: command => manager.executeCommandString(command),
 		setBackground: rgb => {
 			background = rgb & 0xffffff;

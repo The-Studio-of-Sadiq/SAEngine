@@ -61,7 +61,7 @@ import { storiesOf } from '../../../services/saengineProject/common/floorPlanMem
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { presenceDrawing } from './floorPlanPresence.js';
 import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
-import { FloorPlanEditorInput, siblingPartFile } from './floorPlanEditorInput.js';
+import { FloorPlanEditorInput, siblingPartFile, storyDraftingFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
 import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_CUT, DEFAULT_CLOUD_SCALE, DEFAULT_CLOUD_THICKNESS, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor } from './floorPlanUnderlay.js';
 import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './floorPlanTypes.js';
@@ -385,6 +385,8 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly chromeDisposable = this._register(new MutableDisposable());
 	private readonly renderScheduler = this._register(new RunOnceScheduler(() => this.renderPlan(), 150));
 	private readonly previewFrame = this._register(new MutableDisposable());
+	/** The story currently loaded into the CAD editor. */
+	private currentDraftingStory: string | undefined;
 	/** Line and point loads of `05 Floor Plan/loads.json`, drawn on the plan and edited in the properties panel. */
 	private readonly loadsFile: FloorPlanLoadsFile;
 	private readonly loadsPanel: FloorPlanLoadsPanel;
@@ -458,10 +460,10 @@ export class FloorPlanEditor extends EditorPane {
 		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'plan')));
 		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan") }));
 		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
-		this._register(this.storyPicker.onDidSelect(({ index }) => {
+		this._register(this.storyPicker.onDidSelect(async ({ index }) => {
 			const input = this.input as FloorPlanEditorInput | undefined;
 			if (input && this.storyIds[index] !== input.story) {
-				input.story = this.storyIds[index];
+				await this.switchStory(this.storyIds[index]);
 				this.resetGesture();
 				// The last story's notice and the members picked there do not belong to this one.
 				this.notice = undefined;
@@ -562,10 +564,36 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => this.updateToolbar()));
-		if (!await editor.newDrawing({ readOnly: true })) {
-			this.showMessage(localize('floorPlan.openFailed', "The floor plan drawing could not be created."));
-			return;
+
+		// Resolve the initial story so the drafting drawing can be opened.
+		const layout = parse(this.planModel);
+		const stories = storiesOf(layout);
+		this.storyIds = stories.map(s => s.id);
+		const storyKey = `${STORY_KEY}|${input.resource.toString()}`;
+		if (!input.story || !this.storyIds.includes(input.story)) {
+			const remembered = this.viewStorage.get(storyKey, StorageScope.WORKSPACE);
+			input.story = remembered && this.storyIds.includes(remembered) ? remembered : this.storyIds[Math.min(1, this.storyIds.length - 1)];
 		}
+
+		await this.loadStoryDrawing(input.story);
+
+		input.draftingSource = {
+			toDxf: () => editor.toDxf({ excludeGenerated: true }),
+			story: () => this.currentDraftingStory,
+			reload: async () => {
+				if (this.currentDraftingStory) {
+					await this.loadStoryDrawing(this.currentDraftingStory, true);
+					this.renderPlan();
+				}
+			},
+		};
+		this.inputDisposables.add(toDisposable(() => input.draftingSource = undefined));
+		this.inputDisposables.add(toDisposable(editor.onDidChange(() => {
+			if (this.currentDraftingStory && this.input) {
+				(this.input as FloorPlanEditorInput).setDraftingDirty(this.currentDraftingStory, true);
+			}
+		})));
+
 		this.fitPending = true;
 		this.userView = false;
 		this.followSelection();
@@ -684,9 +712,10 @@ export class FloorPlanEditor extends EditorPane {
 		const selection = this.selectionService.selection;
 		const story = selection && storyOfSelection(parse(this.planModel), selection);
 		if (input && story && story !== input.story) {
-			input.story = story;
-			this.resetGesture();
-			this.renderPlan();
+			void this.switchStory(story).then(() => {
+				this.resetGesture();
+				this.renderPlan();
+			});
 		}
 	}
 
@@ -730,6 +759,12 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	private release(): void {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (this.currentDraftingStory && this.editor && input) {
+			const dxf = this.editor.toDxf({ excludeGenerated: true });
+			input.setDraftingDxf(this.currentDraftingStory, dxf);
+		}
+		this.currentDraftingStory = undefined;
 		this.renderScheduler.cancel();
 		this.previewFrame.clear();
 		this.chromeDisposable.clear();
@@ -2638,6 +2673,59 @@ export class FloorPlanEditor extends EditorPane {
 
 	// ───────────────────────────── drawing ─────────────────────────────
 
+	/**
+	 * Switches the active storey shown in the editor: serialises the current storey's DXF,
+	 * loads the new storey's drafting drawing, and updates `input.story`.
+	 */
+	private async switchStory(storyId: string | undefined): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		if (!input || !this.editor || !storyId || storyId === this.currentDraftingStory) {
+			if (input && storyId) {
+				input.story = storyId;
+			}
+			return;
+		}
+		if (this.currentDraftingStory) {
+			const dxf = this.editor.toDxf({ excludeGenerated: true });
+			input.setDraftingDxf(this.currentDraftingStory, dxf);
+		}
+		input.story = storyId;
+		await this.loadStoryDrawing(storyId);
+	}
+
+	/**
+	 * Loads the drafting DXF for `storyId` into the editor as an editable drawing,
+	 * reading from memory if stashed, else from disk (`05 Floor Plan/drafting/<storyId>.dxf`),
+	 * or creating a new empty editable drawing if the file does not exist.
+	 */
+	private async loadStoryDrawing(storyId: string | undefined, forceFromDisk = false): Promise<void> {
+		const input = this.input as FloorPlanEditorInput | undefined;
+		const editor = this.editor;
+		if (!editor || !input) {
+			return;
+		}
+		let content: string | undefined;
+		if (!forceFromDisk && storyId) {
+			content = input.getDraftingDxf(storyId);
+		}
+		if (content === undefined && storyId) {
+			const file = storyDraftingFile(input.resource, storyId);
+			try {
+				const buffer = await this.fileService.readFile(file);
+				content = buffer.value.toString();
+			} catch {
+				content = undefined;
+			}
+		}
+		const opened = content && content.trim()
+			? await editor.openDxf(`${storyId}.dxf`, content)
+			: await editor.newDrawing();
+		if (!opened) {
+			this.showMessage(localize('floorPlan.openFailed', "The floor plan drawing could not be created."));
+		}
+		this.currentDraftingStory = storyId;
+	}
+
 	/** Regenerates the plan of the selected story from the current models. */
 	private renderPlan(): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
@@ -2661,6 +2749,11 @@ export class FloorPlanEditor extends EditorPane {
 			stories.length ? stories.map(s => ({ text: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
 			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
 		);
+
+		if (input.story && this.currentDraftingStory && input.story !== this.currentDraftingStory) {
+			void this.switchStory(input.story).then(() => this.renderPlan());
+			return;
+		}
 
 		if (this.plotKey() !== this.plotCheckKey) {
 			this.plotScheduler.schedule();
@@ -3165,8 +3258,11 @@ export class FloorPlanEditor extends EditorPane {
 			rerender: () => this.renderProperties(),
 			reveal: (member, story) => {
 				if (input && input.story !== story) {
-					input.story = story;
-					this.renderPlan();
+					void this.switchStory(story).then(() => {
+						this.renderPlan();
+						this.select([member]);
+					});
+					return;
 				}
 				this.select([member]);
 			},
