@@ -13,6 +13,153 @@
 	inset: 0;
 }
 
+.saengine-floor-plan .saengine-cad-editor .cad-host {
+	bottom: 26px;
+}
+
+/* Floor Plan CAD Status Bar */
+.saengine-cad-editor .floor-plan-status-bar {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: var(--vscode-statusBar-background, #1e1e1e);
+	color: var(--vscode-statusBar-foreground, #cccccc);
+	border-top: 1px solid var(--vscode-statusBar-border, var(--vscode-editorWidget-border, #333333));
+	font-size: 11px;
+	font-family: var(--monaco-monospace-font, monospace);
+	user-select: none;
+	padding: 0 4px;
+	z-index: 5;
+	box-sizing: border-box;
+	gap: 6px;
+}
+
+.floor-plan-status-bar .cad-bar-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	height: 20px;
+	padding: 0 5px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-statusBarItem-foreground, var(--vscode-statusBar-foreground, inherit));
+	font-size: 11px;
+	font-family: inherit;
+	cursor: pointer;
+	line-height: 18px;
+	white-space: nowrap;
+	outline: none;
+}
+
+.floor-plan-status-bar .cad-bar-btn:hover {
+	background: var(--vscode-statusBarItem-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+.floor-plan-status-bar .cad-bar-btn.active {
+	background: var(--vscode-statusBarItem-activeBackground, var(--vscode-button-background, #007acc));
+	color: var(--vscode-button-foreground, #ffffff);
+	font-weight: 600;
+}
+
+.floor-plan-status-bar .cad-bar-group {
+	display: inline-flex;
+	align-items: center;
+}
+
+.floor-plan-status-bar .cad-bar-group .grouped-left {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	padding-right: 3px;
+}
+
+.floor-plan-status-bar .cad-bar-group .grouped-right {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	padding-left: 2px;
+	padding-right: 2px;
+	border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.floor-plan-status-bar .cad-bar-group .grouped-right .codicon {
+	font-size: 10px;
+}
+
+.floor-plan-status-bar .cad-bar-left {
+	display: flex;
+	align-items: center;
+	min-width: 120px;
+	padding: 0 4px;
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-descriptionForeground, #999999);
+	font-size: 11px;
+	flex-shrink: 0;
+}
+
+.floor-plan-status-bar .cad-bar-drafting {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+.floor-plan-status-bar .cad-bar-props {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.floor-plan-status-bar .cad-swatch {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	border: 1px solid rgba(128, 128, 128, 0.5);
+	box-sizing: border-box;
+	flex-shrink: 0;
+}
+
+.floor-plan-status-bar .cad-layer-state {
+	display: inline-flex;
+	align-items: center;
+	font-size: 10px;
+}
+
+.floor-plan-status-bar .cad-prop-btn {
+	padding: 0 6px;
+	border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.25));
+	background: var(--vscode-editorWidget-background, rgba(0, 0, 0, 0.2));
+}
+
+.floor-plan-status-bar .cad-prop-btn:hover {
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
+/* Narrow widths handling (Requirement 4) */
+.floor-plan-status-bar.collapse-props .cad-lt-btn,
+.floor-plan-status-bar.collapse-props .cad-lw-btn {
+	display: none;
+}
+
+.floor-plan-status-bar.collapse-props .cad-color-btn .cad-prop-label {
+	display: none;
+}
+
+.floor-plan-status-bar.short-labels .cad-bar-left {
+	min-width: 90px;
+}
+
+.floor-plan-status-bar.hide-cursor .cad-bar-left {
+	display: none;
+}
+
 .saengine-cad-editor .cad-message {
 	display: none;
 	position: absolute;

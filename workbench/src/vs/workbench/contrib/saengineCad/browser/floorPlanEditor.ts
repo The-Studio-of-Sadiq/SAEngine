@@ -57,6 +57,7 @@ import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.j
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
+import { FloorPlanCadBar } from './floorPlanCadBar.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { presenceDrawing } from './floorPlanPresence.js';
@@ -256,6 +257,7 @@ export class FloorPlanEditor extends EditorPane {
 	private underlayPick: { readonly kind: UnderlayPick; readonly points: CadPoint[] } | undefined;
 
 	private editor: CadEditorApi | undefined;
+	private cadBar!: FloorPlanCadBar;
 	private planModel: ITextModel | undefined;
 	private objects: ITextModel | undefined;
 	/** Optional, for the properties panel: material names and the building model's state. */
@@ -503,6 +505,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.host = append(this.cad, $('.cad-host'));
 		this.message = append(this.cad, $('.cad-message'));
 		this.emptyState = append(this.cad, $('.floor-plan-empty.hidden'));
+		this.cadBar = this._register(this.instantiationService.createInstance(FloorPlanCadBar, this.cad));
 		this.registerMouse();
 		this._register(addDisposableListener(frame.element, EventType.KEY_DOWN, e => this.onKey(e)));
 		// The floor plan's own commands typed on the CAD command line (select, fill, copy, ...).
@@ -564,6 +567,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => this.updateToolbar()));
+		this.cadBar.setEditor(editor);
 
 		// Resolve the initial story so the drafting drawing can be opened.
 		let layout = parse(this.planModel);
@@ -752,6 +756,7 @@ export class FloorPlanEditor extends EditorPane {
 			this.updateToolbar();
 		}
 		this.frame.layout(dimension.width, dimension.height);
+		this.cadBar.layout(dimension.width);
 		if (!this.userView) {
 			this.fitScheduler.schedule(); // the whole plan, bubbles too, at the new size
 		}
@@ -799,6 +804,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.underlayKey = undefined;
 		this.underlayProblem = undefined;
 		this.resetGesture();
+		this.cadBar?.setEditor(undefined);
 		if (this.editor) {
 			releaseCadEditor(this.editor);
 			this.editor = undefined;
@@ -1416,6 +1422,10 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.POINTER_MOVE, e => {
+			if (this.editor) {
+				const pt = this.editor.toWorld(e.clientX, e.clientY);
+				this.cadBar?.setCursor(pt);
+			}
 			if (this.editor?.isCommandActive()) {
 				return;
 			}
@@ -1428,6 +1438,7 @@ export class FloorPlanEditor extends EditorPane {
 			}
 		}));
 		this._register(addDisposableListener(this.host, EventType.POINTER_LEAVE, () => {
+			this.cadBar?.setCursor(undefined);
 			this.hover = undefined;
 			this.schedulePreview();
 		}));
@@ -2426,6 +2437,15 @@ export class FloorPlanEditor extends EditorPane {
 			: await editor.newDrawing();
 		if (!opened) {
 			this.showMessage(localize('floorPlan.openFailed', "The floor plan drawing could not be created."));
+		}
+		if (opened) {
+			try {
+				editor.layers.add('DRAFT');
+				editor.layers.setCurrent('DRAFT');
+			} catch {
+				// Ignore if layer setup failed
+			}
+			this.cadBar?.updateProperties();
 		}
 		this.currentDraftingStory = storyId;
 	}
