@@ -355,8 +355,8 @@ class FloorPlan(_Model):
     )
     drafting: list[DraftShape] = Field(
         default_factory=list,
-        description="2D drafting geometry (AutoCAD-like lines and shapes that are not structural "
-        "members).",
+        description="Deprecated: moved to 05 Floor Plan/drafting/<story>.dxf; migrated "
+        "automatically.",
     )
 
     def members(self) -> list[tuple[str, _Placed]]:

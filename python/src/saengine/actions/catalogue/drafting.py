@@ -1,10 +1,9 @@
-"""Drafting actions (05 Floor Plan): 2D lines, polylines, arcs and circles for layout,
-underlay tracing and converting into members."""
+"""Drafting actions (05 Floor Plan): 2D lines, polylines, arcs and circles stored in per-storey
+DXF files ("05 Floor Plan/drafting/<storyId>.dxf") for layout, underlay tracing and converting
+into members."""
 
 from __future__ import annotations
 
-import copy
-import itertools
 from typing import Any
 
 from pydantic import Field, TypeAdapter, ValidationError
@@ -16,28 +15,76 @@ from saengine.actions.paths import FLOOR_PLAN
 from saengine.actions.registry import action
 from saengine.actions.result import ActionResult, Problem
 from saengine.actions.view import ProjectView
+from saengine.library.drafting_dxf import (
+    drafting_path,
+    entity_summary,
+    new_document,
+    shape_to_entities,
+)
+from saengine.library.drafting_dxf import (
+    read as read_dxf,
+)
+from saengine.library.drafting_dxf import (
+    write as write_dxf,
+)
 from saengine.library.floorplan import DraftShape
 
 _DRAFT_ADAPTER = TypeAdapter(DraftShape)
 
 
-def _plan(view: ProjectView) -> dict[str, Any]:
+def migrate_floor_plan_drafting(view: ProjectView) -> int:
+    """Migrates any drafting from floor-plan.json into per-storey DXF files."""
+    if not view.has(FLOOR_PLAN):
+        return 0
     plan = view.part(FLOOR_PLAN)
-    plan.setdefault("drafting", [])
-    return plan
+    drafts = plan.get("drafting")
+    if not drafts or not isinstance(drafts, list):
+        if "drafting" in plan:
+            del plan["drafting"]
+            view.put(FLOOR_PLAN, plan)
+        return 0
+
+    docs: dict[str, Any] = {}
+    for draft in drafts:
+        if not isinstance(draft, dict):
+            continue
+        story = draft.get("story")
+        if not story:
+            continue
+        path = drafting_path(story)
+        if path not in docs:
+            if view.has(path):
+                docs[path] = read_dxf(view.read(path))
+            else:
+                docs[path] = new_document()
+        msp = docs[path].modelspace()
+        shape_to_entities(msp, draft)
+
+    for path, doc in docs.items():
+        view.put(path, write_dxf(doc))
+
+    del plan["drafting"]
+    view.put(FLOOR_PLAN, plan)
+    return len(drafts)
 
 
-def _next_draft_id(plan: dict[str, Any], taken: set[str]) -> str:
-    used = (
-        {m.get("id") for g in P.GROUPS for m in P.members(plan, g)}
-        | {d.get("id") for d in plan.get("drafting", []) if isinstance(d, dict)}
-        | taken
-    )
-    for n in itertools.count(1):
-        candidate = f"D{n}"
-        if candidate not in used:
-            return candidate
-    raise AssertionError  # pragma: no cover
+class DraftingMigrateParams(Params):
+    pass
+
+
+@action(
+    "drafting.migrate",
+    summary="Migrate floor plan drafting from floor-plan.json to per-storey DXF files.",
+    params=DraftingMigrateParams,
+    parts=("floorPlan",),
+    kind="edit",
+    example={},
+)
+def drafting_migrate(view: ProjectView, p: DraftingMigrateParams) -> ActionResult:
+    count = migrate_floor_plan_drafting(view)
+    if count:
+        return ActionResult(message=f"Migrated {count} draft shapes to DXF.")
+    return ActionResult(message="No drafting to migrate.")
 
 
 class DraftingAddParams(Params):
@@ -49,7 +96,7 @@ class DraftingAddParams(Params):
 
 @action(
     "drafting.add",
-    summary="Add 2D drafting geometry (lines, polylines, arcs, circles) to the floor plan.",
+    summary="Add 2D drafting geometry (lines, polylines, arcs, circles) to the storey's DXF.",
     params=DraftingAddParams,
     parts=("floorPlan",),
     kind="edit",
@@ -65,9 +112,9 @@ class DraftingAddParams(Params):
     },
 )
 def drafting_add(view: ProjectView, p: DraftingAddParams) -> ActionResult:
-    plan = _plan(view)
-    taken: set[str] = set()
-    new_drafts: list[dict[str, Any]] = []
+    migrate_floor_plan_drafting(view)
+    plan = view.read(FLOOR_PLAN, {})
+    docs: dict[str, Any] = {}
     created: list[str] = []
 
     for i, shape in enumerate(p.shapes):
@@ -76,28 +123,9 @@ def drafting_add(view: ProjectView, p: DraftingAddParams) -> ActionResult:
             refuse("A story is required for each draft shape.", f"shapes.{i}.story", story)
         P.check_story(plan, story, f"shapes.{i}.story")
 
-        raw_id = shape.get("id")
-        if raw_id:
-            shape_id = str(raw_id)
-            existing_ids = (
-                {m.get("id") for g in P.GROUPS for m in P.members(plan, g)}
-                | {d.get("id") for d in plan.get("drafting", []) if isinstance(d, dict)}
-                | taken
-            )
-            if shape_id in existing_ids:
-                refuse(
-                    f"Draft id '{shape_id}' clashes with an existing draft or member id.",
-                    f"shapes.{i}.id",
-                    shape_id,
-                )
-            taken.add(shape_id)
-        else:
-            shape_id = _next_draft_id(plan, taken)
-            taken.add(shape_id)
-
-        shape_data = {**shape, "id": shape_id}
+        shape_data = {**shape, "id": shape.get("id") or "D1"}
         try:
-            draft_obj = _DRAFT_ADAPTER.validate_python(shape_data)
+            _DRAFT_ADAPTER.validate_python(shape_data)
         except ValidationError as error:
             problems = [
                 Problem(
@@ -112,30 +140,58 @@ def drafting_add(view: ProjectView, p: DraftingAddParams) -> ActionResult:
                 problems,
             ) from error
 
-        dumped = draft_obj.model_dump(mode="json", by_alias=True)
-        new_drafts.append(dumped)
-        created.append(shape_id)
+        path = drafting_path(story)
+        if path not in docs:
+            if view.has(path):
+                docs[path] = read_dxf(view.read(path))
+            else:
+                docs[path] = new_document()
 
-    plan["drafting"].extend(new_drafts)
-    view.put(FLOOR_PLAN, plan)
+        msp = docs[path].modelspace()
+        entities = shape_to_entities(msp, shape)
+        for e in entities:
+            created.append(e.dxf.handle)
+
+    for path, doc in docs.items():
+        view.put(path, write_dxf(doc))
+
     return ActionResult(message=f"Added {', '.join(created)}.", created=created)
 
 
 class DraftingDeleteParams(Params):
-    ids: list[str] = Field(min_length=1, description="Draft shape ids to delete.")
+    ids: list[str] = Field(min_length=1, description="Draft shape handles to delete.")
+    story: str = Field(description="Story whose draft shapes to delete.")
 
 
 @action(
     "drafting.delete",
-    summary="Delete 2D drafting shapes by their ids.",
+    summary="Delete 2D drafting shapes by their handles on a storey.",
     params=DraftingDeleteParams,
     parts=("floorPlan",),
     kind="edit",
-    example={"ids": ["D1"]},
+    example={"ids": ["2F"], "story": "L1"},
 )
 def drafting_delete(view: ProjectView, p: DraftingDeleteParams) -> ActionResult:
-    plan = _plan(view)
-    existing = {d.get("id"): d for d in plan.get("drafting", []) if isinstance(d, dict)}
+    migrate_floor_plan_drafting(view)
+    plan = view.read(FLOOR_PLAN, {})
+    P.check_story(plan, p.story, "story")
+
+    path = drafting_path(p.story)
+    if not view.has(path):
+        known = "none"
+        names = ", ".join(f"'{i}'" for i in p.ids)
+        refuse(
+            f"There is no draft shape {names} (the draft shapes: {known})."
+            if len(p.ids) > 1
+            else f"There is no draft shape '{p.ids[0]}' (the draft shapes: {known}).",
+            "ids",
+            p.ids[0] if len(p.ids) == 1 else p.ids,
+        )
+
+    doc = read_dxf(view.read(path))
+    msp = doc.modelspace()
+    existing = {e.dxf.handle: e for e in msp}
+
     unknown = [i for i in p.ids if i not in existing]
     if unknown:
         known = ", ".join(sorted(existing)) or "none"
@@ -147,9 +203,11 @@ def drafting_delete(view: ProjectView, p: DraftingDeleteParams) -> ActionResult:
             "ids",
             unknown[0] if len(unknown) == 1 else unknown,
         )
-    to_delete = set(p.ids)
-    plan["drafting"] = [d for d in plan.get("drafting", []) if d.get("id") not in to_delete]
-    view.put(FLOOR_PLAN, plan)
+
+    for i in p.ids:
+        msp.delete_entity(existing[i])
+
+    view.put(path, write_dxf(doc))
     return ActionResult(message=f"Deleted {', '.join(p.ids)}.")
 
 
@@ -166,14 +224,26 @@ class DraftingListParams(Params):
     example={"story": "L1"},
 )
 def drafting_list(view: ProjectView, p: DraftingListParams) -> ActionResult:
+    migrate_floor_plan_drafting(view)
     plan = view.read(FLOOR_PLAN, {})
     if p.story is not None:
         P.check_story(plan, p.story, "story")
-    drafts = [d for d in plan.get("drafting", []) if isinstance(d, dict)]
-    if p.story is not None:
-        drafts = [d for d in drafts if d.get("story") == p.story]
+        stories = [p.story]
+    else:
+        stories = [s["id"] for s in plan.get("stories", []) if isinstance(s, dict) and "id" in s]
+
+    drafts: list[dict[str, Any]] = []
+    for story in stories:
+        path = drafting_path(story)
+        if not view.has(path):
+            continue
+        doc = read_dxf(view.read(path))
+        msp = doc.modelspace()
+        for e in msp:
+            drafts.append(entity_summary(e, story=story))
+
     count = len(drafts)
     return ActionResult(
         message=f"{count} draft shape{'s' if count != 1 else ''}.",
-        data=copy.deepcopy(drafts),
+        data=drafts,
     )
