@@ -18,9 +18,15 @@ import {
 	explodePolyline, joinArcs, lengthenArc, lengthenLine, polarArray, rectangularArray, scalePoint,
 	stretchPolyline, type P2,
 } from './modifyGeometry2.js';
+import { polylineVertices } from './entityAccess.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
+
+export interface CadPromptPointOptions {
+	readonly base?: CadPoint3;
+	readonly allowNone?: boolean;
+}
 
 export interface CadPromptEntityOptions {
 	readonly keywords?: readonly string[];
@@ -52,7 +58,9 @@ export function mirrorArcAngles(start: number, end: number, mirrorAngle: number)
 /** Narrow, typed access to mlightcad's editor input and drawing database for custom commands. */
 export interface CadCommandContext {
 	getSelection(prompt: string): Promise<CadSelection>;
-	getPoint(prompt: string, options?: { readonly base?: CadPoint3 }): Promise<CadPoint3>;
+	getPoint(prompt: string, options?: { readonly base?: CadPoint3; readonly allowNone?: false }): Promise<CadPoint3>;
+	getPoint(prompt: string, options: { readonly base?: CadPoint3; readonly allowNone: true }): Promise<CadPoint3 | undefined>;
+	getPoint(prompt: string, options?: CadPromptPointOptions): Promise<CadPoint3 | undefined>;
 	getDistance(prompt: string, options?: { readonly base?: CadPoint3 }): Promise<number>;
 	getAngle(prompt: string, options?: { readonly base?: CadPoint3 }): Promise<number>;
 	getKeyword(prompt: string, keywords: readonly string[], options?: { readonly default?: string }): Promise<string>;
@@ -94,11 +102,14 @@ class CallbackCommand extends AcEdCommand {
 				if (result.status !== AcEdPromptStatus.OK || !result.value || result.value.count === 0) throw new Error('Selection cancelled');
 				return result.value.ids.map(id => db.tables.blockTable.modelSpace.getIdAt(id)).filter((e): e is AcDbEntity => !!e);
 			},
-			getPoint: async (prompt, options) => {
+			getPoint: (async (prompt: string, options?: CadPromptPointOptions): Promise<any> => {
 				const opts = new AcEdPromptPointOptions(prompt);
+				if (options?.allowNone) opts.allowNone = true;
 				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
-				return promptValue(await editor.getPoint(opts), 'Point') as CadPoint3;
-			},
+				const r = await editor.getPoint(opts);
+				if (options?.allowNone && r.status === AcEdPromptStatus.None) return undefined;
+				return promptValue(r, 'Point') as CadPoint3;
+			}) as CadCommandContext['getPoint'],
 			getDistance: async (prompt, options) => {
 				const opts = new AcEdPromptDistanceOptions(prompt);
 				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
@@ -320,11 +331,7 @@ function entityToChainSegment(e: AcDbEntity): ChainSegment | undefined {
   return { points: [p1, p2], bulges: [b] };
  }
  if (e instanceof AcDbPolyline && !e.closed) {
-  const points: P2[] = [], bulges: number[] = [];
-  for (let i = 0; i < e.numberOfVertices; i++) {
-   const p = e.getPoint2dAt(i); points.push([p.x, p.y]);
-   if (i < e.numberOfVertices - 1) bulges.push((e as any)._geo?.vertices?.[i]?.bulge ?? 0);
-  }
+  const { points, bulges } = polylineVertices(e);
   return { points, bulges };
  }
  return undefined;
@@ -395,12 +402,9 @@ export async function explodeCommand(ctx: CadCommandContext): Promise<void> {
  const src = await ctx.getSelection('Select objects to explode:');
  for (const e of src) {
   if (e instanceof AcDbPolyline) {
-   const pts: P2[] = [], bulges: number[] = [], z = e.elevation ?? 0;
-   for (let i = 0; i < e.numberOfVertices; i++) {
-    const p = e.getPoint2dAt(i); pts.push([p.x, p.y]);
-    bulges.push((e as any)._geo?.vertices?.[i]?.bulge ?? 0);
-   }
-   const segs = explodePolyline(pts, e.closed, bulges);
+   const { points: pts, bulges, closed } = polylineVertices(e);
+   const z = e.elevation ?? 0;
+   const segs = explodePolyline(pts, closed, bulges);
    const newEntities = segs.map(s => s.kind === 'arc'
     ? copyProperties(e, new AcDbArc(new AcGePoint3d(s.center[0], s.center[1], z), s.radius, s.startAngle * Math.PI / 180, s.endAngle * Math.PI / 180))
     : copyProperties(e, new AcDbLine(new AcGePoint3d(...s.start, z), new AcGePoint3d(...s.end, z)))
