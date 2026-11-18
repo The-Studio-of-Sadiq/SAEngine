@@ -205,12 +205,16 @@ def check_changes(
 
     def now(path: str) -> str | None:
         data = view.read(path, None)
-        return None if data is None else json_text(data)
+        if data is None or isinstance(data, str):
+            return data
+        return json_text(data)
 
     def then(path: str) -> str | None:
         if path in before:
             data = before[path]
-            return None if data is None else json_text(data)
+            if data is None or isinstance(data, str):
+                return data
+            return json_text(data)
         return view.text(path)
 
     errors: list[Problem] = []
