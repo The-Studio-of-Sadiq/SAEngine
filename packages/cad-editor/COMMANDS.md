@@ -10,3 +10,10 @@ Audited against the installed `@mlightcad/cad-simple-viewer` 1.7.5 bundle and de
 - Limitation: `AcEdCommand.trigger()` commits in its `finally` even after an execute error (though it aborts first); see bundle `9891-9935`. Prompt cancellation should be caught by custom commands before returning. The database API doesn't expose a general replace-in-place method; replace is erase plus append.
 
 SAEngine's `commands.ts` adapts these native APIs, with a nested `transaction(fn)` that executes inside the command's existing undo transaction.
+
+### Block commands
+
+SAEngine registers BLOCK/B, INSERT/I, ATTDEF/ATT, ATTEDIT/ATE/EATTEDIT,
+WBLOCK/W, GROUP/G, UNGROUP, and PURGE/PU from `blockCommands.ts`.
+WBLOCK emits a standalone DXF string through `CadEditor.onWblock((name, dxfText) => …)`;
+the host can use that callback to present its save dialog.
