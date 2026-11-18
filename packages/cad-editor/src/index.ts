@@ -7,6 +7,7 @@ import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, 
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
+import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -134,6 +135,13 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('EXTEND', extendCommand, { aliases: ['EX'] });
 	registerCommand('FILLET', filletCommand, { aliases: ['F'] });
 	registerCommand('CHAMFER', chamferCommand, { aliases: ['CHA'] });
+	registerCommand('DIST', distCommand, { aliases: ['DI'], mode: AcEdOpenMode.Read });
+	registerCommand('MEASUREGEOM', measureGeomCommand, { aliases: ['MEA'], mode: AcEdOpenMode.Read });
+	registerCommand('AREA', areaCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('ID', idCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
+	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
+	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
