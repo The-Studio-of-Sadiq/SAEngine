@@ -18,6 +18,15 @@ export {
 } from './commands.js';
 export * from './modifyGeometry.js';
 export * from './modifyGeometry2.js';
+export {
+	arcFromBulge, polylineMetrics, curveSegments, totalLength, pointAlong, divideCurve, measureCurve,
+	circleMetrics, ellipseMetrics, arcSegmentMetrics, arcIncludedAngle, angleBetweenVectors, angleBetweenLines,
+	threePointAngle,
+} from './inquiryGeometry.js';
+export {
+	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
+} from './inquiryCommands.js';
+export { polylineVertices, type PolylineData } from './entityAccess.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
