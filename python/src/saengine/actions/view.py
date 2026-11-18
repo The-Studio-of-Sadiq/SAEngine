@@ -84,6 +84,8 @@ class ProjectView:
             text = self.text(path)
             if text is None or not text.strip():
                 self._parsed[path] = _MISSING
+            elif not path.lower().endswith(".json"):
+                self._parsed[path] = text
             else:
                 try:
                     self._parsed[path] = json.loads(text)
@@ -111,6 +113,10 @@ class ProjectView:
             return default
         return data
 
+    def get(self, path: str, default: Any = _MISSING) -> Any:
+        """Alias for :meth:`read`."""
+        return self.read(path, default)
+
     def part(self, path: str, default: Any = _MISSING) -> Any:
         """A deep copy of the current data of ``path`` for an action to edit and :meth:`put`."""
         found = self.read(path, default)
@@ -133,7 +139,10 @@ class ProjectView:
 
     def change_texts(self) -> dict[str, str]:
         """:meth:`changes` as file texts in the project's formatting."""
-        return {path: json_text(data, self.text(path)) for path, data in self.changes().items()}
+        return {
+            path: data if isinstance(data, str) else json_text(data, self.text(path))
+            for path, data in self.changes().items()
+        }
 
     def snapshot(self) -> dict[str, Any]:
         return copy.deepcopy(self._changes)
