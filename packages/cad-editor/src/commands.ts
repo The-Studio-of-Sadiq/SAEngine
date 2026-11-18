@@ -417,7 +417,7 @@ export function registerCommand(name: string, run: (ctx: CadCommandContext) => P
 }
 
 /** Pure geometry helper used by MIRROR and its node tests. */
-function mirrorEntity(source: AcDbEntity, a: CadPoint3, b: CadPoint3): AcDbEntity {
+export function mirrorEntity(source: AcDbEntity, a: CadPoint3, b: CadPoint3): AcDbEntity {
 	const clone = source.clone() as AcDbEntity;
 	const dx = b.x - a.x, dy = b.y - a.y, angle = Math.atan2(dy, dx);
 	const c = Math.cos(2 * angle), s = Math.sin(2 * angle);
@@ -442,7 +442,7 @@ export async function mirrorCommand(ctx: CadCommandContext): Promise<void> {
 	});
 }
 
-function copyProperties<T extends AcDbEntity>(source: AcDbEntity, target: T): T {
+export function copyProperties<T extends AcDbEntity>(source: AcDbEntity, target: T): T {
 	try {
 		if (source.layer) target.layer = source.layer;
 		if (source.color !== undefined) target.color = source.color;
@@ -453,13 +453,13 @@ function copyProperties<T extends AcDbEntity>(source: AcDbEntity, target: T): T 
 	return target;
 }
 
-function cloneTransform(entity: AcDbEntity, matrix: AcGeMatrix3d): AcDbEntity {
+export function cloneTransform(entity: AcDbEntity, matrix: AcGeMatrix3d): AcDbEntity {
 	const copy = entity.clone() as AcDbEntity;
 	copy.transformBy(matrix);
 	return copyProperties(entity, copy);
 }
-function translation(dx: number, dy: number): AcGeMatrix3d { return new AcGeMatrix3d().makeTranslation(dx, dy, 0); }
-function pointTransform(base: CadPoint3, scale: number, angle = 0, shift: CadPoint3 = base): AcGeMatrix3d {
+export function translation(dx: number, dy: number): AcGeMatrix3d { return new AcGeMatrix3d().makeTranslation(dx, dy, 0); }
+export function pointTransform(base: CadPoint3, scale: number, angle = 0, shift: CadPoint3 = base): AcGeMatrix3d {
  return new AcGeMatrix3d().makeTranslation(-base.x,-base.y,-base.z).premultiply(new AcGeMatrix3d().makeScale(scale,scale,scale)).premultiply(new AcGeMatrix3d().makeRotationZ(angle)).premultiply(new AcGeMatrix3d().makeTranslation(shift.x,shift.y,shift.z));
 }
 export async function scaleCommand(ctx: CadCommandContext): Promise<void> {

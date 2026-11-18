@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
+import { AcDbSystemVariables, AcDbSysVarManager } from '@mlightcad/data-model';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
@@ -14,6 +15,7 @@ import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands 
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
 import { registerDrawCommands } from './drawCommands.js';
+import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
 	setActiveDraftingManager,
@@ -55,6 +57,12 @@ export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
+export {
+	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
+	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
+	type GripPoint2D,
+} from './gripGeometry.js';
+export * from './gripEdit.js';
 export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
 export {
 	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
@@ -119,6 +127,19 @@ export interface CadDraftingApi {
 	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
 }
 
+export interface CadGripSettings {
+	readonly enabled: boolean;
+	readonly size: number;
+	readonly objLimit: number;
+}
+
+export interface CadGripApi {
+	/** Gets current grip settings from system variables (GRIPS, GRIPSIZE, GRIPOBJLIMIT). */
+	get(): CadGripSettings;
+	/** Updates grip settings via system variables. */
+	set(settings: Partial<CadGripSettings>): void;
+}
+
 export interface CadEditor {
 	readonly selection: {
 		get(): readonly string[];
@@ -179,6 +200,8 @@ export interface CadEditor {
 	readonly drafting: CadDraftingApi;
 	/** Called when drafting aids settings change; returns an unsubscribe function. */
 	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
+	/** Grip editing settings (enabled, size, objLimit). */
+	readonly grips: CadGripApi;
 	dispose(): Promise<void>;
 }
 
@@ -262,6 +285,79 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerDimensionCommands();
 	registerBlockCommands();
 	registerDrawCommands();
+	registerGripCommands(registerCommand);
+
+	let gripDefaults: CadGripSettings = {
+		enabled: true,
+		size: 5,
+		objLimit: 100,
+	};
+	const getDb = () => {
+		try {
+			return manager.curDocument.database;
+		} catch {
+			return undefined;
+		}
+	};
+	const sysVars = AcDbSysVarManager.instance();
+	const grips: CadGripApi = {
+		get: () => {
+			const db = getDb();
+			if (!db) return { ...gripDefaults };
+			const gripsVar = sysVars.getVar(AcDbSystemVariables.GRIPS, db);
+			const sizeVar = sysVars.getVar(AcDbSystemVariables.GRIPSIZE, db);
+			const limitVar = sysVars.getVar(AcDbSystemVariables.GRIPOBJLIMIT, db);
+			return {
+				enabled: gripsVar !== undefined ? Number(gripsVar) !== 0 : gripDefaults.enabled,
+				size: sizeVar !== undefined ? Number(sizeVar) : gripDefaults.size,
+				objLimit: limitVar !== undefined ? Number(limitVar) : gripDefaults.objLimit,
+			};
+		},
+		set: (patch: Partial<CadGripSettings>) => {
+			const db = getDb();
+			if (patch.enabled !== undefined) {
+				gripDefaults = { ...gripDefaults, enabled: patch.enabled };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPS, patch.enabled ? 2 : 0, db);
+			}
+			if (patch.size !== undefined) {
+				gripDefaults = { ...gripDefaults, size: patch.size };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPSIZE, patch.size, db);
+			}
+			if (patch.objLimit !== undefined) {
+				gripDefaults = { ...gripDefaults, objLimit: patch.objLimit };
+				if (db) sysVars.setVar(AcDbSystemVariables.GRIPOBJLIMIT, patch.objLimit, db);
+			}
+			try {
+				(manager.curView as any)?.gripManager?.refresh?.();
+			} catch {}
+		},
+	};
+
+	const attachViewGripHook = () => {
+		try {
+			const view = manager.curView as any;
+			if (view?.gripManager && !view._saengineGripHookAttached) {
+				view._saengineGripHookAttached = true;
+				const origStartEdit = view.gripManager.startEdit.bind(view.gripManager);
+				view.gripManager.startEdit = function (entry: any) {
+					setActiveGripContext({
+						entityId: entry.entityId,
+						gripIndex: entry.gripIndex,
+						basePoint: entry.wcsPoint,
+						selectedIds: [...(view.selectionSet?.ids ?? [])],
+					});
+					const gripManager = view.gripManager;
+					// GRIPEDIT replaces the library's drag session, so clear the hot grip and rebuild
+					// the handles from the edited geometry when it ends (the library's endEdit does both).
+					manager.executeCommandString('GRIPEDIT').then(
+						() => gripManager.endEdit?.(),
+						() => origStartEdit(entry),
+					);
+				};
+			}
+		} catch {}
+	};
+	attachViewGripHook();
 
 	const draftingManager = new DraftingAidsManager(options.container, () => {
 		try {
@@ -371,6 +467,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			watchDocument();
 			// Opening a drawing applies its own background (MODELBKCOLOR); the host's wins.
 			applyBackground();
+			attachViewGripHook();
 		}
 		return ok;
 	};
@@ -542,6 +639,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
 		},
 		onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
+		grips,
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
