@@ -15,12 +15,25 @@ export function estimatedTextWidth(value: string, height: number, widthFactor = 
 	return [...value].length * height * 0.6 * widthFactor;
 }
 
-export function centerMarkSegments(center: AnnotationPoint, size: number): Segment[] {
-	const d = size / 2;
-	return [
-		{ start: { x: center.x - d, y: center.y, z: center.z }, end: { x: center.x + d, y: center.y, z: center.z } },
-		{ start: { x: center.x, y: center.y - d, z: center.z }, end: { x: center.x, y: center.y + d, z: center.z } },
+export function centerMarkSegments(center: AnnotationPoint, size: number, radius?: number): Segment[] {
+	if (size === 0) return [];
+	const s = Math.abs(size);
+	const segments: Segment[] = [
+		{ start: { x: center.x - s, y: center.y, z: center.z }, end: { x: center.x + s, y: center.y, z: center.z } },
+		{ start: { x: center.x, y: center.y - s, z: center.z }, end: { x: center.x, y: center.y + s, z: center.z } },
 	];
+	if (size < 0 && radius !== undefined && radius + s > 2 * s) {
+		const gap = s;
+		const extStart = s + gap;
+		const extEnd = radius + s;
+		segments.push(
+			{ start: { x: center.x + extStart, y: center.y, z: center.z }, end: { x: center.x + extEnd, y: center.y, z: center.z } },
+			{ start: { x: center.x - extStart, y: center.y, z: center.z }, end: { x: center.x - extEnd, y: center.y, z: center.z } },
+			{ start: { x: center.x, y: center.y + extStart, z: center.z }, end: { x: center.x, y: center.y + extEnd, z: center.z } },
+			{ start: { x: center.x, y: center.y - extStart, z: center.z }, end: { x: center.x, y: center.y - extEnd, z: center.z } },
+		);
+	}
+	return segments;
 }
 
 export function tableGrid(rows: number, columns: number, rowHeight: number, columnWidth: number, origin: AnnotationPoint): Segment[] {

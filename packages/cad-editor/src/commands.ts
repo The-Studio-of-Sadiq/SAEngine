@@ -26,6 +26,13 @@ export type CadSelection = readonly AcDbEntity[];
 export interface CadPromptPointOptions {
 	readonly base?: CadPoint3;
 	readonly allowNone?: boolean;
+	readonly keywords?: readonly string[];
+}
+
+export interface CadPointPickResult {
+	readonly point?: CadPoint3;
+	readonly keyword?: string;
+	readonly status: 'ok' | 'none' | 'cancel' | 'keyword';
 }
 
 export interface CadPromptEntityOptions {
@@ -66,10 +73,10 @@ export interface CadCommandContext {
 	getString(prompt: string, options?: { readonly allowSpaces?: boolean; readonly allowEmpty?: boolean; readonly defaultValue?: string }): Promise<string>;
 	getInteger(prompt: string, options?: { readonly min?: number }): Promise<number>;
 	getDouble(prompt: string): Promise<number>;
-	getString(prompt: string, options: { readonly allowSpaces?: boolean; readonly allowEmpty?: boolean; readonly defaultValue?: string }): Promise<string>;
 	getKeyword(prompt: string, keywords: readonly string[], options?: { readonly default?: string }): Promise<string>;
 	getEntity(prompt: string): Promise<AcDbEntity>;
 	getEntityPick(prompt: string, options?: CadPromptEntityOptions): Promise<CadEntityPickResult>;
+	getPointPick(prompt: string, options?: CadPromptPointOptions): Promise<CadPointPickResult>;
 	transaction<T>(fn: () => T | Promise<T>): Promise<T>;
 	message(text: string): void;
 	readonly database: {
@@ -115,6 +122,25 @@ class CallbackCommand extends AcEdCommand {
 				if (options?.allowNone && r.status === AcEdPromptStatus.None) return undefined;
 				return promptValue(r, 'Point') as CadPoint3;
 			}) as CadCommandContext['getPoint'],
+			getPointPick: async (prompt, options) => {
+				const opts = new AcEdPromptPointOptions(prompt);
+				if (options?.allowNone) opts.allowNone = true;
+				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
+				if (options?.keywords) {
+					for (const kw of options.keywords) opts.keywords.add(kw, kw, kw);
+				}
+				const r = await editor.getPoint(opts);
+				if (r.status === AcEdPromptStatus.Keyword) {
+					return { status: 'keyword', keyword: r.stringResult };
+				}
+				if (r.status === AcEdPromptStatus.None) {
+					return { status: 'none' };
+				}
+				if (r.status !== AcEdPromptStatus.OK || !r.value) {
+					return { status: 'cancel' };
+				}
+				return { status: 'ok', point: new AcGePoint3d(r.value) };
+			},
 			getDistance: async (prompt, options) => {
 				const opts = new AcEdPromptDistanceOptions(prompt);
 				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
@@ -131,6 +157,7 @@ class CallbackCommand extends AcEdCommand {
 				opts.allowEmpty = options?.allowEmpty ?? false;
 				if (options?.defaultValue !== undefined) { opts.defaultValue = options.defaultValue; opts.useDefaultValue = true; }
 				const r = await editor.getString(opts);
+				if (options?.allowEmpty && (r.status === AcEdPromptStatus.None || r.stringResult === '')) return '';
 				if (r.status !== AcEdPromptStatus.OK || r.stringResult === undefined) throw new Error('String cancelled');
 				return r.stringResult;
 			},

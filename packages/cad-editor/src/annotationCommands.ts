@@ -1,24 +1,152 @@
 import { AcDbArc, AcDbCircle, AcDbEntity, AcDbLine, AcDbMLeader, AcDbMLeaderContentType, AcDbMText, AcDbText, AcDbTextHorizontalMode, AcDbTextStyleTableRecord, AcDbTextVerticalMode, AcGePoint3d } from '@mlightcad/data-model';
 import { registerCommand, type CadCommandContext, type CadPoint3 } from './commands.js';
-import { centerMarkSegments, justifiedTextAnchor, tableGrid } from './annotationGeometry.js';
+import { centerMarkSegments, tableGrid } from './annotationGeometry.js';
 
 let rememberedHeight = 2.5;
-const num = async (ctx: CadCommandContext, prompt: string, def?: number) => def;
+let rememberedDimcen = 2.5;
+
+export function getDrawingDimcen(db: any): number {
+	const raw = db?.dimcen ??
+		db?.header?.dimcen ??
+		db?.header?.DIMCEN ??
+		(typeof db?.getVariable === 'function' ? db.getVariable('DIMCEN') : undefined) ??
+		(typeof db?.getSysVar === 'function' ? db.getSysVar('DIMCEN') : undefined) ??
+		db?.tables?.dimStyleTable?.getAt?.(db.dimstyle)?.dimcen;
+	if (typeof raw === 'number' && Number.isFinite(raw)) {
+		rememberedDimcen = raw;
+		return raw;
+	}
+	return rememberedDimcen;
+}
+
 const point = (p: CadPoint3) => new AcGePoint3d(p);
-const makeText = (ctx: CadCommandContext, value: string, p: CadPoint3, height: number, rotation = 0) => {
-	const t = new AcDbText(); t.textString=value; t.position=point(p); t.height=height; t.rotation=rotation; t.layer=ctx.database.native.clayer; t.styleName=ctx.database.native.textstyle; return t;
+const makeText = (ctx: CadCommandContext, value: string, p: CadPoint3, height: number, rotation = 0, styleName?: string) => {
+	const t = new AcDbText();
+	t.textString = value;
+	t.position = point(p);
+	t.height = height;
+	t.rotation = rotation;
+	t.layer = ctx.database.native.clayer;
+	t.styleName = styleName ?? ctx.database.native.textstyle;
+	return t;
 };
 
 export async function textCommand(ctx: CadCommandContext): Promise<void> {
-	const p = await ctx.getPoint('Specify start point:');
-	const just=await ctx.getKeyword('Specify justification [Left/Center/Right/Aligned/Middle/Fit/Top/Bottom/MC]:',['Left','Center','Right','Aligned','Middle','Fit','Top','Bottom','MC'],{default:'Left'});
-	const mode:Record<string,[AcDbTextHorizontalMode,AcDbTextVerticalMode]>={Left:[AcDbTextHorizontalMode.LEFT,AcDbTextVerticalMode.BASELINE],Center:[AcDbTextHorizontalMode.CENTER,AcDbTextVerticalMode.BASELINE],Right:[AcDbTextHorizontalMode.RIGHT,AcDbTextVerticalMode.BASELINE],Aligned:[AcDbTextHorizontalMode.ALIGNED,AcDbTextVerticalMode.BASELINE],Middle:[AcDbTextHorizontalMode.MIDDLE,AcDbTextVerticalMode.MIDDLE],Fit:[AcDbTextHorizontalMode.FIT,AcDbTextVerticalMode.BASELINE],Top:[AcDbTextHorizontalMode.LEFT,AcDbTextVerticalMode.TOP],Bottom:[AcDbTextHorizontalMode.LEFT,AcDbTextVerticalMode.BOTTOM],MC:[AcDbTextHorizontalMode.CENTER,AcDbTextVerticalMode.MIDDLE]};
-	const [hmode,vmode]=mode[just]??mode.Left;
-	const heightRaw=await ctx.getString(`Specify height <${rememberedHeight}>:`,{allowSpaces:false,defaultValue:String(rememberedHeight)});
-	const actualHeight=Number(heightRaw); if(!Number.isFinite(actualHeight)||actualHeight<=0) throw new Error('Text height must be positive'); rememberedHeight=actualHeight;
-	const rotationRaw=await ctx.getString('Specify rotation angle <0>:',{allowSpaces:false,defaultValue:'0'}); const degrees=Number(rotationRaw); if(!Number.isFinite(degrees)) throw new Error('Invalid rotation angle');
-	const value=await ctx.getString('Enter text:',{allowSpaces:true});
-	const t=makeText(ctx,value,p,actualHeight,degrees*Math.PI/180); t.horizontalMode=hmode; t.verticalMode=vmode; if(hmode!==AcDbTextHorizontalMode.LEFT||vmode!==AcDbTextVerticalMode.BASELINE)t.alignmentPoint=point(p); ctx.database.add(t);
+	let startPoint: CadPoint3 | undefined;
+	let hmode = AcDbTextHorizontalMode.LEFT;
+	let vmode = AcDbTextVerticalMode.BASELINE;
+	let currentStyle = ctx.database.native.textstyle;
+
+	const justificationKeywords = [
+		'TL', 'TC', 'TR', 'ML', 'MC', 'MR', 'BL', 'BC', 'BR',
+		'Left', 'Center', 'Right', 'Align', 'Middle', 'Fit',
+	] as const;
+
+	const modeMap: Record<string, [AcDbTextHorizontalMode, AcDbTextVerticalMode]> = {
+		tl: [AcDbTextHorizontalMode.LEFT, AcDbTextVerticalMode.TOP],
+		tc: [AcDbTextHorizontalMode.CENTER, AcDbTextVerticalMode.TOP],
+		tr: [AcDbTextHorizontalMode.RIGHT, AcDbTextVerticalMode.TOP],
+		ml: [AcDbTextHorizontalMode.LEFT, AcDbTextVerticalMode.MIDDLE],
+		mc: [AcDbTextHorizontalMode.CENTER, AcDbTextVerticalMode.MIDDLE],
+		mr: [AcDbTextHorizontalMode.RIGHT, AcDbTextVerticalMode.MIDDLE],
+		bl: [AcDbTextHorizontalMode.LEFT, AcDbTextVerticalMode.BOTTOM],
+		bc: [AcDbTextHorizontalMode.CENTER, AcDbTextVerticalMode.BOTTOM],
+		br: [AcDbTextHorizontalMode.RIGHT, AcDbTextVerticalMode.BOTTOM],
+		left: [AcDbTextHorizontalMode.LEFT, AcDbTextVerticalMode.BASELINE],
+		center: [AcDbTextHorizontalMode.CENTER, AcDbTextVerticalMode.BASELINE],
+		right: [AcDbTextHorizontalMode.RIGHT, AcDbTextVerticalMode.BASELINE],
+		align: [AcDbTextHorizontalMode.ALIGNED, AcDbTextVerticalMode.BASELINE],
+		middle: [AcDbTextHorizontalMode.MIDDLE, AcDbTextVerticalMode.MIDDLE],
+		fit: [AcDbTextHorizontalMode.FIT, AcDbTextVerticalMode.BASELINE],
+	};
+
+	while (!startPoint) {
+		if (typeof ctx.getPointPick === 'function') {
+			const res = await ctx.getPointPick('Specify start point of text or [Justify/Style]:', {
+				keywords: ['Justify', 'Style'],
+			});
+			if (res.status === 'cancel' || res.status === 'none') return;
+			if (res.status === 'keyword') {
+				const kw = res.keyword?.toLowerCase();
+				if (kw === 'justify' || kw === 'j') {
+					const just = await ctx.getKeyword(
+						'Enter an option [TL/TC/TR/ML/MC/MR/BL/BC/BR/Left/Center/Right/Align/Middle/Fit] <Left>:',
+						justificationKeywords,
+						{ default: 'Left' },
+					);
+					const [h, v] = modeMap[just.toLowerCase()] ?? modeMap.left;
+					hmode = h;
+					vmode = v;
+					startPoint = await ctx.getPoint('Specify justification point:');
+					break;
+				} else if (kw === 'style' || kw === 's') {
+					const styleName = await ctx.getString('Enter style name:', { allowSpaces: false });
+					if (!ctx.database.native.tables.textStyleTable.has(styleName)) {
+						throw new Error(`Text style "${styleName}" does not exist`);
+					}
+					currentStyle = styleName;
+					ctx.database.native.textstyle = styleName;
+					continue;
+				}
+			} else if (res.status === 'ok' && res.point) {
+				startPoint = res.point;
+				break;
+			}
+		} else {
+			startPoint = await ctx.getPoint('Specify start point of text or [Justify/Style]:');
+			break;
+		}
+	}
+
+	if (!startPoint) return;
+
+	const styleRecord = ctx.database.native.tables.textStyleTable.has(currentStyle)
+		? ctx.database.native.tables.textStyleTable.getAt(currentStyle)
+		: undefined;
+	let actualHeight = rememberedHeight;
+	if (styleRecord && typeof styleRecord.textSize === 'number' && styleRecord.textSize > 0) {
+		actualHeight = styleRecord.textSize;
+	} else {
+		const heightRaw = await ctx.getString(`Specify height <${rememberedHeight}>:`, {
+			allowSpaces: false,
+			allowEmpty: true,
+			defaultValue: String(rememberedHeight),
+		});
+		const parsed = heightRaw.trim() === '' ? rememberedHeight : Number(heightRaw);
+		if (!Number.isFinite(parsed) || parsed <= 0) throw new Error('Text height must be positive');
+		actualHeight = parsed;
+		rememberedHeight = actualHeight;
+	}
+
+	const rotationRaw = await ctx.getString('Specify rotation angle of text <0>:', {
+		allowSpaces: false,
+		allowEmpty: true,
+		defaultValue: '0',
+	});
+	const degrees = rotationRaw.trim() === '' ? 0 : Number(rotationRaw);
+	if (!Number.isFinite(degrees)) throw new Error('Invalid rotation angle');
+	const rotation = degrees * Math.PI / 180;
+
+	let lineCount = 0;
+	while (true) {
+		const value = await ctx.getString('Enter text:', { allowSpaces: true, allowEmpty: true });
+		if (!value) break;
+
+		const lineOffset = lineCount * 1.5 * actualHeight;
+		const p: CadPoint3 = {
+			x: startPoint.x + lineOffset * Math.sin(rotation),
+			y: startPoint.y - lineOffset * Math.cos(rotation),
+			z: startPoint.z,
+		};
+		const t = makeText(ctx, value, p, actualHeight, rotation, currentStyle);
+		t.horizontalMode = hmode;
+		t.verticalMode = vmode;
+		if (hmode !== AcDbTextHorizontalMode.LEFT || vmode !== AcDbTextVerticalMode.BASELINE) {
+			t.alignmentPoint = point(p);
+		}
+		ctx.database.add(t);
+		lineCount++;
+	}
 }
 
 export async function textEditCommand(ctx: CadCommandContext): Promise<void> {
@@ -46,11 +174,18 @@ export async function mleaderCommand(ctx: CadCommandContext): Promise<void> {
 }
 
 export async function centerMarkCommand(ctx: CadCommandContext): Promise<void> {
-	const e=await ctx.getEntity('Select circle or arc:');
-	const curve=e as AcDbCircle|AcDbArc;
+	const e = await ctx.getEntity('Select circle or arc:');
 	if (!(e instanceof AcDbCircle) && !(e instanceof AcDbArc)) throw new Error('Select a circle or arc');
-	const center=curve.center; const size=2.5;
-	ctx.database.add(centerMarkSegments(center,size).map(s=>new AcDbLine(point(s.start),point(s.end))));
+	const center = e.center;
+	const radius = e.radius;
+	const size = getDrawingDimcen(ctx.database.native);
+	const segs = centerMarkSegments(center, size, radius);
+	const lines = segs.map(s => {
+		const line = new AcDbLine(point(s.start), point(s.end));
+		line.layer = ctx.database.native.clayer;
+		return line;
+	});
+	ctx.database.add(lines);
 }
 
 export async function tableCommand(ctx: CadCommandContext): Promise<void> {
