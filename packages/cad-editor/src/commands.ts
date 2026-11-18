@@ -63,12 +63,17 @@ export interface CadCommandContext {
 	getPoint(prompt: string, options?: CadPromptPointOptions): Promise<CadPoint3 | undefined>;
 	getDistance(prompt: string, options?: { readonly base?: CadPoint3 }): Promise<number>;
 	getAngle(prompt: string, options?: { readonly base?: CadPoint3 }): Promise<number>;
+	getString(prompt: string, options?: { readonly allowSpaces?: boolean; readonly allowEmpty?: boolean; readonly defaultValue?: string }): Promise<string>;
+	getInteger(prompt: string, options?: { readonly min?: number }): Promise<number>;
+	getDouble(prompt: string): Promise<number>;
+	getString(prompt: string, options: { readonly allowSpaces?: boolean; readonly allowEmpty?: boolean; readonly defaultValue?: string }): Promise<string>;
 	getKeyword(prompt: string, keywords: readonly string[], options?: { readonly default?: string }): Promise<string>;
 	getEntity(prompt: string): Promise<AcDbEntity>;
 	getEntityPick(prompt: string, options?: CadPromptEntityOptions): Promise<CadEntityPickResult>;
 	transaction<T>(fn: () => T | Promise<T>): Promise<T>;
 	message(text: string): void;
 	readonly database: {
+		readonly native: import('@mlightcad/data-model').AcDbDatabase;
 		add(entity: AcDbEntity | readonly AcDbEntity[]): void;
 		replace(id: string, entity: AcDbEntity): void;
 		erase(id: string): void;
@@ -120,6 +125,23 @@ class CallbackCommand extends AcEdCommand {
 				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
 				const r = await editor.getAngle(opts); if (r.status !== AcEdPromptStatus.OK || r.value === undefined) throw new Error('Angle cancelled'); return r.value;
 			},
+			getString: async (prompt, options) => {
+				const opts = new (await import('@mlightcad/cad-simple-viewer')).AcEdPromptStringOptions(prompt);
+				opts.allowSpaces = options?.allowSpaces ?? true;
+				opts.allowEmpty = options?.allowEmpty ?? false;
+				if (options?.defaultValue !== undefined) { opts.defaultValue = options.defaultValue; opts.useDefaultValue = true; }
+				const r = await editor.getString(opts);
+				if (r.status !== AcEdPromptStatus.OK || r.stringResult === undefined) throw new Error('String cancelled');
+				return r.stringResult;
+			},
+			getInteger: async (prompt, options) => {
+				const opts = new (await import('@mlightcad/cad-simple-viewer')).AcEdPromptIntegerOptions(prompt, options?.min);
+				const r = await editor.getInteger(opts); if (r.status !== AcEdPromptStatus.OK || r.value === undefined) throw new Error('Integer cancelled'); return r.value;
+			},
+			getDouble: async prompt => {
+				const opts = new (await import('@mlightcad/cad-simple-viewer')).AcEdPromptDoubleOptions(prompt);
+				const r = await editor.getDouble(opts); if (r.status !== AcEdPromptStatus.OK || r.value === undefined) throw new Error('Number cancelled'); return r.value;
+			},
 			getKeyword: async (prompt, keywords, options) => {
 				const opts = new AcEdPromptKeywordOptions(prompt);
 				for (const keyword of keywords) opts.keywords.add(keyword, keyword, keyword);
@@ -163,6 +185,7 @@ class CallbackCommand extends AcEdCommand {
 			transaction: async fn => fn(), // AcEdCommand.trigger owns the single undo transaction.
 			message: text => this.showMessage(text),
 			database: {
+				native: db,
 				add: entity => db.tables.blockTable.modelSpace.appendEntity(entity as AcDbEntity[]),
 				replace: (id, entity) => { const old = db.openEntityForWrite(id); if (!old) throw new Error(`Entity ${id} not found`); old.erase(); db.tables.blockTable.modelSpace.appendEntity(entity); },
 				erase: id => { const entity = db.openEntityForWrite(id); entity?.erase(); },
