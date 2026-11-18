@@ -23,6 +23,7 @@ import {
 import {
 	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
 } from './selectionModes.js';
+import { pickDrafting, pickDraftingWindow } from './selectionGeometry.js';
 import {
 	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
 	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
@@ -213,6 +214,10 @@ export interface CadEditor {
 	isCommandActive(): boolean;
 	/** Selected drafting entities' geometry (excluding generated / preview entities). */
 	getSelectedEntities(): readonly CadSelectedEntity[];
+	/** Ids of non-generated, non-locked, visible entities whose geometry is within tolerancePx (screen) of the point, nearest first. */
+	pickDrafting(clientX: number, clientY: number, tolerancePx?: number): string[];
+	/** Ids of non-generated, non-locked, visible entities matching a window or crossing box selection. */
+	pickDraftingWindow(start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[];
 	/** Erases entities by handle from the drawing in an undoable transaction and clears selection. */
 	eraseEntities(handles: readonly string[]): void;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
@@ -594,10 +599,19 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return template.ok && open('', await template.text(), AcEdOpenMode.Read);
 		},
 		setGenerated: drawing => {
+			const sel = manager.curView?.selectionSet;
+			const saved = sel ? [...sel.ids] : [];
 			for (const layer of drawing.layers) {
 				generatedLayers.add(layer.name);
 			}
 			generated = applyGenerated(manager.curDocument.database, generated, drawing);
+			if (sel && saved.length > 0) {
+				const current = new Set(sel.ids);
+				const missing = saved.filter(id => !current.has(id));
+				if (missing.length > 0) {
+					sel.add(missing);
+				}
+			}
 		},
 		setUnderlay: async underlay => {
 			const version = ++underlayVersion;
@@ -628,10 +642,19 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			underlaySession = session.id;
 		},
 		setPreview: drawing => {
+			const sel = manager.curView?.selectionSet;
+			const saved = sel ? [...sel.ids] : [];
 			for (const layer of drawing.layers) {
 				generatedLayers.add(layer.name);
 			}
 			preview = applyGenerated(manager.curDocument.database, preview, drawing);
+			if (sel && saved.length > 0) {
+				const current = new Set(sel.ids);
+				const missing = saved.filter(id => !current.has(id));
+				if (missing.length > 0) {
+					sel.add(missing);
+				}
+			}
 		},
 		toWorld: (clientX, clientY) => {
 			const view = manager.curView;
@@ -686,6 +709,23 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				}
 			}
 			return result;
+		},
+		pickDrafting: (clientX: number, clientY: number, tolerancePx = 5): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			const view = manager.curView;
+			if (!view) return [];
+			const rect = view.canvas.getBoundingClientRect();
+			const world = view.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+			const a = view.screenToWorld({ x: 0, y: 0 });
+			const b = view.screenToWorld({ x: 100, y: 0 });
+			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
+			return pickDrafting(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
+		},
+		pickDraftingWindow: (start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			return pickDraftingWindow(db, start, end, mode, { generated, preview, generatedLayers });
 		},
 		eraseEntities: (handles: readonly string[]) => {
 			const db = manager.curDocument?.database;

@@ -925,7 +925,8 @@ export class FloorPlanEditor extends EditorPane {
 
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
-		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length)) {
+		const hasDraftSelection = (this.editor?.selection.get().length ?? 0) > 0;
+		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length || hasDraftSelection)) {
 			e.preventDefault();
 			e.stopPropagation();
 			this.cancel();
@@ -1040,6 +1041,9 @@ export class FloorPlanEditor extends EditorPane {
 	private setTool(tool: Tool): void {
 		this.tool = tool;
 		this.resetGesture();
+		if (tool !== 'select') {
+			this.editor?.selection.set([]);
+		}
 		this.notice = undefined;
 		this.updateToolbar();
 		this.updateStatus();
@@ -1050,8 +1054,10 @@ export class FloorPlanEditor extends EditorPane {
 
 	/** Esc: drops the gesture in progress (a beam's first point, a picked member, corners), then the tool. */
 	private cancel(): void {
-		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && this.selected.length) {
+		const hasDraftSelection = (this.editor?.selection.get().length ?? 0) > 0;
+		if (this.tool === 'select' && !this.pasting && !this.drag && !this.underlayPick && (this.selected.length || hasDraftSelection)) {
 			this.select([]);
+			this.editor?.selection.set([]);
 			this.notice = undefined;
 			this.updateStatus();
 		} else if (this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick) {
@@ -1712,17 +1718,43 @@ export class FloorPlanEditor extends EditorPane {
 			this.runFill(choice.kind, choice.direction, rectOf(start, end));
 			return;
 		}
+		const mode = windowMode(start, end);
 		const refs = selectInWindow(this.plan?.members ?? [], start, end);
-		this.selected = combine(this.selected, refs, modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey ? 'add' : 'replace');
+		const isAdditive = modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey;
+		this.selected = combine(this.selected, refs, isAdditive ? 'add' : 'replace');
 		const last = this.selected[this.selected.length - 1];
 		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
+
+		const draftHits = this.editor?.pickDraftingWindow(start, end, mode) ?? [];
+		if (this.editor) {
+			if (isAdditive) {
+				const current = this.editor.selection.get();
+				const combined = Array.from(new Set([...current, ...draftHits]));
+				this.editor.selection.set(combined);
+			} else {
+				this.editor.selection.set(draftHits);
+			}
+		}
+
 		this.updateStatus();
 		this.renderProperties();
 		this.updateToolbar();
 		this.schedulePreview();
-		this.setNotice(windowMode(start, end) === 'window'
-			? localize('floorPlan.windowSelected', "Window: {0} member(s) fully inside.", refs.length)
-			: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s) touched.", refs.length));
+		const totalDraftCount = this.editor?.selection.get().length ?? 0;
+		const totalMemberCount = this.selected.length;
+		if (totalDraftCount > 0 && totalMemberCount > 0) {
+			this.setNotice(mode === 'window'
+				? localize('floorPlan.windowMixedSelected', "Window: {0} member(s), {1} drafting entity(ies) inside.", totalMemberCount, totalDraftCount)
+				: localize('floorPlan.crossingMixedSelected', "Crossing window: {0} member(s), {1} drafting entity(ies) touched.", totalMemberCount, totalDraftCount));
+		} else if (totalDraftCount > 0) {
+			this.setNotice(mode === 'window'
+				? localize('floorPlan.windowDraftSelected', "Window: {0} drafting entity(ies) fully inside.", totalDraftCount)
+				: localize('floorPlan.crossingDraftSelected', "Crossing window: {0} drafting entity(ies) touched.", totalDraftCount));
+		} else {
+			this.setNotice(mode === 'window'
+				? localize('floorPlan.windowSelected', "Window: {0} member(s) fully inside.", refs.length)
+				: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s) touched.", refs.length));
+		}
 	}
 
 	private get story(): string | undefined {
@@ -2087,7 +2119,7 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 
-	private click(point: CadPoint, modifiers?: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): void {
+	private click(point: CadPoint, modifiers?: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean; readonly clientX?: number; readonly clientY?: number }): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const layout = parse(this.planModel);
 		const story = input?.story;
@@ -2100,12 +2132,30 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		if (this.tool === 'select') {
-			// Selecting shows the members (properties panel, Model Explorer); it never changes them.
-			const shape = this.pick(point);
 			const mode = modifiers?.ctrlKey || modifiers?.metaKey ? 'toggle' : modifiers?.shiftKey ? 'add' : 'replace';
+			const draftingHits = (modifiers?.clientX !== undefined && modifiers?.clientY !== undefined && this.editor)
+				? this.editor.pickDrafting(modifiers.clientX, modifiers.clientY)
+				: [];
+			if (draftingHits.length > 0) {
+				const nearestId = draftingHits[0];
+				const currentDraftIds = this.editor?.selection.get() ?? [];
+				let newDraftIds: string[];
+				if (mode === 'replace') {
+					newDraftIds = [nearestId];
+				} else if (mode === 'add') {
+					newDraftIds = currentDraftIds.includes(nearestId) ? [...currentDraftIds] : [...currentDraftIds, nearestId];
+				} else { // toggle
+					newDraftIds = currentDraftIds.includes(nearestId)
+						? currentDraftIds.filter(id => id !== nearestId)
+						: [...currentDraftIds, nearestId];
+				}
+				this.editor?.selection.set(newDraftIds);
+				this.select([]);
+				return;
+			}
+			this.editor?.selection.set([]);
+			const shape = this.pick(point);
 			this.select(combine(this.selected, shape ? [{ group: shape.group, id: shape.id }] : [], mode));
-			this.updateToolbar();
-			this.schedulePreview();
 			return;
 		}
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {

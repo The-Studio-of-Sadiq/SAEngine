@@ -1,4 +1,5 @@
 /** Pure 2D selection geometry used by AutoCAD-style window/crossing/fence modes. */
+import { acdbHostApplicationServices } from '@mlightcad/data-model';
 import { polylineVertices } from './entityAccess.js';
 export * from './selectionModes.js';
 
@@ -365,4 +366,238 @@ export function entityMatchesSelection(
 	}
 
 	return false;
+}
+
+/** Computes the shortest 2D distance from a point to an entity's linework/boundary. */
+export function entityDistanceToPoint(entity: any, point: SelectionPoint): number {
+	if (!entity) return Infinity;
+	const type = String(entity.dxfTypeName ?? '').toUpperCase();
+
+	// 1. LINE
+	if (type === 'LINE' || (entity.startPoint && entity.endPoint && !entity.numberOfVertices)) {
+		const p1: SelectionPoint = [Number(entity.startPoint.x), Number(entity.startPoint.y)];
+		const p2: SelectionPoint = [Number(entity.endPoint.x), Number(entity.endPoint.y)];
+		return distToSegment(point, [p1, p2]);
+	}
+
+	// 2. CIRCLE
+	if (type === 'CIRCLE') {
+		const cx = Number(entity.center?.x ?? 0), cy = Number(entity.center?.y ?? 0);
+		const r = Number(entity.radius ?? 0);
+		return Math.abs(Math.hypot(point[0] - cx, point[1] - cy) - r);
+	}
+
+	// 3. ARC
+	if (type === 'ARC') {
+		const cx = Number(entity.center?.x ?? 0), cy = Number(entity.center?.y ?? 0);
+		const r = Number(entity.radius ?? 0);
+		const startAngle = Number(entity.startAngle ?? 0);
+		const endAngle = Number(entity.endAngle ?? 0);
+		const segs = sampleArc(cx, cy, r, startAngle, endAngle, 32);
+		let min = Infinity;
+		for (const s of segs) {
+			const d = distToSegment(point, s);
+			if (d < min) min = d;
+		}
+		return min;
+	}
+
+	// 4. LWPOLYLINE
+	if (type === 'LWPOLYLINE' || entity.numberOfVertices !== undefined) {
+		const poly = polylineVertices(entity);
+		const count = poly.closed ? poly.points.length : poly.points.length - 1;
+		let min = Infinity;
+		for (let i = 0; i < count; i++) {
+			const p1: SelectionPoint = poly.points[i];
+			const p2: SelectionPoint = poly.points[(i + 1) % poly.points.length];
+			const b = poly.bulges[i] ?? 0;
+			if (Math.abs(b) >= 1e-6) {
+				for (const s of sampleBulge(p1, p2, b, 8)) {
+					const d = distToSegment(point, s);
+					if (d < min) min = d;
+				}
+			} else {
+				const d = distToSegment(point, [p1, p2]);
+				if (d < min) min = d;
+			}
+		}
+		return min;
+	}
+
+	// 5. ELLIPSE
+	if (type === 'ELLIPSE') {
+		const cx = Number(entity.center?.x ?? 0), cy = Number(entity.center?.y ?? 0);
+		const majorVec: SelectionPoint = [Number(entity.majorAxis?.x ?? 1), Number(entity.majorAxis?.y ?? 0)];
+		const majorR = Number(entity.majorAxisRadius ?? Math.hypot(majorVec[0], majorVec[1]));
+		const minorR = Number(entity.minorAxisRadius ?? (majorR * (entity.radiusRatio ?? 1)));
+		const startAngle = Number(entity.startAngle ?? 0);
+		const endAngle = Number(entity.endAngle ?? 2 * Math.PI);
+		const segs = sampleEllipse(cx, cy, majorVec, majorR, minorR, startAngle, endAngle, 32);
+		let min = Infinity;
+		for (const s of segs) {
+			const d = distToSegment(point, s);
+			if (d < min) min = d;
+		}
+		return min;
+	}
+
+	// 6. Bounding box / extents (HATCH, DIMENSION, TEXT, MTEXT, INSERT, etc.)
+	let extents = entity.geometricExtents;
+	if (!extents && typeof entity.getGeometricExtentsFromDimBlockOrPoints === 'function') {
+		try { extents = entity.getGeometricExtentsFromDimBlockOrPoints(); } catch { /* ignore */ }
+	}
+	if (!extents && entity.boundingBox) extents = entity.boundingBox;
+
+	if (extents?.min && extents?.max) {
+		const minX = Number(extents.min.x), minY = Number(extents.min.y);
+		const maxX = Number(extents.max.x), maxY = Number(extents.max.y);
+		if (point[0] >= minX && point[0] <= maxX && point[1] >= minY && point[1] <= maxY) {
+			return 0;
+		}
+		const c0: SelectionPoint = [minX, minY], c1: SelectionPoint = [maxX, minY];
+		const c2: SelectionPoint = [maxX, maxY], c3: SelectionPoint = [minX, maxY];
+		return Math.min(
+			distToSegment(point, [c0, c1]),
+			distToSegment(point, [c1, c2]),
+			distToSegment(point, [c2, c3]),
+			distToSegment(point, [c3, c0]),
+		);
+	}
+
+	// 7. Single position / insertion point fallback
+	const pos = entity.position ?? entity.alignmentPoint ?? entity.insertionPoint;
+	if (pos) {
+		return Math.hypot(point[0] - Number(pos.x ?? 0), point[1] - Number(pos.y ?? 0));
+	}
+
+	return Infinity;
+}
+
+export interface PickDraftingOptions {
+	readonly generated?: ReadonlySet<string>;
+	readonly preview?: ReadonlySet<string>;
+	readonly generatedLayers?: ReadonlySet<string>;
+}
+
+/** Determines if an entity is a non-generated, non-locked, visible drafting entity. */
+export function isEntitySelectable(
+	entity: any,
+	db: any,
+	options?: PickDraftingOptions,
+): boolean {
+	if (!entity) return false;
+	const id = String(entity.objectId ?? '');
+	if (!id) return false;
+	if (entity.isErased) return false;
+	if (options?.generated?.has(id) || options?.preview?.has(id)) return false;
+	if (entity.visibility === false) return false;
+
+	const layer = entity.layer;
+	if (layer && options?.generatedLayers?.has(layer)) return false;
+	if (layer && db?.tables?.layerTable) {
+		const rec = db.tables.layerTable.getAt(layer);
+		if (rec) {
+			if (rec.isLocked) return false;
+			if (rec.isOff || rec.isFrozen) return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Returns IDs of non-generated, non-locked, visible entities whose geometry is within
+ * tolerance of the point, nearest first.
+ */
+export function pickDrafting(
+	dbOrPoint: any,
+	pointOrTol?: any,
+	toleranceOrOptions?: any,
+	maybeOptions?: PickDraftingOptions,
+): string[] {
+	let db: any = dbOrPoint;
+	let point: SelectionPoint;
+	let tolerance = 0;
+	let options: PickDraftingOptions | undefined;
+
+	if (Array.isArray(dbOrPoint) || typeof (dbOrPoint as any)?.[0] === 'number') {
+		try { db = acdbHostApplicationServices().workingDatabase; } catch { db = undefined; }
+		point = dbOrPoint as SelectionPoint;
+		tolerance = typeof pointOrTol === 'number' ? pointOrTol : 0;
+		options = toleranceOrOptions as PickDraftingOptions;
+	} else {
+		point = pointOrTol as SelectionPoint;
+		tolerance = typeof toleranceOrOptions === 'number' ? toleranceOrOptions : 0;
+		options = maybeOptions;
+	}
+
+	if (!db) return [];
+	const modelSpace = db.tables?.blockTable?.modelSpace;
+	if (!modelSpace) return [];
+
+	const hits: { id: string; dist: number }[] = [];
+	const iterator = typeof modelSpace.newIterator === 'function' ? modelSpace.newIterator() : [];
+	for (const ent of iterator) {
+		if (!isEntitySelectable(ent, db, options)) continue;
+		const dist = entityDistanceToPoint(ent, point);
+		if (dist <= tolerance) {
+			hits.push({ id: String(ent.objectId), dist });
+		}
+	}
+
+	hits.sort((a, b) => a.dist - b.dist);
+	return hits.map(h => h.id);
+}
+
+/**
+ * Returns IDs of non-generated, non-locked, visible entities matching a window or crossing
+ * box selection.
+ */
+export function pickDraftingWindow(
+	dbOrStart: any,
+	startOrEnd: any,
+	endOrMode: any,
+	modeOrOptions?: any,
+	maybeOptions?: PickDraftingOptions,
+): string[] {
+	let db: any = dbOrStart;
+	let start: SelectionPoint;
+	let end: SelectionPoint;
+	let mode: SelectionModeKind;
+	let options: PickDraftingOptions | undefined;
+
+	if (Array.isArray(dbOrStart) || typeof (dbOrStart as any)?.[0] === 'number') {
+		try { db = acdbHostApplicationServices().workingDatabase; } catch { db = undefined; }
+		start = dbOrStart as SelectionPoint;
+		end = startOrEnd as SelectionPoint;
+		mode = (endOrMode ?? 'window') as SelectionModeKind;
+		options = modeOrOptions as PickDraftingOptions;
+	} else {
+		start = startOrEnd as SelectionPoint;
+		end = endOrMode as SelectionPoint;
+		mode = (modeOrOptions ?? 'window') as SelectionModeKind;
+		options = maybeOptions;
+	}
+
+	if (!db) return [];
+	const modelSpace = db.tables?.blockTable?.modelSpace;
+	if (!modelSpace) return [];
+
+	const minX = Math.min(start[0], end[0]), maxX = Math.max(start[0], end[0]);
+	const minY = Math.min(start[1], end[1]), maxY = Math.max(start[1], end[1]);
+	const boundary: readonly SelectionPoint[] = [
+		[minX, minY],
+		[maxX, minY],
+		[maxX, maxY],
+		[minX, maxY],
+	];
+
+	const result: string[] = [];
+	const iterator = typeof modelSpace.newIterator === 'function' ? modelSpace.newIterator() : [];
+	for (const ent of iterator) {
+		if (!isEntitySelectable(ent, db, options)) continue;
+		if (entityMatchesSelection(ent, mode, boundary)) {
+			result.push(String(ent.objectId));
+		}
+	}
+	return result;
 }
