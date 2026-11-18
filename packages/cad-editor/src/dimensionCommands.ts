@@ -580,7 +580,7 @@ export async function qdimCommand(ctx: CadCommandContext): Promise<void> {
 			}
 		} else if (e instanceof AcDbPolyline || e.dxfTypeName === 'LWPOLYLINE') {
 			const poly = e as AcDbPolyline;
-			pts.push(...polylineVertices(poly));
+			pts.push(...polylineVertices(poly).points);
 		}
 	}
 

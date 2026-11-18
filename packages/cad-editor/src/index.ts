@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) SAEngine contributors. All rights reserved.
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -8,18 +8,38 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } 
 import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
+import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { registerAnnotationCommands } from './annotationCommands.js';
+import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
+import { registerBlockCommands } from './blockCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
-export { polylineVertices, type CadSelectedEntity } from './entityAccess.js';
+export { entityToSelectedGeometry, type CadSelectedEntity } from './entityAccess.js';
 export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export {
 	alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
-	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPromptEntityOptions, type CadSelection,
+	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPointPickResult, type CadPromptEntityOptions, type CadPromptPointOptions, type CadSelection,
 } from './commands.js';
 export * from './modifyGeometry.js';
 export * from './modifyGeometry2.js';
+export {
+	arcFromBulge, polylineMetrics, curveSegments, totalLength, pointAlong, divideCurve, measureCurve,
+	circleMetrics, ellipseMetrics, arcSegmentMetrics, arcIncludedAngle, angleBetweenVectors, angleBetweenLines,
+	threePointAngle,
+} from './inquiryGeometry.js';
+export {
+	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
+} from './inquiryCommands.js';
+export {
+	boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands,
+} from './hatchCommands.js';
+export {
+	detectBoundaryFromPoint, detectLoopsFromObjects, extractSegmentsFromEntity,
+	findMinimalEnclosingLoop, isPointInside, type HatchLoop, type HatchSegment, type HatchVertex,
+} from './hatchGeometry.js';
+export { polylineVertices, type PolylineData } from './entityAccess.js';
 export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
 
@@ -113,6 +133,8 @@ export interface CadEditor {
 	focusCommandLine(): void;
 	/** Called when the user changes the open drawing (an undoable edit); returns an unsubscribe function. */
 	onDidChange(listener: () => void): () => void;
+	/** Called with the WBLOCK output name and DXF text so the host can present a save dialog. */
+	onWblock(listener: (name: string, dxfText: string) => void): () => void;
 	dispose(): Promise<void>;
 }
 
@@ -145,7 +167,17 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('EXTEND', extendCommand, { aliases: ['EX'] });
 	registerCommand('FILLET', filletCommand, { aliases: ['F'] });
 	registerCommand('CHAMFER', chamferCommand, { aliases: ['CHA'] });
+	registerCommand('DIST', distCommand, { aliases: ['DI'], mode: AcEdOpenMode.Read });
+	registerCommand('MEASUREGEOM', measureGeomCommand, { aliases: ['MEA'], mode: AcEdOpenMode.Read });
+	registerCommand('AREA', areaCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('ID', idCommand, { mode: AcEdOpenMode.Read });
+	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
+	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
+	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerAnnotationCommands();
+	registerHatchCommands();
 	registerDimensionCommands();
+	registerBlockCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
@@ -159,6 +191,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 		}
 	};
+	const wblockListeners = new Set<(name: string, dxfText: string) => void>();
+	(globalThis as any).__saengineWblockListeners = wblockListeners;
 	setChrome({ commandLine: true, shortcutToolbar: true, ...options.chrome });
 	const chromeListeners = new Set<() => void>();
 	const onSettingChanged = (args: { key: string }) => {
@@ -379,15 +413,25 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
 		},
+		onWblock: listener => {
+			wblockListeners.add(listener);
+			return () => wblockListeners.delete(listener);
+		},
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
 				AcApXrefManager.instance.unload(underlaySession);
 			}
 			listeners.clear();
+			wblockListeners.clear();
+			delete (globalThis as any).__saengineWblockListeners;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			await manager.destroy();
 		},
 	};
 }
+
+
+
+
