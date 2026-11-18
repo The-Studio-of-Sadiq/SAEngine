@@ -3,7 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AcDbArc, AcDbAttribute, AcDbAttributeDefinition, AcDbBlockReference, AcDbCircle, AcDbEntity, AcDbLine, AcDbPolyline, AcGeMatrix3d, AcGePoint2d, AcGePoint3d, AcGePoint3dLike } from '@mlightcad/data-model';
+import { AcDbArc, AcDbAttribute, AcDbAttributeDefinition, AcDbBlockReference, AcDbCircle, AcDbEntity, AcDbLine, AcDbPolyline, AcDbText, AcGeMatrix3d, AcGePoint2d, AcGePoint3d, AcGePoint3dLike } from '@mlightcad/data-model';
 import {
 	AcApDocManager, AcEdCommand, AcEdOpenMode, AcEdPromptAngleOptions, AcEdPromptDistanceOptions,
 	AcEdPromptEntityOptions, AcEdPromptKeywordOptions, AcEdPromptPointOptions, AcEdPromptSelectionOptions,
@@ -152,7 +152,12 @@ class CallbackCommand extends AcEdCommand {
 			getAngle: async (prompt, options) => {
 				const opts = new AcEdPromptAngleOptions(prompt);
 				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
-				const r = await editor.getAngle(opts); if (r.status !== AcEdPromptStatus.OK || r.value === undefined) throw new Error('Angle cancelled'); return r.value;
+				opts.defaultValue = 0;
+				opts.useDefaultValue = true;
+				const r = await editor.getAngle(opts);
+				if (r.status === AcEdPromptStatus.None) return 0;
+				if (r.status !== AcEdPromptStatus.OK || r.value === undefined) throw new Error('Angle cancelled');
+				return r.value;
 			},
 			getString: async (prompt, options) => {
 				const opts = new (await import('@mlightcad/cad-simple-viewer')).AcEdPromptStringOptions(prompt);
@@ -459,19 +464,34 @@ export async function explodeCommand(ctx: CadCommandContext): Promise<void> {
  const src = await ctx.getSelection('Select objects to explode:');
  for (const e of src) {
   if (e instanceof AcDbBlockReference) {
-   const record = e.blockTableRecord;
+   const record = e.blockTableRecord ?? ctx.database.native.tables.blockTable.getAt(e.blockName);
    if (!record) continue;
    const matrix = blockTransform(e);
    const exploded: AcDbEntity[] = [];
+   const attrs = Array.from(e.attributeIterator());
    for (const child of record.newIterator()) {
-    if (child instanceof AcDbAttributeDefinition) continue;
+    if (child instanceof AcDbAttributeDefinition) {
+     if (attrs.length === 0) {
+      const text = new AcDbText();
+      text.textString = child.textString || child.tag;
+      text.position = child.position.clone();
+      text.height = child.height;
+      text.rotation = child.rotation;
+      text.styleName = child.styleName;
+      text.layer = child.layer;
+      text.color = child.color;
+      text.lineType = child.lineType;
+      text.transformBy(matrix);
+      exploded.push(copyProperties(child, text));
+     }
+     continue;
+    }
     const clone = child.clone() as AcDbEntity;
     clone.transformBy(matrix);
     exploded.push(copyProperties(child, clone));
    }
-   for (const attr of e.attributeIterator()) {
+   for (const attr of attrs) {
     const text = attributeAsText(attr);
-    text.transformBy(blockTransform(e));
     exploded.push(text);
    }
    ctx.database.erase(String(e.objectId));

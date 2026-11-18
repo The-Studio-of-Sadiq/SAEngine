@@ -1,6 +1,6 @@
 ﻿import {
 	AcDbAttribute, AcDbAttributeDefinition, AcDbBlockReference, AcDbBlockTableRecord, AcDbEntity,
-	AcDbGroup, AcDbText, AcGeMatrix3d, AcGePoint3d,
+	AcDbGroup, AcDbText, AcGeMatrix3d, AcGePoint3d, acdbHostApplicationServices,
 } from '@mlightcad/data-model';
 import { AcDbDatabase } from '@mlightcad/data-model';
 import { dxfOut } from './generated.js';
@@ -22,22 +22,30 @@ export async function blockCommand(ctx: CadCommandContext): Promise<void> {
 	if (!name || blockTable(ctx).has(name)) throw new Error('Block name is empty or already exists');
 	const base = await ctx.getPoint('Specify insertion base point:');
 	const selected = await ctx.getSelection('Select objects:');
+	if (selected.length === 0) throw new Error('No objects selected for block');
 	const disposition = await ctx.getKeyword('Retain, convert to block, or delete source objects? [Retain/Convert/Delete] <Convert>:', ['Retain', 'Convert', 'Delete'], { default: 'Convert' });
-	const record = new AcDbBlockTableRecord({ name, origin: point(base) });
+	const record = new AcDbBlockTableRecord({ name, origin: new AcGePoint3d(0, 0, 0) });
 	await ctx.transaction(async () => {
+		blockTable(ctx).add(record);
 		for (const entity of selected) {
 			const clone = entity.clone() as AcDbEntity;
 			clone.transformBy(new AcGeMatrix3d().makeTranslation(-base.x, -base.y, -base.z));
 			record.appendEntity(clone);
 		}
-		blockTable(ctx).add(record);
-		if (disposition.toLowerCase() !== 'retain') {
-			if (disposition.toLowerCase() === 'delete') for (const entity of selected) ctx.database.erase(String(entity.objectId));
-			else {
-				const ref = new AcDbBlockReference(name);
-				ref.position = point(base);
-				ctx.database.add(ref);
+		const disp = disposition.toLowerCase();
+		if (disp === 'delete') {
+			for (const entity of selected) ctx.database.erase(String(entity.objectId));
+		} else if (disp === 'convert') {
+			for (const entity of selected) ctx.database.erase(String(entity.objectId));
+			const ref = new AcDbBlockReference(name);
+			ref.position = point(base);
+			for (const def of definitions(record)) {
+				const attr = makeAttribute(def, def.textString);
+				const pos = transformBlockPoint(def.position, record.origin, base, 1, 1, 0);
+				attr.position = point(pos);
+				ref.appendAttributes(attr);
 			}
+			ctx.database.add(ref);
 		}
 	});
 }
@@ -57,9 +65,11 @@ export async function insertCommand(ctx: CadCommandContext): Promise<void> {
 	ref.position = point(insertion); ref.scaleFactors = new AcGePoint3d(sx, sy, 1); ref.rotation = angle;
 	for (const def of definitions(record)) {
 		if (def.isConst) continue;
+		const promptLabel = def.prompt || def.tag;
+		const promptText = def.textString ? `${promptLabel} <${def.textString}>:` : `${promptLabel}:`;
 		const value = def.isPreset
 			? def.textString
-			: await ctx.getString(`${def.prompt || def.tag} <${def.textString}>:`, { allowSpaces: true, allowEmpty: true, defaultValue: def.textString });
+			: await ctx.getString(promptText, { allowSpaces: true, allowEmpty: true, defaultValue: def.textString });
 		const attr = makeAttribute(def, value);
 		const pos = transformBlockPoint(def.position, record.origin, insertion, sx, sy, angle);
 		attr.position = point(pos);
@@ -72,10 +82,12 @@ export async function insertCommand(ctx: CadCommandContext): Promise<void> {
 
 export async function attdefCommand(ctx: CadCommandContext): Promise<void> {
 	const tag = (await ctx.getString('Enter attribute tag:', { allowSpaces: false })).trim();
-	const prompt = await ctx.getString('Enter attribute prompt:', { allowSpaces: true });
+	if (!tag) throw new Error('Attribute tag cannot be empty');
+	const prompt = await ctx.getString('Enter attribute prompt:', { allowSpaces: true, allowEmpty: true });
 	const value = await ctx.getString('Enter default value:', { allowSpaces: true, allowEmpty: true });
 	const position = await ctx.getPoint('Specify attribute insertion point:');
 	const height = await ctx.getDistance('Specify text height:');
+	if (height <= 0) throw new Error('Text height must be positive');
 	const def = new AcDbAttributeDefinition();
 	def.tag = tag.toUpperCase(); def.prompt = prompt; def.textString = value; def.position = point(position); def.height = height;
 	await ctx.transaction(async () => ctx.database.add(def));
@@ -84,63 +96,120 @@ export async function attdefCommand(ctx: CadCommandContext): Promise<void> {
 async function editAttributes(ctx: CadCommandContext): Promise<void> {
 	const entity = await ctx.getEntity('Select block reference:');
 	if (!(entity instanceof AcDbBlockReference)) throw new Error('Selected entity is not a block reference');
+	const attrs = attributes(entity);
+	if (attrs.length === 0) {
+		ctx.message('Block reference has no editable attributes.');
+		return;
+	}
 	const edits: Array<readonly [AcDbAttribute, string]> = [];
-	for (const attr of attributes(entity)) edits.push([attr, await ctx.getString(`Enter value for ${attr.tag}:`, { allowSpaces: true, defaultValue: attr.textString })] as const);
+	for (const attr of attrs) {
+		const val = await ctx.getString(`Enter value for ${attr.tag} <${attr.textString}>:`, { allowSpaces: true, allowEmpty: true, defaultValue: attr.textString });
+		edits.push([attr, val] as const);
+	}
 	await ctx.transaction(async () => { for (const [attr, value] of edits) attr.textString = value; });
 }
 export const atteditCommand = editAttributes;
 
 export async function wblockCommand(ctx: CadCommandContext): Promise<void> {
 	const name = (await ctx.getString('Enter output block name:', { allowSpaces: false })).trim();
-	const sourceName = await ctx.getString('Enter existing block name or leave blank to select objects:', { allowSpaces: false, allowEmpty: true });
+	if (!name) throw new Error('Output block name cannot be empty');
+	const sourceName = (await ctx.getString('Enter existing block name or leave blank to select objects:', { allowSpaces: false, allowEmpty: true })).trim();
 	const temp = new AcDbDatabase();
-	const record = new AcDbBlockTableRecord({ name, origin: new AcGePoint3d() });
-	if (sourceName.trim()) {
-		const source = blockTable(ctx).getAt(sourceName.trim());
-		if (!source) throw new Error(`Block "${sourceName}" does not exist`);
-		for (const entity of source.newIterator()) {
-			const clone = entity.clone() as AcDbEntity;
-			clone.transformBy(new AcGeMatrix3d().makeTranslation(-source.origin.x, -source.origin.y, -source.origin.z));
-			record.appendEntity(clone);
+	const prevDb = acdbHostApplicationServices().workingDatabase;
+	try {
+		acdbHostApplicationServices().workingDatabase = temp;
+		const record = new AcDbBlockTableRecord({ name, origin: new AcGePoint3d(0, 0, 0) });
+		temp.tables.blockTable.add(record);
+		const modelEntities: AcDbEntity[] = [];
+		if (sourceName) {
+			const source = blockTable(ctx).getAt(sourceName);
+			if (!source) throw new Error(`Block "${sourceName}" does not exist`);
+			for (const entity of source.newIterator()) {
+				const clone = entity.clone() as AcDbEntity;
+				if (source.origin.x !== 0 || source.origin.y !== 0 || source.origin.z !== 0) {
+					clone.transformBy(new AcGeMatrix3d().makeTranslation(-source.origin.x, -source.origin.y, -source.origin.z));
+				}
+				record.appendEntity(clone);
+				modelEntities.push(clone.clone() as AcDbEntity);
+			}
+		} else {
+			const base = await ctx.getPoint('Specify base point:');
+			const selected = await ctx.getSelection('Select objects:');
+			if (selected.length === 0) throw new Error('No objects selected for WBLOCK');
+			for (const entity of selected) {
+				const clone = entity.clone() as AcDbEntity;
+				clone.transformBy(new AcGeMatrix3d().makeTranslation(-base.x, -base.y, -base.z));
+				record.appendEntity(clone);
+				modelEntities.push(clone.clone() as AcDbEntity);
+			}
 		}
-	} else {
-		const base = await ctx.getPoint('Specify base point:');
-		record.origin = point(base);
-		for (const entity of await ctx.getSelection('Select objects:')) {
-			const clone = entity.clone() as AcDbEntity;
-			clone.transformBy(new AcGeMatrix3d().makeTranslation(-base.x, -base.y, -base.z));
-			record.appendEntity(clone);
+		if (modelEntities.length > 0) {
+			temp.tables.blockTable.modelSpace.appendEntity(modelEntities);
 		}
+		const outputDxf = dxfOut(temp);
+		ctx.onWblock?.(name, outputDxf);
+		if (!ctx.onWblock) ctx.message('WBLOCK output callback is not connected.');
+	} finally {
+		acdbHostApplicationServices().workingDatabase = prevDb;
 	}
-	const tempTransaction = temp.transactionManager.startTransaction();
-	try { temp.tables.blockTable.add(record); tempTransaction.commit(); }
-	catch (error) { tempTransaction.abort(); throw error; }
-	ctx.onWblock?.(name, dxfOut(temp));
-	if (!ctx.onWblock) ctx.message('WBLOCK output callback is not connected.');
 }
 
 export async function groupCommand(ctx: CadCommandContext): Promise<void> {
+	if (typeof AcDbGroup === 'undefined' || !ctx.database.native.objects?.group) {
+		ctx.message('Groups are not supported in this environment.');
+		return;
+	}
 	const name = (await ctx.getString('Enter group name:', { allowSpaces: false })).trim();
-	const selected = await ctx.getSelection('Select objects:');
+	if (!name) throw new Error('Group name cannot be empty');
 	if (ctx.database.native.objects.group.has(name)) throw new Error(`Group "${name}" already exists`);
+	const selected = await ctx.getSelection('Select objects:');
+	if (selected.length === 0) throw new Error('No objects selected for group');
 	const group = new AcDbGroup(); group.name = name; group.selectable = true;
 	for (const entity of selected) group.addEntityId(entity.objectId);
 	await ctx.transaction(async () => { ctx.database.native.objects.group.setAt(name, group); });
 }
+
 export async function ungroupCommand(ctx: CadCommandContext): Promise<void> {
+	if (typeof AcDbGroup === 'undefined' || !ctx.database.native.objects?.group) {
+		ctx.message('Groups are not supported in this environment.');
+		return;
+	}
 	const name = (await ctx.getString('Enter group name:', { allowSpaces: false })).trim();
+	if (!name) throw new Error('Group name cannot be empty');
 	await ctx.transaction(async () => {
-		if (!ctx.database.native.objects.group.remove(name)) ctx.message(`Group "${name}" not found.`);
+		if (ctx.database.native.objects.group.remove(name)) {
+			ctx.message(`Group "${name}" removed.`);
+		} else {
+			ctx.message(`Group "${name}" not found.`);
+		}
 	});
 }
+
 export async function purgeCommand(ctx: CadCommandContext): Promise<void> {
 	const table = blockTable(ctx);
-	const used = new Set(ctx.database.all().filter((e): e is AcDbBlockReference => e instanceof AcDbBlockReference).map(e => e.blockName.toLowerCase()));
+	const used = new Set<string>();
+	function collectUsed(entities: Iterable<AcDbEntity>): void {
+		for (const entity of entities) {
+			if (entity instanceof AcDbBlockReference) {
+				const bName = entity.blockName.toLowerCase();
+				if (!used.has(bName)) {
+					used.add(bName);
+					const rec = table.getAt(entity.blockName);
+					if (rec) collectUsed(rec.newIterator());
+				}
+			}
+		}
+	}
+	collectUsed(ctx.database.all());
 	let count = 0;
-	await ctx.transaction(async () => { for (const record of Array.from(table.newIterator())) {
-		if (record.isModelSapce || record.isPaperSapce || record.isXref || used.has(record.name.toLowerCase())) continue;
-		if (table.remove(record.name)) count++;
-	} });
+	await ctx.transaction(async () => {
+		for (const record of Array.from(table.newIterator())) {
+			if (record.isModelSapce || record.isPaperSapce || record.isXref || record.name.startsWith('*') || used.has(record.name.toLowerCase())) {
+				continue;
+			}
+			if (table.remove(record.name)) count++;
+		}
+	});
 	ctx.message(`Purged ${count} unused block definition(s).`);
 }
 
@@ -154,5 +223,3 @@ export function registerBlockCommands(): void {
 	registerCommand('UNGROUP', ungroupCommand);
 	registerCommand('PURGE', purgeCommand, { aliases: ['PU'] });
 }
-
-
