@@ -6,9 +6,11 @@
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint } from './generated.js';
 import { greyDxf } from './underlay.js';
+import { mirrorCommand, registerCommand } from './commands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
+export { mirrorCommand, mirrorPoint, registerCommand, type CadCommandContext, type CadCommandOptions, type CadPoint3, type CadSelection } from './commands.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -106,6 +108,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	if (!manager) {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
+	registerCommand('MIRROR', mirrorCommand);
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
