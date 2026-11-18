@@ -199,9 +199,10 @@ class CallbackCommand extends AcEdCommand {
 			},
 			getSelection: async prompt => {
 				const space = db.tables.blockTable.modelSpace;
-				const all = () => space.newIterator().toArray() as AcDbEntity[];
-				const read = (ids: readonly string[]) => ids.map(id => space.getIdAt(id)).filter((e): e is AcDbEntity => !!e);
-				const set = new SelectionWorkingSet<string>(sel ? sel.ids : []);
+				const isLocked = (e: AcDbEntity) => !!(e.layer && db.tables?.layerTable?.getAt(e.layer)?.isLocked);
+				const all = () => (space.newIterator().toArray() as AcDbEntity[]).filter(e => !isLocked(e));
+				const read = (ids: readonly string[]) => ids.map(id => space.getIdAt(id)).filter((e): e is AcDbEntity => !!e && !isLocked(e));
+				const set = new SelectionWorkingSet<string>(sel ? sel.ids.filter(id => { const e = space.getIdAt(id); return e && !isLocked(e); }) : []);
 
 				while (true) {
 					const currentPrompt = set.mode === 'remove' ? 'Remove objects:' : prompt;
@@ -280,8 +281,9 @@ class CallbackCommand extends AcEdCommand {
 						continue;
 					}
 					if (result.status === AcEdPromptStatus.OK && result.value) {
-						if (result.value.ids.length > 0) {
-							set.apply(result.value.ids);
+						const validIds = result.value.ids.filter(id => { const ent = space.getIdAt(id); return ent && !isLocked(ent); });
+						if (validIds.length > 0) {
+							set.apply(validIds);
 						}
 						break;
 					}
@@ -390,9 +392,32 @@ class CallbackCommand extends AcEdCommand {
 			message: text => this.showMessage(text),
 			database: {
 				native: db,
-				add: entity => db.tables.blockTable.modelSpace.appendEntity(entity as AcDbEntity[]),
-				replace: (id, entity) => { const old = db.openEntityForWrite(id); if (!old) throw new Error(`Entity ${id} not found`); old.erase(); db.tables.blockTable.modelSpace.appendEntity(entity); },
-				erase: id => { const entity = db.openEntityForWrite(id); entity?.erase(); },
+				add: entity => {
+					const list = (Array.isArray(entity) ? entity : [entity]) as AcDbEntity[];
+					const curLayer = db.clayer || '0';
+					for (const e of list) {
+						if (!(e as any)._layer || !e.layer) {
+							e.layer = curLayer;
+						}
+					}
+					db.tables.blockTable.modelSpace.appendEntity(list);
+				},
+				replace: (id, entity) => {
+					const old = db.openEntityForWrite(id);
+					if (!old) throw new Error(`Entity ${id} not found`);
+					if (old.layer && db.tables?.layerTable?.getAt(old.layer)?.isLocked) {
+						throw new Error(`Cannot replace entity on locked layer "${old.layer}"`);
+					}
+					old.erase();
+					db.tables.blockTable.modelSpace.appendEntity(entity);
+				},
+				erase: id => {
+					const entity = db.openEntityForWrite(id);
+					if (entity?.layer && db.tables?.layerTable?.getAt(entity.layer)?.isLocked) {
+						throw new Error(`Cannot erase entity on locked layer "${entity.layer}"`);
+					}
+					entity?.erase();
+				},
 				get: id => db.tables.blockTable.modelSpace.getIdAt(id),
 				all: () => db.tables.blockTable.modelSpace.newIterator().toArray(),
 			},
@@ -447,6 +472,8 @@ export function copyProperties<T extends AcDbEntity>(source: AcDbEntity, target:
 		if (source.layer) target.layer = source.layer;
 		if (source.color !== undefined) target.color = source.color;
 		if (source.lineType) target.lineType = source.lineType;
+		if (source.lineWeight !== undefined) target.lineWeight = source.lineWeight;
+		if (source.linetypeScale !== undefined) target.linetypeScale = source.linetypeScale;
 	} catch {
 		// ignore property copy errors
 	}

@@ -23,6 +23,39 @@ import {
 import {
 	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
 } from './selectionModes.js';
+import {
+	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
+	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
+	layonCommand, laythwCommand, laymcurCommand, laymrgCommand, matchpropCommand,
+	type CadLayerProps, type CadLayerPatch, type CadLayerInfo,
+} from './layerCommands.js';
+import {
+	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	colorCommand, lweightCommand, chpropCommand,
+	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+} from './properties.js';
+import {
+	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
+	linetypeCommand, ltscaleCommand, celtscaleCommand,
+	type BuiltinLinetypeDefinition,
+} from './linetypes.js';
+
+export {
+	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
+	type CadLayerProps, type CadLayerPatch, type CadLayerInfo,
+	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
+	layonCommand, laythwCommand, laymcurCommand, laymrgCommand, matchpropCommand,
+} from './layerCommands.js';
+export {
+	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+	colorCommand, lweightCommand, chpropCommand,
+} from './properties.js';
+export {
+	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
+	linetypeCommand, ltscaleCommand, celtscaleCommand,
+	type BuiltinLinetypeDefinition,
+} from './linetypes.js';
 
 export { SelectionWorkingSet, filterSelection, getPreviousSelection, setPreviousSelection } from './selectionModes.js';
 export * from './selectionGeometry.js';
@@ -202,6 +235,21 @@ export interface CadEditor {
 	onDidChangeDrafting(listener: (settings: DraftingSettings) => void): () => void;
 	/** Grip editing settings (enabled, size, objLimit). */
 	readonly grips: CadGripApi;
+	/** Layer management API (list, add, set, delete, current, setCurrent, onDidChangeLayers). */
+	readonly layers: {
+		list(): readonly CadLayerInfo[];
+		add(name: string, props?: CadLayerProps): void;
+		set(name: string, patch: CadLayerPatch): void;
+		delete(name: string): void;
+		current(): string;
+		setCurrent(name: string): void;
+		onDidChangeLayers(listener: () => void): () => void;
+	};
+	/** Object properties API (get common values with 'varies', set inside one transaction). */
+	readonly properties: {
+		get(ids?: readonly string[]): CadPropertiesResult;
+		set(ids: readonly string[], patch: CadPropertiesPatch): void;
+	};
 	dispose(): Promise<void>;
 }
 
@@ -285,6 +333,25 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerDimensionCommands();
 	registerBlockCommands();
 	registerDrawCommands();
+	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
+	registerCommand('-LAYER', layerCommand);
+	registerCommand('LAYCUR', laycurCommand);
+	registerCommand('LAYISO', layisoCommand);
+	registerCommand('LAYUNISO', layunisoCommand);
+	registerCommand('LAYOFF', layoffCommand);
+	registerCommand('LAYFRZ', layfrzCommand);
+	registerCommand('LAYON', layonCommand);
+	registerCommand('LAYTHW', laythwCommand);
+	registerCommand('LAYMCUR', laymcurCommand);
+	registerCommand('LAYMRG', laymrgCommand);
+	registerCommand('MATCHPROP', matchpropCommand, { aliases: ['MA'] });
+	registerCommand('CHPROP', chpropCommand);
+	registerCommand('CHANGE', chpropCommand);
+	registerCommand('COLOR', colorCommand, { aliases: ['COL'] });
+	registerCommand('LWEIGHT', lweightCommand, { aliases: ['LW'] });
+	registerCommand('LINETYPE', linetypeCommand, { aliases: ['LT', '-LINETYPE'] });
+	registerCommand('LTSCALE', ltscaleCommand);
+	registerCommand('CELTSCALE', celtscaleCommand);
 	registerGripCommands(registerCommand);
 
 	let gripDefaults: CadGripSettings = {
@@ -401,10 +468,12 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	applyBackground();
 
 	const listeners = new Set<() => void>();
+	const layerListeners = new Set<() => void>();
 	const selectionListeners = new Set<(ids: readonly string[]) => void>();
 	let committedSelection: readonly string[] = [];
 	let generated = new Set<string>();
 	let generatedLayers = new Set<string>();
+	(globalThis as any).__saengineGeneratedLayers = generatedLayers;
 	let preview = new Set<string>();
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
@@ -430,10 +499,21 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			}
 		});
 	};
+	const notifyLayersChanged = () => {
+		layerListeners.forEach(listener => listener());
+	};
 	// Generated entities belong to the host's model: keep them out of every selection, so no
 	// command can move or erase them.
-	const deselectGenerated = ({ ids }: { ids: string[] }) => {
-		const owned = ids.filter(id => generated.has(id) || preview.has(id));
+	const deselectGeneratedAndLocked = ({ ids }: { ids: string[] }) => {
+		const db = getDb();
+		const owned = ids.filter(id => {
+			if (generated.has(id) || preview.has(id)) return true;
+			if (db) {
+				const ent = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+				if (ent?.layer && db.tables?.layerTable?.getAt(ent.layer)?.isLocked) return true;
+			}
+			return false;
+		});
 		if (owned.length) {
 			manager.curView.selectionSet.delete(owned);
 		}
@@ -444,6 +524,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		const events = manager.curDocument.database.events;
 		const managers = [events.entityAppended, events.entityModified, events.entityErased, events.layerAppended, events.layerModified, events.layerErased];
 		managers.forEach(m => m.addEventListener(fire));
+		const layerManagers = [events.layerAppended, events.layerModified, events.layerErased];
+		layerManagers.forEach(m => m.addEventListener(notifyLayersChanged));
 		const selection = manager.curView.selectionSet;
 		const onSelectionChanged = () => {
 			committedSelection = [...selection.ids];
@@ -451,12 +533,13 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		};
 		selection.events.selectionAdded.addEventListener(onSelectionChanged);
 		selection.events.selectionRemoved.addEventListener(onSelectionChanged);
-		selection.events.selectionAdded.addEventListener(deselectGenerated);
+		selection.events.selectionAdded.addEventListener(deselectGeneratedAndLocked);
 		unsubscribeDocument = () => {
 			managers.forEach(m => m.removeEventListener(fire));
+			layerManagers.forEach(m => m.removeEventListener(notifyLayersChanged));
 			selection.events.selectionAdded.removeEventListener(onSelectionChanged);
 			selection.events.selectionRemoved.removeEventListener(onSelectionChanged);
-			selection.events.selectionAdded.removeEventListener(deselectGenerated);
+			selection.events.selectionAdded.removeEventListener(deselectGeneratedAndLocked);
 		};
 	};
 	const opened = (ok: boolean) => {
@@ -484,7 +567,15 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				const selection = manager.curView?.selectionSet;
 				if (!selection) return;
 				selection.clear();
-				const filtered = ids.filter(id => !generated.has(id) && !preview.has(id));
+				const db = getDb();
+				const filtered = ids.filter(id => {
+					if (generated.has(id) || preview.has(id)) return false;
+					if (db) {
+						const ent = db.tables?.blockTable?.modelSpace?.getIdAt(id);
+						if (ent?.layer && db.tables?.layerTable?.getAt(ent.layer)?.isLocked) return false;
+					}
+					return true;
+				});
 				if (filtered.length) selection.add(filtered);
 				setPreviousSelection(filtered);
 				committedSelection = [...selection.ids];
@@ -585,6 +676,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 				}
 				const entity = db.tables?.blockTable?.modelSpace?.getIdAt(id);
 				if (entity) {
+					if (entity.layer && db.tables?.layerTable?.getAt(entity.layer)?.isLocked) {
+						continue;
+					}
 					const geom = entityToSelectedGeometry(entity);
 					if (geom) {
 						result.push(geom);
@@ -640,14 +734,74 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		},
 		onDidChangeDrafting: listener => draftingManager.onDidChangeDrafting(listener),
 		grips,
+		layers: {
+			list: () => {
+				const db = getDb();
+				return db ? listLayers(db, generatedLayers) : [];
+			},
+			add: (name, props) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				ensureLayer(db, name, props);
+				notifyLayersChanged();
+			},
+			set: (name, patch) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setLayer(db, name, patch, generatedLayers, (rec, ch) => {
+					try {
+						(manager.curView as any)?.updateLayer?.(rec, ch);
+					} catch {}
+					try {
+						db.events?.layerModified?.dispatch?.({ database: db, layer: rec, changes: ch });
+					} catch {}
+				});
+				notifyLayersChanged();
+			},
+			delete: name => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				deleteLayer(db, name, generatedLayers);
+				notifyLayersChanged();
+			},
+			current: () => {
+				const db = getDb();
+				return db?.clayer || '0';
+			},
+			setCurrent: name => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setCurrentLayer(db, name);
+				notifyLayersChanged();
+			},
+			onDidChangeLayers: listener => {
+				layerListeners.add(listener);
+				return () => layerListeners.delete(listener);
+			},
+		},
+		properties: {
+			get: ids => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				return getProperties(db, ids ?? [...(manager.curView?.selectionSet?.ids ?? [])], generated);
+			},
+			set: (ids, patch) => {
+				const db = getDb();
+				if (!db) throw new Error('No database open');
+				setProperties(db, ids, patch, generated);
+				fire();
+			},
+		},
 		dispose: async () => {
 			unsubscribeDocument?.();
 			if (underlaySession) {
 				AcApXrefManager.instance.unload(underlaySession);
 			}
 			listeners.clear();
+			layerListeners.clear();
 			wblockListeners.clear();
 			delete (globalThis as any).__saengineWblockListeners;
+			delete (globalThis as any).__saengineGeneratedLayers;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			draftingManager.dispose();
