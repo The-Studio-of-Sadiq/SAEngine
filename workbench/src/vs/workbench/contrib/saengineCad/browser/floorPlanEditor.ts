@@ -8,7 +8,7 @@ import type { CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint }
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isEditableElement, isHTMLElement, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -86,6 +86,8 @@ const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 const COMPACT_WIDTH = 950;
 /** Below this width [px] Move, Rotate and Delete go to "..." too. */
 const NARROW_WIDTH = 700;
+/** From this width [px] the drafting tools sit on the toolbar one by one; below it they fold into Draw and Modify menus, as AutoCAD's panels do, so the storey picker and the Plan / 3D / Analysis switch keep their room. */
+const DRAFTING_INLINE_WIDTH = 1700;
 
 /** Screen distances: how close a click must be to a grid intersection or member, and marker size [px]. */
 const SNAP_PIXELS = 24;
@@ -304,6 +306,8 @@ export class FloorPlanEditor extends EditorPane {
 	private compact = false;
 	/** A very narrow editor also moves Move, Rotate and Delete to "...". */
 	private narrow = false;
+	/** The drafting tools one by one on the toolbar (wide editors), else in Draw and Modify menus. */
+	private draftingInline = false;
 
 	/** The members selected on the plan; the selection service holds the one picked last. */
 	private selected: IMemberRef[] = [];
@@ -568,6 +572,11 @@ export class FloorPlanEditor extends EditorPane {
 			try {
 				const outcome = await this.actionsService.run([{ action: 'drafting.migrate', params: {} }], { apply: true });
 				if (outcome.ok) {
+					// The new DXFs are already on disk: save floor-plan.json now too, or the next open
+					// would migrate the same drafts again into the DXFs.
+					if (this.planModel && !this.planModel.isDisposed()) {
+						await this.textFileService.save(this.planModel.uri);
+					}
 					this.notificationService.info(localize('drafting.migrated', "Drafting moved to 05 Floor Plan/drafting (one DXF per storey)."));
 					layout = parse(this.planModel);
 				}
@@ -735,9 +744,11 @@ export class FloorPlanEditor extends EditorPane {
 	override layout(dimension: Dimension): void {
 		const compact = dimension.width < COMPACT_WIDTH;
 		const narrow = dimension.width < NARROW_WIDTH;
-		if (compact !== this.compact || narrow !== this.narrow) {
+		const draftingInline = dimension.width >= DRAFTING_INLINE_WIDTH;
+		if (compact !== this.compact || narrow !== this.narrow || draftingInline !== this.draftingInline) {
 			this.compact = compact;
 			this.narrow = narrow;
+			this.draftingInline = draftingInline;
 			this.updateToolbar();
 		}
 		this.frame.layout(dimension.width, dimension.height);
@@ -1117,6 +1128,18 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	/** Brings the toolbar's buttons, the overflow menu and the inline controls up to date. */
+	private drawMenu(actions: IAction[]): SubmenuAction {
+		const menu = new SubmenuAction('saengine.floorPlan.drawMenu', localize('floorPlan.drawMenu', "Draw"), actions, ThemeIcon.asClassName(Codicon.edit));
+		menu.tooltip = localize('floorPlan.drawMenuTip', "Draw: line, polyline, rectangle, polygon, circle, arc, ellipse, spline, hatch, text, dimension");
+		return menu;
+	}
+
+	private modifyMenu(actions: IAction[]): SubmenuAction {
+		const menu = new SubmenuAction('saengine.floorPlan.modifyMenu', localize('floorPlan.modifyMenu', "Modify"), actions, ThemeIcon.asClassName(Codicon.tools));
+		menu.tooltip = localize('floorPlan.modifyMenuTip', "Modify: offset, trim, extend, fillet, mirror, scale");
+		return menu;
+	}
+
 	private updateToolbar(): void {
 		const frame = this.frame;
 		const state = this.layoutState;
@@ -1178,7 +1201,9 @@ export class FloorPlanEditor extends EditorPane {
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
-			...(this.compact ? [] : [...cadDrawActions, new Separator(), ...cadModifyActions, new Separator()]),
+			...(this.compact ? [] : this.draftingInline
+				? [...cadDrawActions, new Separator(), ...cadModifyActions, new Separator()]
+				: [this.drawMenu(cadDrawActions), this.modifyMenu(cadModifyActions), new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1216,7 +1241,7 @@ export class FloorPlanEditor extends EditorPane {
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
-		const key = `${state}|${this.compact}|${this.narrow}`;
+		const key = `${state}|${this.compact}|${this.narrow}|${this.draftingInline}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
 			frame.setActions(primary, secondary);
