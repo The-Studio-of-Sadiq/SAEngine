@@ -8,6 +8,7 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } 
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -26,6 +27,13 @@ export {
 export {
 	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
 } from './inquiryCommands.js';
+export {
+	boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands,
+} from './hatchCommands.js';
+export {
+	detectBoundaryFromPoint, detectLoopsFromObjects, extractSegmentsFromEntity,
+	findMinimalEnclosingLoop, isPointInside, type HatchLoop, type HatchSegment, type HatchVertex,
+} from './hatchGeometry.js';
 export { polylineVertices, type PolylineData } from './entityAccess.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
@@ -151,6 +159,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
 	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
 	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerHatchCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
