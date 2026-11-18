@@ -1127,19 +1127,18 @@ export class FloorPlanEditor extends EditorPane {
 		return isObject(layout) && layout.schema === FLOOR_PLAN_SCHEMA_ID ? 'ok' : 'invalid';
 	}
 
-	/** Brings the toolbar's buttons, the overflow menu and the inline controls up to date. */
+	/** The drafting tools folded into one toolbar menu (AutoCAD's Draw panel). */
 	private drawMenu(actions: IAction[]): SubmenuAction {
 		const menu = new SubmenuAction('saengine.floorPlan.drawMenu', localize('floorPlan.drawMenu', "Draw"), actions, ThemeIcon.asClassName(Codicon.edit));
-		menu.tooltip = localize('floorPlan.drawMenuTip', "Draw: line, polyline, rectangle, polygon, circle, arc, ellipse, spline, hatch, text, dimension");
 		return menu;
 	}
 
 	private modifyMenu(actions: IAction[]): SubmenuAction {
 		const menu = new SubmenuAction('saengine.floorPlan.modifyMenu', localize('floorPlan.modifyMenu', "Modify"), actions, ThemeIcon.asClassName(Codicon.tools));
-		menu.tooltip = localize('floorPlan.modifyMenuTip', "Modify: offset, trim, extend, fillet, mirror, scale");
 		return menu;
 	}
 
+	/** Brings the toolbar's buttons, the overflow menu and the inline controls up to date. */
 	private updateToolbar(): void {
 		const frame = this.frame;
 		const state = this.layoutState;
