@@ -18,6 +18,12 @@ import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
 	setActiveDraftingManager,
 } from './draftingAids.js';
+import {
+	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
+} from './selectionModes.js';
+
+export { SelectionWorkingSet, filterSelection, getPreviousSelection, setPreviousSelection } from './selectionModes.js';
+export * from './selectionGeometry.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { entityToSelectedGeometry, type CadSelectedEntity } from './entityAccess.js';
@@ -114,6 +120,12 @@ export interface CadDraftingApi {
 }
 
 export interface CadEditor {
+	readonly selection: {
+		get(): readonly string[];
+		set(ids: readonly string[]): void;
+		previous(): readonly string[];
+		onDidChangeSelection(listener: (ids: readonly string[]) => void): () => void;
+	};
 	/** Opens DXF text as the drawing; `name` is its title. */
 	openDxf(name: string, dxf: string): Promise<boolean>;
 	/**
@@ -206,6 +218,45 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
 	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
 	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerCommand('SELECT', async ctx => {
+		const picked = await ctx.getSelection('Select objects:');
+		const ids = picked.map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+	});
+	registerCommand('QSELECT', async ctx => {
+		const prop = await ctx.getKeyword('Filter by [Type/Layer/Colour] <Type>:', ['Type', 'Layer', 'Colour', 'Color'], { default: 'Type' });
+		const upper = prop.toUpperCase();
+		let filters: SelectionFilters = {};
+		if (upper.startsWith('T')) {
+			const type = await ctx.getString('Entity type (blank for any):', { allowEmpty: true });
+			filters = { type };
+		} else if (upper.startsWith('L')) {
+			const layer = await ctx.getString('Layer (blank for any):', { allowEmpty: true });
+			filters = { layer };
+		} else {
+			const color = await ctx.getString('Color (blank for any):', { allowEmpty: true });
+			filters = { color };
+		}
+		const ids = filterSelection(ctx.database.all(), filters).map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} object(s) selected`);
+	});
+	registerCommand('SELECTSIMILAR', async ctx => {
+		const selected = await ctx.getSelection('Select objects to match:');
+		const keys = new Set(selected.map(e => `${e.dxfTypeName}\u0000${e.layer}`));
+		const ids = ctx.database.all().filter(e => keys.has(`${e.dxfTypeName}\u0000${e.layer}`)).map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} similar object(s) selected`);
+	});
+	registerCommand('SELECTALL', async ctx => {
+		const ids = ctx.database.all().map(e => String(e.objectId));
+		ctx.setSelection?.(ids);
+		setPreviousSelection(ids);
+		ctx.message(`${ids.length} object(s) selected`);
+	});
 	registerAnnotationCommands();
 	registerHatchCommands();
 	registerDimensionCommands();
@@ -254,6 +305,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	applyBackground();
 
 	const listeners = new Set<() => void>();
+	const selectionListeners = new Set<(ids: readonly string[]) => void>();
+	let committedSelection: readonly string[] = [];
 	let generated = new Set<string>();
 	let generatedLayers = new Set<string>();
 	let preview = new Set<string>();
@@ -296,9 +349,17 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		const managers = [events.entityAppended, events.entityModified, events.entityErased, events.layerAppended, events.layerModified, events.layerErased];
 		managers.forEach(m => m.addEventListener(fire));
 		const selection = manager.curView.selectionSet;
+		const onSelectionChanged = () => {
+			committedSelection = [...selection.ids];
+			selectionListeners.forEach(listener => listener(committedSelection));
+		};
+		selection.events.selectionAdded.addEventListener(onSelectionChanged);
+		selection.events.selectionRemoved.addEventListener(onSelectionChanged);
 		selection.events.selectionAdded.addEventListener(deselectGenerated);
 		unsubscribeDocument = () => {
 			managers.forEach(m => m.removeEventListener(fire));
+			selection.events.selectionAdded.removeEventListener(onSelectionChanged);
+			selection.events.selectionRemoved.removeEventListener(onSelectionChanged);
 			selection.events.selectionAdded.removeEventListener(deselectGenerated);
 		};
 	};
@@ -320,6 +381,21 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		opened(await manager.openDocument(name, encoder.encode(dxf).buffer as ArrayBuffer, { mode, openViewMode: AcApOpenViewMode.Extents }));
 
 	return {
+		selection: {
+			get: () => [...(manager.curView?.selectionSet?.ids ?? [])],
+			set: ids => {
+				const selection = manager.curView?.selectionSet;
+				if (!selection) return;
+				selection.clear();
+				const filtered = ids.filter(id => !generated.has(id) && !preview.has(id));
+				if (filtered.length) selection.add(filtered);
+				setPreviousSelection(filtered);
+				committedSelection = [...selection.ids];
+				selectionListeners.forEach(listener => listener(committedSelection));
+			},
+			previous: () => [...getPreviousSelection()],
+			onDidChangeSelection: listener => { selectionListeners.add(listener); return () => selectionListeners.delete(listener); },
+		},
 		openDxf: (name, dxf) => open(name, dxf, AcEdOpenMode.Write),
 		newDrawing: async drawingOptions => {
 			if (!drawingOptions?.readOnly) {
@@ -477,6 +553,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			draftingManager.dispose();
+			selectionListeners.clear();
 			setActiveDraftingManager(undefined);
 			await manager.destroy();
 		},
