@@ -63,7 +63,7 @@ A batch file is a list of steps (or `{"steps": [...]}`); `python/tests/data/acti
 - [Grid and storeys](#grid-and-storeys): `grid.line.add`, `grid.line.delete`, `grid.line.move`, `grid.set`, `storey.add`, `storey.delete`, `storey.height`, `storey.typical`, `storeys.set`
 - [Materials and object types](#materials-and-object-types): `material.concrete.add`, `material.concrete.set`, `material.steel.add`, `material.steel.set`, `type.beam.add`, `type.beam.set`, `type.column.add`, `type.column.set`, `type.footing.add`, `type.footing.set`, `type.slab.add`, `type.slab.set`, `type.wall.add`, `type.wall.set`
 - [Members](#members): `beams.place`, `columns.place`, `member.delete`, `member.set`, `members.copy_to_storeys`, `slabs.place`, `walls.place`
-- [Drafting](#drafting): `drafting.add`, `drafting.delete`, `drafting.list`
+- [Drafting](#drafting): `drafting.add`, `drafting.delete`, `drafting.list`, `drafting.migrate`
 - [Loads](#loads): `load.area.set`, `load.line.add`, `load.point.add`, `load.wall.add`
 - [Foundations](#foundations): `footing.set`, `foundations.generate`
 - [Run and export](#run-and-export): `design.reinforcement.apply`, `export.archive`, `export.boq`, `export.drawings`, `export.ifc`, `export.report`, `run.all`, `run.step`
@@ -951,7 +951,7 @@ Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 ### `drafting.add`
 
-Add 2D drafting geometry (lines, polylines, arcs, circles) to the floor plan.
+Add 2D drafting geometry (lines, polylines, arcs, circles) to the storey's DXF.
 
 Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
@@ -965,16 +965,17 @@ Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 ### `drafting.delete`
 
-Delete 2D drafting shapes by their ids.
+Delete 2D drafting shapes by their handles on a storey.
 
 Kind: **edit**. Writes: no. Parts: `floorPlan`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| `ids` | list of string | required | Draft shape ids to delete. |
+| `ids` | list of string | required | Draft shape handles to delete. |
+| `story` | string | required | Story whose draft shapes to delete. |
 
 ```json
-{"action": "drafting.delete", "params": {"ids": ["D1"]}}
+{"action": "drafting.delete", "params": {"ids": ["2F"], "story": "L1"}}
 ```
 
 ### `drafting.list`
@@ -989,6 +990,18 @@ Kind: **query**. Writes: no. Parts: `floorPlan`.
 
 ```json
 {"action": "drafting.list", "params": {"story": "L1"}}
+```
+
+### `drafting.migrate`
+
+Migrate floor plan drafting from floor-plan.json to per-storey DXF files.
+
+Kind: **edit**. Writes: no. Parts: `floorPlan`.
+
+No parameters.
+
+```json
+{"action": "drafting.migrate", "params": {}}
 ```
 
 ## Loads

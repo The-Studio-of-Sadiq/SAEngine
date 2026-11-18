@@ -20954,7 +20954,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			type: 'array',
 		},
 		drafting: {
-			description: '2D drafting geometry (AutoCAD-like lines and shapes that are not structural members).',
+			description: 'Deprecated: moved to 05 Floor Plan/drafting/<story>.dxf; migrated automatically.',
 			items: {
 				oneOf: [
 					{
