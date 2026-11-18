@@ -20,6 +20,10 @@ import {
 } from './modifyGeometry2.js';
 import { polylineVertices } from './entityAccess.js';
 import { attributeAsText, blockTransform } from './blockGeometry.js';
+import {
+	getActiveDraftingManager, OSNAP_MODE_BY_KEYWORD, OSNAP_OVERRIDE_KEYWORDS,
+} from './draftingAids.js';
+import { snapToGrid } from './draftingAidsGeometry.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -106,6 +110,73 @@ function promptValue(result: { status: AcEdPromptStatus; value?: unknown }, labe
 	return result.value;
 }
 
+async function getPointWithDraftingAids(
+	editor: any,
+	prompt: string,
+	options?: CadPromptPointOptions,
+): Promise<{ status: AcEdPromptStatus; value?: any; stringResult?: string }> {
+	const mgr = getActiveDraftingManager();
+	let appliedOverride = false;
+
+	try {
+		while (true) {
+			const opts = new AcEdPromptPointOptions(prompt);
+			if (options?.allowNone) opts.allowNone = true;
+			if (options?.base) {
+				opts.basePoint = new AcGePoint3d(options.base);
+				opts.useBasePoint = true;
+				opts.useDashedLine = true;
+			}
+			opts.appendKeywordsToMessage = false;
+
+			const callerKw = new Set<string>();
+			if (options?.keywords) {
+				for (const kw of options.keywords) {
+					callerKw.add(kw.toUpperCase());
+					opts.keywords.add(kw, kw, kw);
+				}
+			}
+
+			// Add OSNAP override keywords
+			for (const kw of OSNAP_OVERRIDE_KEYWORDS) {
+				if (!callerKw.has(kw)) {
+					opts.keywords.add(kw, kw, kw);
+				}
+			}
+
+			const r = await editor.getPoint(opts);
+
+			if (r.status === AcEdPromptStatus.Keyword && r.stringResult) {
+				const upper = r.stringResult.toUpperCase();
+				if (!callerKw.has(upper) && upper in OSNAP_MODE_BY_KEYWORD) {
+					const mode = OSNAP_MODE_BY_KEYWORD[upper];
+					mgr?.setSinglePickOverride(mode);
+					appliedOverride = true;
+					continue;
+				}
+			}
+
+			if (r.status === AcEdPromptStatus.OK && r.value) {
+				const s = mgr?.get();
+				let pt = r.value;
+				if (s?.snap) {
+					pt = snapToGrid(pt, s.snapUnit);
+				}
+				if (s?.otrack) {
+					pt = mgr!.constrainToTracking(pt);
+				}
+				return { status: AcEdPromptStatus.OK, value: new AcGePoint3d(pt) };
+			}
+
+			return r;
+		}
+	} finally {
+		if (appliedOverride) {
+			mgr?.clearSinglePickOverride();
+		}
+	}
+}
+
 class CallbackCommand extends AcEdCommand {
 	constructor(private readonly run: (ctx: CadCommandContext) => Promise<void>, private readonly name: string) { super(); }
 	async execute(context: Parameters<AcEdCommand['execute']>[0]): Promise<void> {
@@ -118,21 +189,12 @@ class CallbackCommand extends AcEdCommand {
 				return result.value.ids.map(id => db.tables.blockTable.modelSpace.getIdAt(id)).filter((e): e is AcDbEntity => !!e);
 			},
 			getPoint: (async (prompt: string, options?: CadPromptPointOptions): Promise<any> => {
-				const opts = new AcEdPromptPointOptions(prompt);
-				if (options?.allowNone) opts.allowNone = true;
-				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
-				const r = await editor.getPoint(opts);
+				const r = await getPointWithDraftingAids(editor, prompt, options);
 				if (options?.allowNone && r.status === AcEdPromptStatus.None) return undefined;
 				return promptValue(r, 'Point') as CadPoint3;
 			}) as CadCommandContext['getPoint'],
 			getPointPick: async (prompt, options) => {
-				const opts = new AcEdPromptPointOptions(prompt);
-				if (options?.allowNone) opts.allowNone = true;
-				if (options?.base) { opts.basePoint = new AcGePoint3d(options.base); opts.useBasePoint = true; opts.useDashedLine = true; }
-				if (options?.keywords) {
-					for (const kw of options.keywords) opts.keywords.add(kw, kw, kw);
-				}
-				const r = await editor.getPoint(opts);
+				const r = await getPointWithDraftingAids(editor, prompt, options);
 				if (r.status === AcEdPromptStatus.Keyword) {
 					return { status: 'keyword', keyword: r.stringResult };
 				}
