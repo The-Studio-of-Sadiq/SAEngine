@@ -12,6 +12,7 @@ import { registerAnnotationCommands } from './annotationCommands.js';
 import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
+import { registerDrawCommands } from './drawCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -40,6 +41,8 @@ export {
 export { polylineVertices, type PolylineData } from './entityAccess.js';
 export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
+export * from './drawCommands.js';
+export * from './drawGeometry.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -170,6 +173,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerHatchCommands();
 	registerDimensionCommands();
 	registerBlockCommands();
+	registerDrawCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
