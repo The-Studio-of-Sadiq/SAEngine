@@ -620,14 +620,9 @@ function entityToGeom(e: AcDbEntity): GeomShape | undefined {
 	}
 	if (e instanceof AcDbPolyline || e.dxfTypeName === 'LWPOLYLINE') {
 		const poly = e as AcDbPolyline;
-		const points: GeomPoint[] = [];
-		for (let i = 0; i < poly.numberOfVertices; i++) {
-			const p = poly.getPoint2dAt(i);
-			points.push([p.x, p.y]);
-		}
 		return {
 			kind: 'polyline',
-			points,
+			points: polylineVertices(poly).points,
 			closed: poly.closed,
 		};
 	}
