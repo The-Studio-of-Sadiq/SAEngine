@@ -191,6 +191,9 @@ class CallbackCommand extends AcEdCommand {
 		const db = context.doc.database;
 		const editor = context.view.editor;
 		const sel = context.view?.selectionSet;
+		// AutoCAD's PICKFIRST: objects selected before the command answer its first Select objects
+		// prompt only; later prompts (trim edges, then objects to trim) start empty.
+		let preselection: string[] | undefined = sel ? [...sel.ids] : [];
 		const ctx: CadCommandContext = {
 			setSelection: ids => {
 				if (!sel) return;
@@ -202,7 +205,14 @@ class CallbackCommand extends AcEdCommand {
 				const isLocked = (e: AcDbEntity) => !!(e.layer && db.tables?.layerTable?.getAt(e.layer)?.isLocked);
 				const all = () => (space.newIterator().toArray() as AcDbEntity[]).filter(e => !isLocked(e));
 				const read = (ids: readonly string[]) => ids.map(id => space.getIdAt(id)).filter((e): e is AcDbEntity => !!e && !isLocked(e));
-				const set = new SelectionWorkingSet<string>(sel ? sel.ids.filter(id => { const e = space.getIdAt(id); return e && !isLocked(e); }) : []);
+				const picked = (preselection ?? []).filter(id => { const e = space.getIdAt(id); return e && !isLocked(e); });
+				preselection = undefined;
+				if (picked.length > 0) {
+					setPreviousSelection(picked);
+					return read(picked);
+				}
+				sel?.clear();
+				const set = new SelectionWorkingSet<string>([]);
 
 				while (true) {
 					const currentPrompt = set.mode === 'remove' ? 'Remove objects:' : prompt;

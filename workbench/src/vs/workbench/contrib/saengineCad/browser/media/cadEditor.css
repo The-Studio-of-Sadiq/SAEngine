@@ -62,8 +62,10 @@
 }
 
 .floor-plan-status-bar .cad-bar-btn.active {
-	background: var(--vscode-statusBarItem-activeBackground, var(--vscode-button-background, #007acc));
-	color: var(--vscode-button-foreground, #ffffff);
+	/* The toggle tokens (as the find widget's Aa / .* buttons): readable on light and dark themes. */
+	background: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+	box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder);
 	font-weight: 600;
 }
 
