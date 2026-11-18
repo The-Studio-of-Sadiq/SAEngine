@@ -8,6 +8,7 @@ import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } 
 import { greyDxf } from './underlay.js';
 import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { registerDimensionCommands } from './dimensionCommands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
@@ -27,6 +28,8 @@ export {
 	areaCommand, distCommand, divideCommand, entityArea, idCommand, listCommand, measureCommand, measureGeomCommand,
 } from './inquiryCommands.js';
 export { polylineVertices, type PolylineData } from './entityAccess.js';
+export * from './dimensionCommands.js';
+export * from './dimensionGeometry.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -151,6 +154,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LIST', listCommand, { aliases: ['LI'], mode: AcEdOpenMode.Read });
 	registerCommand('DIVIDE', divideCommand, { aliases: ['DIV'] });
 	registerCommand('MEASURE', measureCommand, { aliases: ['ME'] });
+	registerDimensionCommands();
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
