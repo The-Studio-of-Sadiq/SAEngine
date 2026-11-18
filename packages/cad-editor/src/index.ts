@@ -6,12 +6,16 @@
 import { AcApDocManager, AcApOpenViewMode, AcApSettingManager, AcApXrefManager, AcEdOpenMode, MTEXT_RENDERER_WORKER_FILE } from '@mlightcad/cad-simple-viewer';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { greyDxf } from './underlay.js';
-import { mirrorCommand, registerCommand } from './commands.js';
+import { chamferCommand, extendCommand, filletCommand, mirrorCommand, registerCommand, trimCommand } from './commands.js';
 
 export type { CadEntitySpec, CadGeneratedDrawing, CadLayerSpec, CadPoint, DxfOutOptions } from './generated.js';
 export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
-export { mirrorCommand, mirrorPoint, registerCommand, type CadCommandContext, type CadCommandOptions, type CadPoint3, type CadSelection } from './commands.js';
+export {
+	chamferCommand, extendCommand, filletCommand, mirrorCommand, mirrorPoint, registerCommand, trimCommand,
+	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPromptEntityOptions, type CadSelection,
+} from './commands.js';
+export * from './modifyGeometry.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -115,6 +119,10 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
 	registerCommand('MIRROR', mirrorCommand);
+	registerCommand('TRIM', trimCommand, { aliases: ['TR'] });
+	registerCommand('EXTEND', extendCommand, { aliases: ['EX'] });
+	registerCommand('FILLET', filletCommand, { aliases: ['F'] });
+	registerCommand('CHAMFER', chamferCommand, { aliases: ['CHA'] });
 
 	// mlightcad keeps its controls' visibility in one setting store per page; there is one live
 	// editor at a time, so each editor sets what it wants when it starts.
