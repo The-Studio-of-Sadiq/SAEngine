@@ -149,13 +149,13 @@ export function dxfOut(database: AcDbDatabase, options?: DxfOutOptions): string 
 				}
 				return origWriteTable.call(this, filer, tableName, table, records, recordType);
 			};
-			const out = database.dxfOut(undefined, 6);
+			const out = database.dxfOut(undefined, 6, 'AC1032');
 			return typeof out === 'string' ? out : new TextDecoder().decode(out);
 		} finally {
 			db.writeDxfEntity = origWriteEntity;
 			db.writeDxfTable = origWriteTable;
 		}
 	}
-	const out = database.dxfOut(undefined, 6);
+	const out = database.dxfOut(undefined, 6, 'AC1032');
 	return typeof out === 'string' ? out : new TextDecoder().decode(out);
 }
