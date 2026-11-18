@@ -47,6 +47,8 @@ export interface IDraftBase {
 	readonly handle?: string;
 	readonly story?: string;
 	readonly layer?: string;
+	readonly closed?: boolean;
+	readonly points?: readonly (DraftPoint | CadPoint)[];
 }
 
 export interface IDraftLine extends IDraftBase {

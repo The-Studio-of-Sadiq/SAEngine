@@ -563,7 +563,8 @@ export class FloorPlanEditor extends EditorPane {
 
 		// Resolve the initial story so the drafting drawing can be opened.
 		let layout = parse(this.planModel);
-		if (Array.isArray((layout as any)?.drafting) && (layout as any).drafting.length > 0) {
+		const drafting = (layout as { readonly drafting?: unknown })?.drafting;
+		if (Array.isArray(drafting) && drafting.length > 0) {
 			try {
 				const outcome = await this.actionsService.run([{ action: 'drafting.migrate', params: {} }], { apply: true });
 				if (outcome.ok) {
@@ -971,8 +972,6 @@ export class FloorPlanEditor extends EditorPane {
 		} else if (command.kind === 'undo') {
 			// The plan's undo, not the CAD drawing's own (which has nothing of the plan's).
 			void this.undoRedo(command.redo);
-		} else if (command.kind === 'tool') {
-			this.setTool(command.tool);
 		} else if (this.layoutState === 'ok') {
 			this.runCommand(command);
 		}
@@ -2052,188 +2051,6 @@ export class FloorPlanEditor extends EditorPane {
 		this.schedulePreview();
 	}
 
-	private isDraftTool(tool: Tool): tool is DraftTool {
-		return tool === 'draftLine' || tool === 'draftPolyline' || tool === 'draftRect' || tool === 'draftPolygon' || tool === 'draftCircle' || tool === 'draftArc';
-	}
-
-	private snapDraft(point: CadPoint, from?: CadPoint): ISnap {
-		const tolerance = this.editor ? SNAP_PIXELS * this.editor.unitsPerPixel() : 0;
-		return snapLinear(parse(this.planModel), this.story ?? '', point, tolerance, from, segmentsNear(this.underlaySegments, point, tolerance));
-	}
-
-	/**
-	 * Appends a finished draft shape to the floor plan text as one undo step and re-renders the plan.
-	 */
-	private commitDraft(draft: IDraftShape): void {
-		const model = this.planModel;
-		if (!model || model.isDisposed() || this.layoutState !== 'ok') {
-			return;
-		}
-		const currentText = model.getValue();
-		const nextText = addDraft(currentText, draft);
-		if (nextText === currentText) {
-			return;
-		}
-		this.writing = true;
-		const before = model.getAlternativeVersionId();
-		try {
-			model.pushStackElement();
-			model.pushEditOperations([], [{ range: model.getFullModelRange(), text: nextText }], () => null);
-			model.pushStackElement();
-		} finally {
-			this.writing = false;
-		}
-		this.pendingWrite = { before, after: model.getAlternativeVersionId() };
-		this.renderScheduler.cancel();
-		this.renderPlan();
-	}
-
-	private finishDraftPolyline(closed: boolean): void {
-		const story = this.story;
-		if (!story || this.layoutState !== 'ok' || this.draftPoints.length < (closed ? 3 : 2)) {
-			this.draftPoints = [];
-			this.schedulePreview();
-			return;
-		}
-		const id = nextDraftId(parse(this.planModel));
-		const shape: IDraftShape = {
-			kind: 'polyline',
-			id,
-			story,
-			layer: 'DRAFT',
-			points: this.draftPoints,
-			closed,
-		};
-		this.draftPoints = [];
-		this.commitDraft(shape);
-		this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-		this.schedulePreview();
-		this.updateStatus();
-	}
-
-	private draftClick(point: CadPoint): void {
-		const story = this.story;
-		if (!story || this.layoutState !== 'ok') {
-			return;
-		}
-		const tool = this.tool;
-		if (tool === 'draftLine') {
-			const from = this.draftPoints[0];
-			const snap = this.snapDraft(point, from);
-			if (!from) {
-				this.draftPoints = [snap.point];
-				this.setNotice(localize('floorPlan.lineSecondPoint', "Click the end point. Esc or Enter stops."));
-			} else {
-				if (from[0] === snap.point[0] && from[1] === snap.point[1]) {
-					return;
-				}
-				const id = nextDraftId(parse(this.planModel));
-				const shape: IDraftShape = {
-					kind: 'line',
-					id,
-					story,
-					layer: 'DRAFT',
-					start: from,
-					end: snap.point,
-				};
-				this.commitDraft(shape);
-				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-				this.draftPoints = [snap.point];
-			}
-		} else if (tool === 'draftPolyline') {
-			const from = this.draftPoints[this.draftPoints.length - 1];
-			const snap = this.snapDraft(point, from);
-			if (this.draftPoints.length === 0) {
-				this.draftPoints = [snap.point];
-				this.setNotice(localize('floorPlan.polylineNextPoint', "Click the next point; Enter or click first point ends it."));
-			} else {
-				const first = this.draftPoints[0];
-				const closing = this.editor && Math.hypot(snap.point[0] - first[0], snap.point[1] - first[1]) <= SNAP_PIXELS * this.editor.unitsPerPixel();
-				if (closing && this.draftPoints.length >= 3) {
-					this.finishDraftPolyline(true);
-				} else if (!closing) {
-					if (snap.point[0] !== from[0] || snap.point[1] !== from[1]) {
-						this.draftPoints.push(snap.point);
-						this.setNotice(localize('floorPlan.polylinePoints', "{0} point(s); Enter ends, or click first point to close.", this.draftPoints.length));
-					}
-				}
-			}
-		} else if (tool === 'draftRect') {
-			const first = this.draftPoints[0];
-			const snap = this.snapDraft(point, first);
-			if (!first) {
-				this.draftPoints = [snap.point];
-				this.setNotice(localize('floorPlan.rectSecondCorner', "Click the opposite corner."));
-			} else {
-				const second = snap.point;
-				if (first[0] === second[0] || first[1] === second[1]) {
-					this.setNotice(localize('floorPlan.rectZeroSize', "Rectangle must have non-zero width and height."));
-					this.draftPoints = [];
-					return;
-				}
-				const corners = rectangleFromCorners(first, second);
-				const id = nextDraftId(parse(this.planModel));
-				const shape: IDraftShape = {
-					kind: 'polyline',
-					id,
-					story,
-					layer: 'DRAFT',
-					points: corners,
-					closed: true,
-				};
-				this.draftPoints = [];
-				this.commitDraft(shape);
-				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-			}
-		} else if (tool === 'draftPolygon') {
-			const center = this.draftPoints[0];
-			const snap = this.snapDraft(point, center);
-			if (!center) {
-				this.draftPoints = [snap.point];
-				this.setNotice(localize('floorPlan.polygonVertex', "Click a corner for the 6-sided polygon."));
-			} else {
-				const vertex = snap.point;
-				if (center[0] === vertex[0] && center[1] === vertex[1]) {
-					this.setNotice(localize('floorPlan.polygonZeroRadius', "Polygon radius must be greater than zero."));
-					this.draftPoints = [];
-					return;
-				}
-				const poly = regularPolygon(center, vertex, 6);
-				const id = nextDraftId(parse(this.planModel));
-				const shape: IDraftShape = {
-					kind: 'polyline',
-					id,
-					story,
-					layer: 'DRAFT',
-					points: poly,
-					closed: true,
-				};
-				this.draftPoints = [];
-				this.commitDraft(shape);
-				this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-			}
-		} else if (tool === 'draftCircle') {
-			const center = this.draftPoints[0];
-			const snap = this.snapDraft(point, center);
-			if (!center) { this.draftPoints = [snap.point]; this.setNotice(localize('floorPlan.circleRadius', "Click a point on the circle or type the radius.")); }
-			else {
-				const radius = Math.hypot(snap.point[0] - center[0], snap.point[1] - center[1]);
-				if (!radius) { this.setNotice(localize('floorPlan.circleZero', "Circle radius must be greater than zero.")); return; }
-				const id = nextDraftId(parse(this.planModel)); this.commitDraft({ kind: 'circle', id, story, layer: 'DRAFT', center, radius });
-				this.draftPoints = []; this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-			}
-		} else if (tool === 'draftArc') {
-			const arcPoint = this.snapDraft(point, this.draftPoints[this.draftPoints.length - 1]).point;
-			if (this.draftPoints.length === 0) { this.draftPoints = [arcPoint]; }
-			else { this.draftPoints.push(arcPoint); }
-			if (this.draftPoints.length === 3) {
-				const arc = arcThroughPoints(this.draftPoints[0], this.draftPoints[1], this.draftPoints[2]);
-				if (!arc) { this.draftPoints = []; this.setNotice(localize('floorPlan.arcCollinear', "Arc points must not be collinear.")); return; }
-				const id = nextDraftId(parse(this.planModel)); this.commitDraft({ kind: 'arc', id, story, layer: 'DRAFT', ...arc });
-				this.draftPoints = []; this.setNotice(localize('floorPlan.placed', "Placed {0}.", id));
-			} else { this.setNotice(localize('floorPlan.arcNext', "Click a point on the arc, then the end point.")); }
-		}
-	}
 
 	private click(point: CadPoint, modifiers?: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): void {
 		const input = this.input as FloorPlanEditorInput | undefined;
@@ -2250,55 +2067,14 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.tool === 'select') {
 			// Selecting shows the members (properties panel, Model Explorer); it never changes them.
 			const shape = this.pick(point);
-			const draft = this.plan && this.editor ? pickDraftUnlessMemberCloser(this.plan.drafts, point, PICK_PIXELS * this.editor.unitsPerPixel(), shape ? this.memberPickDistance(shape, point) : undefined) : undefined;
 			const mode = modifiers?.ctrlKey || modifiers?.metaKey ? 'toggle' : modifiers?.shiftKey ? 'add' : 'replace';
 			this.select(combine(this.selected, shape ? [{ group: shape.group, id: shape.id }] : [], mode));
-			const nextDrafts = mode === 'replace' ? new Set<string>() : new Set(this.selectedDraftIds);
-			if (draft) {
-				if (mode === 'toggle' && nextDrafts.has(draft.id)) { nextDrafts.delete(draft.id); } else { nextDrafts.add(draft.id); }
-			}
-			this.selectedDraftIds = nextDrafts;
 			this.updateToolbar();
 			this.schedulePreview();
 			return;
 		}
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {
 			return;
-		}
-		if (this.tool === 'draftOffset' || this.tool === 'draftTrim' || this.tool === 'draftExtend' || this.tool === 'draftFillet') {
-			const drafts = this.plan?.drafts.filter(d => d.story === story) ?? [];
-			if (this.tool === 'draftOffset' && this.modifyTarget) {
-				const target = this.modifyTarget, result = offsetDraft(target, this.modifyValue, point);
-				if (result) { this.commitDraft({ ...result, id: nextDraftId(layout) }); this.setNotice(localize('floorPlan.offsetDone', "Offset {0}.", nextDraftId(layout))); }
-				this.modifyTarget = undefined; return;
-			}
-			if (this.tool === 'draftFillet' && this.modifyFirstLine) {
-				const selectedSecond = pickDraftUnlessMemberCloser(drafts.filter(d => d.id !== this.modifyFirstLine!.id), point, this.editor ? PICK_PIXELS * this.editor.unitsPerPixel() : 1e-6, undefined);
-				if (!selectedSecond || selectedSecond.kind !== 'line') { this.setNotice(localize('floorPlan.modifyPickLine', "Click a draft line.")); return; }
-				const first = this.modifyFirstLine, result = filletLines(first, selectedSecond, this.modifyValue, this.modifyPoints[0], point);
-				if (result) { let text = this.planModel?.getValue() ?? ''; text = replaceDraft(text, result.lines[0]); text = replaceDraft(text, result.lines[1]); if (result.arc) { text = addDraft(text, { ...result.arc, id: nextDraftId(JSON.parse(text)) }); } this.writePlanText(text, localize('floorPlan.filletDone', "Filleted {0} and {1}.", first.id, selectedSecond.id)); } else { this.setNotice(localize('floorPlan.filletImpossible', "Those lines cannot be filleted.")); }
-				this.modifyPoints = []; this.modifyFirstLine = undefined; return;
-			}
-			const selected = pickDraftUnlessMemberCloser(drafts, point, this.editor ? PICK_PIXELS * this.editor.unitsPerPixel() : 1e-6, undefined);
-			if (!selected || selected.kind !== 'line' && this.tool !== 'draftOffset') { this.setNotice(localize('floorPlan.modifyPickLine', "Click a draft line.")); return; }
-			if (this.tool === 'draftOffset') {
-				this.modifyTarget = selected; this.setNotice(localize('floorPlan.offsetSide', "Click the side for the offset.")); return;
-			}
-			if (this.tool === 'draftTrim' || this.tool === 'draftExtend') {
-				const line = selected as IDraftLine, others = drafts.filter(d => d.id !== line.id);
-				if (this.tool === 'draftTrim') {
-					const pieces = trimLine(line, others, point);
-					let text = this.planModel?.getValue() ?? '';
-					text = removeDraft(text, line.id);
-					for (const [i, piece] of pieces.entries()) { text = addDraft(text, { ...piece, id: i === 0 ? line.id : nextDraftId(JSON.parse(text)) }); }
-					this.writePlanText(text, localize('floorPlan.trimDone', "Trimmed {0}.", line.id));
-				} else {
-					const result = extendLine(line, others, point); if (result) { this.writePlanTextForDraft(result, localize('floorPlan.extendDone', "Extended {0}.", line.id)); } else { this.setNotice(localize('floorPlan.extendNoHit', "No boundary found in that direction.")); }
-				}
-				return;
-			}
-			const line = selected as IDraftLine;
-			this.modifyPoints = [point]; this.modifyFirstLine = line; this.setNotice(localize('floorPlan.filletSecondLine', "Click the second line.")); return;
 		}
 		if (this.tool === 'fill') {
 			this.setNotice(localize('floorPlan.fillDrag', "Drag a window over the grid to fill it; type fill columns, beams, slabs or walls on the command line (:) to fill the whole story."));
@@ -2359,11 +2135,6 @@ export class FloorPlanEditor extends EditorPane {
 			this.schedulePreview();
 			return;
 		}
-		if (this.isDraftTool(this.tool)) {
-			this.draftClick(point);
-			this.schedulePreview();
-			return;
-		}
 		const tool = this.tool;
 		const type = this.types.get(tool);
 		if (!type) {
@@ -2400,16 +2171,6 @@ export class FloorPlanEditor extends EditorPane {
 		this.schedulePreview();
 	}
 
-	private writePlanTextForDraft(draft: IDraftShape, notice: string): void {
-		this.writePlanText(replaceDraft(this.planModel?.getValue() ?? '', draft), notice);
-	}
-
-	private writePlanText(text: string, notice: string): void {
-		const model = this.planModel; if (!model || model.isDisposed() || text === model.getValue()) { return; }
-		this.writing = true; const before = model.getAlternativeVersionId();
-		try { model.pushStackElement(); model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null); model.pushStackElement(); } finally { this.writing = false; }
-		this.pendingWrite = { before, after: model.getAlternativeVersionId() }; this.renderScheduler.cancel(); this.renderPlan(); this.setNotice(notice);
-	}
 
 	/** Where a beam or wall end at `point` snaps (see {@link snapLinear}). */
 	private snapEnd(point: CadPoint): ISnap {
@@ -2682,8 +2443,6 @@ export class FloorPlanEditor extends EditorPane {
 		const loose = unsupportedBeams(layout, input.story ?? '').map(id => localize('floorPlan.beamUnsupported', "{0}: nothing supports it (no column, wall or beam at either end).", id));
 		this.plan = { ...plan, warnings: [...outside, ...plan.warnings, ...nearMisses(layout, input.story ?? ''), ...loose] };
 		this.selected = prune(this.selected, this.plan.members);
-		const validDrafts = new Set(this.plan.drafts.map(d => d.id));
-		this.selectedDraftIds = new Set([...this.selectedDraftIds].filter(id => validDrafts.has(id)));
 		const loads = loadsDrawing(this.loadsFile.read().loads, layout, input.story ?? '', parse(this.objects));
 		const presence = presenceDrawing(this.plan.members, this.presenceService.colleagues(input.resource));
 		this.editor.setGenerated(forCanvas({
@@ -2851,43 +2610,7 @@ export class FloorPlanEditor extends EditorPane {
 				if (points.length >= 2) {
 					entities.push({ kind: 'polyline', layer, points, closed: points.length >= 3 });
 				}
-			} else if (this.isDraftTool(this.tool)) {
-				const from = this.draftPoints[this.draftPoints.length - 1];
-				const snap = this.hoverSnap = this.snapDraft(point, from);
-				entities.push(...snapMarker(snap, MARKER_PIXELS * units, layer));
-				this.draftPoints.forEach(marker);
-				if (this.tool === 'draftLine') {
-					if (this.draftPoints.length > 0) {
-						entities.push({ kind: 'line', layer, start: this.draftPoints[0], end: snap.point });
-					}
-				} else if (this.tool === 'draftPolyline') {
-					if (this.draftPoints.length > 0) {
-						entities.push({ kind: 'polyline', layer, points: [...this.draftPoints, snap.point], closed: false });
-					}
-				} else if (this.tool === 'draftRect') {
-					if (this.draftPoints.length > 0) {
-						entities.push({ kind: 'polyline', layer, points: rectangleFromCorners(this.draftPoints[0], snap.point), closed: true });
-					}
-				} else if (this.tool === 'draftPolygon') {
-					if (this.draftPoints.length > 0) {
-						const poly = regularPolygon(this.draftPoints[0], snap.point, 6);
-						if (poly.length >= 3) {
-							entities.push({ kind: 'polyline', layer, points: poly, closed: true });
-						}
-						entities.push({ kind: 'line', layer, start: this.draftPoints[0], end: snap.point });
-					}
-				} else if (this.tool === 'draftCircle') {
-					if (this.draftPoints.length) { entities.push({ kind: 'circle', layer, center: this.draftPoints[0], radius: Math.hypot(snap.point[0] - this.draftPoints[0][0], snap.point[1] - this.draftPoints[0][1]) }); }
-				} else if (this.tool === 'draftArc') {
-					if (this.draftPoints.length === 1) { entities.push({ kind: 'line', layer, start: this.draftPoints[0], end: snap.point }); }
-					else if (this.draftPoints.length >= 2) {
-						const arc = arcThroughPoints(this.draftPoints[0], this.draftPoints[1], snap.point);
-						if (arc) {
-							const segments = draftSegments({ kind: 'arc', id: '', story: '', ...arc });
-							entities.push({ kind: 'polyline', layer, points: [segments[0][0], ...segments.map(([, end]) => end)] });
-						}
-					}
-				}
+
 			} else if (this.tool === 'slab') {
 				const bay = bayAt(parse(this.planModel), point);
 				if (bay) {
@@ -2932,13 +2655,7 @@ export class FloorPlanEditor extends EditorPane {
 		for (const shape of selected) {
 			entities.push(...outlineEntities(shape, PREVIEW_LAYERS[2].name));
 		}
-		for (const draft of this.plan?.drafts ?? []) {
-			if (this.selectedDraftIds.has(draft.id)) {
-				for (const [start, end] of draftSegments(draft)) {
-					entities.push({ kind: 'line', layer: PREVIEW_LAYERS[2].name, start, end });
-				}
-			}
-		}
+
 		editor.setPreview(forCanvas({ layers: PREVIEW_LAYERS, entities }, this.lightCanvas));
 	}
 
@@ -3001,8 +2718,8 @@ export class FloorPlanEditor extends EditorPane {
 			parts.push(warnings === 1 ? plan!.warnings[0] : localize('floorPlan.warnings', "{0} warnings on this story", warnings));
 		}
 		const snap = this.hoverSnap;
-		if (snap && (this.tool === 'beam' || this.tool === 'wall' || this.isDraftTool(this.tool))) {
-			const start = this.chainStart?.point ?? this.draftPoints[this.draftPoints.length - 1];
+		if (snap && (this.tool === 'beam' || this.tool === 'wall')) {
+			const start = this.chainStart?.point;
 			const [dx, dy] = start ? [snap.point[0] - start[0], snap.point[1] - start[1]] : [0, 0];
 			parts.push(start && (dx || dy)
 				? localize('floorPlan.snapLength', "{0}: {1} mm at {2}°", this.snapLabel(snap), Math.round(Math.hypot(dx, dy)), Math.round(Math.atan2(dy, dx) * 180 / Math.PI))

@@ -67,7 +67,7 @@ suite('SAEngine - Floor plan drafting', () => {
 			{ action: 'slabs.place', params: { type: 'S125', panels: [[{ x: 'A', y: '1', dx: 0, dy: 0 }, { x: 'A', y: '1', dx: 1000, dy: 0 }, { x: 'A', y: '1', dx: 1000, dy: 500 }, { x: 'A', y: '1', dx: 0, dy: 500 }]], storeys: ['L1'] } },
 			{ action: 'drafting.delete', params: { ids: ['D3'] } },
 		]);
-		assert.deepStrictEqual(conversionSteps([circle1], 'beam', 'B250', 'L1', grids).skipped, ['D5']);
+		assert.deepStrictEqual(conversionSteps([circle1, arc1], 'beam', 'B250', 'L1', grids).skipped, ['D5', 'D4']);
 	});
 
 	test('draft conversion handles CAD selected entities with handle and points', () => {
