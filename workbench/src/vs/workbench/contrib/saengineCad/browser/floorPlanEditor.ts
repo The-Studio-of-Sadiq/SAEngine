@@ -331,6 +331,8 @@ export class FloorPlanEditor extends EditorPane {
 	private lastClickPos: { readonly x: number; readonly y: number } | undefined;
 	private cycleIndex = 0;
 	private selectionCyclingActive = false;
+	/** Whether the selection-cycling list is open beside the cursor. */
+	private cycleMenuShown = false;
 	/** Members copied with Ctrl+C, with their outlines for the paste preview. */
 	private clipboard: { readonly data: IFloorPlanClipboard; readonly shapes: readonly IMemberShape[] } | undefined;
 	/** Set by Ctrl+V until the base point is clicked. */
@@ -943,6 +945,9 @@ export class FloorPlanEditor extends EditorPane {
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
 		const hasDraftSelection = (this.editor?.selection.get().length ?? 0) > 0;
+		if (e.key === 'Escape' && this.cycleMenuShown) {
+			this.contextViewService.hideContextView();
+		}
 		if (this.drag && this.drag.points && (e.code === 'Space' || e.key === ' ')) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -2290,10 +2295,15 @@ export class FloorPlanEditor extends EditorPane {
 
 				if (sysvarCycling === 2 && cycleList.length > 1 && modifiers?.clientX !== undefined && modifiers?.clientY !== undefined) {
 					this.showSelectionCycleMenu(cycleList, modifiers.clientX, modifiers.clientY, mode);
+				} else if (this.cycleMenuShown) {
+					this.contextViewService.hideContextView();
 				}
 				return;
 			}
 
+			if (this.cycleMenuShown) {
+				this.contextViewService.hideContextView();
+			}
 			this.editor?.selection.set([]);
 			this.select([]);
 			return;
@@ -2402,8 +2412,10 @@ export class FloorPlanEditor extends EditorPane {
 		clientY: number,
 		mode: 'replace' | 'add' | 'toggle',
 	): void {
+		this.cycleMenuShown = true;
 		this.contextViewService.showContextView({
 			getAnchor: () => ({ x: clientX + 12, y: clientY + 12 }),
+			onHide: () => { this.cycleMenuShown = false; },
 			render: (container: HTMLElement) => {
 				const list = document.createElement('div');
 				list.className = 'floor-plan-selection-cycle-list';
