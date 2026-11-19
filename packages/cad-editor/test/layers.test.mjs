@@ -209,3 +209,108 @@ test('DXF round trip keeps layer colour, linetype, lineweight, frozen/locked fla
 	assert.equal(layer2.isFrozen, true, 'isFrozen flag must survive round trip');
 	assert.equal(layer2.isLocked, true, 'isLocked flag must survive round trip');
 });
+
+test('properties.get and properties.set for line geometry in place', async () => {
+	const {
+		AcDbDatabase, AcDbLine, AcGePoint3d,
+		acdbHostApplicationServices, getProperties, setProperties,
+	} = await load();
+	const db = new AcDbDatabase();
+	acdbHostApplicationServices().workingDatabase = db;
+
+	const line = new AcDbLine(new AcGePoint3d(10, 20, 0), new AcGePoint3d(50, 20, 0));
+	line.layer = '0';
+	db.tables.blockTable.modelSpace.appendEntity(line);
+	const id = String(line.objectId);
+
+	const initial = getProperties(db, [id]);
+	assert.equal(initial.primaryType, 'Line');
+	assert.equal(initial.startX, 10);
+	assert.equal(initial.startY, 20);
+	assert.equal(initial.endX, 50);
+	assert.equal(initial.endY, 20);
+	assert.equal(initial.length, 40);
+
+	// Modify start and end points in place
+	setProperties(db, [id], { startX: 15, endY: 60 });
+	assert.equal(String(line.objectId), id, 'Entity ID must not change');
+	assert.equal(line.startPoint.x, 15);
+	assert.equal(line.startPoint.y, 20);
+	assert.equal(line.endPoint.x, 50);
+	assert.equal(line.endPoint.y, 60);
+
+	const updated = getProperties(db, [id]);
+	assert.equal(updated.startX, 15);
+	assert.equal(updated.endY, 60);
+});
+
+test('properties.get and properties.set for polyline, circle and text in place', async () => {
+	const {
+		AcDbDatabase, AcDbCircle, AcDbPolyline, AcDbText, AcGePoint2d, AcGePoint3d,
+		acdbHostApplicationServices, getProperties, setProperties,
+	} = await load();
+	const db = new AcDbDatabase();
+	acdbHostApplicationServices().workingDatabase = db;
+
+	// Circle
+	const circle = new AcDbCircle(new AcGePoint3d(100, 100, 0), 25);
+	db.tables.blockTable.modelSpace.appendEntity(circle);
+	const circleId = String(circle.objectId);
+
+	const circleProps = getProperties(db, [circleId]);
+	assert.equal(circleProps.primaryType, 'Circle');
+	assert.equal(circleProps.radius, 25);
+	assert.equal(circleProps.center[0], 100);
+	assert.equal(circleProps.center[1], 100);
+	assert(Math.abs(circleProps.circumference - 2 * Math.PI * 25) < 1e-4);
+
+	setProperties(db, [circleId], { centerX: 150, radius: 30 });
+	assert.equal(circle.center.x, 150);
+	assert.equal(circle.radius, 30);
+
+	// Polyline
+	const poly = new AcDbPolyline();
+	poly.addVertexAt(0, new AcGePoint2d(0, 0));
+	poly.addVertexAt(1, new AcGePoint2d(10, 0));
+	poly.addVertexAt(2, new AcGePoint2d(10, 10));
+	poly.closed = false;
+	db.tables.blockTable.modelSpace.appendEntity(poly);
+	const polyId = String(poly.objectId);
+
+	const polyProps = getProperties(db, [polyId]);
+	assert.equal(polyProps.primaryType, 'Polyline');
+	assert.equal(polyProps.closed, false);
+	assert.equal(polyProps.vertices.length, 3);
+
+	setProperties(db, [polyId], { closed: true, globalWidth: 2.5 });
+	assert.equal(poly.closed, true);
+	assert.equal(String(poly.objectId), polyId);
+
+	const updatedPolyProps = getProperties(db, [polyId]);
+	assert.equal(updatedPolyProps.closed, true);
+	assert.equal(updatedPolyProps.globalWidth, 2.5);
+
+	// Text
+	const text = new AcDbText();
+	text.textString = 'Sample Note';
+	text.height = 3.5;
+	text.rotation = 0;
+	db.tables.blockTable.modelSpace.appendEntity(text);
+	const textId = String(text.objectId);
+
+	const textProps = getProperties(db, [textId]);
+	assert.equal(textProps.primaryType, 'Text');
+	assert.equal(textProps.text, 'Sample Note');
+	assert.equal(textProps.textHeight, 3.5);
+
+	setProperties(db, [textId], { text: 'Updated Note', textHeight: 5.0 });
+	assert.equal(text.textString, 'Updated Note');
+	assert.equal(text.height, 5.0);
+
+	// Mixed selection summary
+	const mixed = getProperties(db, [circleId, polyId, textId]);
+	assert.equal(mixed.primaryType, 'Mixed');
+	assert.equal(mixed.totalCount, 3);
+	assert.equal(mixed.types.length, 3);
+});
+

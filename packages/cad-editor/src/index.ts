@@ -55,8 +55,9 @@ import {
 } from './layerCommands.js';
 import {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
-	colorCommand, lweightCommand, chpropCommand,
+	colorCommand, lweightCommand, chpropCommand, friendlyTypeName,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+	type CadEntitySummary,
 } from './properties.js';
 import {
 	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
@@ -72,6 +73,7 @@ export {
 } from './layerCommands.js';
 export {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	friendlyTypeName, type CadEntitySummary,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
 	colorCommand, lweightCommand, chpropCommand,
 } from './properties.js';

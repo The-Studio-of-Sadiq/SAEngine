@@ -58,6 +58,7 @@ import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { FloorPlanCadBar } from './floorPlanCadBar.js';
+import { FloorPlanDraftProperties } from './floorPlanDraftProperties.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, MemberGroup, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { presenceDrawing } from './floorPlanPresence.js';
@@ -258,6 +259,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	private editor: CadEditorApi | undefined;
 	private cadBar!: FloorPlanCadBar;
+	private readonly draftProperties: FloorPlanDraftProperties;
 	private planModel: ITextModel | undefined;
 	private objects: ITextModel | undefined;
 	/** Optional, for the properties panel: material names and the building model's state. */
@@ -436,6 +438,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.gridLinesAction.tooltip = localize('floorPlan.gridLinesTip', "Show or hide the grid lines (the grid stays; snapping to it still works)");
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
+		this.draftProperties = this._register(this.instantiationService.createInstance(FloorPlanDraftProperties));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
 		// Live co-editing: the colleagues' selections in this plan, outlined in their colours.
 		this._register(this.presenceService.onDidChange(resource => {
@@ -623,6 +626,10 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.currentDraftingStory && this.input) {
 				(this.input as FloorPlanEditorInput).setDraftingDirty(this.currentDraftingStory, true);
 			}
+			this.renderProperties();
+		})));
+		this.inputDisposables.add(toDisposable(editor.selection.onDidChangeSelection(() => {
+			this.renderProperties();
 		})));
 
 		this.fitPending = true;
@@ -978,6 +985,10 @@ export class FloorPlanEditor extends EditorPane {
 		} else if (e.key === 'Delete' && this.tool === 'select' && this.selected.length) {
 			e.preventDefault();
 			this.runCommand({ kind: 'delete' });
+		} else if (ctrl && !e.altKey && !e.shiftKey && (e.key === '1' || e.code === 'Digit1')) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.focusProperties();
 		} else if (ctrl && !e.altKey && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
 			// The plan's own undo, so it can say what it undid.
 			e.preventDefault();
@@ -1017,6 +1028,8 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(command.message);
 		} else if (command.kind === 'help') {
 			void this.showCommandHelp(target);
+		} else if (command.kind === 'properties') {
+			this.focusProperties();
 		} else if (command.kind === 'undo') {
 			// The plan's undo, not the CAD drawing's own (which has nothing of the plan's).
 			void this.undoRedo(command.redo);
@@ -1972,6 +1985,9 @@ export class FloorPlanEditor extends EditorPane {
 				break;
 			case 'delete':
 				void this.deleteSelection(refs);
+				break;
+			case 'properties':
+				this.focusProperties();
 				break;
 			case 'convert':
 				void this.pickConversion(command.target);
@@ -3065,6 +3081,39 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	/**
+	 * Focus the properties panel (AutoCAD PROPERTIES / PR / Ctrl+1).
+	 */
+	public focusProperties(): void {
+		if (!this.frame?.properties) {
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		const findFocusable = (el: HTMLElement): HTMLElement | undefined => {
+			const tag = el.tagName.toLowerCase();
+			if (tag === 'input' || tag === 'select' || tag === 'button') {
+				return el;
+			}
+			for (let i = 0; i < el.children.length; i++) {
+				const child = el.children[i];
+				if (isHTMLElement(child)) {
+					const found = findFocusable(child);
+					if (found) {
+						return found;
+					}
+				}
+			}
+			return undefined;
+		};
+		const focusable = findFocusable(this.frame.properties);
+		if (focusable) {
+			focusable.focus();
+		} else {
+			this.frame.properties.tabIndex = -1;
+			this.frame.properties.focus();
+		}
+	}
+
+	/**
 	 * The selected member's properties, with what this editor can change about it (type, rotation,
 	 * position); with nothing selected, the story's.
 	 */
@@ -3076,6 +3125,12 @@ export class FloorPlanEditor extends EditorPane {
 		this.propertiesDisposables.clear();
 		clearNode(panel);
 		if (!this.planModel) {
+			return;
+		}
+		const draftIds = this.editor?.selection.get() ?? [];
+		const hasStructural = !!this.picked || this.selected.length > 0;
+		if (draftIds.length > 0 && !hasStructural && this.editor) {
+			this.draftProperties.render(panel, this.propertiesDisposables, this.editor, draftIds);
 			return;
 		}
 		const docs = this.documents();
