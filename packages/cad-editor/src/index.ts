@@ -23,7 +23,7 @@ import {
 import {
 	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
 } from './selectionModes.js';
-import { pickDrafting, pickDraftingWindow } from './selectionGeometry.js';
+import { pickDrafting, pickDraftingAll, pickDraftingPolygon, pickDraftingWindow, type CadDraftingHit } from './selectionGeometry.js';
 import {
 	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
 	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
@@ -216,8 +216,16 @@ export interface CadEditor {
 	getSelectedEntities(): readonly CadSelectedEntity[];
 	/** Ids of non-generated, non-locked, visible entities whose geometry is within tolerancePx (screen) of the point, nearest first. */
 	pickDrafting(clientX: number, clientY: number, tolerancePx?: number): string[];
+	/** All hits of non-generated, non-locked, visible entities within tolerancePx of the point, nearest first. */
+	pickDraftingAll(clientX: number, clientY: number, tolerancePx?: number): CadDraftingHit[];
 	/** Ids of non-generated, non-locked, visible entities matching a window or crossing box selection. */
 	pickDraftingWindow(start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[];
+	/** Ids of non-generated, non-locked, visible entities matching a polygon boundary (window, crossing, or fence). */
+	pickDraftingPolygon(points: readonly CadPoint[], mode?: 'window' | 'crossing' | 'fence'): string[];
+	/** Gets a system variable value (e.g. LASSO, SELECTIONCYCLING). */
+	getSysVar(name: string): number;
+	/** Sets a system variable value. */
+	setSysVar(name: string, value: number): void;
 	/** Erases entities by handle from the drawing in an undoable transaction and clears selection. */
 	eraseEntities(handles: readonly string[]): void;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
@@ -359,6 +367,34 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('CELTSCALE', celtscaleCommand);
 	registerGripCommands(registerCommand);
 
+	const sysVars = AcDbSysVarManager.instance();
+	try {
+		sysVars.registerVar({ name: 'lasso', type: 'number', isDbVar: false, defaultValue: 1 });
+	} catch { /* ignore */ }
+	try {
+		sysVars.registerVar({ name: 'selectioncycling', type: 'number', isDbVar: false, defaultValue: 2 });
+	} catch { /* ignore */ }
+
+	registerCommand('LASSO', async ctx => {
+		const current = ctx.database.native ? sysVars.getVar('LASSO', ctx.database.native) : 1;
+		const val = await ctx.getInteger(`Enter new value for LASSO <${current}>:`, { min: 0 });
+		if (val === 0 || val === 1) {
+			if (ctx.database.native) sysVars.setVar('LASSO', val, ctx.database.native);
+		} else {
+			ctx.message('Requires 0 or 1.');
+		}
+	});
+
+	registerCommand('SELECTIONCYCLING', async ctx => {
+		const current = ctx.database.native ? sysVars.getVar('SELECTIONCYCLING', ctx.database.native) : 2;
+		const val = await ctx.getInteger(`Enter new value for SELECTIONCYCLING <${current}>:`, { min: 0 });
+		if (val >= 0 && val <= 2) {
+			if (ctx.database.native) sysVars.setVar('SELECTIONCYCLING', val, ctx.database.native);
+		} else {
+			ctx.message('Requires 0, 1, or 2.');
+		}
+	});
+
 	let gripDefaults: CadGripSettings = {
 		enabled: true,
 		size: 5,
@@ -371,7 +407,6 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return undefined;
 		}
 	};
-	const sysVars = AcDbSysVarManager.instance();
 	const grips: CadGripApi = {
 		get: () => {
 			const db = getDb();
@@ -722,10 +757,48 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
 			return pickDrafting(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
 		},
+		pickDraftingAll: (clientX: number, clientY: number, tolerancePx = 5): CadDraftingHit[] => {
+			const db = getDb();
+			if (!db) return [];
+			const view = manager.curView;
+			if (!view) return [];
+			const rect = view.canvas.getBoundingClientRect();
+			const world = view.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+			const a = view.screenToWorld({ x: 0, y: 0 });
+			const b = view.screenToWorld({ x: 100, y: 0 });
+			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
+			return pickDraftingAll(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
+		},
 		pickDraftingWindow: (start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[] => {
 			const db = getDb();
 			if (!db) return [];
 			return pickDraftingWindow(db, start, end, mode, { generated, preview, generatedLayers });
+		},
+		pickDraftingPolygon: (points: readonly CadPoint[], mode: 'window' | 'crossing' | 'fence' = 'window'): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			return pickDraftingPolygon(db, points, mode, { generated, preview, generatedLayers });
+		},
+		getSysVar: (name: string): number => {
+			const db = getDb();
+			if (db) {
+				try {
+					const val = sysVars.getVar(name, db);
+					return typeof val === 'number' ? val : Number(val);
+				} catch {
+					// fallback below
+				}
+			}
+			const upper = name.toUpperCase();
+			if (upper === 'LASSO') return 1;
+			if (upper === 'SELECTIONCYCLING') return 2;
+			return 0;
+		},
+		setSysVar: (name: string, value: number): void => {
+			const db = getDb();
+			try {
+				if (db) sysVars.setVar(name, value, db);
+			} catch { /* ignore */ }
 		},
 		eraseEntities: (handles: readonly string[]) => {
 			const db = manager.curDocument?.database;

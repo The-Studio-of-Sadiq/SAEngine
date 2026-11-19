@@ -126,6 +126,11 @@ const PICK_ORDER: readonly MemberGroup[] = ['columns', 'footings', 'walls', 'bea
  * footings, walls, beams and slabs, so the smaller member on top of a larger one can be picked.
  */
 export function pickMember(shapes: readonly IMemberShape[], point: CadPoint, tolerance: number): IMemberShape | undefined {
+	return pickMembersAll(shapes, point, tolerance)[0];
+}
+
+/** All members under `point` sorted by pick priority. */
+export function pickMembersAll(shapes: readonly IMemberShape[], point: CadPoint, tolerance: number): IMemberShape[] {
 	const hits = shapes.filter(({ outline }) => {
 		if (outline.kind === 'circle') {
 			return Math.hypot(point[0] - outline.center[0], point[1] - outline.center[1]) <= outline.radius + tolerance;
@@ -134,7 +139,7 @@ export function pickMember(shapes: readonly IMemberShape[], point: CadPoint, tol
 		return insidePolygon(point, points) || points.some((p, i) => distanceToSegment(point, p, points[(i + 1) % points.length]) <= tolerance);
 	});
 	hits.sort((a, b) => PICK_ORDER.indexOf(a.group) - PICK_ORDER.indexOf(b.group));
-	return hits[0];
+	return hits;
 }
 
 /** The next free id of `group`: its letter and the lowest unused number. */

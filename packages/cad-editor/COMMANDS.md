@@ -57,3 +57,25 @@ SAEngine registers AutoCAD layer management and object property commands from `l
 
 #### Built-in Metric Linetypes (`acadiso.lin`)
 Built-in pattern definitions: `CONTINUOUS`, `DASHED` (dash 12.7 mm, gap -6.35 mm, total 19.05 mm), `DASHED2` (dash 6.35 mm, gap -3.175 mm, total 9.525 mm), `HIDDEN` (dash 6.35 mm, gap -3.175 mm, total 9.525 mm), `HIDDEN2` (dash 3.175 mm, gap -1.5875 mm, total 4.7625 mm), `CENTER` (31.75, -6.35, 6.35, -6.35 mm, total 50.8 mm), `CENTER2` (15.875, -3.175, 3.175, -3.175 mm, total 25.4 mm), `PHANTOM` (31.75, -6.35, 6.35, -6.35, 6.35, -6.35 mm, total 63.5 mm), `DOT` (0, -6.35 mm, total 6.35 mm), `DASHDOT` (12.7, -6.35, 0, -6.35 mm, total 25.4 mm), `BORDER` (12.7, -6.35, 12.7, -6.35, 0, -6.35 mm, total 44.45 mm), and `DIVIDE` (12.7, -6.35, 0, -6.35, 0, -6.35 mm, total 31.75 mm).
+
+### Lasso and Selection Cycling
+
+AutoCAD 2015+ lasso selection and AutoCAD selection cycling behaviors:
+
+#### Selection API (`editor`)
+- `pickDraftingPolygon(points, mode)`: Selects drafting entities matching a polygon or fence boundary (`'window'` = fully enclosed, `'crossing'` = touched, `'fence'` = crossed by open path).
+- `pickDraftingAll(clientX, clientY, tolPx)`: Returns all drafting hits under the cursor sorted by shortest 2D distance to entity linework, providing `{ id, type, layer, distance }`.
+- `getSysVar(name)` / `setSysVar(name, value)`: Reads or writes system variables (`LASSO`, `SELECTIONCYCLING`).
+
+#### System Variables and Commands
+- `LASSO` (0 = off, 1 = on, default 1): Toggles freehand lasso selection when dragging on empty space.
+  - Dragging left-to-right (net) produces a window lasso (objects fully inside, solid blue outline).
+  - Dragging right-to-left produces a crossing lasso (touched objects, dashed green outline).
+  - Pressing Space during the drag cycles `Window` → `Crossing` → `Fence` lasso.
+  - A click-click without drag maintains standard rectangular window/crossing.
+  - Inside interactive command `Select objects:` prompts (`getSelection`), typing `LA` or `LASSO` initiates freehand polygon pick points with closing Enter.
+- `SELECTIONCYCLING` (0 = off, 1 = on, 2 = on with list, default 2): Controls selection cycling for overlapping objects.
+  - When several objects overlap under the cursor, the first click selects the nearest.
+  - `Shift+Space` toggles cycling mode; clicking again at the same spot within 300 ms cycles to the next overlapping object.
+  - Floor plan members join the cycle list after drafting entities.
+  - With `SELECTIONCYCLING=2`, a selection list pop-up appears next to the cursor to directly pick drafting entities (by type and layer) or structural members (by id).
