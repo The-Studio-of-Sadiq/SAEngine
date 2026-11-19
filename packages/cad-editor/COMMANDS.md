@@ -225,7 +225,7 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | LAYMCUR | Available | SAEngine (`LAYMCUR`) |
 | LAYMRG | Available | SAEngine (`LAYMRG`) |
 | LAYDEL / LAYLCK / LAYULK / LAYERP / LAYERCLOSE | Available | library (`laydel`, `laylck`, `layulk`, `layerp`, `layerclose`) |
-| LAYWALK / LAYVPI | Missing | Layer walkthrough / viewport overrides not implemented |
+| LAYWALK / LAYVPI | Available | SAEngine (`LAYWALK`: command-line layer walkthrough; restores states on exit) |
 | MATCHPROP | Available | SAEngine (`MATCHPROP`, alias `MA`) |
 | PROPERTIES | Missing | Standalone palette UI missing (editor.properties API and CHPROP/CHANGE available) |
 | QSELECT | Available | SAEngine (`QSELECT`) |
@@ -240,12 +240,12 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | UNITS / -UNITS | Available | SAEngine (`UNITS`, `-UNITS`, alias `UN`) |
 | DIMSTYLE / -DIMSTYLE | Available | SAEngine (`DIMSTYLE`, `-DIMSTYLE`, alias `D`) |
 | STYLE | Available | SAEngine (`STYLE`, alias `ST`) |
-| MLSTYLE | Missing | Multiline style dictionary not implemented |
-| TABLESTYLE | Missing | Table style manager not implemented |
-| MLEADERSTYLE | Missing | Multileader style manager not implemented |
+| MLSTYLE | Available | SAEngine (`MLSTYLE`, `-MLSTYLE`: list, new, set, rename, delete; round trips through DXF) |
+| TABLESTYLE | Available | SAEngine (`TABLESTYLE`, `-TABLESTYLE`: list, new, set, delete; TABLE uses current style) |
+| MLEADERSTYLE | Available | SAEngine (`MLEADERSTYLE`, `-MLEADERSTYLE`: list, new, set, delete; MLEADER uses current style) |
 | PURGE | Available | SAEngine (`PURGE`, alias `PU`) |
-| AUDIT | Missing | Database integrity audit not implemented |
-| RECOVER | Missing | Corrupt drawing recovery not implemented |
+| AUDIT | Available | SAEngine (`AUDIT`: fixes missing layers, invalid linetypes, duplicate handles, missing blocks, orphaned dicts) |
+| RECOVER | Available | SAEngine (`RECOVER`: reads DXF defensively, runs audit fix and reports dropped elements) |
 | ZOOM | Available | library (`zoom`, alias `Z`) |
 | PAN | Available | library (`pan`, alias `P`) |
 | REGEN | Available | library (`regen`, alias `RE`) |
@@ -254,8 +254,8 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | GEOMCONSTRAINT | Available | SAEngine (`GEOMCONSTRAINT`, P21) |
 | DIMCONSTRAINT | Available | SAEngine (`DIMCONSTRAINT`, P21) |
 | PARAMETERS | Available | SAEngine (`PARAMETERS`, P21) |
-| DATAEXTRACTION | Missing | Table / attribute data extraction wizard not implemented |
-| FIELD | Missing | Dynamic text fields not implemented |
+| DATAEXTRACTION | Available | SAEngine (`DATAEXTRACTION`, `-DATAEXTRACTION`, `editor.dataExtraction`: extracts table/CSV, counts identical blocks) |
+| FIELD | Available | SAEngine (`FIELD`, `UPDATEFIELD`, P23a) |
 
 ### Polyline, Spline & Cleaning Commands
 
@@ -464,3 +464,48 @@ SAEngine registers AutoCAD-compatible 2D geometric and dimensional parametric co
 - **`UPDATEFIELD`**: Re-evaluates fields on selected entities or all entities in the database.
 - **Automatic updates**: Hooked to `commandEnded` in `index.ts` so edits modifying referenced geometry update dependent fields automatically.
 - **Pure evaluation**: Implemented in `src/fieldEval.ts`.
+
+#### Styles, Drawing Maintenance & Data Extraction (P23b)
+- **`MLSTYLE` / `-MLSTYLE`**: Command line multiline style management:
+  - `?` / `List`: lists all defined multiline styles in `db.objects.mlineStyle`, marking current `CMLSTYLE`.
+  - `New`: defines new style with arbitrary elements (offset, colour, linetype), cap options (Square, Round, Inner arcs), and optional background fill.
+  - `Set`: updates current style `CMLSTYLE`.
+  - `Rename`: renames user styles (protects `STANDARD`).
+  - `Delete`: deletes unreferenced user styles (protects `STANDARD` and styles in use by `AcDbMLine`).
+  - Round-trips cleanly through DXF `OBJECTS` section.
+- **`TABLESTYLE` / `-TABLESTYLE`**: Command line table style management:
+  - `?` / `List`: lists defined table styles, marking current `CTABLESTYLE`.
+  - `New`: defines text style, cell text height, alignment, cell margins, and grid lineweight.
+  - `Set`: updates `CTABLESTYLE`.
+  - `Delete`: deletes unreferenced user styles (protects `STANDARD`).
+  - Synchronizes to resident `AcDbXrecord` under `SAENGINE_TABLESTYLES` to persist across DXF round-trips.
+  - Used by `TABLE` command to configure cell and header text heights.
+- **`MLEADERSTYLE` / `-MLEADERSTYLE`**: Multileader style manager:
+  - `?` / `List`: lists styles in `db.objects.mleaderStyle`, marking current `CMLEADERSTYLE`.
+  - `New`: configures arrowhead size, landing gap, dogleg, text height, text style, and content type (`MText` / `Block` / `None`).
+  - `Set`: updates `CMLEADERSTYLE`.
+  - `Delete`: deletes unreferenced user styles.
+  - Used by `MLEADER` command to configure arrowhead size and text height.
+  - DXF object dictionary entry names preserved via bundle patch.
+- **`AUDIT`**: Database integrity audit and repair tool:
+  - Reports and optionally fixes (`[Yes/No]`):
+    - Entities on missing layers: moved to layer `0`.
+    - Invalid linetype references: reset to `ByLayer`.
+    - Zero-length lines and degenerate polylines (< 2 vertices): reported (not removed).
+    - Duplicate handles: reallocated via `db.generateHandle()`.
+    - Block references to missing block definitions: creates placeholder block definitions.
+    - Orphaned dictionary entries: purged.
+  - Outputs summary: `"N errors found, M fixed"`.
+- **`RECOVER`**: Defensive drawing recovery:
+  - Reads DXF file (via host `readFile` callback or current drawing export), sanitizes syntax, applies `AUDIT` repair, and reports dropped or corrected items.
+- **`DATAEXTRACTION` / `-DATAEXTRACTION`**: Property and block extraction:
+  - Select entities or all model space entities (filters out generated/preview entities).
+  - Extracts properties (`Type`, `Layer`, `Color`, `Linetype`, `Length`, `Area`, `Count`, `Name`, block attributes).
+  - Identical blocks collapsed into a single row with their count when `Count` column is present.
+  - Outputs interactive table entity placed at a point and/or CSV text.
+  - Programmatic API `editor.dataExtraction(options?: CadDataExtractionOptions): string` available on `CadEditor`.
+- **`LAYWALK`**: Command line layer walkthrough:
+  - Steps through layers sequentially (`Next`, `Previous`, `Select by name`, `Exit`).
+  - Temporarily isolates each layer (current layer ON/unfrozen, all others OFF).
+  - Restores all layer on/off and frozen states exactly on `Exit` or cancellation without permanent drawing changes.
+
