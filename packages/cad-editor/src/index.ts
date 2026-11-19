@@ -97,6 +97,7 @@ export {
 	type GripPoint2D,
 } from './gripGeometry.js';
 export * from './gripEdit.js';
+export { spaceActsAsEnter, installSpaceAsEnter, type SpaceKeyEvent } from './spaceAsEnter.js';
 export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
 export {
 	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
