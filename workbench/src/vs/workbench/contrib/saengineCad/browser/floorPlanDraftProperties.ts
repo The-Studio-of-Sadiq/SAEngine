@@ -106,7 +106,9 @@ export class FloorPlanDraftProperties extends Disposable {
 		allDraftIds: readonly string[],
 	): void {
 		// --- Layer ---
-		const layers = editor.layers.list();
+		// Drafting goes on drafting layers: the structural (generated) layers and the plan's own
+		// SAENGINE-* preview layers are not offered, unless the selection is already on one.
+		const layers = editor.layers.list().filter(l => (!l.generated && !l.name.toUpperCase().startsWith('SAENGINE-')) || l.name === props.layer);
 		const layerOptions: { text: string }[] = [];
 		const isLayerVaries = props.layer === 'varies';
 		if (isLayerVaries) {

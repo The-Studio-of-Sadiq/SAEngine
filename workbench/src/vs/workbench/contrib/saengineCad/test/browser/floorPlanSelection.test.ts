@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMemberShape } from '../../browser/floorPlanDrawing.js';
-import { combine, commonFields, isFreehandLasso, prune, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from '../../browser/floorPlanSelection.js';
+import { combine, commonFields, isFreehandLasso, lassoMode, prune, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from '../../browser/floorPlanSelection.js';
 
 suite('SAEngine - Floor plan selection', () => {
 
@@ -54,6 +54,8 @@ suite('SAEngine - Floor plan selection', () => {
 			isFreehandLasso([[0, 0], [10, 0], [10, 10], [0, 10]]),
 			isFreehandLasso([[0, 0], [10, 0]]),
 		], [false, true, false]);
+		// A loop that starts moving left is a crossing lasso, even though it ends at its start.
+		assert.deepStrictEqual([lassoMode([[0, 0], [-5, 2], [0, 8], [5, 2], [0, 0]]), lassoMode([[0, 0], [5, 2], [0, 8], [0, 0]])], ['crossing', 'window']);
 	});
 
 	test('selections combine, toggle, prune and summarise', () => {

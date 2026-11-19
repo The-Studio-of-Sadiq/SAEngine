@@ -159,6 +159,42 @@ export const PATCHES = [
                             typed.setAt(entryName, obj);
                         }`,
 	},
+	{
+		// An object prompt took only the first object under the cursor: on the floor plan that is
+		// often a structural member on a locked layer drawn under the drafting, so the prompt said
+		// "Invalid object selected." for the line the user clicked. Ask for every hit (nearest first) and take the first allowed one.
+		...VIEWER,
+		description: 'object prompts take the first allowed object under the cursor',
+		find: `          ), g = this.view.pick(y, void 0, !0);
+          if (g.length == 0) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          const x = this.getEntityById(g[0].id);
+          if (!x) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          if (!e.allowObjectOnLockedLayer && this.isEntityOnLockedLayer(x)) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          if (!this.isEntityClassAllowed(x, e)) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          t = { x: y.x, y: y.y, z: 0 }, c(), i(g[0].id);`,
+		replace: `          ), g = this.view.pick(y, void 0, !1);
+          const hit = g.find((h) => {
+            const x = this.getEntityById(h.id);
+            return !!x && (e.allowObjectOnLockedLayer || !this.isEntityOnLockedLayer(x)) && this.isEntityClassAllowed(x, e);
+          });
+          if (!hit) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          t = { x: y.x, y: y.y, z: 0 }, c(), i(hit.id);`,
+	},
 ];
 
 /** Applies the patches for `filePath`; throws if a patch no longer matches. */

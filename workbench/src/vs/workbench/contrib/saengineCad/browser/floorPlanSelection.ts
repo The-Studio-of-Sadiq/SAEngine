@@ -193,6 +193,21 @@ export function shapeInPolygon(shape: IMemberShape, points: readonly CadPoint[],
 }
 
 /**
+ * The lasso's mode from the way the drag started, as AutoCAD: moving right first is a window
+ * (objects inside), moving left first a crossing (objects touched). A loop ends near its start, so
+ * the end point says nothing.
+ */
+export function lassoMode(points: readonly CadPoint[]): 'window' | 'crossing' {
+	const [x0] = points[0] ?? [0, 0];
+	for (const [x] of points) {
+		if (x !== x0) {
+			return x > x0 ? 'window' : 'crossing';
+		}
+	}
+	return 'window';
+}
+
+/**
  * Whether a dragged path is a freehand lasso rather than a window drag: the path encloses at least a
  * fifth of its bounding box. A straight diagonal drag (the plan's window) encloses almost nothing.
  */

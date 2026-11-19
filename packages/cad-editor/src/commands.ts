@@ -31,10 +31,11 @@ import {
 	SelectionWorkingSet, filterSelection, getPreviousSelection, setPreviousSelection,
 } from './selectionModes.js';
 import {
-	entityMatchesSelection, fenceCrossesSegment, polygonContainsSegment, polygonCrossesSegment,
+	entityDistanceToPoint, entityMatchesSelection, fenceCrossesSegment, isEntitySelectable, polygonContainsSegment, polygonCrossesSegment,
 	type SelectionModeKind, type SelectionPoint,
 } from './selectionGeometry.js';
 import { installSpaceAsEnter } from './spaceAsEnter.js';
+import { registerCommandDescription } from './commandDescriptions.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -199,6 +200,44 @@ async function getPointWithDraftingAids(
 let globalReadFile: ((path: string) => Promise<string>) | undefined;
 export function setGlobalReadFile(fn?: (path: string) => Promise<string>): void {
 	globalReadFile = fn;
+}
+
+/**
+ * The library's entity prompt keeps only the first object under the cursor, which on the floor
+ * plan is often a structural (generated) member drawn under the drafting. When the pick lands on
+ * a generated entity, the nearest drafting entity within a few pixels of the pick wins, as the
+ * floor plan's own click selection does (index.ts pickDrafting).
+ */
+function preferDrafting(db: AcDbEntity['database'], view: any, picked: AcDbEntity, point: CadPoint3 | undefined): AcDbEntity {
+	const generatedLayers = (globalThis as any).__saengineGeneratedLayers as Set<string> | undefined;
+	if (!point || !picked.layer || !generatedLayers?.has(picked.layer)) {
+		return picked;
+	}
+	let tol = 0;
+	try {
+		const a = view?.screenToWorld?.({ x: 0, y: 0 });
+		const b = view?.screenToWorld?.({ x: 6, y: 0 });
+		tol = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
+	} catch {
+		tol = 0;
+	}
+	if (!(tol > 0)) {
+		return picked;
+	}
+	let best: AcDbEntity | undefined;
+	let bestDistance = tol;
+	for (const e of db.tables.blockTable.modelSpace.newIterator()) {
+		const entity = e as AcDbEntity;
+		if (!isEntitySelectable(entity, db, { generatedLayers })) {
+			continue;
+		}
+		const d = entityDistanceToPoint(entity, [point.x, point.y]);
+		if (d <= bestDistance) {
+			bestDistance = d;
+			best = entity;
+		}
+	}
+	return best ?? picked;
 }
 
 class CallbackCommand extends AcEdCommand {
@@ -399,8 +438,9 @@ class CallbackCommand extends AcEdCommand {
 			getEntity: async prompt => {
 				const r = await editor.getEntity(new AcEdPromptEntityOptions(prompt));
 				if (r.status !== AcEdPromptStatus.OK || !r.objectId) throw new Error('Entity selection cancelled');
-				const entity = db.tables.blockTable.modelSpace.getIdAt(r.objectId);
-				if (!entity) throw new Error('Entity no longer exists');
+				const hit = db.tables.blockTable.modelSpace.getIdAt(r.objectId);
+				if (!hit) throw new Error('Entity no longer exists');
+				const entity = preferDrafting(db, context.view, hit, r.pickedPoint ? new AcGePoint3d(r.pickedPoint) : undefined);
 				const session = getActiveBlockEditorSession();
 				if (session && !session.editEntityIds.has(String(entity.objectId))) {
 					throw new Error('Entity is locked in active block editor session');
@@ -426,8 +466,9 @@ class CallbackCommand extends AcEdCommand {
 				if (r.status !== AcEdPromptStatus.OK || !r.objectId) {
 					return { status: 'cancel' };
 				}
-				const entity = db.tables.blockTable.modelSpace.getIdAt(r.objectId);
-				if (!entity) return { status: 'cancel' };
+				const hit = db.tables.blockTable.modelSpace.getIdAt(r.objectId);
+				if (!hit) return { status: 'cancel' };
+				const entity = preferDrafting(db, context.view, hit, r.pickedPoint ? new AcGePoint3d(r.pickedPoint) : undefined);
 				const session = getActiveBlockEditorSession();
 				if (session && !session.editEntityIds.has(String(entity.objectId))) {
 					return { status: 'cancel' };
@@ -503,6 +544,7 @@ export function registerCommand(name: string, run: (ctx: CadCommandContext) => P
 	command.localName = options.localName ?? name.toUpperCase();
 	command.mode = options.mode ?? AcEdOpenMode.Write;
 	manager.commandManager.addCommand(options.group ?? 'USER', command.globalName, command.localName, command, options.aliases ? [...options.aliases] : undefined);
+	registerCommandDescription(options.group ?? 'USER', command.globalName);
 }
 
 /** Pure geometry helper used by MIRROR and its node tests. */
