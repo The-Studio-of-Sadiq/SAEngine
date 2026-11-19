@@ -31,6 +31,7 @@ import {
 	entityMatchesSelection, fenceCrossesSegment, polygonContainsSegment, polygonCrossesSegment,
 	type SelectionModeKind, type SelectionPoint,
 } from './selectionGeometry.js';
+import { installSpaceAsEnter } from './spaceAsEnter.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -125,6 +126,8 @@ async function getPointWithDraftingAids(
 ): Promise<{ status: AcEdPromptStatus; value?: any; stringResult?: string }> {
 	const mgr = getActiveDraftingManager();
 	let appliedOverride = false;
+	// Space = Enter while the point prompt waits (the library answers only Enter).
+	const restoreSpace = installSpaceAsEnter();
 
 	try {
 		while (true) {
@@ -179,6 +182,7 @@ async function getPointWithDraftingAids(
 			return r;
 		}
 	} finally {
+		restoreSpace();
 		if (appliedOverride) {
 			mgr?.clearSinglePickOverride();
 		}
