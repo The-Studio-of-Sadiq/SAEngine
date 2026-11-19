@@ -162,10 +162,15 @@ export const PATCHES = [
 	{
 		// An object prompt took only the first object under the cursor: on the floor plan that is
 		// often a structural member on a locked layer drawn under the drafting, so the prompt said
-		// "Invalid object selected." for the line the user clicked. Take the first allowed hit.
+		// "Invalid object selected." for the line the user clicked. Ask for every hit (nearest first) and take the first allowed one.
 		...VIEWER,
 		description: 'object prompts take the first allowed object under the cursor',
-		find: `          const x = this.getEntityById(g[0].id);
+		find: `          ), g = this.view.pick(y, void 0, !0);
+          if (g.length == 0) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          const x = this.getEntityById(g[0].id);
           if (!x) {
             this._commandLine.showMessage(e.rejectMessage, "warning");
             return;
@@ -179,7 +184,8 @@ export const PATCHES = [
             return;
           }
           t = { x: y.x, y: y.y, z: 0 }, c(), i(g[0].id);`,
-		replace: `          const hit = g.find((h) => {
+		replace: `          ), g = this.view.pick(y, void 0, !1);
+          const hit = g.find((h) => {
             const x = this.getEntityById(h.id);
             return !!x && (e.allowObjectOnLockedLayer || !this.isEntityOnLockedLayer(x)) && this.isEntityClassAllowed(x, e);
           });
