@@ -41,7 +41,7 @@ const OSNAP_MODES: readonly OsnapModeItem[] = [
 	{ bit: 512, name: 'Nearest', code: 'NEA' },
 ];
 
-const STANDARD_COLORS: readonly { readonly name: string; readonly value: number; readonly hex: string }[] = [
+export const STANDARD_COLORS: readonly { readonly name: string; readonly value: number; readonly hex: string }[] = [
 	{ name: 'Red', value: 1, hex: '#ff0000' },
 	{ name: 'Yellow', value: 2, hex: '#ffff00' },
 	{ name: 'Green', value: 3, hex: '#00ff00' },
@@ -53,7 +53,7 @@ const STANDARD_COLORS: readonly { readonly name: string; readonly value: number;
 	{ name: '9 (Light Grey)', value: 9, hex: '#c0c0c0' },
 ];
 
-const STANDARD_LINETYPES: readonly string[] = [
+export const STANDARD_LINETYPES: readonly string[] = [
 	'Continuous',
 	'Dashed',
 	'Dashed2',
@@ -66,11 +66,11 @@ const STANDARD_LINETYPES: readonly string[] = [
 	'Divide',
 ];
 
-const STANDARD_LINEWEIGHTS: readonly number[] = [
+export const STANDARD_LINEWEIGHTS: readonly number[] = [
 	0.00, 0.05, 0.09, 0.13, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.20, 1.40, 2.00,
 ];
 
-function aciToCss(color: CadColorValue | 'varies', isLight: boolean): string {
+export function aciToCss(color: CadColorValue | 'varies', isLight: boolean): string {
 	if (color === 'varies') {
 		return 'linear-gradient(135deg, #ff0000, #00ff00, #0000ff)';
 	}

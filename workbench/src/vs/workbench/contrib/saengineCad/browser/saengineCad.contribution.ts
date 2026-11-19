@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,6 +14,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -196,6 +198,31 @@ registerAction2(class extends Action2 {
 		const pane = accessor.get(IEditorService).activeEditorPane;
 		if (pane instanceof FloorPlanEditor) {
 			pane.toggleGridLines();
+		}
+	}
+});
+
+/** Focus the floor plan's Properties panel (AutoCAD PROPERTIES / PR / Ctrl+1). */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.floorPlan.properties',
+			title: localize2('floorPlan.properties', "Focus Properties"),
+			category: localize2('floorPlan.category', "Floor Plan"),
+			f1: true,
+			precondition: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Digit1,
+				when: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const pane = accessor.get(IEditorService).activeEditorPane;
+		if (pane instanceof FloorPlanEditor) {
+			pane.focusProperties();
 		}
 	}
 });

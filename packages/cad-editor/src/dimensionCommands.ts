@@ -35,6 +35,7 @@ import {
 	extractAndSortCoordinates,
 } from './dimensionGeometry.js';
 import { bulgeToArc, type P2 } from './modifyGeometry2.js';
+import { registerDimensionEditCommands } from './dimensionEditCommands.js';
 
 interface LinearDimensionState {
 	readonly xLine1Point: AcGePoint3d;
@@ -776,4 +777,5 @@ export function registerDimensionCommands(): void {
 	registerCommand('DIMBASELINE', dimbaselineCommand, { aliases: ['DBA'] });
 	registerCommand('QDIM', qdimCommand);
 	registerCommand('DIMSTYLE', dimstyleCommand, { aliases: ['-DIMSTYLE', 'D'] });
+	registerDimensionEditCommands();
 }

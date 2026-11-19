@@ -21,6 +21,10 @@ import {
 import { registerDrawCommands } from './drawCommands.js';
 import { peditCommand, splineditCommand, overkillCommand, registerPolyEditCommands } from './polyEditCommands.js';
 import { registerAnnotateGapsCommands } from './annotateGapsCommands.js';
+import { registerArrayCommands, arrayCommand, arrayEditCommand, arrayCloseCommand } from './arrayCommands.js';
+import { registerFindCommands, findCommand } from './findCommands.js';
+import { registerFieldCommands, fieldCommand, updatefieldCommand, updateDrawingFields } from './fieldCommands.js';
+import { registerDimensionEditCommands } from './dimensionEditCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import { registerConstraintCommands } from './constraintCommands.js';
 import { loadConstraintsFromDatabase } from './constraintModel.js';
@@ -51,8 +55,9 @@ import {
 } from './layerCommands.js';
 import {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
-	colorCommand, lweightCommand, chpropCommand,
+	colorCommand, lweightCommand, chpropCommand, friendlyTypeName,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+	type CadEntitySummary,
 } from './properties.js';
 import {
 	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
@@ -68,6 +73,7 @@ export {
 } from './layerCommands.js';
 export {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	friendlyTypeName, type CadEntitySummary,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
 	colorCommand, lweightCommand, chpropCommand,
 } from './properties.js';
@@ -115,6 +121,11 @@ export {
 export * from './unitsFormat.js';
 export * from './unitsCommands.js';
 export * from './dimensionGeometry.js';
+export * from './dimensionEditCommands.js';
+export * from './arrayCommands.js';
+export * from './findCommands.js';
+export * from './fieldCommands.js';
+export * from './fieldEval.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
 export * from './blockCommands.js';
@@ -345,7 +356,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	setGlobalReadFile(options.readFile);
 	registerCommand('MIRROR', mirrorCommand);
 	registerCommand('SCALE', scaleCommand);
-	registerCommand('ARRAYRECT', arrayRectCommand, { aliases: ['AR'] });
+	registerCommand('ARRAYRECT', arrayRectCommand);
 	registerCommand('ARRAYPOLAR', arrayPolarCommand);
 	registerCommand('ARRAYPATH', arrayPathCommand);
 	registerCommand('UNITS', unitsCommand, { aliases: ['-UNITS', 'UN'] });
@@ -414,6 +425,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerDrawCommands();
 	registerPolyEditCommands();
 	registerAnnotateGapsCommands();
+	registerArrayCommands();
+	registerFindCommands();
+	registerFieldCommands();
 	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
 	registerCommand('-LAYER', layerCommand);
 	registerCommand('LAYCUR', laycurCommand);
@@ -600,6 +614,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			if (name && LIBRARY_EDITS_TO_RESOLVE.has(name) && hasConstraints(manager.curDocument.database)) {
 				setTimeout(() => { void manager.executeCommandString('CONSTRAINTSOLVE'); }, 0);
 			}
+			try {
+				updateDrawingFields(manager.curDocument.database);
+			} catch {}
 		});
 	}
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
