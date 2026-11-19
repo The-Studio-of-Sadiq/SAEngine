@@ -550,6 +550,62 @@ export function pickDrafting(
 	return hits.map(h => h.id);
 }
 
+export interface CadDraftingHit {
+	readonly id: string;
+	readonly type: string;
+	readonly layer: string;
+	readonly distance: number;
+}
+
+/**
+ * Returns detailed hit information for non-generated, non-locked, visible entities whose
+ * geometry is within tolerance of the point, nearest first.
+ */
+export function pickDraftingAll(
+	dbOrPoint: any,
+	pointOrTol?: any,
+	toleranceOrOptions?: any,
+	maybeOptions?: PickDraftingOptions,
+): CadDraftingHit[] {
+	let db: any = dbOrPoint;
+	let point: SelectionPoint;
+	let tolerance = 0;
+	let options: PickDraftingOptions | undefined;
+
+	if (Array.isArray(dbOrPoint) || typeof (dbOrPoint as any)?.[0] === 'number') {
+		try { db = acdbHostApplicationServices().workingDatabase; } catch { db = undefined; }
+		point = dbOrPoint as SelectionPoint;
+		tolerance = typeof pointOrTol === 'number' ? pointOrTol : 0;
+		options = toleranceOrOptions as PickDraftingOptions;
+	} else {
+		point = pointOrTol as SelectionPoint;
+		tolerance = typeof toleranceOrOptions === 'number' ? toleranceOrOptions : 0;
+		options = maybeOptions;
+	}
+
+	if (!db) return [];
+	const modelSpace = db.tables?.blockTable?.modelSpace;
+	if (!modelSpace) return [];
+
+	const hits: CadDraftingHit[] = [];
+	const iterator = typeof modelSpace.newIterator === 'function' ? modelSpace.newIterator() : [];
+	for (const ent of iterator) {
+		if (!isEntitySelectable(ent, db, options)) continue;
+		const dist = entityDistanceToPoint(ent, point);
+		if (dist <= tolerance) {
+			hits.push({
+				id: String(ent.objectId),
+				type: String(ent.dxfTypeName ?? ent.type ?? 'Entity'),
+				layer: String(ent.layer ?? '0'),
+				distance: dist,
+			});
+		}
+	}
+
+	hits.sort((a, b) => a.distance - b.distance);
+	return hits;
+}
+
 /**
  * Returns IDs of non-generated, non-locked, visible entities matching a window or crossing
  * box selection.
@@ -598,6 +654,47 @@ export function pickDraftingWindow(
 	for (const ent of iterator) {
 		if (!isEntitySelectable(ent, db, options)) continue;
 		if (entityMatchesSelection(ent, mode, boundary)) {
+			result.push(String(ent.objectId));
+		}
+	}
+	return result;
+}
+
+/**
+ * Returns IDs of non-generated, non-locked, visible entities matching a polygon boundary
+ * (window, crossing, or fence).
+ */
+export function pickDraftingPolygon(
+	dbOrPoints: any,
+	pointsOrMode?: any,
+	modeOrOptions?: any,
+	maybeOptions?: PickDraftingOptions,
+): string[] {
+	let db: any = dbOrPoints;
+	let points: readonly SelectionPoint[];
+	let mode: SelectionModeKind;
+	let options: PickDraftingOptions | undefined;
+
+	if (Array.isArray(dbOrPoints) && (dbOrPoints.length === 0 || Array.isArray(dbOrPoints[0]) || typeof dbOrPoints[0]?.[0] === 'number')) {
+		try { db = acdbHostApplicationServices().workingDatabase; } catch { db = undefined; }
+		points = dbOrPoints as readonly SelectionPoint[];
+		mode = (typeof pointsOrMode === 'string' ? pointsOrMode : 'window') as SelectionModeKind;
+		options = modeOrOptions as PickDraftingOptions;
+	} else {
+		points = pointsOrMode as readonly SelectionPoint[];
+		mode = (typeof modeOrOptions === 'string' ? modeOrOptions : 'window') as SelectionModeKind;
+		options = maybeOptions;
+	}
+
+	if (!db || !points || points.length < 2) return [];
+	const modelSpace = db.tables?.blockTable?.modelSpace;
+	if (!modelSpace) return [];
+
+	const result: string[] = [];
+	const iterator = typeof modelSpace.newIterator === 'function' ? modelSpace.newIterator() : [];
+	for (const ent of iterator) {
+		if (!isEntitySelectable(ent, db, options)) continue;
+		if (entityMatchesSelection(ent, mode, points)) {
 			result.push(String(ent.objectId));
 		}
 	}

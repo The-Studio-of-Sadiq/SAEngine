@@ -243,6 +243,7 @@ class CallbackCommand extends AcEdCommand {
 					const opts = new AcEdPromptSelectionOptions(currentPrompt);
 					opts.keywords.add('Window', 'Window', 'W'); opts.keywords.add('Crossing', 'Crossing', 'C');
 					opts.keywords.add('Fence', 'Fence', 'F'); opts.keywords.add('Window Polygon', 'Window Polygon', 'WP'); opts.keywords.add('Crossing Polygon', 'Crossing Polygon', 'CP');
+					opts.keywords.add('Lasso', 'Lasso', 'LA');
 					opts.keywords.add('All', 'All', 'ALL'); opts.keywords.add('Last', 'Last', 'L'); opts.keywords.add('Previous', 'Previous', 'P');
 					opts.keywords.add('Remove', 'Remove', 'R'); opts.keywords.add('Add', 'Add', 'A'); opts.keywords.add('Undo', 'Undo', 'U');
 					const result = await editor.getSelection(opts);
@@ -275,15 +276,15 @@ class CallbackCommand extends AcEdCommand {
 						} else if (keyword === 'P' || keyword === 'PREVIOUS') {
 							set.apply(getPreviousSelection());
 							if (sel) { sel.clear(); if (set.ids.length) sel.add([...set.ids]); }
-						} else if (['W','WINDOW','C','CROSSING','F','FENCE','WP','WINDOW POLYGON','CP','CROSSING POLYGON'].includes(keyword)) {
+						} else if (['W','WINDOW','C','CROSSING','F','FENCE','WP','WINDOW POLYGON','CP','CROSSING POLYGON','LA','LASSO'].includes(keyword)) {
 							const pts: SelectionPoint[] = [];
-							const first = await getPointWithDraftingAids(editor, 'Specify first point:', {});
+							const first = await getPointWithDraftingAids(editor, keyword === 'LA' || keyword === 'LASSO' ? 'Specify first lasso point:' : 'Specify first point:', {});
 							if (first.status !== AcEdPromptStatus.OK || !first.value) continue;
 							pts.push([first.value.x, first.value.y]);
-							const isPoly = keyword === 'F' || keyword === 'FENCE' || keyword === 'WP' || keyword === 'WINDOW POLYGON' || keyword === 'CP' || keyword === 'CROSSING POLYGON';
+							const isPoly = keyword === 'F' || keyword === 'FENCE' || keyword === 'WP' || keyword === 'WINDOW POLYGON' || keyword === 'CP' || keyword === 'CROSSING POLYGON' || keyword === 'LA' || keyword === 'LASSO';
 							if (isPoly) {
 								while (true) {
-									const p = await getPointWithDraftingAids(editor, 'Specify next point or Enter:', { base: new AcGePoint3d(pts[pts.length - 1][0], pts[pts.length - 1][1], 0), allowNone: true });
+									const p = await getPointWithDraftingAids(editor, keyword === 'LA' || keyword === 'LASSO' ? 'Specify next lasso point or Enter:' : 'Specify next point or Enter:', { base: new AcGePoint3d(pts[pts.length - 1][0], pts[pts.length - 1][1], 0), allowNone: true });
 									if (p.status !== AcEdPromptStatus.OK || !p.value) break;
 									pts.push([p.value.x, p.value.y]);
 								}
@@ -301,6 +302,9 @@ class CallbackCommand extends AcEdCommand {
 									modeKind = 'window';
 								} else if (keyword === 'CP' || keyword === 'CROSSING POLYGON') {
 									modeKind = 'crossing';
+								} else if (keyword === 'LA' || keyword === 'LASSO') {
+									// In AutoCAD, lasso net drag/progression left-to-right is window, right-to-left is crossing
+									modeKind = pts[pts.length - 1][0] >= pts[0][0] ? 'window' : 'crossing';
 								} else {
 									const minX = Math.min(pts[0][0], pts[1][0]), maxX = Math.max(pts[0][0], pts[1][0]);
 									const minY = Math.min(pts[0][1], pts[1][1]), maxY = Math.max(pts[0][1], pts[1][1]);

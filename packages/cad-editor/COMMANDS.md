@@ -292,3 +292,25 @@ Removes duplicate and overlapping objects:
 - Removes exact duplicates across geometry types within tolerance.
 - Merges overlapping collinear lines into single lines.
 - Reports `"N duplicate(s) deleted, M overlapping object(s) or segment(s) deleted"` in one undoable transaction.
+
+### Lasso and Selection Cycling
+
+AutoCAD 2015+ lasso selection and AutoCAD selection cycling behaviors:
+
+#### Selection API (`editor`)
+- `pickDraftingPolygon(points, mode)`: Selects drafting entities matching a polygon or fence boundary (`'window'` = fully enclosed, `'crossing'` = touched, `'fence'` = crossed by open path).
+- `pickDraftingAll(clientX, clientY, tolPx)`: Returns all drafting hits under the cursor sorted by shortest 2D distance to entity linework, providing `{ id, type, layer, distance }`.
+- `getSysVar(name)` / `setSysVar(name, value)`: Reads or writes system variables (`LASSO`, `SELECTIONCYCLING`).
+
+#### System Variables and Commands
+- `LASSO` (0 = off, 1 = on, default 1): Toggles freehand lasso selection when dragging on empty space.
+  - Dragging left-to-right (net) produces a window lasso (objects fully inside, solid blue outline).
+  - Dragging right-to-left produces a crossing lasso (touched objects, dashed green outline).
+  - Pressing Space during the drag cycles `Window` → `Crossing` → `Fence` lasso.
+  - A click-click without drag maintains standard rectangular window/crossing.
+  - Inside interactive command `Select objects:` prompts (`getSelection`), typing `LA` or `LASSO` initiates freehand polygon pick points with closing Enter.
+- `SELECTIONCYCLING` (0 = off, 1 = on, 2 = on with list, default 2): Controls selection cycling for overlapping objects.
+  - When several objects overlap under the cursor, the first click selects the nearest.
+  - `Shift+Space` toggles cycling mode; clicking again at the same spot within 300 ms cycles to the next overlapping object.
+  - Floor plan members join the cycle list after drafting entities.
+  - With `SELECTIONCYCLING=2`, a selection list pop-up appears next to the cursor to directly pick drafting entities (by type and layer) or structural members (by id).
