@@ -96,3 +96,74 @@ Removes duplicate and overlapping objects:
 - Removes exact duplicates across geometry types within tolerance.
 - Merges overlapping collinear lines into single lines.
 - Reports `"N duplicate(s) deleted, M overlapping object(s) or segment(s) deleted"` in one undoable transaction.
+
+### AutoCAD 2D Coverage (Draw, Annotate & Display Order)
+
+| Command | Aliases | AutoCAD Behavior | SAEngine Implementation | Status / Limitations |
+| :--- | :--- | :--- | :--- | :--- |
+| `WIPEOUT` | — | Masking boundary with frames [ON/OFF/Display not plot] or from polyline | `wipeoutCommand`: uses `AcDbWipeout` with normalized clip boundary, dimensions, and position; respects WIPEOUTFRAME (0, 1, 2) | Fully supported; works with DRAWORDER |
+| `REGION` | `REG` | Converts 2D closed planar loops into 2D regions | `regionCommand`: reuses `detectLoopsFromObjects` boundary detection to generate closed loops tagged with `AUTOCAD_REGION` XData | Complete (represented as closed polyline loop set tagged with XData) |
+| `UNION` | `UNI` | Boolean union of regions or solid bodies | `unionCommand`: performs 2D polygon boolean union via Greiner–Hormann clipping with arc chord-approximation | Complete for 2D regions |
+| `SUBTRACT` | `SU` | Boolean difference of regions or solid bodies | `subtractCommand`: performs 2D polygon difference via Greiner–Hormann clipping | Complete for 2D regions |
+| `INTERSECT` | `IN` | Boolean intersection of regions or solid bodies | `intersectCommand`: performs 2D polygon intersection via Greiner–Hormann clipping | Complete for 2D regions |
+| `MASSPROP` | `MP` | Computes engineering mass properties (area, perimeter, centroid, moments of inertia, radii of gyration, principal axes) | `masspropCommand`: calculates 2D Green's theorem area integrals, moments of inertia about centroid ($I_{xx}, I_{yy}, I_{xy}$), radii of gyration, and principal moments ($I, J$) | Full engineering mass properties report |
+| `GRADIENT` | `GD` | Gradient hatch fill (9 patterns, 1- or 2-color, angle, shift/centred) | `gradientCommand`: creates `AcDbHatch` with `GradientObject` type, gradient pattern, colors, angle, and shift; round trips in DXF | Data model and DXF fully supported; viewer does not implement WebGL shader gradient rendering |
+| `TOLERANCE` | `TOL` | Geometric Dimensioning & Tolerancing (GD&T) feature control frame | `toleranceCommand`: creates `AcDbFcf` with standard `%%v` delimiter, symbol, tolerance 1/2 with diameter and material modifiers (MMC/LMC/RFS), and datums A/B/C | Full data model, DXF, and frame layout support |
+| `CENTERLINE` | `CL` | Associative/geometric centerline between parallel or converging lines | `centerlineCommand`: computes centerline midway between lines or along angle bisector, extended by `CENTEREXE` with `CENTER` linetype | Complete |
+| `BLEND` | `BLE` | Creates a tangent (G1) or smooth (G2) spline between endpoints of two open curves | `blendCommand`: computes curve endpoint tangents and generates clamped cubic `AcDbSpline` | Complete |
+| `QLEADER` | `LE`, `LEADER` | Quick leader with configurable settings (MText, Tolerance, Block, None, Copy, arrowhead, point limits) | `qleaderCommand`: creates `AcDbLeader` entity linked via `associatedAnnotation` to `AcDbMText` or `AcDbFcf` | Complete |
+| `DRAWORDER` | `DR` | Modifies entity draw/display order (Above, Under, Front, Back) | `draworderCommand`: updates `AcDbSortentsTable` in `database.objects.sortentsTable` and reorders `modelSpace._entities` | Complete; survives DXF round trip via `SORTENTSTABLE` |
+| `TEXTTOFRONT` | — | Moves text, dimensions, and leaders to the front | `texttofrontCommand`: batches text, dimension, and leader entities to the top of draw order | Complete |
+| `HATCHTOBACK` | — | Moves all hatch entities to the back | `hatchtobackCommand`: batches all `AcDbHatch` entities to the bottom of draw order | Complete |
+
+#### Detailed Command Reference
+
+##### `WIPEOUT`
+- **Usage**: Prompts `Specify first point or [Frames/Polyline] <Polyline>:`.
+- **Options**:
+  - `Polyline`: Select a closed polyline. Prompts `Erase polyline? [Yes/No] <No>:`. Creates an `AcDbWipeout` entity masking underlying objects.
+  - `Frames`: Sets `WIPEOUTFRAME` mode (`ON` = 1, `OFF` = 0, `Display` = 2).
+  - Point sequence: Pick at least 3 points to define a closed polygon.
+- **Data Model**: Implemented using `AcDbWipeout` with normalized `clipBoundary` and bounding coordinates. Paints layout background to mask objects behind it in the draw order.
+
+##### `REGION`, `UNION`, `SUBTRACT`, `INTERSECT`, `MASSPROP`
+- **`REGION`**: Converts selected closed curves/loops into region entities. Stored as closed `AcDbPolyline` entities tagged with `AUTOCAD_REGION` XData.
+- **`UNION`**: Combines overlapping regions into a unified region boundary using Greiner–Hormann polygon clipping.
+- **`SUBTRACT`**: Subtracts one set of regions from another, producing composite boundaries and holes.
+- **`INTERSECT`**: Finds the overlapping geometric intersection of selected regions.
+- **`MASSPROP`**: Outputs complete 2D engineering mass properties:
+  - Total area and perimeter
+  - Bounding box
+  - Centroid coordinates ($C_x, C_y$)
+  - Moments of inertia ($I_{xx}, I_{yy}$) and product of inertia ($I_{xy}$) about the centroid
+  - Radii of gyration ($k_x, k_y$)
+  - Principal moments ($I, J$) and directions about the centroid
+
+##### `GRADIENT`
+- **Usage**: Prompts `Pick internal point or [Select objects/Pattern/Color1/Color2/Angle/Centred] <Pick>:`.
+- **Patterns**: `LINEAR`, `CYLINDER`, `INVCYLINDER`, `SPHERICAL`, `INVSPHERICAL`, `HEMISPHERICAL`, `INVHEMISPHERICAL`, `CURVED`, `INVCURVED`.
+- **Options**: One-color (tint/shade) or two-color, start/end RGB colors, pattern angle, shift/centred offset.
+- **Round trip**: Preserved across DXF save/load in `AcDbHatch` group codes 450, 460, 470, 471, etc. Viewer renders solid/boundary outline since WebGL shader gradients are not implemented in `@mlightcad/cad-simple-viewer`.
+
+##### `TOLERANCE`
+- **Usage**: Prompts for GD&T characteristic symbol (`POS`, `FLAT`, `CIRC`, `STR`, `CYL`, `PERP`, `PARA`, `ANG`, `RUN`, `TRUN`, `PROF_L`, `PROF_S`, `CONC`, `SYM`), tolerance value with optional diameter (`%%c`) and material condition modifier (`MMC` `%%m`, `LMC` `%%l`, `RFS` `%%s`), optional second tolerance, datums A/B/C, and insertion point.
+- **Data Model**: Stored as native `AcDbFcf` (`TOLERANCE` in DXF), formatted with standard `%%v` slot delimiters.
+
+##### `CENTERLINE`
+- **Usage**: Prompts `Select first line:` and `Select second line:`.
+- **Behavior**: For parallel lines, places centerline equidistant between them spanning the projected segment range, extended at both ends by `CENTEREXE` (default 3.75). For converging lines, places centerline along the angle bisector. Formatted with `CENTER` linetype.
+
+##### `BLEND`
+- **Usage**: Prompts `Select first curve or [Continuity] <Continuity>:`.
+- **Behavior**: Smoothly blends between two open curve endpoints with matching tangent continuity (G1) using a cubic `AcDbSpline`.
+
+##### `QLEADER`
+- **Usage**: Prompts `Specify first leader point or [Settings] <Settings>:`.
+- **Settings**: Annotation type (`MText`, `Tolerance`, `Block`, `None`, `Copy`), number of points, arrowhead style.
+- **Behavior**: Creates an `AcDbLeader` entity linked via `associatedAnnotation` to `AcDbMText` or `AcDbFcf`.
+
+##### `DRAWORDER`, `TEXTTOFRONT`, `HATCHTOBACK`
+- **`DRAWORDER`**: Reorders objects with `Front`, `Back`, `Above object`, or `Under object`.
+- **`TEXTTOFRONT`**: Moves `Text`, `Dimensions`, `Leaders`, or `All` annotations in front of other objects.
+- **`HATCHTOBACK`**: Sends all `HATCH` entities behind other geometry.
+- **Data Model & DXF**: Updates `AcDbSortentsTable` in `database.objects.sortentsTable` (written to DXF `SORTENTSTABLE` / `ACAD_SORTENTS`) and synchronizes model space entity list for immediate in-memory and render order.

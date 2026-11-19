@@ -16,6 +16,7 @@ import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
 import { registerDrawCommands } from './drawCommands.js';
 import { peditCommand, splineditCommand, overkillCommand, registerPolyEditCommands } from './polyEditCommands.js';
+import { registerAnnotateGapsCommands } from './annotateGapsCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
@@ -92,6 +93,8 @@ export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
+export * from './regionGeometry.js';
+export * from './annotateGapsCommands.js';
 export {
 	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
 	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
@@ -357,6 +360,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerBlockCommands();
 	registerDrawCommands();
 	registerPolyEditCommands();
+	registerAnnotateGapsCommands();
 	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
 	registerCommand('-LAYER', layerCommand);
 	registerCommand('LAYCUR', laycurCommand);
