@@ -413,19 +413,26 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 | Feature | Revit | AutoCAD | Typical MEP tools | SAEngine status | Evidence | Part | Benchmark that would prove it |
 |---|---|---|---|---|---|---|---|
-| Drawing: line, polyline, arc, circle, ellipse, spline, rectangle, polygon, xline, ray, sketch | ✓ (detail lines) | ✓ | – | Built, untested | packages/cad-editor/ (mlightcad cad-simple-viewer registerCommands) | 5 | – |
-| Modify: move, copy, rotate, offset, erase | ✓ | ✓ | – | Built, untested | Same command list | 5 | – |
-| Trim, extend, fillet, chamfer, mirror, stretch, array, explode in the app | ✓ | ✓ | – | Out of scope (decision) | Not in mlightcad's command list; LibreCAD is bundled for full CAD editing (docs/ci.md; owner decision) | 11 | – |
-| Layer controls (on/off, freeze, lock, isolate) | ✓ | ✓ | – | Built, untested | mlightcad laycur, layfrz, laylck, layiso | 5 | – |
-| Blocks (create, insert, attributes) | ✓ (detail components) | ✓ | – | Partial | Blocks are read on import (python/src/saengine/library/architecture_dxf.py follows nested blocks); no block command in the app | 5 | – |
+| Drawing: line, polyline, arc and circle (all options), ellipse, spline, rectangle, polygon, donut, xline, ray, multiline, revision cloud, wipeout | ✓ (detail lines) | ✓ | – | Verified (geometry) | packages/cad-editor/src/drawCommands.ts, drawGeometry.ts; test/draw-geometry.test.mjs (hand-computed: 3P/TTR/TTT circles, arc options, filleted rectangle, polygon, donut); library commands | 5 | – |
+| Modify: move, copy, rotate, offset, erase, mirror, scale, stretch | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/commands.ts, gripGeometry.ts; test/modify-geometry*.test.mjs, test/grips.test.mjs | 5 | – |
+| Trim, extend, fillet, chamfer, break, join, explode, lengthen, align | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/modifyGeometry.ts, modifyGeometry2.ts; test/modify-geometry.test.mjs, test/modify-geometry2.test.mjs (hand-computed). Replaces the earlier out-of-scope decision (docs/engineering-decisions.md, CAD parity) | 5 | – |
+| Arrays: rectangular, polar, path; editable arrays (ARRAYEDIT) | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/commands.ts, pathGeometry.ts, arrayCommands.ts; test/path-array.test.mjs, test/dim-find-field.test.mjs. Copies kept as a group (no associative array object in the data model) | 5 | – |
+| PEDIT, SPLINEDIT, OVERKILL | – | ✓ | – | Verified (geometry) | packages/cad-editor/src/polyEditCommands.ts, polyEditGeometry.ts; test/poly-edit.test.mjs (arc-fit on a known circle, B-spline midpoint, OVERKILL command test). PLINEGEN is not in the data model | 5 | – |
+| Layers and properties: LAYER, isolate/off/freeze/lock and reverses, LAYMRG, LAYWALK, MATCHPROP, CHPROP, colour/linetype/lineweight, Properties panel for drafting | ✓ | ✓ | – | Built, untested | packages/cad-editor/src/layerCommands.ts, properties.ts, linetypes.ts (test/layers.test.mjs, DASHED acadiso values); floor plan status bar and Properties panel (floorPlanCadBar.ts, floorPlanDraftProperties.ts); status bar walked in the app 2026-11-18 | 5 | Walk: isolate a layer, MATCHPROP, edit a colour in the Properties panel, save and reopen |
+| Drafting aids: object snaps (all modes and overrides), ORTHO, POLAR, OTRACK, SNAP, GRID, dynamic input | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/draftingAids.ts, draftingAidsGeometry.ts; test/drafting-aids.test.mjs (perpendicular, tangent, polar, ortho, grid snap); F8 and the status bar walked in the app | 5 | – |
+| Selection: window, crossing, fence, polygons, All, Last, Previous, Remove/Add, Undo, QSELECT, SELECTSIMILAR, lasso, selection cycling | ✓ | ✓ | – | Built, untested | packages/cad-editor/src/selectionModes.ts, selectionGeometry.ts; test/selection-modes.test.mjs, test/lasso.test.mjs; floorPlanEditor.ts (lasso, cycling) | 5 | Walk: lasso and cycling over overlapping drafting and members |
+| Grip editing: stretch, move, rotate, scale, mirror (Space or Enter cycles), polyline vertex and segment grips | ✓ | ✓ | – | Built, untested | packages/cad-editor/src/gripEdit.ts, gripGeometry.ts, spaceAsEnter.ts; test/grips.test.mjs; Space cycling walked in the app 2026-11-19 | 5 | – |
+| Blocks: create, insert, write, attributes, ATTSYNC, block editor, in-place edit (REFEDIT), xrefs (attach, overlay, reload, bind), dynamic blocks (linear/stretch, flip, visibility, rotation) | ✓ (detail components, families) | ✓ | – | Built, untested | packages/cad-editor/src/blockCommands.ts, blockEditor.ts, xrefCommands.ts, dynamicBlocks.ts; test/blocks.test.mjs, test/block-editor.test.mjs (inverse transform; Discard byte-identical). Dynamic-block grips are not possible in the viewer (-DYNPROP instead) | 5 | Walk: BEDIT a block with members on the plan, save, reopen |
+| Dimensions: linear, aligned, angular, arc length, radius, diameter, jogged, ordinate, baseline, continue, QDIM; DIMEDIT, DIMTEDIT, DIMOVERRIDE, DIMSPACE, DIMBREAK; dimension styles | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/dimensionCommands.ts, dimensionGeometry.ts, dimensionEditCommands.ts; test/dimension-commands.test.mjs, test/dimension-roundtrip.test.mjs, test/dim-find-field.test.mjs. No dimension associativity in the data model; breaks are stored but drawn unbroken | 5 | – |
+| Hatch and gradient: create, edit, boundary, islands | ✓ | ✓ | – | Verified (geometry) | packages/cad-editor/src/hatchCommands.ts, hatchGeometry.ts; test/hatch-geometry.test.mjs (1000×500 loop area). Gradients are stored and round-tripped but drawn as solid fills by the viewer | 5 | – |
+| Text, MText, leaders (MLEADER, QLEADER), tables, fields, FIND and replace, text/table/multileader styles; Bengali | ✓ | ✓ | – | Partial | packages/cad-editor/src/annotationCommands.ts, findCommands.ts, fieldCommands.ts, stylesAuditCommands.ts; test/annotation.test.mjs, test/dim-find-field.test.mjs, test/styles-audit.test.mjs. Bengali shaping is still incomplete | 5 | Bengali room names shaped correctly on screen and in the DXF |
+| Regions, UNION/SUBTRACT/INTERSECT, MASSPROP (area, centroid, second moments, principal axes) | – | ✓ | – | Verified | packages/cad-editor/src/regionGeometry.ts; test/annotate-gaps.test.mjs (100×50 rectangle: Ixx 1,041,666.7, Iyy 4,166,666.7; L-shape centroid 41.667). Regions are tagged closed polylines (no ACIS in the data model) | 5 | – |
+| Annotation symbols: TOLERANCE (feature control frames), CENTERMARK, CENTERLINE, BLEND, DRAWORDER | – | ✓ | – | Built, untested | packages/cad-editor/src/annotateGapsCommands.ts, annotationCommands.ts; test/annotate-gaps.test.mjs | 5 | – |
+| Inquiry: DIST, AREA, ID, LIST, MEASUREGEOM, DIVIDE, MEASURE; UNITS; DATAEXTRACTION (table, CSV) | – | ✓ | – | Verified (geometry) | packages/cad-editor/src/inquiryCommands.ts, inquiryGeometry.ts, unitsFormat.ts, stylesAuditCommands.ts; test/inquiry-geometry.test.mjs, test/units-format.test.mjs (architectural 2'-6 1/2", surveyor's N 60d E), test/styles-audit.test.mjs | 5 | – |
+| Command line, AUDIT, RECOVER, PURGE, GROUP | – | ✓ | – | Built, untested | packages/cad-editor/src/index.ts (command line), stylesAuditCommands.ts, blockCommands.ts; test/styles-audit.test.mjs; packages/cad-editor/COMMANDS.md lists every AutoCAD 2D command with its status | 5 | – |
 | Underlays and xrefs (DXF, DWG, PDF vector) | ✓ | ✓ | – | Verified (sample files) | workbench/src/vs/workbench/contrib/saengineCad/browser/floorPlanUnderlay.ts (+ test); python/tests/test_dwg.py::test_underlays_may_be_dwg; python/src/saengine/library/pdf_underlay.py, python/tests/test_architect_input.py | 5 | Architect DWG and PDF placed and calibrated against a known length |
-| Dimensions in the editor | ✓ | ✓ | – | Partial | Linear only (dimlinear; round-trip test packages/cad-editor/test/dimension-roundtrip.test.mjs); no aligned, angular or radial | 5 | – |
-| Hatch creation and editing in the editor | ✓ | ✓ | – | Partial | Generated hatches only; no hatch command in the app (LibreCAD has one) | 5 | – |
-| Text and MText, including Bengali | ✓ | ✓ | – | Partial | mtext command; bundled Noto Sans Bengali but shaping is incomplete; LibreCAD shows no TrueType (docs/drawings-layers.md) | 5 | – |
-| Command line, revision cloud, measure and distance | – | ✓ | – | Built, untested | packages/cad-editor/src/index.ts (commandLine); mlightcad revcloud, measure, dist; docs/manual/05-floor-plan.md "The command line" | 5 | – |
-| Object snaps | ✓ | ✓ | – | Partial | workbench/src/vs/workbench/contrib/saengineCad/browser/floorPlanSnap.ts (intersections, grid lines, + test); general osnap modes not confirmed | 5 | – |
-| Paper space layouts and viewports | ✓ | ✓ | – | Partial | Sheets drawn in model space at a base scale with one layout page setup (layout.py; python/tests/test_drawings_cad.py::test_layout_page_setup_plots_the_sheet) | 11 | – |
-| Parametric constraints | ✓ | ✓ | – | Missing | Not in mlightcad's command list | 5 | – |
+| Paper space layouts and viewports | ✓ | ✓ | – | Partial | Sheets drawn in model space at a base scale with one layout page setup (layout.py; python/tests/test_drawings_cad.py::test_layout_page_setup_plots_the_sheet). Layouts stay in 11 Drawings (owner decision 2026-11-18) | 11 | – |
+| Parametric constraints: geometric (GC*, AUTOCONSTRAIN), dimensional (DC*) with parameters and expressions | ✓ | ✓ | – | Verified | packages/cad-editor/src/constraintSolver.ts, constraintModel.ts, constraintCommands.ts; test/constraints.test.mjs (rectangle d1 = 100, d2 = d1/2 → 100×50; d1 = 200 → 200×100; over-constraint refused; ids kept across solves). Shown as dimensions on a non-plotting layer (no constraint glyphs in the viewer) | 5 | – |
 | DXF read | ✓ | ✓ | – | Verified | python/src/saengine/library/importers.py; python/tests/test_dxf_audit.py, python/tests/test_architecture_dxf.py::test_inspect_lists_layers_unit_and_preview | 5 | – |
 | DXF write | ✓ | ✓ | – | Verified (round trip) | ezdxf; python/tests/test_drawings_sheets.py::test_drawing_set_sheets_dxf_round_trip_and_pdf; python/tests/test_dxf_audit.py; scripts/drawings_qa (AutoCAD audit harness, docs/drawings-qa.md) | 11 | – |
 | DWG read (R2000–R2018) | ✓ | ✓ | – | Verified (sample files) | python/src/saengine/library/dwg.py; python/tests/test_dwg.py using fixtures saved by AutoCAD in python/tests/data/dwg (skipped without LibreDWG) | 5 | – |
@@ -536,15 +543,17 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 ### Summary
 
-**Counts (151 rows):**
+**Counts (158 rows; CAD drafting rows updated 19 November 2026 after the CAD parity and AutoCAD-gaps rounds):**
 
 | Status | Rows |
 |---|---|
-| Verified | 43 |
-| Built, untested | 60 |
-| Partial | 27 |
-| Missing | 14 |
-| Out of scope (decision) | 7 |
+| Verified | 54 |
+| Built, untested | 62 |
+| Partial | 23 |
+| Missing | 13 |
+| Out of scope (decision) | 6 |
+
+"Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.
 
 Verification is concentrated where the structure meets MEP (equipment loads, sleeves, openings, tanks) and in plumbing and fire. Documentation, collaboration and API features are mostly built with unit tests only.
 
@@ -562,7 +571,7 @@ Verification is concentrated where the structure meets MEP (equipment loads, sle
 6. **Cooling loads per storey only.** The zone-per-storey model makes duct sizes, and so the beam openings, coarse.
 7. **Clash detection has no benchmark** against hand-placed cases.
 8. **Sprinkler inputs unconfirmed.** The design area and density, and the 40 % tray fill, are marked "from memory, to be checked".
-9. **In-app CAD is thin.** No trim, extend, hatch, blocks or constraints, and Bengali text shaping is incomplete. LibreCAD covers the editing but not Bengali TrueType text.
+9. **Bengali text and app walks in the CAD editor.** The floor plan's CAD editor now covers AutoCAD 2D drafting (CAD parity and AutoCAD-gaps rounds, November 2026), but Bengali text shaping is still incomplete, and lasso, cycling, block editing and constraints have not yet been walked in the app.
 10. **Schedules and views.** There are no user-defined schedules, callouts, legends or keynotes, so non-standard submissions need manual CAD work.
 11. **Sheet DWG export is untested** (LibreDWG dxf2dwg). Bangladeshi consultants usually exchange DWG.
 12. **Duct pressure.** There is no fan static pressure or duct pressure drop, so AHU and fan selection (and so plant weights) rest on typical values.

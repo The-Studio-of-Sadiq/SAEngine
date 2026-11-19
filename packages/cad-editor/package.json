@@ -13,6 +13,7 @@
   "scripts": {
     "build": "node build.mjs && tsc -p tsconfig.json --emitDeclarationOnly",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "node scripts/clean-test-temp.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
