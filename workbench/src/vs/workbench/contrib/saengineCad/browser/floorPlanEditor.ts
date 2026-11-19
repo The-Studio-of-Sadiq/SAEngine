@@ -70,7 +70,7 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, isFreehandLasso, selectInPolygon, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, isFreehandLasso, lassoMode, selectInPolygon, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 import { conversionSteps } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
@@ -946,7 +946,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.drag && this.drag.points && (e.code === 'Space' || e.key === ' ')) {
 			e.preventDefault();
 			e.stopPropagation();
-			const currentMode = this.drag.lassoModeOverride ?? (this.drag.current && this.drag.current[0] >= this.drag.start[0] ? 'window' : 'crossing');
+			const currentMode = this.drag.lassoModeOverride ?? lassoMode(this.drag.points);
 			const nextMode: 'window' | 'crossing' | 'fence' =
 				currentMode === 'window' ? 'crossing' :
 				currentMode === 'crossing' ? 'fence' : 'window';
@@ -1469,16 +1469,13 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 			const point = this.editor.toWorld(e.clientX, e.clientY);
-			if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < CLICK_PIXELS) {
+			// A lasso loop ends near where it started: it is a lasso, not a click.
+			if (drag?.points && this.isLassoEnabled() && isFreehandLasso(drag.points)) {
+				this.finishLasso(drag.points, drag.lassoModeOverride ?? lassoMode(drag.points), e);
+			} else if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < CLICK_PIXELS) {
 				this.click(point, e);
 			} else if (drag) {
-				const isLasso = this.isLassoEnabled() && !!drag.points && isFreehandLasso(drag.points);
-				if (isLasso) {
-					const mode = drag.lassoModeOverride ?? (drag.current && drag.current[0] >= drag.start[0] ? 'window' : 'crossing');
-					this.finishLasso(drag.points!, mode, e);
-				} else {
-					this.finishWindow(drag.start, point, e);
-				}
+				this.finishWindow(drag.start, point, e);
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.POINTER_MOVE, e => {
@@ -2939,7 +2936,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (drag?.current) {
 			const isLasso = this.isLassoEnabled() && !!drag.points && isFreehandLasso(drag.points);
 			if (isLasso) {
-				const mode = drag.lassoModeOverride ?? (drag.current[0] >= drag.start[0] ? 'window' : 'crossing');
+				const mode = drag.lassoModeOverride ?? lassoMode(drag.points!);
 				const layer = mode === 'window' ? PREVIEW_LAYERS[3].name : PREVIEW_LAYERS[4].name;
 				entities.push({
 					kind: 'polyline',
