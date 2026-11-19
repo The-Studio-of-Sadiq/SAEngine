@@ -159,6 +159,36 @@ export const PATCHES = [
                             typed.setAt(entryName, obj);
                         }`,
 	},
+	{
+		// An object prompt took only the first object under the cursor: on the floor plan that is
+		// often a structural member on a locked layer drawn under the drafting, so the prompt said
+		// "Invalid object selected." for the line the user clicked. Take the first allowed hit.
+		...VIEWER,
+		description: 'object prompts take the first allowed object under the cursor',
+		find: `          const x = this.getEntityById(g[0].id);
+          if (!x) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          if (!e.allowObjectOnLockedLayer && this.isEntityOnLockedLayer(x)) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          if (!this.isEntityClassAllowed(x, e)) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          t = { x: y.x, y: y.y, z: 0 }, c(), i(g[0].id);`,
+		replace: `          const hit = g.find((h) => {
+            const x = this.getEntityById(h.id);
+            return !!x && (e.allowObjectOnLockedLayer || !this.isEntityOnLockedLayer(x)) && this.isEntityClassAllowed(x, e);
+          });
+          if (!hit) {
+            this._commandLine.showMessage(e.rejectMessage, "warning");
+            return;
+          }
+          t = { x: y.x, y: y.y, z: 0 }, c(), i(hit.id);`,
+	},
 ];
 
 /** Applies the patches for `filePath`; throws if a patch no longer matches. */
