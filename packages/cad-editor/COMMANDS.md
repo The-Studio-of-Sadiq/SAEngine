@@ -18,6 +18,38 @@ WBLOCK/W, GROUP/G, UNGROUP, and PURGE/PU from `blockCommands.ts`.
 WBLOCK emits a standalone DXF string through `CadEditor.onWblock((name, dxfText) => …)`;
 the host can use that callback to present its save dialog.
 
+#### Block Editor (BEDIT, BCLOSE, BSAVE, BSAVEAS)
+- `BEDIT`: Opens a block definition for editing by name or by picking a block reference. Temporarily stashes model space entities and displays the block definition's linework at the origin `(0,0,0)`, with banner `"Block Editor: <name> — BCLOSE to save or discard"`. All normal draw, modify, and inquiry commands operate on the content in model space.
+- `BSAVE`: Writes current block editor linework into the block table record (base point stays at origin) without closing the session.
+- `BSAVEAS`: Saves the current block editor linework to a new block name.
+- `BCLOSE`: Prompts `[Save/Discard] <Save>`. Saves edits to the block definition or discards changes, restores original model space entities, and regenerates all references (clearing `AcDbRenderingCache`). Attribute definitions inside are preserved.
+
+#### In-Place Reference Editing (REFEDIT, REFCLOSE)
+- `REFEDIT`: Picks a block reference to edit its contents in-place at its insertion transform. Non-working-set entities in model space remain visible but are locked from selection and editing.
+- `REFCLOSE`: Prompts `[Save/Discard] <Save>`. Maps working set edits back through the inverse transformation $T^{-1}$ into the block definition, restores model space and the block reference, and regenerates references.
+
+#### External References (XREF, -XREF)
+- Options: `[Attach/Overlay/Bind/Detach/Reload/?]`
+  - `Attach`: Attaches an external DXF file chosen by path. Uses the host `readFile(path): Promise<string>` editor option. Stores the external reference as a block table record with `pathName` (DXF group 1) and `flags` (DXF group 70 bit 4), showing entities greyed with ACI 9 (`UNDERLAY_ACI`).
+  - `Overlay`: Attaches an external reference with the overlay flag bit set (bit 8).
+  - `?` (List): Lists all attached external references, their paths, flags, and overlay status.
+  - `Detach`: Erases all references from model space and removes the block table record.
+  - `Reload`: Re-reads the file from its path via `readFile` and updates the block's entities.
+  - `Bind`: Converts an external reference into a normal internal block by clearing xref flags and clearing `pathName`.
+
+#### Attribute Synchronization (ATTSYNC)
+- `ATTSYNC`: Synchronizes all block references of a chosen block with its current attribute definitions. Adds new attributes with their default values, removes orphaned attributes, retains existing values for matching tags, and updates positions and styles to match current definitions and reference transforms.
+
+#### Dynamic Blocks (BPARAMETER, -DYNPROP)
+- `BPARAMETER`: Adds dynamic parameters and actions to a block definition:
+  - `Linear` parameter with a `Stretch` action: stretches vertices along the parameter vector.
+  - `Flip` parameter with a `Flip` action: mirrors geometry across the flip reflection line.
+  - `Visibility` parameter: named visibility states controlling entity visibility.
+  - `Rotation` parameter: rotates geometry around a specified center point.
+- Storage: Parameters and actions are serialized in XData (`SA_DYNBLOCK_DEF` on block table records/entities, `SA_DYNBLOCK_INST` on references), fully surviving DXF round-trips.
+- `-DYNPROP`: Selects a block reference, prompts for parameter name and new value, and regenerates the reference as an anonymous block (`*U<n>`) with modified geometry like AutoCAD.
+- Note on custom grips: The underlying `@mlightcad/data-model` exposes only insertion grip points for block references (`subGetGripPoints = [this._position]`), so `-DYNPROP` provides the parameter editing route.
+
 ### Layers and Object Properties
 
 SAEngine registers AutoCAD layer management and object property commands from `layerCommands.ts`, `properties.ts`, and `linetypes.ts`.
@@ -117,16 +149,16 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | DIVIDE | Available | SAEngine (`DIVIDE`, alias `DIV`) |
 | MEASURE | Available | SAEngine (`MEASURE`, alias `ME`) |
 | REVCLOUD | Available | library (`revcloud`) |
-| WIPEOUT | Missing | Not implemented |
-| REGION | Missing | Not implemented |
+| WIPEOUT | Available | SAEngine (`WIPEOUT`, P22) |
+| REGION | Available | SAEngine (`REGION`, P22) |
 | BOUNDARY | Available | SAEngine (`BOUNDARY`, alias `BO`) |
 | HATCH | Available | SAEngine (`HATCH`, `HATCHEDIT`) & library (`-hatch`) |
-| GRADIENT | Missing | Not implemented as standalone command |
+| GRADIENT | Available | SAEngine (`GRADIENT`, P22) |
 | TABLE | Available | SAEngine (`TABLE`, alias `TB`) |
 | MTEXT | Available | library (`mtext`, alias `MT`, `T`) |
 | TEXT | Available | SAEngine (`TEXT`, aliases `DTEXT`, `DT`) |
 | MLEADER | Available | SAEngine (`MLEADER`, alias `MLD`) |
-| QLEADER | Missing | Not implemented (superseded by MLEADER in modern AutoCAD) |
+| QLEADER | Available | SAEngine (`QLEADER`, P22) |
 | DIMLINEAR | Available | library (`dimlinear`, alias `DLI`) |
 | DIMALIGNED | Available | SAEngine (`DIMALIGNED`, alias `DAL`) |
 | DIMRADIUS | Available | SAEngine (`DIMRADIUS`, alias `DRA`) |
@@ -139,9 +171,9 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | QDIM | Available | SAEngine (`QDIM`) |
 | DIMSTYLE / -DIMSTYLE | Available | SAEngine (`DIMSTYLE`, `-DIMSTYLE`, `D`) |
 | DIMJOGGED / DIMREASSOCIATE / DIMDISASSOCIATE / DIMEDIT / DIMTEDIT / DIMOVERRIDE / DIMSPACE / DIMBREAK / DIMCENTER / DIMINSPECT | Missing | Specialized dimension editing commands not implemented |
-| TOLERANCE | Missing | Feature control frame tolerance annotations not implemented |
+| TOLERANCE | Available | SAEngine (`TOLERANCE`, P22) |
 | CENTERMARK | Available | SAEngine (`CENTERMARK`, alias `CM`) |
-| CENTERLINE | Missing | Associative centerline entity not implemented |
+| CENTERLINE | Available | SAEngine (`CENTERLINE`, P22) |
 | MOVE | Available | library (`move`, alias `M`) |
 | COPY | Available | library (`copy`, aliases `CO`, `CP`) |
 | ROTATE | Available | library (`rotate`, alias `RO`) |
@@ -153,7 +185,7 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | EXTEND | Available | SAEngine (`EXTEND`, alias `EX`) |
 | FILLET | Available | SAEngine (`FILLET`, alias `F`) |
 | CHAMFER | Available | SAEngine (`CHAMFER`, alias `CHA`) |
-| BLEND | Missing | Tangent blend spline between curves not implemented |
+| BLEND | Available | SAEngine (`BLEND`, P22) |
 | ARRAYRECT | Available | SAEngine (`ARRAYRECT`, alias `AR`) |
 | ARRAYPOLAR | Available | SAEngine (`ARRAYPOLAR`) |
 | ARRAYPATH | Available | SAEngine (`ARRAYPATH`) |
@@ -173,13 +205,13 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | BLOCK | Available | SAEngine (`BLOCK`, alias `B`) |
 | INSERT | Available | SAEngine (`INSERT`, alias `I`) & library (`-insert`) |
 | WBLOCK | Available | SAEngine (`WBLOCK`, alias `W`) |
-| BEDIT | Missing | In-place block editor environment not implemented |
-| REFEDIT | Missing | In-place reference editor not implemented |
-| XREF | Missing | External reference manager palette/command not implemented (`xattach` library command exists) |
+| BEDIT | Available | SAEngine (`BEDIT`, P20) |
+| REFEDIT | Available | SAEngine (`REFEDIT`, P20) |
+| XREF | Available | SAEngine (`XREF`, P20) |
 | ATTDEF | Available | SAEngine (`ATTDEF`, alias `ATT`) |
 | ATTEDIT | Available | SAEngine (`ATTEDIT`, aliases `ATE`, `EATTEDIT`) |
 | EATTEDIT | Available | SAEngine (`EATTEDIT`) |
-| ATTSYNC | Missing | Block attribute synchronization not implemented |
+| ATTSYNC | Available | SAEngine (`ATTSYNC`, P20) |
 | LAYER / -LAYER | Available | SAEngine (`LAYER`, `-LAYER`, `LA`, `-LA`) & library (`-layer`) |
 | LAYCUR | Available | SAEngine & library (`laycur`) |
 | LAYISO | Available | SAEngine & library (`layiso`) |
@@ -214,11 +246,11 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | ZOOM | Available | library (`zoom`, alias `Z`) |
 | PAN | Available | library (`pan`, alias `P`) |
 | REGEN | Available | library (`regen`, alias `RE`) |
-| DRAWORDER | Missing | Display order modification not implemented |
+| DRAWORDER | Available | SAEngine (`DRAWORDER`, P22) |
 | GROUP / UNGROUP | Available | SAEngine (`GROUP`, `G`, `UNGROUP`) |
-| GEOMCONSTRAINT | Missing | Parametric 2D geometric constraints not supported |
-| DIMCONSTRAINT | Missing | Parametric dimensional constraints not supported |
-| PARAMETERS | Missing | Parametric manager palette not implemented |
+| GEOMCONSTRAINT | Available | SAEngine (`GEOMCONSTRAINT`, P21) |
+| DIMCONSTRAINT | Available | SAEngine (`DIMCONSTRAINT`, P21) |
+| PARAMETERS | Available | SAEngine (`PARAMETERS`, P21) |
 | DATAEXTRACTION | Missing | Table / attribute data extraction wizard not implemented |
 | FIELD | Missing | Dynamic text fields not implemented |
 
@@ -260,3 +292,121 @@ Removes duplicate and overlapping objects:
 - Removes exact duplicates across geometry types within tolerance.
 - Merges overlapping collinear lines into single lines.
 - Reports `"N duplicate(s) deleted, M overlapping object(s) or segment(s) deleted"` in one undoable transaction.
+
+### Lasso and Selection Cycling
+
+AutoCAD 2015+ lasso selection and AutoCAD selection cycling behaviors:
+
+#### Selection API (`editor`)
+- `pickDraftingPolygon(points, mode)`: Selects drafting entities matching a polygon or fence boundary (`'window'` = fully enclosed, `'crossing'` = touched, `'fence'` = crossed by open path).
+- `pickDraftingAll(clientX, clientY, tolPx)`: Returns all drafting hits under the cursor sorted by shortest 2D distance to entity linework, providing `{ id, type, layer, distance }`.
+- `getSysVar(name)` / `setSysVar(name, value)`: Reads or writes system variables (`LASSO`, `SELECTIONCYCLING`).
+
+#### System Variables and Commands
+- `LASSO` (0 = off, 1 = on, default 1): Toggles freehand lasso selection when dragging on empty space.
+  - Dragging left-to-right (net) produces a window lasso (objects fully inside, solid blue outline).
+  - Dragging right-to-left produces a crossing lasso (touched objects, dashed green outline).
+  - Pressing Space during the drag cycles `Window` → `Crossing` → `Fence` lasso.
+  - A click-click without drag maintains standard rectangular window/crossing.
+  - Inside interactive command `Select objects:` prompts (`getSelection`), typing `LA` or `LASSO` initiates freehand polygon pick points with closing Enter.
+- `SELECTIONCYCLING` (0 = off, 1 = on, 2 = on with list, default 2): Controls selection cycling for overlapping objects.
+  - When several objects overlap under the cursor, the first click selects the nearest.
+  - `Shift+Space` toggles cycling mode; clicking again at the same spot within 300 ms cycles to the next overlapping object.
+  - Floor plan members join the cycle list after drafting entities.
+  - With `SELECTIONCYCLING=2`, a selection list pop-up appears next to the cursor to directly pick drafting entities (by type and layer) or structural members (by id).
+
+### Parametric Constraints (Package P21)
+
+SAEngine registers AutoCAD-compatible 2D geometric and dimensional parametric constraint commands from `constraintCommands.ts`, `constraintModel.ts`, and `constraintSolver.ts`.
+
+#### Geometric Constraints
+- `GEOMCONSTRAINT` (alias `GC`): Interactive command with keywords:
+  - `Coincident`: Constrains two points or a point and line/curve together.
+  - `Horizontal`: Constrains a line or two points horizontally (`dy = 0`).
+  - `Vertical`: Constrains a line or two points vertically (`dx = 0`).
+  - `Parallel`: Constrains two lines to have identical orientations (`cross product = 0`).
+  - `Perpendicular`: Constrains two lines at 90° (`dot product = 0`).
+  - `Collinear`: Constrains two lines along the same infinite line.
+  - `Concentric`: Constrains two circles/arcs to share the same center point.
+  - `Tangent`: Constrains a line and circle/arc so that the perpendicular distance from center to line equals the radius.
+  - `Equal`: Constrains line lengths or circle/arc radii to be equal.
+  - `Fix`: Locks a point or entity at its current position. (Generated entities are read-only and may be constraint references only as Fixed).
+  - `Symmetric`: Constrains points or lines symmetrically about a reference line.
+- Direct command aliases: `GCHORIZONTAL` (`GCH`), `GCVERTICAL` (`GCV`), `GCPARALLEL` (`GCP`), `GCPERPENDICULAR` (`GCPERP`), `GCCOINCIDENT` (`GCCO`), `GCCOLLINEAR` (`GCCOL`), `GCCONCENTRIC` (`GCCON`), `GCTANGENT` (`GCT`), `GCEQUAL` (`GCE`), `GCFIX` (`GCF`), `GCSYMMETRIC` (`GCSYM`).
+- `AUTOCONSTRAIN` (alias `AUTOCON`): Inactive or active selection is inspected to automatically infer coincident, horizontal, vertical, parallel, perpendicular, and tangent constraints within angular and geometric tolerances, re-solving the drawing.
+
+#### Dimensional Constraints
+- `DIMCONSTRAINT` (alias `DC`): Keywords `Linear`, `Horizontal`, `Vertical`, `Aligned`, `Angular`, `Radial`, `Diameter`.
+- Direct command aliases: `DCLINEAR`, `DCHORIZONTAL`, `DCVERTICAL`, `DCALIGNED`, `DCRADIAL`, `DCDIAMETER`, `DCANGULAR`.
+- Named parameters: automatically assigned sequential names (`d1`, `d2`, ...). Supports arithmetic expressions with `+`, `-`, `*`, `/`, unary `-`, numbers, and parameter names (e.g. `d2 = d1/2`).
+- Annotations: created as plain dimension entities on a dedicated non-plottable `DIMCONSTRAINT` layer (`isPlottable = false`, ACI color 4 cyan), ensuring they are displayed in the CAD editor but excluded from plotted output.
+
+#### Parameters Management
+- `PARAMETERS` / `-PARAMETERS` (alias `PARAM`): Command-line management of user and dimensional parameters.
+  - `List`: Displays all parameter names, expressions, and evaluated values.
+  - `Edit`: Modifies the mathematical expression of a parameter; re-evaluates all dependent parameters and re-solves drawing geometry.
+  - `Rename`: Renames a parameter and updates dependent constraints.
+  - `Delete`: Deletes a user parameter (refusing parameters referenced by active constraints).
+  - `New`: Adds a new user parameter with expression and evaluated value.
+
+#### Constraint Solver & Persistence
+- Iterative Levenberg-Marquardt / Newton-Raphson solver: computes minimum-norm update $\Delta X = J^T (J J^T + \lambda I)^{-1} R$, ensuring fixed geometry and unconstrained degrees of freedom stay in place and move the least.
+- Over-constrained detection: automatically detects contradictory or over-constrained geometries and reports `"would over-constrain the geometry"`, refusing the modification in an undoable transaction.
+- Post-edit re-solving: changes from `MOVE`, `STRETCH`, grip editing, and `PARAMETERS` edits automatically trigger re-solve in an undoable transaction.
+- `DELCONSTRAINT` (alias `DELCON`): Removes constraints attached to selected entities and erases associated constraint dimension entities.
+- `CONSTRAINTBAR` (alias `CBAR`): Lists all constraints active on selected entities.
+- DXF round-trip: SAEngine stores its constraint model and parameters in a dedicated `AcDbXrecord` under `'SAENGINE_CONSTRAINTS'` inside the drawing's resident `MLIGHT_XRECORD` dictionary, ensuring constraints and parameters survive DXF export (`dxfOut`) and re-import (`database.read`).
+
+### Draw, Annotate & Display Order (P22)
+
+#### Detailed Command Reference
+
+##### `WIPEOUT`
+- **Usage**: Prompts `Specify first point or [Frames/Polyline] <Polyline>:`.
+- **Options**:
+  - `Polyline`: Select a closed polyline. Prompts `Erase polyline? [Yes/No] <No>:`. Creates an `AcDbWipeout` entity masking underlying objects.
+  - `Frames`: Sets `WIPEOUTFRAME` mode (`ON` = 1, `OFF` = 0, `Display` = 2).
+  - Point sequence: Pick at least 3 points to define a closed polygon.
+- **Data Model**: Implemented using `AcDbWipeout` with normalized `clipBoundary` and bounding coordinates. Paints layout background to mask objects behind it in the draw order.
+
+##### `REGION`, `UNION`, `SUBTRACT`, `INTERSECT`, `MASSPROP`
+- **`REGION`**: Converts selected closed curves/loops into region entities. Stored as closed `AcDbPolyline` entities tagged with `AUTOCAD_REGION` XData.
+- **`UNION`**: Combines overlapping regions into a unified region boundary using Greiner–Hormann polygon clipping.
+- **`SUBTRACT`**: Subtracts one set of regions from another, producing composite boundaries and holes.
+- **`INTERSECT`**: Finds the overlapping geometric intersection of selected regions.
+- **`MASSPROP`**: Outputs complete 2D engineering mass properties:
+  - Total area and perimeter
+  - Bounding box
+  - Centroid coordinates ($C_x, C_y$)
+  - Moments of inertia ($I_{xx}, I_{yy}$) and product of inertia ($I_{xy}$) about the centroid
+  - Radii of gyration ($k_x, k_y$)
+  - Principal moments ($I, J$) and directions about the centroid
+
+##### `GRADIENT`
+- **Usage**: Prompts `Pick internal point or [Select objects/Pattern/Color1/Color2/Angle/Centred] <Pick>:`.
+- **Patterns**: `LINEAR`, `CYLINDER`, `INVCYLINDER`, `SPHERICAL`, `INVSPHERICAL`, `HEMISPHERICAL`, `INVHEMISPHERICAL`, `CURVED`, `INVCURVED`.
+- **Options**: One-color (tint/shade) or two-color, start/end RGB colors, pattern angle, shift/centred offset.
+- **Round trip**: Preserved across DXF save/load in `AcDbHatch` group codes 450, 460, 470, 471, etc. Viewer renders solid/boundary outline since WebGL shader gradients are not implemented in `@mlightcad/cad-simple-viewer`.
+
+##### `TOLERANCE`
+- **Usage**: Prompts for GD&T characteristic symbol (`POS`, `FLAT`, `CIRC`, `STR`, `CYL`, `PERP`, `PARA`, `ANG`, `RUN`, `TRUN`, `PROF_L`, `PROF_S`, `CONC`, `SYM`), tolerance value with optional diameter (`%%c`) and material condition modifier (`MMC` `%%m`, `LMC` `%%l`, `RFS` `%%s`), optional second tolerance, datums A/B/C, and insertion point.
+- **Data Model**: Stored as native `AcDbFcf` (`TOLERANCE` in DXF), formatted with standard `%%v` slot delimiters.
+
+##### `CENTERLINE`
+- **Usage**: Prompts `Select first line:` and `Select second line:`.
+- **Behavior**: For parallel lines, places centerline equidistant between them spanning the projected segment range, extended at both ends by `CENTEREXE` (default 3.75). For converging lines, places centerline along the angle bisector. Formatted with `CENTER` linetype.
+
+##### `BLEND`
+- **Usage**: Prompts `Select first curve or [Continuity] <Continuity>:`.
+- **Behavior**: Smoothly blends between two open curve endpoints with matching tangent continuity (G1) using a cubic `AcDbSpline`.
+
+##### `QLEADER`
+- **Usage**: Prompts `Specify first leader point or [Settings] <Settings>:`.
+- **Settings**: Annotation type (`MText`, `Tolerance`, `Block`, `None`, `Copy`), number of points, arrowhead style.
+- **Behavior**: Creates an `AcDbLeader` entity linked via `associatedAnnotation` to `AcDbMText` or `AcDbFcf`.
+
+##### `DRAWORDER`, `TEXTTOFRONT`, `HATCHTOBACK`
+- **`DRAWORDER`**: Reorders objects with `Front`, `Back`, `Above object`, or `Under object`.
+- **`TEXTTOFRONT`**: Moves `Text`, `Dimensions`, `Leaders`, or `All` annotations in front of other objects.
+- **`HATCHTOBACK`**: Sends all `HATCH` entities behind other geometry.
+- **Data Model & DXF**: Updates `AcDbSortentsTable` in `database.objects.sortentsTable` (written to DXF `SORTENTSTABLE` / `ACAD_SORTENTS`) and synchronizes model space entity list for immediate in-memory and render order.

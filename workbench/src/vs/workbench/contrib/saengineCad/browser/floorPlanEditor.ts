@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/cadEditor.css';
-import type { CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import type { CadDraftingHit, CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isEditableElement, isHTMLElement, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -59,9 +59,9 @@ import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.j
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
 import { FloorPlanCadBar } from './floorPlanCadBar.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
+import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, MemberGroup, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { presenceDrawing } from './floorPlanPresence.js';
-import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, pickMembersAll, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile, storyDraftingFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
 import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_CUT, DEFAULT_CLOUD_SCALE, DEFAULT_CLOUD_THICKNESS, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor } from './floorPlanUnderlay.js';
@@ -69,7 +69,7 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, isFreehandLasso, selectInPolygon, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 import { conversionSteps } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
@@ -317,8 +317,18 @@ export class FloorPlanEditor extends EditorPane {
 	private fillChoice = 0;
 	private fillPicker!: SelectBox;
 	private fillGroup!: HTMLElement;
-	/** A window being dragged with the Select or Fill tool: where it started and where the mouse is. */
-	private drag: { readonly start: CadPoint; readonly client: { readonly x: number; readonly y: number }; current?: CadPoint } | undefined;
+	/** A window or lasso being dragged with the Select or Fill tool: where it started and where the mouse is. */
+	private drag: {
+		readonly start: CadPoint;
+		readonly client: { readonly x: number; readonly y: number };
+		current?: CadPoint;
+		points?: CadPoint[];
+		lassoModeOverride?: 'window' | 'crossing' | 'fence';
+	} | undefined;
+	private lastClickTime = 0;
+	private lastClickPos: { readonly x: number; readonly y: number } | undefined;
+	private cycleIndex = 0;
+	private selectionCyclingActive = false;
 	/** Members copied with Ctrl+C, with their outlines for the paste preview. */
 	private clipboard: { readonly data: IFloorPlanClipboard; readonly shapes: readonly IMemberShape[] } | undefined;
 	/** Set by Ctrl+V until the base point is clicked. */
@@ -926,6 +936,26 @@ export class FloorPlanEditor extends EditorPane {
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
 		const hasDraftSelection = (this.editor?.selection.get().length ?? 0) > 0;
+		if (this.drag && this.drag.points && (e.code === 'Space' || e.key === ' ')) {
+			e.preventDefault();
+			e.stopPropagation();
+			const currentMode = this.drag.lassoModeOverride ?? (this.drag.current && this.drag.current[0] >= this.drag.start[0] ? 'window' : 'crossing');
+			const nextMode: 'window' | 'crossing' | 'fence' =
+				currentMode === 'window' ? 'crossing' :
+				currentMode === 'crossing' ? 'fence' : 'window';
+			this.drag.lassoModeOverride = nextMode;
+			this.schedulePreview();
+			return;
+		}
+		if (e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.selectionCyclingActive = !this.selectionCyclingActive;
+			this.setNotice(this.selectionCyclingActive
+				? localize('floorPlan.selectionCyclingOn', "Selection cycling on.")
+				: localize('floorPlan.selectionCyclingOff', "Selection cycling off."));
+			return;
+		}
 		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length || hasDraftSelection)) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -1381,6 +1411,10 @@ export class FloorPlanEditor extends EditorPane {
 		return (this.tool === 'select' || this.tool === 'fill') && !this.pasting;
 	}
 
+	private isLassoEnabled(): boolean {
+		return (this.editor?.getSysVar('LASSO') ?? 1) !== 0;
+	}
+
 	private registerMouse(): void {
 		let down: { x: number; y: number } | undefined;
 		const onCanvas = (e: MouseEvent) => isHTMLElement(e.target) && e.target.tagName === 'CANVAS';
@@ -1396,7 +1430,8 @@ export class FloorPlanEditor extends EditorPane {
 			if (down && this.editor && this.windowTool && onCanvas(e)) {
 				// The window is ours: the CAD editor's own box selection has nothing to select here.
 				e.stopPropagation();
-				this.drag = { start: this.editor.toWorld(e.clientX, e.clientY), client: down };
+				const startPt = this.editor.toWorld(e.clientX, e.clientY);
+				this.drag = { start: startPt, client: down, points: [startPt] };
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.MOUSE_DOWN, e => {
@@ -1424,7 +1459,13 @@ export class FloorPlanEditor extends EditorPane {
 			if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < CLICK_PIXELS) {
 				this.click(point, e);
 			} else if (drag) {
-				this.finishWindow(drag.start, point, e);
+				const isLasso = this.isLassoEnabled() && !!drag.points && isFreehandLasso(drag.points);
+				if (isLasso) {
+					const mode = drag.lassoModeOverride ?? (drag.current && drag.current[0] >= drag.start[0] ? 'window' : 'crossing');
+					this.finishLasso(drag.points!, mode, e);
+				} else {
+					this.finishWindow(drag.start, point, e);
+				}
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.POINTER_MOVE, e => {
@@ -1439,6 +1480,12 @@ export class FloorPlanEditor extends EditorPane {
 				this.hover = this.editor.toWorld(e.clientX, e.clientY);
 				if (this.drag && (e.buttons & 1) && Math.hypot(e.clientX - this.drag.client.x, e.clientY - this.drag.client.y) >= CLICK_PIXELS) {
 					this.drag.current = this.hover;
+					if (this.isLassoEnabled() && this.drag.points) {
+						const last = this.drag.points[this.drag.points.length - 1];
+						if (Math.hypot(this.hover[0] - last[0], this.hover[1] - last[1]) > 0.001) {
+							this.drag.points.push(this.hover);
+						}
+					}
 				}
 				this.schedulePreview();
 			}
@@ -1754,6 +1801,48 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(mode === 'window'
 				? localize('floorPlan.windowSelected', "Window: {0} member(s) fully inside.", refs.length)
 				: localize('floorPlan.crossingSelected', "Crossing window: {0} member(s) touched.", refs.length));
+		}
+	}
+
+	/** A freehand lasso dragged across the canvas: selects members and drafting entities. */
+	private finishLasso(points: CadPoint[], mode: 'window' | 'crossing' | 'fence', modifiers: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): void {
+		if (this.tool === 'fill') {
+			const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+			const min: CadPoint = [Math.min(...xs), Math.min(...ys)];
+			const max: CadPoint = [Math.max(...xs), Math.max(...ys)];
+			const choice = FILL_CHOICES[this.fillChoice];
+			this.runFill(choice.kind, choice.direction, { min, max });
+			return;
+		}
+		const refs = selectInPolygon(this.plan?.members ?? [], points, mode);
+		const isAdditive = modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey;
+		this.selected = combine(this.selected, refs, isAdditive ? 'add' : 'replace');
+		const last = this.selected[this.selected.length - 1];
+		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
+
+		const draftHits = this.editor?.pickDraftingPolygon(points, mode) ?? [];
+		if (this.editor) {
+			if (isAdditive) {
+				const current = this.editor.selection.get();
+				const combined = Array.from(new Set([...current, ...draftHits]));
+				this.editor.selection.set(combined);
+			} else {
+				this.editor.selection.set(draftHits);
+			}
+		}
+
+		this.updateStatus();
+		this.renderProperties();
+		this.updateToolbar();
+		this.schedulePreview();
+		const totalDraftCount = this.editor?.selection.get().length ?? 0;
+		const totalMemberCount = this.selected.length;
+		if (totalDraftCount > 0 && totalMemberCount > 0) {
+			this.setNotice(localize('floorPlan.lassoMixedSelected', "Lasso ({0}): {1} member(s), {2} drafting entity(ies).", mode, totalMemberCount, totalDraftCount));
+		} else if (totalDraftCount > 0) {
+			this.setNotice(localize('floorPlan.lassoDraftSelected', "Lasso ({0}): {1} drafting entity(ies).", mode, totalDraftCount));
+		} else {
+			this.setNotice(localize('floorPlan.lassoSelected', "Lasso ({0}): {1} member(s).", mode, refs.length));
 		}
 	}
 
@@ -2134,28 +2223,66 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.tool === 'select') {
 			const mode = modifiers?.ctrlKey || modifiers?.metaKey ? 'toggle' : modifiers?.shiftKey ? 'add' : 'replace';
 			const draftingHits = (modifiers?.clientX !== undefined && modifiers?.clientY !== undefined && this.editor)
-				? this.editor.pickDrafting(modifiers.clientX, modifiers.clientY)
+				? this.editor.pickDraftingAll(modifiers.clientX, modifiers.clientY)
 				: [];
-			if (draftingHits.length > 0) {
-				const nearestId = draftingHits[0];
-				const currentDraftIds = this.editor?.selection.get() ?? [];
-				let newDraftIds: string[];
-				if (mode === 'replace') {
-					newDraftIds = [nearestId];
-				} else if (mode === 'add') {
-					newDraftIds = currentDraftIds.includes(nearestId) ? [...currentDraftIds] : [...currentDraftIds, nearestId];
-				} else { // toggle
-					newDraftIds = currentDraftIds.includes(nearestId)
-						? currentDraftIds.filter(id => id !== nearestId)
-						: [...currentDraftIds, nearestId];
+			const memberHits = (this.plan && this.editor)
+				? pickMembersAll(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel())
+				: [];
+
+			type CycleItem = { kind: 'drafting'; id: string; label: string } | { kind: 'member'; group: MemberGroup; id: string; label: string };
+			const cycleList: CycleItem[] = [
+				...draftingHits.map((d: CadDraftingHit) => ({ kind: 'drafting' as const, id: d.id, label: `${d.type} (${d.layer})` })),
+				...memberHits.map(m => ({ kind: 'member' as const, group: m.group, id: m.id, label: `${m.id} (${m.group})` })),
+			];
+
+			const sysvarCycling = this.editor?.getSysVar('SELECTIONCYCLING') ?? 2;
+			const cyclingEnabled = sysvarCycling !== 0;
+
+			const now = Date.now();
+			const isRapidClickAtSameSpot = this.lastClickPos && (now - this.lastClickTime < 300) &&
+				modifiers?.clientX !== undefined && modifiers?.clientY !== undefined &&
+				Math.hypot(modifiers.clientX - this.lastClickPos.x, modifiers.clientY - this.lastClickPos.y) < 5;
+
+			if (cyclingEnabled && cycleList.length > 1 && (this.selectionCyclingActive || isRapidClickAtSameSpot)) {
+				this.cycleIndex = (this.cycleIndex + 1) % cycleList.length;
+			} else {
+				this.cycleIndex = 0;
+			}
+
+			if (modifiers?.clientX !== undefined && modifiers?.clientY !== undefined) {
+				this.lastClickPos = { x: modifiers.clientX, y: modifiers.clientY };
+			}
+			this.lastClickTime = now;
+
+			if (cycleList.length > 0) {
+				const pickedItem = cycleList[this.cycleIndex];
+				if (pickedItem.kind === 'drafting') {
+					const currentDraftIds = this.editor?.selection.get() ?? [];
+					let newDraftIds: string[];
+					if (mode === 'replace') {
+						newDraftIds = [pickedItem.id];
+					} else if (mode === 'add') {
+						newDraftIds = currentDraftIds.includes(pickedItem.id) ? [...currentDraftIds] : [...currentDraftIds, pickedItem.id];
+					} else { // toggle
+						newDraftIds = currentDraftIds.includes(pickedItem.id)
+							? currentDraftIds.filter(id => id !== pickedItem.id)
+							: [...currentDraftIds, pickedItem.id];
+					}
+					this.editor?.selection.set(newDraftIds);
+					this.select([]);
+				} else {
+					this.editor?.selection.set([]);
+					this.select(combine(this.selected, [{ group: pickedItem.group, id: pickedItem.id }], mode));
 				}
-				this.editor?.selection.set(newDraftIds);
-				this.select([]);
+
+				if (sysvarCycling === 2 && cycleList.length > 1 && modifiers?.clientX !== undefined && modifiers?.clientY !== undefined) {
+					this.showSelectionCycleMenu(cycleList, modifiers.clientX, modifiers.clientY, mode);
+				}
 				return;
 			}
+
 			this.editor?.selection.set([]);
-			const shape = this.pick(point);
-			this.select(combine(this.selected, shape ? [{ group: shape.group, id: shape.id }] : [], mode));
+			this.select([]);
 			return;
 		}
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {
@@ -2254,6 +2381,73 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(result.error);
 		}
 		this.schedulePreview();
+	}
+
+	private showSelectionCycleMenu(
+		cycleList: Array<{ kind: 'drafting'; id: string; label: string } | { kind: 'member'; group: MemberGroup; id: string; label: string }>,
+		clientX: number,
+		clientY: number,
+		mode: 'replace' | 'add' | 'toggle',
+	): void {
+		this.contextViewService.showContextView({
+			getAnchor: () => ({ x: clientX + 12, y: clientY + 12 }),
+			render: (container: HTMLElement) => {
+				const list = document.createElement('div');
+				list.className = 'floor-plan-selection-cycle-list';
+				list.style.padding = '4px 0';
+				list.style.background = 'var(--vscode-menu-background, #252526)';
+				list.style.color = 'var(--vscode-menu-foreground, #cccccc)';
+				list.style.border = '1px solid var(--vscode-menu-border, #454545)';
+				list.style.borderRadius = '3px';
+				list.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+				list.style.fontSize = '12px';
+				list.style.minWidth = '140px';
+				list.style.cursor = 'pointer';
+
+				cycleList.forEach((item, idx) => {
+					const row = document.createElement('div');
+					row.style.padding = '4px 10px';
+					row.style.whiteSpace = 'nowrap';
+					if (idx === this.cycleIndex) {
+						row.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
+						row.style.color = 'var(--vscode-menu-selectionForeground, #ffffff)';
+						row.style.fontWeight = 'bold';
+					}
+					row.textContent = item.label;
+					row.addEventListener('mouseenter', () => {
+						row.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
+						row.style.color = 'var(--vscode-menu-selectionForeground, #ffffff)';
+					});
+					row.addEventListener('mouseleave', () => {
+						if (idx !== this.cycleIndex) {
+							row.style.background = 'transparent';
+							row.style.color = 'var(--vscode-menu-foreground, #cccccc)';
+						}
+					});
+					row.addEventListener('click', (e) => {
+						e.stopPropagation();
+						this.cycleIndex = idx;
+						if (item.kind === 'drafting') {
+							const currentDraftIds = this.editor?.selection.get() ?? [];
+							const newDraftIds = mode === 'replace' ? [item.id]
+								: mode === 'add' ? (currentDraftIds.includes(item.id) ? currentDraftIds : [...currentDraftIds, item.id])
+								: (currentDraftIds.includes(item.id) ? currentDraftIds.filter(id => id !== item.id) : [...currentDraftIds, item.id]);
+							this.editor?.selection.set(newDraftIds);
+							this.select([]);
+						} else {
+							this.editor?.selection.set([]);
+							this.select(combine(this.selected, [{ group: item.group, id: item.id }], mode));
+						}
+						this.contextViewService.hideContextView();
+					});
+					list.appendChild(row);
+				});
+				container.appendChild(list);
+				return toDisposable(() => {
+					container.textContent = '';
+				});
+			},
+		});
 	}
 
 
@@ -2724,16 +2918,29 @@ export class FloorPlanEditor extends EditorPane {
 				}
 			}
 		}
-		// The window being dragged: solid for a window (members inside), dashed for a crossing one.
+		// The window or lasso being dragged: solid for a window (members inside), dashed for a crossing one.
 		const drag = this.drag;
 		if (drag?.current) {
-			const crossing = this.tool === 'select' && windowMode(drag.start, drag.current) === 'crossing';
-			const { min, max } = rectOf(drag.start, drag.current);
-			entities.push({
-				kind: 'polyline', layer: crossing ? PREVIEW_LAYERS[4].name : PREVIEW_LAYERS[3].name, closed: true,
-				points: [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]],
-				linetypeScale: crossing ? WINDOW_DASH_PIXELS * units : undefined,
-			});
+			const isLasso = this.isLassoEnabled() && !!drag.points && isFreehandLasso(drag.points);
+			if (isLasso) {
+				const mode = drag.lassoModeOverride ?? (drag.current[0] >= drag.start[0] ? 'window' : 'crossing');
+				const layer = mode === 'window' ? PREVIEW_LAYERS[3].name : PREVIEW_LAYERS[4].name;
+				entities.push({
+					kind: 'polyline',
+					layer,
+					closed: mode !== 'fence',
+					points: [...drag.points!, drag.current],
+					linetypeScale: mode !== 'window' ? WINDOW_DASH_PIXELS * units : undefined,
+				});
+			} else {
+				const crossing = this.tool === 'select' && windowMode(drag.start, drag.current) === 'crossing';
+				const { min, max } = rectOf(drag.start, drag.current);
+				entities.push({
+					kind: 'polyline', layer: crossing ? PREVIEW_LAYERS[4].name : PREVIEW_LAYERS[3].name, closed: true,
+					points: [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]],
+					linetypeScale: crossing ? WINDOW_DASH_PIXELS * units : undefined,
+				});
+			}
 		}
 		// Ctrl+V: the copied members where they would land.
 		const clipboard = this.clipboard;

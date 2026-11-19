@@ -7,6 +7,22 @@ import { dxfOut } from './generated.js';
 import type { CadCommandContext, CadPoint3 } from './commands.js';
 import { makeAttribute, transformBlockPoint } from './blockGeometry.js';
 import { registerCommand } from './commands.js';
+import {
+	beditCommand, bcloseCommand, bsaveCommand, bsaveasCommand,
+	refeditCommand, refcloseCommand, attsyncCommand,
+} from './blockEditor.js';
+import { xrefCommand } from './xrefCommands.js';
+import { bparameterCommand, dynpropCommand } from './dynamicBlocks.js';
+
+export {
+	beditCommand, bcloseCommand, bsaveCommand, bsaveasCommand,
+	refeditCommand, refcloseCommand, attsyncCommand,
+} from './blockEditor.js';
+export { xrefCommand, attachXref, bindXref, detachXref, reloadXref, listXrefs } from './xrefCommands.js';
+export {
+	bparameterCommand, dynpropCommand, setDynamicBlockDef, getDynamicBlockDef,
+	setDynamicBlockProps, getDynamicBlockProps, regenerateDynamicBlockReference,
+} from './dynamicBlocks.js';
 
 function blockTable(ctx: CadCommandContext) { return ctx.database.native.tables.blockTable; }
 function definitions(record: AcDbBlockTableRecord): AcDbAttributeDefinition[] {
@@ -222,4 +238,15 @@ export function registerBlockCommands(): void {
 	registerCommand('GROUP', groupCommand, { aliases: ['G'] });
 	registerCommand('UNGROUP', ungroupCommand);
 	registerCommand('PURGE', purgeCommand, { aliases: ['PU'] });
+	registerCommand('BEDIT', beditCommand);
+	registerCommand('BCLOSE', bcloseCommand);
+	registerCommand('BSAVE', bsaveCommand);
+	registerCommand('BSAVEAS', bsaveasCommand);
+	registerCommand('REFEDIT', refeditCommand);
+	registerCommand('REFCLOSE', refcloseCommand);
+	registerCommand('ATTSYNC', attsyncCommand);
+	registerCommand('XREF', xrefCommand, { aliases: ['-XREF'] });
+	registerCommand('-XREF', xrefCommand);
+	registerCommand('BPARAMETER', bparameterCommand);
+	registerCommand('-DYNPROP', dynpropCommand);
 }
