@@ -35,6 +35,7 @@ import {
 	type SelectionModeKind, type SelectionPoint,
 } from './selectionGeometry.js';
 import { installSpaceAsEnter } from './spaceAsEnter.js';
+import { registerCommandDescription } from './commandDescriptions.js';
 
 export type CadPoint3 = AcGePoint3dLike;
 export type CadSelection = readonly AcDbEntity[];
@@ -543,6 +544,7 @@ export function registerCommand(name: string, run: (ctx: CadCommandContext) => P
 	command.localName = options.localName ?? name.toUpperCase();
 	command.mode = options.mode ?? AcEdOpenMode.Write;
 	manager.commandManager.addCommand(options.group ?? 'USER', command.globalName, command.localName, command, options.aliases ? [...options.aliases] : undefined);
+	registerCommandDescription(options.group ?? 'USER', command.globalName);
 }
 
 /** Pure geometry helper used by MIRROR and its node tests. */
