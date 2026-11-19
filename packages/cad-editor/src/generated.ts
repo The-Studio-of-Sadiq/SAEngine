@@ -131,31 +131,41 @@ export interface DxfOutOptions {
  * generated/preview entities and their layers.
  */
 export function dxfOut(database: AcDbDatabase, options?: DxfOutOptions): string {
-	if (options?.excludeGenerated) {
-		const db = database as any;
-		const origWriteEntity = db.writeDxfEntity;
-		const origWriteTable = db.writeDxfTable;
-		try {
+	const session = (globalThis as any).__saengineActiveBlockEditorSession;
+	if (session && (!session.database || session.database === database)) {
+		if (options?.excludeGenerated) {
+			return session.snapshotDxfExcludeGenerated ?? session.snapshotDxf;
+		}
+		return session.snapshotDxf;
+	}
+
+	const db = database as any;
+	const origWriteEntity = db.writeDxfEntity;
+	const origWriteTable = db.writeDxfTable;
+
+	try {
+		if (options?.excludeGenerated) {
+			const genLayers = options.generatedLayers ?? (globalThis as any).__saengineGeneratedLayers;
+			const gen = options.generated ?? (globalThis as any).__saengineGenerated;
+			const prev = options.preview ?? (globalThis as any).__saenginePreview;
 			db.writeDxfEntity = function (filer: any, entity: any) {
-				if (options.generated?.has(entity.objectId) || options.preview?.has(entity.objectId) || (entity.layer && options.generatedLayers?.has(entity.layer))) {
+				if (gen?.has(entity.objectId) || prev?.has(entity.objectId) || (entity.layer && genLayers?.has(entity.layer))) {
 					return;
 				}
 				return origWriteEntity.call(this, filer, entity);
 			};
 			db.writeDxfTable = function (filer: any, tableName: string, table: any, records: any, recordType: string) {
-				if (tableName === 'LAYER' && options.generatedLayers?.size) {
-					const filtered = Array.from(records).filter((r: any) => r.name !== '0' && !options.generatedLayers!.has(r.name));
+				if (tableName === 'LAYER' && genLayers?.size) {
+					const filtered = Array.from(records).filter((r: any) => r.name !== '0' && !genLayers.has(r.name));
 					return origWriteTable.call(this, filer, tableName, table, filtered, recordType);
 				}
 				return origWriteTable.call(this, filer, tableName, table, records, recordType);
 			};
-			const out = database.dxfOut(undefined, 6, 'AC1032');
-			return typeof out === 'string' ? out : new TextDecoder().decode(out);
-		} finally {
-			db.writeDxfEntity = origWriteEntity;
-			db.writeDxfTable = origWriteTable;
 		}
+		const out = database.dxfOut(undefined, 6, 'AC1032');
+		return typeof out === 'string' ? out : new TextDecoder().decode(out);
+	} finally {
+		db.writeDxfEntity = origWriteEntity;
+		db.writeDxfTable = origWriteTable;
 	}
-	const out = database.dxfOut(undefined, 6, 'AC1032');
-	return typeof out === 'string' ? out : new TextDecoder().decode(out);
 }

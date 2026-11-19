@@ -489,6 +489,8 @@ export function isEntitySelectable(
 	const id = String(entity.objectId ?? '');
 	if (!id) return false;
 	if (entity.isErased) return false;
+	const session = (globalThis as any).__saengineActiveBlockEditorSession;
+	if (session && !session.editEntityIds?.has(id)) return false;
 	if (options?.generated?.has(id) || options?.preview?.has(id)) return false;
 	if (entity.visibility === false) return false;
 

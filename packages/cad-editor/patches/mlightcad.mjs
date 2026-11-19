@@ -104,6 +104,48 @@ export const PATCHES = [
       this._convertDrainPromise = null;
       this._saengineErased?.clear();`,
 	},
+	{
+		file: 'database/AcDbBlockTableRecord.js',
+		description: 'emit XData on BLOCK_RECORD table records',
+		find: `    AcDbBlockTableRecord.prototype.dxfOutBlockRecord = function (filer) {
+        filer.writeStart('BLOCK_RECORD');
+        this.dxfOut(filer);
+        return this;
+    };`,
+		replace: `    AcDbBlockTableRecord.prototype.dxfOutBlockRecord = function (filer) {
+        filer.writeStart('BLOCK_RECORD');
+        this.dxfOut(filer, true);
+        return this;
+    };`,
+	},
+	{
+		file: 'database/AcDbBlockTableRecord.js',
+		description: 'stabilize dynamic handle in dxfOutBlockBegin',
+		find: `    AcDbBlockTableRecord.prototype.dxfOutBlockBegin = function (filer) {
+        filer.writeStart('BLOCK');
+        // DWG/DXF parser doesn't parse AcDbBlockBegin and AcDbBlockEnd.
+        // There is no handle data avaiable for AcDbBlockBegin. So generate
+        // one new handle dynamically.
+        filer.writeHandle(5, this.database.generateHandle());`,
+		replace: `    AcDbBlockTableRecord.prototype.dxfOutBlockBegin = function (filer) {
+        filer.writeStart('BLOCK');
+        this._blockBeginHandle = this._blockBeginHandle || this.database.generateHandle();
+        filer.writeHandle(5, this._blockBeginHandle);`,
+	},
+	{
+		file: 'database/AcDbBlockTableRecord.js',
+		description: 'stabilize dynamic handle in dxfOutBlockEnd',
+		find: `    AcDbBlockTableRecord.prototype.dxfOutBlockEnd = function (filer) {
+        filer.writeStart('ENDBLK');
+        // DWG/DXF parser doesn't parse AcDbBlockBegin and AcDbBlockEnd.
+        // There is no handle data avaiable for AcDbBlockBegin. So generate
+        // one new handle dynamically.
+        filer.writeHandle(5, this.database.generateHandle());`,
+		replace: `    AcDbBlockTableRecord.prototype.dxfOutBlockEnd = function (filer) {
+        filer.writeStart('ENDBLK');
+        this._blockEndHandle = this._blockEndHandle || this.database.generateHandle();
+        filer.writeHandle(5, this._blockEndHandle);`,
+	},
 ];
 
 /** Applies the patches for `filePath`; throws if a patch no longer matches. */

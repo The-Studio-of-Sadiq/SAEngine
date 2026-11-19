@@ -18,6 +18,38 @@ WBLOCK/W, GROUP/G, UNGROUP, and PURGE/PU from `blockCommands.ts`.
 WBLOCK emits a standalone DXF string through `CadEditor.onWblock((name, dxfText) => …)`;
 the host can use that callback to present its save dialog.
 
+#### Block Editor (BEDIT, BCLOSE, BSAVE, BSAVEAS)
+- `BEDIT`: Opens a block definition for editing by name or by picking a block reference. Temporarily stashes model space entities and displays the block definition's linework at the origin `(0,0,0)`, with banner `"Block Editor: <name> — BCLOSE to save or discard"`. All normal draw, modify, and inquiry commands operate on the content in model space.
+- `BSAVE`: Writes current block editor linework into the block table record (base point stays at origin) without closing the session.
+- `BSAVEAS`: Saves the current block editor linework to a new block name.
+- `BCLOSE`: Prompts `[Save/Discard] <Save>`. Saves edits to the block definition or discards changes, restores original model space entities, and regenerates all references (clearing `AcDbRenderingCache`). Attribute definitions inside are preserved.
+
+#### In-Place Reference Editing (REFEDIT, REFCLOSE)
+- `REFEDIT`: Picks a block reference to edit its contents in-place at its insertion transform. Non-working-set entities in model space remain visible but are locked from selection and editing.
+- `REFCLOSE`: Prompts `[Save/Discard] <Save>`. Maps working set edits back through the inverse transformation $T^{-1}$ into the block definition, restores model space and the block reference, and regenerates references.
+
+#### External References (XREF, -XREF)
+- Options: `[Attach/Overlay/Bind/Detach/Reload/?]`
+  - `Attach`: Attaches an external DXF file chosen by path. Uses the host `readFile(path): Promise<string>` editor option. Stores the external reference as a block table record with `pathName` (DXF group 1) and `flags` (DXF group 70 bit 4), showing entities greyed with ACI 9 (`UNDERLAY_ACI`).
+  - `Overlay`: Attaches an external reference with the overlay flag bit set (bit 8).
+  - `?` (List): Lists all attached external references, their paths, flags, and overlay status.
+  - `Detach`: Erases all references from model space and removes the block table record.
+  - `Reload`: Re-reads the file from its path via `readFile` and updates the block's entities.
+  - `Bind`: Converts an external reference into a normal internal block by clearing xref flags and clearing `pathName`.
+
+#### Attribute Synchronization (ATTSYNC)
+- `ATTSYNC`: Synchronizes all block references of a chosen block with its current attribute definitions. Adds new attributes with their default values, removes orphaned attributes, retains existing values for matching tags, and updates positions and styles to match current definitions and reference transforms.
+
+#### Dynamic Blocks (BPARAMETER, -DYNPROP)
+- `BPARAMETER`: Adds dynamic parameters and actions to a block definition:
+  - `Linear` parameter with a `Stretch` action: stretches vertices along the parameter vector.
+  - `Flip` parameter with a `Flip` action: mirrors geometry across the flip reflection line.
+  - `Visibility` parameter: named visibility states controlling entity visibility.
+  - `Rotation` parameter: rotates geometry around a specified center point.
+- Storage: Parameters and actions are serialized in XData (`SA_DYNBLOCK_DEF` on block table records/entities, `SA_DYNBLOCK_INST` on references), fully surviving DXF round-trips.
+- `-DYNPROP`: Selects a block reference, prompts for parameter name and new value, and regenerates the reference as an anonymous block (`*U<n>`) with modified geometry like AutoCAD.
+- Note on custom grips: The underlying `@mlightcad/data-model` exposes only insertion grip points for block references (`subGetGripPoints = [this._position]`), so `-DYNPROP` provides the parameter editing route.
+
 ### Layers and Object Properties
 
 SAEngine registers AutoCAD layer management and object property commands from `layerCommands.ts`, `properties.ts`, and `linetypes.ts`.
