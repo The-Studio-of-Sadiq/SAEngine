@@ -170,7 +170,9 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | DIMBASELINE | Available | SAEngine (`DIMBASELINE`, alias `DBA`) |
 | QDIM | Available | SAEngine (`QDIM`) |
 | DIMSTYLE / -DIMSTYLE | Available | SAEngine (`DIMSTYLE`, `-DIMSTYLE`, `D`) |
-| DIMJOGGED / DIMREASSOCIATE / DIMDISASSOCIATE / DIMEDIT / DIMTEDIT / DIMOVERRIDE / DIMSPACE / DIMBREAK / DIMCENTER / DIMINSPECT | Missing | Specialized dimension editing commands not implemented |
+| DIMEDIT / DIMTEDIT / DIMOVERRIDE / DIMSPACE / DIMBREAK / DIMJOGGED / DIMJOGLINE | Available | SAEngine (P23a) |
+| DIMREASSOCIATE / DIMDISASSOCIATE | Available | SAEngine (P23a, reports lack of data model AcDbDimAssoc support) |
+| DIMCENTER / DIMINSPECT | Missing | DIMCENTER covered by CENTERMARK; inspection dimensions not implemented |
 | TOLERANCE | Available | SAEngine (`TOLERANCE`, P22) |
 | CENTERMARK | Available | SAEngine (`CENTERMARK`, alias `CM`) |
 | CENTERLINE | Available | SAEngine (`CENTERLINE`, P22) |
@@ -186,10 +188,10 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | FILLET | Available | SAEngine (`FILLET`, alias `F`) |
 | CHAMFER | Available | SAEngine (`CHAMFER`, alias `CHA`) |
 | BLEND | Available | SAEngine (`BLEND`, P22) |
-| ARRAYRECT | Available | SAEngine (`ARRAYRECT`, alias `AR`) |
+| ARRAYRECT | Available | SAEngine (`ARRAYRECT`) |
 | ARRAYPOLAR | Available | SAEngine (`ARRAYPOLAR`) |
 | ARRAYPATH | Available | SAEngine (`ARRAYPATH`) |
-| ARRAY / ARRAYEDIT / ARRAYCLOSE | Missing | Associative array editing dialog/object not supported by viewer |
+| ARRAY / ARRAYEDIT / ARRAYCLOSE | Available | SAEngine (`ARRAY`, alias `AR`, `ARRAYEDIT`, `ARRAYCLOSE`, P23a) |
 | BREAK | Available | SAEngine (`BREAK`) |
 | BREAKATPOINT | Available | SAEngine (`BREAKATPOINT`) |
 | JOIN | Available | SAEngine (`JOIN`, alias `J`) |
@@ -228,7 +230,8 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | PROPERTIES | Missing | Standalone palette UI missing (editor.properties API and CHPROP/CHANGE available) |
 | QSELECT | Available | SAEngine (`QSELECT`) |
 | SELECTSIMILAR | Available | SAEngine (`SELECTSIMILAR`) |
-| FIND | Missing | Text find/replace dialog not implemented |
+| FIND | Available | SAEngine (`FIND`, `-FIND`, P23a) |
+| FIELD / UPDATEFIELD | Available | SAEngine (`FIELD`, `UPDATEFIELD`, P23a) |
 | DIST | Available | SAEngine (`DIST`, alias `DI`) & library (`measuredistance`) |
 | AREA | Available | SAEngine (`AREA`) & library (`measurearea`) |
 | ID | Available | SAEngine (`ID`) & library (`measurepoint`) |
@@ -410,3 +413,54 @@ SAEngine registers AutoCAD-compatible 2D geometric and dimensional parametric co
 - **`TEXTTOFRONT`**: Moves `Text`, `Dimensions`, `Leaders`, or `All` annotations in front of other objects.
 - **`HATCHTOBACK`**: Sends all `HATCH` entities behind other geometry.
 - **Data Model & DXF**: Updates `AcDbSortentsTable` in `database.objects.sortentsTable` (written to DXF `SORTENTSTABLE` / `ACAD_SORTENTS`) and synchronizes model space entity list for immediate in-memory and render order.
+
+### Dimension Editing, Arrays, Find & Replace, and Fields (Package P23a)
+
+#### Dimension Editing
+- **`DIMEDIT`**: Prompts `[Home/New/Rotate/Oblique] <Home>:`.
+  - `Home`: Restores dimension text to default position and angle 0.
+  - `New`: Prompts for new dimension text string (empty string or `<>` for default measurement text).
+  - `Rotate`: Prompts for rotation angle and sets `textRotation`.
+  - `Oblique`: Sets obliquing angle on linear/aligned dimensions (`AcDbAlignedDimension.oblique`).
+- **`DIMTEDIT`**: Prompts `Specify new location for dimension text or [Left/Right/Center/Home/Angle]:`.
+  - Point pick: moves text to picked location (`textPosition`).
+  - `Left` / `Right` / `Center`: aligns text along dimension line.
+  - `Home`: resets text position and rotation to default.
+  - `Angle`: sets text rotation angle.
+- **`DIMOVERRIDE`**: Sets or clears per-dimension variable overrides.
+  - Variable overrides (e.g. `DIMTXT`, `DIMSCALE`, `DIMCLRD`, etc.) are serialized into standard AutoCAD `ACAD` `DSTYLE` XData (`1001 ACAD`, `1000 DSTYLE`, `1002 {`, `1070 varCode`, `1040/1070 value`, `1002 }`), fully surviving DXF round-trips.
+  - `Clear`: removes `ACAD` DSTYLE XData.
+- **`DIMSPACE`**: Prompts `Select base dimension:`, `Select dimensions to space:`, and `Enter value or [Auto] <Auto>:`.
+  - Places parallel linear dimensions at equal spacing along the dimension line normal.
+  - Auto spacing sets spacing to $2 \times \text{DIMTXT}$.
+- **`DIMBREAK`**: Prompts `[Auto/Manual/Remove] <Auto>:`. Stores break flags in XData (`SAENGINE_DIMBREAK`). Native viewer renders standard unbroken lines; break points are tracked in entity metadata.
+- **`DIMJOGGED`**: Creates jogged radius dimension stored as `AcDbRadialDimension` with jog parameters in `SAENGINE_DIMJOGGED` XData.
+- **`DIMJOGLINE`**: Adds jog line location to linear dimensions stored in `SAENGINE_DIMJOGLINE` XData.
+- **`DIMREASSOCIATE` / `DIMDISASSOCIATE`**: Reports that dimension associativity (`AcDbDimAssoc`) is not supported by the underlying `@mlightcad/data-model`.
+
+#### Arrays (ARRAY, ARRAYEDIT, ARRAYCLOSE)
+- **`ARRAY`** (alias `AR`): Prompts `[Rectangular/PAth/POlar] <Rectangular>:`.
+  - Generates array items and groups source + copies in a named `AcDbGroup` (e.g. `*A1`, `*A2`, ...) stored in `db.objects.group`.
+  - Array definition (parameters, source IDs, copy IDs) is stored in a resident `AcDbXrecord` under `SA_ARRAY_<groupName>`, surviving DXF round-trip.
+  - True associative arrays (`AcDbAssocArray`) are not supported by `@mlightcad/data-model`; editing is provided via group + Xrecord synchronization.
+- **`ARRAYEDIT`**: Picks any item in an array, resolves its group and Xrecord, offers parameter editing (`Columns`, `Rows`, `Spacing`, `Reset`), and regenerates copies in one undoable step.
+- **`ARRAYCLOSE`**: Closes array editing.
+- **`EXPLODE`**: Exploding any item in an array removes the array group and Xrecord, leaving the items as plain unassociated drawing entities.
+
+#### Text Find & Replace (FIND, -FIND)
+- **`FIND` / `-FIND`**: Searches and replaces text across `AcDbText`, `AcDbMText`, `AcDbAttribute`, `AcDbAttributeDefinition`, `AcDbBlockReference` (block attributes), `AcDbDimension` (text overrides), `AcDbTable` (cells), and `AcDbMLeader` (mtextContent).
+- **Options**: `Match case`, `Whole words` (`\b`), `Wildcards` (`*`, `?`).
+- **MTEXT formatting**: Tokenized parser matches on plain text runs while leaving all formatting tags (`{\f...}`, `\P`, etc.) intact during replacement.
+- Replaces all occurrences in a single undoable transaction and reports match and replacement counts.
+
+#### Fields (FIELD, UPDATEFIELD)
+- **`FIELD`**: Inserts an `AcDbMText` entity evaluating field codes:
+  - `%<\AcVar Date \f "dd-MMM-yyyy">%\`: evaluated using injected or current date.
+  - `%<\AcVar Filename>%\`: drawing filename.
+  - `%<\AcVar LastSavedBy>%\`: user / author.
+  - `%<\AcObjProp Object(%<\_ObjId n>%).Area \f "%lu2%pr2">%\`: referenced object's area (supports `%lu` and `%pr` precision).
+  - `%<\AcObjProp Object(%<\_ObjId n>%).Length / Radius / Perimeter>%\`: calculates geometry length, radius, or perimeter.
+  - Raw field expression is stored in `ACAD_FIELD` XData; evaluated string is displayed in `mtext.contents`.
+- **`UPDATEFIELD`**: Re-evaluates fields on selected entities or all entities in the database.
+- **Automatic updates**: Hooked to `commandEnded` in `index.ts` so edits modifying referenced geometry update dependent fields automatically.
+- **Pure evaluation**: Implemented in `src/fieldEval.ts`.

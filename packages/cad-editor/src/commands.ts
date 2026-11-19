@@ -21,6 +21,7 @@ import {
 import { polylineVertices } from './entityAccess.js';
 import { attributeAsText, blockTransform } from './blockGeometry.js';
 import { computePathArrayTransforms, createPathCurveFromEntity } from './pathGeometry.js';
+import { findArrayByEntityId, explodeArrayGroup } from './arrayCommands.js';
 import { getActiveBlockEditorSession } from './blockEditor.js';
 import {
 	getActiveDraftingManager, OSNAP_MODE_BY_KEYWORD, OSNAP_OVERRIDE_KEYWORDS,
@@ -838,6 +839,12 @@ export async function joinCommand(ctx: CadCommandContext): Promise<void> {
 export async function explodeCommand(ctx: CadCommandContext): Promise<void> {
  const src = await ctx.getSelection('Select objects to explode:');
  for (const e of src) {
+  const arrayInfo = findArrayByEntityId(ctx.database.native, String(e.objectId));
+  if (arrayInfo) {
+   explodeArrayGroup(ctx.database.native, arrayInfo.def.groupName);
+   ctx.message('Exploded associative array into plain entities. Note: True associative arrays (AcDbAssocArray) are not supported by the data model.');
+   continue;
+  }
   if (e instanceof AcDbBlockReference) {
    const record = e.blockTableRecord ?? ctx.database.native.tables.blockTable.getAt(e.blockName);
    if (!record) continue;
