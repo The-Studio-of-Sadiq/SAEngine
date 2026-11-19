@@ -17,6 +17,19 @@ import { registerBlockCommands } from './blockCommands.js';
 import { registerDrawCommands } from './drawCommands.js';
 import { peditCommand, splineditCommand, overkillCommand, registerPolyEditCommands } from './polyEditCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
+import { registerConstraintCommands } from './constraintCommands.js';
+import { loadConstraintsFromDatabase } from './constraintModel.js';
+
+/** The library's commands that move geometry, after which constraints are re-solved. */
+const LIBRARY_EDITS_TO_RESOLVE = new Set(['MOVE', 'ROTATE', 'SCALE', 'MIRROR', 'OFFSET', 'COPY']);
+
+function hasConstraints(db: unknown): boolean {
+	try {
+		return loadConstraintsFromDatabase(db as never).constraints.length > 0;
+	} catch {
+		return false;
+	}
+}
 import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
 	setActiveDraftingManager,
@@ -127,6 +140,9 @@ export {
 	type PolyPoint2D,
 } from './polyEditGeometry.js';
 export * from './polyEditCommands.js';
+export * from './constraintModel.js';
+export * from './constraintSolver.js';
+export * from './constraintCommands.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -377,6 +393,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LTSCALE', ltscaleCommand);
 	registerCommand('CELTSCALE', celtscaleCommand);
 	registerGripCommands(registerCommand);
+	registerConstraintCommands(registerCommand);
 
 	let gripDefaults: CadGripSettings = {
 		enabled: true,
@@ -505,7 +522,15 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	const viewEditor = (manager.curView as any)?.editor;
 	if (viewEditor?.events) {
 		viewEditor.events.commandWillStart?.addEventListener(() => { activeCommand = true; });
-		viewEditor.events.commandEnded?.addEventListener(() => { activeCommand = false; });
+		viewEditor.events.commandEnded?.addEventListener((args: { command?: { globalName?: string } }) => {
+			activeCommand = false;
+			// The library's edit commands do not know the constraints: re-solve after them when the
+			// drawing has any (SAEngine's own STRETCH and grip edits re-solve themselves).
+			const name = args?.command?.globalName?.toUpperCase();
+			if (name && LIBRARY_EDITS_TO_RESOLVE.has(name) && hasConstraints(manager.curDocument.database)) {
+				setTimeout(() => { void manager.executeCommandString('CONSTRAINTSOLVE'); }, 0);
+			}
+		});
 	}
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
 	// is what lands on the undo stack (every command runs in an undoable transaction).

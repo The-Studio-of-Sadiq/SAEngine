@@ -96,3 +96,45 @@ Removes duplicate and overlapping objects:
 - Removes exact duplicates across geometry types within tolerance.
 - Merges overlapping collinear lines into single lines.
 - Reports `"N duplicate(s) deleted, M overlapping object(s) or segment(s) deleted"` in one undoable transaction.
+
+### Parametric Constraints (Package P21)
+
+SAEngine registers AutoCAD-compatible 2D geometric and dimensional parametric constraint commands from `constraintCommands.ts`, `constraintModel.ts`, and `constraintSolver.ts`.
+
+#### Geometric Constraints
+- `GEOMCONSTRAINT` (alias `GC`): Interactive command with keywords:
+  - `Coincident`: Constrains two points or a point and line/curve together.
+  - `Horizontal`: Constrains a line or two points horizontally (`dy = 0`).
+  - `Vertical`: Constrains a line or two points vertically (`dx = 0`).
+  - `Parallel`: Constrains two lines to have identical orientations (`cross product = 0`).
+  - `Perpendicular`: Constrains two lines at 90° (`dot product = 0`).
+  - `Collinear`: Constrains two lines along the same infinite line.
+  - `Concentric`: Constrains two circles/arcs to share the same center point.
+  - `Tangent`: Constrains a line and circle/arc so that the perpendicular distance from center to line equals the radius.
+  - `Equal`: Constrains line lengths or circle/arc radii to be equal.
+  - `Fix`: Locks a point or entity at its current position. (Generated entities are read-only and may be constraint references only as Fixed).
+  - `Symmetric`: Constrains points or lines symmetrically about a reference line.
+- Direct command aliases: `GCHORIZONTAL` (`GCH`), `GCVERTICAL` (`GCV`), `GCPARALLEL` (`GCP`), `GCPERPENDICULAR` (`GCPERP`), `GCCOINCIDENT` (`GCCO`), `GCCOLLINEAR` (`GCCOL`), `GCCONCENTRIC` (`GCCON`), `GCTANGENT` (`GCT`), `GCEQUAL` (`GCE`), `GCFIX` (`GCF`), `GCSYMMETRIC` (`GCSYM`).
+- `AUTOCONSTRAIN` (alias `AUTOCON`): Inactive or active selection is inspected to automatically infer coincident, horizontal, vertical, parallel, perpendicular, and tangent constraints within angular and geometric tolerances, re-solving the drawing.
+
+#### Dimensional Constraints
+- `DIMCONSTRAINT` (alias `DC`): Keywords `Linear`, `Horizontal`, `Vertical`, `Aligned`, `Angular`, `Radial`, `Diameter`.
+- Direct command aliases: `DCLINEAR`, `DCHORIZONTAL`, `DCVERTICAL`, `DCALIGNED`, `DCRADIAL`, `DCDIAMETER`, `DCANGULAR`.
+- Named parameters: automatically assigned sequential names (`d1`, `d2`, ...). Supports arithmetic expressions with `+`, `-`, `*`, `/`, unary `-`, numbers, and parameter names (e.g. `d2 = d1/2`).
+- Annotations: created as plain dimension entities on a dedicated non-plottable `DIMCONSTRAINT` layer (`isPlottable = false`, ACI color 4 cyan), ensuring they are displayed in the CAD editor but excluded from plotted output.
+
+#### Parameters Management
+- `PARAMETERS` / `-PARAMETERS` (alias `PARAM`): Command-line management of user and dimensional parameters.
+  - `List`: Displays all parameter names, expressions, and evaluated values.
+  - `Edit`: Modifies the mathematical expression of a parameter; re-evaluates all dependent parameters and re-solves drawing geometry.
+  - `Rename`: Renames a parameter and updates dependent constraints.
+  - `Delete`: Deletes a user parameter (refusing parameters referenced by active constraints).
+  - `New`: Adds a new user parameter with expression and evaluated value.
+
+#### Constraint Solver & Persistence
+- Iterative Levenberg-Marquardt / Newton-Raphson solver: computes minimum-norm update $\Delta X = J^T (J J^T + \lambda I)^{-1} R$, ensuring fixed geometry and unconstrained degrees of freedom stay in place and move the least.
+- Over-constrained detection: automatically detects contradictory or over-constrained geometries and reports `"would over-constrain the geometry"`, refusing the modification in an undoable transaction.
+- Post-edit re-solving: changes from `MOVE`, `STRETCH`, grip editing, and `PARAMETERS` edits automatically trigger re-solve in an undoable transaction.
+- `DELCONSTRAINT` (alias `DELCON`): Removes constraints attached to selected entities and erases associated constraint dimension entities.
+- `CONSTRAINTBAR` (alias `CBAR`): Lists all constraints active on selected entities.
+- DXF round-trip: SAEngine stores its constraint model and parameters in a dedicated `AcDbXrecord` under `'SAENGINE_CONSTRAINTS'` inside the drawing's resident `MLIGHT_XRECORD` dictionary, ensuring constraints and parameters survive DXF export (`dxfOut`) and re-import (`database.read`).
