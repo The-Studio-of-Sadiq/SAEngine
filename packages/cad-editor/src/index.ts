@@ -28,6 +28,12 @@ import { registerDimensionEditCommands } from './dimensionEditCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import { registerConstraintCommands } from './constraintCommands.js';
 import { loadConstraintsFromDatabase } from './constraintModel.js';
+import {
+	registerStylesAuditCommands, dataExtraction, type CadDataExtractionOptions,
+	auditDrawing, mlstyleCommand, tablestyleCommand, mleaderstyleCommand,
+	auditCommand, recoverCommand, dataextractionCommand, laywalkCommand,
+	getCurrentTableStyle, setCurrentTableStyle, setTableStyle, type CadTableStyle,
+} from './stylesAuditCommands.js';
 
 /** The library's commands that move geometry, after which constraints are re-solved. */
 const LIBRARY_EDITS_TO_RESOLVE = new Set(['MOVE', 'ROTATE', 'SCALE', 'MIRROR', 'OFFSET', 'COPY']);
@@ -134,6 +140,7 @@ export * from './xrefCommands.js';
 export * from './dynamicBlocks.js';
 export * from './regionGeometry.js';
 export * from './annotateGapsCommands.js';
+export * from './stylesAuditCommands.js';
 export {
 	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
 	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
@@ -336,6 +343,8 @@ export interface CadEditor {
 		get(ids?: readonly string[]): CadPropertiesResult;
 		set(ids: readonly string[], patch: CadPropertiesPatch): void;
 	};
+	/** Extracts properties from drawing entities or specified entities as a CSV string. */
+	dataExtraction(options?: CadDataExtractionOptions): string;
 	dispose(): Promise<void>;
 }
 
@@ -419,6 +428,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		ctx.message(`${ids.length} object(s) selected`);
 	});
 	registerAnnotationCommands();
+	registerStylesAuditCommands();
 	registerHatchCommands();
 	registerDimensionCommands();
 	registerBlockCommands();
@@ -806,6 +816,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			preview,
 			generatedLayers,
 		}),
+		dataExtraction: dataExtractionOptions => dataExtraction(manager.curDocument.database, dataExtractionOptions),
 		blockEditing: () => getActiveBlockEditingInfo(),
 		onDidChangeBlockEditing: listener => onDidChangeBlockEditorSession(listener),
 		execute: command => manager.executeCommandString(command),

@@ -146,6 +146,19 @@ export const PATCHES = [
         this._blockEndHandle = this._blockEndHandle || this.database.generateHandle();
         filer.writeHandle(5, this._blockEndHandle);`,
 	},
+	{
+		file: 'dxf/AcDbDxfObjectsReader.js',
+		description: 'preserve dictionary entry names for typed object dictionaries like MLEADERSTYLE',
+		find: `                        if (!typed.getAt(entryName) && !alreadyStored) {
+                            typed.setAt(entryName, obj);
+                        }`,
+		replace: `                        if (!typed.getAt(entryName) || typed.getAt(entryName)?.objectId !== obj.objectId) {
+                            if (typed.has(obj.objectId)) {
+                                typed.remove(obj.objectId);
+                            }
+                            typed.setAt(entryName, obj);
+                        }`,
+	},
 ];
 
 /** Applies the patches for `filePath`; throws if a patch no longer matches. */
