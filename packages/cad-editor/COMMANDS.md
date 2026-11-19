@@ -221,3 +221,42 @@ Audited against `@mlightcad/cad-simple-viewer` 1.7.5 and `@saengine/cad-editor`:
 | PARAMETERS | Missing | Parametric manager palette not implemented |
 | DATAEXTRACTION | Missing | Table / attribute data extraction wizard not implemented |
 | FIELD | Missing | Dynamic text fields not implemented |
+
+### Polyline, Spline & Cleaning Commands
+
+SAEngine registers PEDIT, SPLINEDIT, and OVERKILL from `polyEditCommands.ts` and `polyEditGeometry.ts`.
+
+#### `PEDIT` (alias `PE`)
+Edits 2D polylines or converts lines and arcs into polylines:
+- **Selection**: Picks a single polyline (or converts a picked line or arc after prompt `Do you want to turn it into one? <Y>`), or supports the `Multiple` (`M`) keyword to select and batch-convert multiple entities.
+- **Options**:
+  - `Close` / `Open`: Toggles the polyline closed/open state.
+  - `Join`: Prompts for objects to join and fuzz distance, joining lines, arcs, and open polylines within fuzz.
+  - `Width`: Sets uniform segment start and end widths across the entire polyline.
+  - `Edit vertex`: Submenu (`Next`, `Previous`, `Break`, `Insert`, `Move`, `Straighten`, `Tangent`, `Width`, `eXit`), marking the current vertex.
+  - `Fit`: Fits smooth circular arcs through vertices as bulges.
+  - `Spline`: Quadratic B-spline approximation stored as polyline vertices (SPLINESEGS default 8).
+  - `Decurve`: Removes arc bulges or restores original vertices saved prior to fit/spline.
+  - `Ltype gen`: Reports data-model limitation (PLINEGEN flag not exposed).
+  - `Reverse`: Reverses polyline vertex order, negating bulges.
+  - `Undo`: Reverts the last option step within the command session.
+  - `eXit`: Completes polyline editing.
+
+#### `SPLINEDIT`
+Edits B-splines (`AcDbSpline`):
+- `Close` / `Open`: Toggles closed state.
+- `Fit data`: Allows `Add`, `Delete`, `Move`, and `Tolerance` editing if the spline retains fit points.
+- `Edit vertex`: Adds, deletes, moves, or adjusts weights of spline control points.
+- `convert to Polyline` (alias `P`): Samples the spline into an `AcDbPolyline` using precision 0–99.
+- `Reverse`: Reverses control points and weights.
+- `Undo`: Reverts the last spline edit step.
+- `eXit`: Completes spline editing.
+
+#### `OVERKILL`
+Removes duplicate and overlapping objects:
+- **Settings**: Tolerance (default 0.000001), Ignore (layer, color, linetype, lineweight), Optimize segments within polylines (default ON), Combine co-linear objects that partially overlap (default ON), Combine co-linear objects end to end (default OFF).
+- Removes zero-length lines and zero-radius circles.
+- Removes duplicate consecutive polyline vertices.
+- Removes exact duplicates across geometry types within tolerance.
+- Merges overlapping collinear lines into single lines.
+- Reports `"N duplicate(s) deleted, M overlapping object(s) or segment(s) deleted"` in one undoable transaction.

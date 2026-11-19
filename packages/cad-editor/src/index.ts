@@ -16,6 +16,7 @@ import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands 
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
 import { registerDrawCommands } from './drawCommands.js';
+import { peditCommand, splineditCommand, overkillCommand, registerPolyEditCommands } from './polyEditCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
@@ -105,6 +106,7 @@ export {
 	type GripPoint2D,
 } from './gripGeometry.js';
 export * from './gripEdit.js';
+export { spaceActsAsEnter, installSpaceAsEnter, type SpaceKeyEvent } from './spaceAsEnter.js';
 export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
 export {
 	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
@@ -117,6 +119,22 @@ export {
 	orthoConstraint, snapToGrid, geometricCenter,
 	type DraftingPoint2D, type DraftingPoint3D,
 } from './draftingAidsGeometry.js';
+export {
+	arcBulgeForSegment,
+	bSplinePoint,
+	bSplinePolyline,
+	circleFrom3Points,
+	findDuplicateEntities,
+	fitArcBulges,
+	joinPolylineChains,
+	mergeCollinearLines,
+	removeDuplicateVertices,
+	type ArcFitResult,
+	type ChainSegment2D,
+	type CollinearLine,
+	type PolyPoint2D,
+} from './polyEditGeometry.js';
+export * from './polyEditCommands.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -349,6 +367,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerDimensionCommands();
 	registerBlockCommands();
 	registerDrawCommands();
+	registerPolyEditCommands();
 	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
 	registerCommand('-LAYER', layerCommand);
 	registerCommand('LAYCUR', laycurCommand);
