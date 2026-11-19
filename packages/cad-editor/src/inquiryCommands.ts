@@ -7,6 +7,7 @@ import {
 	AcDbArc, AcDbCircle, AcDbDimension, AcDbEllipse, AcDbEntity, AcDbLine,
 	AcDbMText, AcDbPoint, AcDbPolyline, AcDbText, AcGePoint3d,
 } from '@mlightcad/data-model';
+import { AcApDocManager } from '@mlightcad/cad-simple-viewer';
 import type { CadCommandContext, CadPoint3 } from './commands.js';
 import { polylineVertices } from './entityAccess.js';
 import {
@@ -14,9 +15,24 @@ import {
 	curveSegments, divideCurve, ellipseMetrics, measureCurve, polylineMetrics,
 	threePointAngle, totalLength, type P2, type Segment,
 } from './inquiryGeometry.js';
+import { formatAngle, formatLength } from './unitsFormat.js';
 
 const p = (x: number, y: number): P2 => [x, y];
-const fmt = (n: number) => Number(n.toFixed(2)).toString();
+
+function getUnits(ctx: CadCommandContext) {
+	const db = ctx.database?.native ?? AcApDocManager.instance?.curDocument?.database;
+	return {
+		lunits: db?.lunits ?? 2,
+		luprec: db?.luprec ?? 2,
+		aunits: db?.aunits ?? 0,
+		auprec: db?.auprec ?? 0,
+		angbase: db?.angbase ?? 0,
+		angdir: db?.angdir ?? 0,
+	};
+}
+
+const fmtL = (v: number, u: ReturnType<typeof getUnits>) => formatLength(v, u.lunits, u.luprec);
+const fmtA = (rad: number, u: ReturnType<typeof getUnits>) => formatAngle(rad, u.aunits, u.auprec, u.angbase, u.angdir);
 
 function geom(e: AcDbEntity): { segments: Segment[]; length: number } | undefined {
 	if (e instanceof AcDbLine) {
@@ -57,15 +73,19 @@ function geom(e: AcDbEntity): { segments: Segment[]; length: number } | undefine
 }
 
 export async function distCommand(ctx: CadCommandContext): Promise<void> {
+	const u = getUnits(ctx);
 	const a = await ctx.getPoint('Specify first point:');
 	const b = await ctx.getPoint('Specify second point:', { base: a });
 	const dx = b.x - a.x, dy = b.y - a.y;
-	ctx.message(`Distance = ${fmt(Math.hypot(dx, dy))}\nAngle in XY Plane = ${fmt((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360)}\nDelta X = ${fmt(dx)}, Delta Y = ${fmt(dy)}, Delta Z = ${fmt(b.z - a.z)}`);
+	const d = Math.hypot(dx, dy);
+	const angRad = (Math.atan2(dy, dx) + 2 * Math.PI) % (2 * Math.PI);
+	ctx.message(`Distance = ${fmtL(d, u)}\nAngle in XY Plane = ${fmtA(angRad, u)}\nDelta X = ${fmtL(dx, u)}, Delta Y = ${fmtL(dy, u)}, Delta Z = ${fmtL(b.z - a.z, u)}`);
 }
 
 export async function idCommand(ctx: CadCommandContext): Promise<void> {
+	const u = getUnits(ctx);
 	const a = await ctx.getPoint('Specify point:');
-	ctx.message(`X = ${fmt(a.x)}, Y = ${fmt(a.y)}, Z = ${fmt(a.z)}`);
+	ctx.message(`X = ${fmtL(a.x, u)}, Y = ${fmtL(a.y, u)}, Z = ${fmtL(a.z, u)}`);
 }
 
 const pointEntity = (q: P2): AcDbPoint => {
@@ -137,12 +157,13 @@ async function pickPointsArea(ctx: CadCommandContext): Promise<{ area: number; p
 }
 
 export async function areaCommand(ctx: CadCommandContext): Promise<void> {
+	const u = getUnits(ctx);
 	const mode = await ctx.getKeyword('Specify first point or [Object/Add/Subtract]:', ['Object', 'Add', 'Subtract', 'Points'], { default: 'Object' });
 	if (mode === 'Object') {
 		const e = await ctx.getEntity('Select object:');
 		const m = entityArea(e);
 		if (m) {
-			ctx.message(`Area = ${fmt(m.area)}${m.isChordClosedArc ? ' (chord-closed segment)' : ''}, Perimeter = ${fmt(m.perimeter)}`);
+			ctx.message(`Area = ${fmtL(m.area, u)}${m.isChordClosedArc ? ' (chord-closed segment)' : ''}, Perimeter = ${fmtL(m.perimeter, u)}`);
 		}
 		return;
 	}
@@ -163,33 +184,34 @@ export async function areaCommand(ctx: CadCommandContext): Promise<void> {
 				const m = entityArea(e);
 				if (m) {
 					total += sign * m.area;
-					ctx.message(`Area = ${fmt(m.area)}${m.isChordClosedArc ? ' (chord-closed segment)' : ''}, Perimeter = ${fmt(m.perimeter)}\nTotal area = ${fmt(total)}`);
+					ctx.message(`Area = ${fmtL(m.area, u)}${m.isChordClosedArc ? ' (chord-closed segment)' : ''}, Perimeter = ${fmtL(m.perimeter, u)}\nTotal area = ${fmtL(total, u)}`);
 				}
 			} else if (sub === 'Points') {
 				const m = await pickPointsArea(ctx);
 				if (m) {
 					total += sign * m.area;
-					ctx.message(`Area = ${fmt(m.area)}, Perimeter = ${fmt(m.perimeter)}\nTotal area = ${fmt(total)}`);
+					ctx.message(`Area = ${fmtL(m.area, u)}, Perimeter = ${fmtL(m.perimeter, u)}\nTotal area = ${fmtL(total, u)}`);
 				}
 			}
 		}
-		ctx.message(`Total area = ${fmt(total)}`);
+		ctx.message(`Total area = ${fmtL(total, u)}`);
 		return;
 	}
 	const m = await pickPointsArea(ctx);
 	if (m) {
-		ctx.message(`Area = ${fmt(m.area)}, Perimeter = ${fmt(m.perimeter)}`);
+		ctx.message(`Area = ${fmtL(m.area, u)}, Perimeter = ${fmtL(m.perimeter, u)}`);
 	}
 }
 
 export async function measureGeomCommand(ctx: CadCommandContext): Promise<void> {
+	const u = getUnits(ctx);
 	const option = await ctx.getKeyword('Specify [Distance/Radius/Angle/Area]:', ['Distance', 'Radius', 'Angle', 'Area'], { default: 'Distance' });
 	if (option === 'Distance') return distCommand(ctx);
 	if (option === 'Area') return areaCommand(ctx);
 	if (option === 'Radius') {
 		const e = await ctx.getEntity('Select arc or circle:');
 		if (e instanceof AcDbArc || e instanceof AcDbCircle) {
-			ctx.message(`Radius = ${fmt(e.radius)}, Diameter = ${fmt(2 * e.radius)}`);
+			ctx.message(`Radius = ${fmtL(e.radius, u)}, Diameter = ${fmtL(2 * e.radius, u)}`);
 		}
 		return;
 	}
@@ -197,7 +219,7 @@ export async function measureGeomCommand(ctx: CadCommandContext): Promise<void> 
 	const pick = await ctx.getEntityPick('Select arc, line, or [3Point]:', { keywords: ['3Point'], allowNone: true });
 	if (pick.status === 'ok' && pick.entity instanceof AcDbArc) {
 		const ang = arcIncludedAngle(pick.entity.startAngle, pick.entity.endAngle);
-		ctx.message(`Angle = ${fmt(ang)}`);
+		ctx.message(`Angle = ${fmtA(ang * Math.PI / 180, u)}`);
 		return;
 	}
 	if (pick.status === 'ok' && pick.entity instanceof AcDbLine) {
@@ -211,7 +233,7 @@ export async function measureGeomCommand(ctx: CadCommandContext): Promise<void> 
 				[e2.startPoint.x, e2.startPoint.y],
 				[e2.endPoint.x, e2.endPoint.y],
 			);
-			ctx.message(`Angle = ${fmt(ang)}`);
+			ctx.message(`Angle = ${fmtA(ang * Math.PI / 180, u)}`);
 			return;
 		}
 		ctx.message('Second object must be a line');
@@ -221,41 +243,41 @@ export async function measureGeomCommand(ctx: CadCommandContext): Promise<void> 
 	const p1 = await ctx.getPoint('Specify first angle endpoint:', { base: v });
 	const p2 = await ctx.getPoint('Specify second angle endpoint:', { base: v });
 	const ang = threePointAngle([v.x, v.y], [p1.x, p1.y], [p2.x, p2.y]);
-	ctx.message(`Angle = ${fmt(ang)}`);
+	ctx.message(`Angle = ${fmtA(ang * Math.PI / 180, u)}`);
 }
 
 export async function listCommand(ctx: CadCommandContext): Promise<void> {
+	const u = getUnits(ctx);
 	const es = await ctx.getSelection('Select objects:');
 	for (const e of es) {
 		let s = `${e.dxfTypeName} Layer=${e.layer ?? ''} Handle=${e.objectId}`;
 		if (e instanceof AcDbLine) {
 			const g = geom(e)!;
 			const a = e.startPoint, b = e.endPoint;
-			s += ` Length=${fmt(g.length)} Angle=${fmt(Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI)}`;
+			s += ` Length=${fmtL(g.length, u)} Angle=${fmtA(Math.atan2(b.y - a.y, b.x - a.x), u)}`;
 		} else if (e instanceof AcDbCircle) {
 			const m = circleMetrics(e.radius);
-			s += ` Center=(${fmt(e.center.x)},${fmt(e.center.y)}) Radius=${fmt(e.radius)} Circumference=${fmt(m.circumference)} Area=${fmt(m.area)}`;
+			s += ` Center=(${fmtL(e.center.x, u)},${fmtL(e.center.y, u)}) Radius=${fmtL(e.radius, u)} Circumference=${fmtL(m.circumference, u)} Area=${fmtL(m.area, u)}`;
 		} else if (e instanceof AcDbArc) {
 			const sweep = ((e.endAngle - e.startAngle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) || 2 * Math.PI;
-			const totalAngle = sweep * 180 / Math.PI;
 			const length = e.radius * sweep;
-			s += ` Center=(${fmt(e.center.x)},${fmt(e.center.y)}) Radius=${fmt(e.radius)} StartAngle=${fmt(e.startAngle * 180 / Math.PI)} EndAngle=${fmt(e.endAngle * 180 / Math.PI)} TotalAngle=${fmt(totalAngle)} Length=${fmt(length)}`;
+			s += ` Center=(${fmtL(e.center.x, u)},${fmtL(e.center.y, u)}) Radius=${fmtL(e.radius, u)} StartAngle=${fmtA(e.startAngle, u)} EndAngle=${fmtA(e.endAngle, u)} TotalAngle=${fmtA(sweep, u)} Length=${fmtL(length, u)}`;
 		} else if (e instanceof AcDbEllipse) {
 			const a = e.majorAxisRadius, b = e.minorAxisRadius;
 			const m = ellipseMetrics(a, b);
-			s += ` Center=(${fmt(e.center.x)},${fmt(e.center.y)}) MajorRadius=${fmt(a)} MinorRadius=${fmt(b)} Area=${fmt(m.area)} Circumference=${fmt(m.perimeter)}`;
+			s += ` Center=(${fmtL(e.center.x, u)},${fmtL(e.center.y, u)}) MajorRadius=${fmtL(a, u)} MinorRadius=${fmtL(b, u)} Area=${fmtL(m.area, u)} Circumference=${fmtL(m.perimeter, u)}`;
 		} else if (e instanceof AcDbPolyline) {
 			const { points, bulges, closed } = polylineVertices(e);
 			const m = polylineMetrics(points, bulges, closed);
-			s += ` Vertices=${e.numberOfVertices} Length=${fmt(m.length)} ${closed ? 'Closed' : 'Open'}${closed ? ` Area=${fmt(m.area)}` : ''}`;
+			s += ` Vertices=${e.numberOfVertices} Length=${fmtL(m.length, u)} ${closed ? 'Closed' : 'Open'}${closed ? ` Area=${fmtL(m.area, u)}` : ''}`;
 		} else if (e instanceof AcDbText) {
-			const rot = (e.rotation ?? 0) * 180 / Math.PI;
+			const rot = e.rotation ?? 0;
 			const style = e.styleName ? ` Style=${e.styleName}` : '';
-			s += ` Text="${e.textString}" Height=${fmt(e.height)} Rotation=${fmt(rot)}${style}`;
+			s += ` Text="${e.textString}" Height=${fmtL(e.height, u)} Rotation=${fmtA(rot, u)}${style}`;
 		} else if (e instanceof AcDbMText) {
-			const rot = (e.rotation ?? 0) * 180 / Math.PI;
+			const rot = e.rotation ?? 0;
 			const style = e.styleName ? ` Style=${e.styleName}` : '';
-			s += ` Text="${e.contents}" Height=${fmt(e.height)} Rotation=${fmt(rot)}${style}`;
+			s += ` Text="${e.contents}" Height=${fmtL(e.height, u)} Rotation=${fmtA(rot, u)}${style}`;
 		} else if (e instanceof AcDbDimension) {
 			const dimTypeNames: Record<number, string> = {
 				0: 'Rotated',
@@ -278,7 +300,7 @@ export async function listCommand(ctx: CadCommandContext): Promise<void> {
 				const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
 				if (d > 0) meas = d;
 			}
-			const measStr = meas !== undefined ? ` Measurement=${fmt(meas)}` : '';
+			const measStr = meas !== undefined ? ` Measurement=${fmtL(meas, u)}` : '';
 			const style = e.dimensionStyleName ? ` Style=${e.dimensionStyleName}` : '';
 			s += ` Type=${typeName}${measStr}${style}`;
 		}
