@@ -8,12 +8,15 @@ import { AcDbSystemVariables, AcDbSysVarManager } from '@mlightcad/data-model';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
-import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
+import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, setGlobalReadFile, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
 import { registerAnnotationCommands } from './annotationCommands.js';
 import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
+import {
+	toDxf, getActiveBlockEditorSession, getActiveBlockEditingInfo, onDidChangeBlockEditorSession,
+} from './blockEditor.js';
 import { registerDrawCommands } from './drawCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
 import {
@@ -91,6 +94,10 @@ export * from './dimensionCommands.js';
 export * from './dimensionGeometry.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
+export * from './blockCommands.js';
+export * from './blockEditor.js';
+export * from './xrefCommands.js';
+export * from './dynamicBlocks.js';
 export {
 	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
 	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
@@ -128,6 +135,8 @@ export interface CadEditorOptions {
 	readonly chrome?: CadChrome;
 	/** Canvas background as 0xRRGGBB (default: black). ACI 7 linework turns black on light ones. */
 	readonly background?: number;
+	/** Optional host callback to read file contents as string (used by XREF Attach / Reload). */
+	readonly readFile?: (path: string) => Promise<string>;
 }
 
 /** mlightcad's own controls over the canvas. */
@@ -208,6 +217,14 @@ export interface CadEditor {
 	zoomExtents(): void;
 	/** The drawing as DXF text (AutoCAD 2018 format). */
 	toDxf(options?: ToDxfOptions): string;
+	/**
+	 * Active block editing session (BEDIT or REFEDIT), if any.
+	 */
+	blockEditing(): { mode: 'bedit' | 'refedit'; blockName: string } | undefined;
+	/**
+	 * Called when entering or exiting a BEDIT or REFEDIT session; returns an unsubscribe function.
+	 */
+	onDidChangeBlockEditing(listener: (session: { mode: 'bedit' | 'refedit'; blockName: string } | undefined) => void): () => void;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
 	/** Whether an interactive CAD command is currently active. */
@@ -272,6 +289,7 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	if (!manager) {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
+	setGlobalReadFile(options.readFile);
 	registerCommand('MIRROR', mirrorCommand);
 	registerCommand('SCALE', scaleCommand);
 	registerCommand('ARRAYRECT', arrayRectCommand, { aliases: ['AR'] });
@@ -479,7 +497,9 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	let generated = new Set<string>();
 	let generatedLayers = new Set<string>();
 	(globalThis as any).__saengineGeneratedLayers = generatedLayers;
+	(globalThis as any).__saengineGenerated = generated;
 	let preview = new Set<string>();
+	(globalThis as any).__saenginePreview = preview;
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
 	let activeCommand = false;
@@ -669,12 +689,14 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return Math.hypot(b.x - a.x, b.y - a.y) / 100;
 		},
 		zoomExtents: () => manager.curView.zoomToFitDrawing(),
-		toDxf: dxfOptions => dxfOut(manager.curDocument.database, {
+		toDxf: dxfOptions => toDxf(manager.curDocument.database, {
 			excludeGenerated: dxfOptions?.excludeGenerated,
 			generated,
 			preview,
 			generatedLayers,
 		}),
+		blockEditing: () => getActiveBlockEditingInfo(),
+		onDidChangeBlockEditing: listener => onDidChangeBlockEditorSession(listener),
 		execute: command => manager.executeCommandString(command),
 		isCommandActive: () => {
 			try {
@@ -692,9 +714,13 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			if (!db) {
 				return [];
 			}
+			const session = getActiveBlockEditorSession();
 			const result: CadSelectedEntity[] = [];
 			for (const id of selection.ids) {
 				if (generated.has(id) || preview.has(id)) {
+					continue;
+				}
+				if (session && !session.editEntityIds.has(id)) {
 					continue;
 				}
 				const entity = db.tables?.blockTable?.modelSpace?.getIdAt(id);
@@ -732,9 +758,13 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			if (!db) {
 				return;
 			}
+			const session = getActiveBlockEditorSession();
 			const handleSet = new Set(handles.map(String));
 			const erase = () => {
 				for (const h of handleSet) {
+					if (session && !session.editEntityIds.has(h)) {
+						continue;
+					}
 					const ent = db.openEntityForWrite?.(h) ?? db.tables?.blockTable?.modelSpace?.getIdAt(h);
 					if (ent && typeof (ent as any).erase === 'function') {
 						(ent as any).erase();
@@ -842,6 +872,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			wblockListeners.clear();
 			delete (globalThis as any).__saengineWblockListeners;
 			delete (globalThis as any).__saengineGeneratedLayers;
+			delete (globalThis as any).__saengineGenerated;
+			delete (globalThis as any).__saenginePreview;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			draftingManager.dispose();
