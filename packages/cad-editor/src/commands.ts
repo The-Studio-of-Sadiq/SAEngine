@@ -20,6 +20,7 @@ import {
 } from './modifyGeometry2.js';
 import { polylineVertices } from './entityAccess.js';
 import { attributeAsText, blockTransform } from './blockGeometry.js';
+import { computePathArrayTransforms, createPathCurveFromEntity } from './pathGeometry.js';
 import {
 	getActiveDraftingManager, OSNAP_MODE_BY_KEYWORD, OSNAP_OVERRIDE_KEYWORDS,
 } from './draftingAids.js';
@@ -540,6 +541,122 @@ export async function arrayPolarCommand(ctx: CadCommandContext): Promise<void> {
   }
  }
  ctx.database.add(all);
+}
+export async function arrayPathCommand(ctx: CadCommandContext): Promise<void> {
+	const src = await ctx.getSelection('Select objects to array:');
+	if (src.length === 0) return;
+
+	const genLayers = (globalThis as any).__saengineGeneratedLayers;
+	for (const e of src) {
+		if (e.layer && genLayers?.has(e.layer)) {
+			ctx.message('Cannot modify generated entities.');
+			return;
+		}
+	}
+
+	const pathPick = await ctx.getEntityPick('Select path curve:');
+	if (!pathPick.entity) return;
+	// The path is only read, so a generated grid line or beam may serve as the path.
+	const pathEnt = pathPick.entity;
+
+	const pathCurve = createPathCurveFromEntity(pathEnt);
+	if (!pathCurve || pathCurve.length <= 0) {
+		ctx.message('Selected entity is not a valid path curve (must be Line, Polyline, Arc, Circle, Spline, or Ellipse).');
+		return;
+	}
+
+	let sumX = 0, sumY = 0, ptCount = 0;
+	for (const e of src) {
+		if (e instanceof AcDbCircle || e instanceof AcDbArc) { sumX += e.center.x; sumY += e.center.y; ptCount++; }
+		else if (e instanceof AcDbLine) { sumX += e.startPoint.x + e.endPoint.x; sumY += e.startPoint.y + e.endPoint.y; ptCount += 2; }
+		else if (e instanceof AcDbPolyline) { for (let i = 0; i < e.numberOfVertices; i++) { const pt = e.getPoint2dAt(i); sumX += pt.x; sumY += pt.y; ptCount++; } }
+	}
+	const pathStart = pathCurve.pointAndTangentAt(0).point;
+	let basePoint: P2 = ptCount > 0 ? [sumX / ptCount, sumY / ptCount] : pathStart;
+
+	let method: 'Divide' | 'Measure' = 'Measure';
+	let itemCount: number | undefined = undefined;
+	let itemSpacing = Math.max(1, pathCurve.length / 5);
+	let rows = 1;
+	let rowSpacing = itemSpacing;
+	let alignItems = true;
+	let tangentAngle0: number | undefined = undefined;
+
+	while (true) {
+		const opt = await ctx.getKeyword(
+			'Specify [Method/Base point/Tangent direction/Items/Rows/Levels/Align items/Z direction/eXit] <eXit>:',
+			['Method', 'Base point', 'Tangent direction', 'Items', 'Rows', 'Levels', 'Align items', 'Z direction', 'Exit'],
+			{ default: 'Exit' },
+		);
+		const lower = opt.toLowerCase();
+		if (lower === 'exit' || lower === '') break;
+		if (lower === 'method') {
+			const m = await ctx.getKeyword('Enter path array method [Divide/Measure] <Measure>:', ['Divide', 'Measure'], { default: method });
+			method = m.toLowerCase() === 'divide' ? 'Divide' : 'Measure';
+			if (method === 'Divide') {
+				itemCount = Math.max(2, Math.round(await ctx.getDistance(`Enter number of items <${itemCount ?? 5}>:`)));
+			} else {
+				itemSpacing = await ctx.getDistance(`Specify distance between items <${itemSpacing.toFixed(2)}>:`);
+			}
+		} else if (lower === 'base point') {
+			const bp = await ctx.getPoint('Specify base point:');
+			basePoint = [bp.x, bp.y];
+		} else if (lower === 'tangent direction') {
+			const p1 = await ctx.getPoint('Specify first point of tangent direction:');
+			const p2 = await ctx.getPoint('Specify second point of tangent direction:', { base: p1 });
+			tangentAngle0 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+		} else if (lower === 'items') {
+			if (method === 'Divide') {
+				itemCount = Math.max(2, Math.round(await ctx.getDistance(`Enter number of items <${itemCount ?? 5}>:`)));
+			} else {
+				itemSpacing = await ctx.getDistance(`Specify distance between items <${itemSpacing.toFixed(2)}>:`);
+			}
+		} else if (lower === 'rows') {
+			rows = Math.max(1, Math.round(await ctx.getDistance(`Enter number of rows <${rows}>:`)));
+			if (rows > 1) {
+				rowSpacing = await ctx.getDistance(`Specify distance between rows <${rowSpacing.toFixed(2)}>:`);
+			}
+		} else if (lower === 'levels') {
+			await ctx.getDistance('Enter number of levels <1>:');
+			ctx.message('Levels ignored in 2D');
+		} else if (lower === 'align items') {
+			const a = await ctx.getKeyword('Align items along path? [Yes/No] <Yes>:', ['Yes', 'No'], { default: 'Yes' });
+			alignItems = a.toLowerCase() === 'yes';
+		} else if (lower === 'z direction') {
+			ctx.message('Z direction not applicable in 2D');
+		}
+	}
+
+	const transforms = computePathArrayTransforms(pathCurve, {
+		method,
+		itemCount,
+		itemSpacing,
+		rows,
+		rowSpacing,
+		alignItems,
+		basePoint,
+		tangentAngle0,
+	});
+
+	ctx.message('Associative array not supported by viewer; created plain copies.');
+
+	const newEntities: AcDbEntity[] = [];
+	for (const t of transforms) {
+		const mat = pointTransform({ x: basePoint[0], y: basePoint[1], z: 0 }, 1, t.rotationAngle, { x: t.position[0], y: t.position[1], z: 0 });
+		if (t.index === 0 && t.row === 0) {
+			for (const e of src) {
+				const c = cloneTransform(e, mat);
+				ctx.database.replace(String(e.objectId), c);
+			}
+		} else {
+			for (const e of src) {
+				newEntities.push(cloneTransform(e, mat));
+			}
+		}
+	}
+	if (newEntities.length > 0) {
+		ctx.database.add(newEntities);
+	}
 }
 export async function breakCommand(ctx: CadCommandContext): Promise<void> {
  const pick = await ctx.getEntityPick('Select object (first break point):'); if (!pick.entity || !pick.point) return; const second = await ctx.getPoint('Specify second break point:'); const e = pick.entity;
