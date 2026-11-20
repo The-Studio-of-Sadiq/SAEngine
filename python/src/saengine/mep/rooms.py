@@ -499,3 +499,42 @@ def stamp(root: str | Path) -> str:
     except OSError:
         return ""
     return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
+def check_ceiling_voids(
+    arch: Any, building: Any, mep: Any, objects: Any = None, clearance: float = 0.0
+) -> list[dict[str, Any]]:
+    """Check HVAC ducts and electrical cable trays against ceiling voids on their story."""
+    from saengine.library import architecture as arch_lib
+    from saengine.library.objects import ObjectLibrary
+
+    if arch is None or building is None or mep is None or not getattr(arch, "ceilings", None):
+        return []
+    if objects is None:
+        objects = ObjectLibrary(objects=[])
+    results: list[dict[str, Any]] = []
+
+    def check_run(service_id: str, story: str, path: list[Any], depth: float) -> None:
+        if depth <= 0 or not path:
+            return
+        pts = [(float(p[0]), float(p[1])) for p in path]
+        mid = pts[len(pts) // 2]
+        void = arch_lib.ceiling_void_check(arch, building, objects, mid, story=story)
+        if void is not None:
+            results.append(void.check_service(depth, clearance=clearance, name=service_id))
+
+    hvac = getattr(mep, "hvac", None)
+    if hvac is not None:
+        for duct in getattr(hvac, "ducts", []):
+            if getattr(duct, "riser", None) is not None:
+                continue
+            depth = float(duct.diameter or duct.height or 0.0)
+            check_run(duct.id, duct.story, duct.path, depth)
+
+    electrical = getattr(mep, "electrical", None)
+    if electrical is not None:
+        for tray in getattr(electrical, "trays", []):
+            depth = float(getattr(tray, "height", 0.0) or 0.0)
+            check_run(tray.id, tray.story, tray.path, depth)
+
+    return results

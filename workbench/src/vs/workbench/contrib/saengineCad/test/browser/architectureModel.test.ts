@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ArchEdit, curtainWeight, rampGradient, roofWeight, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, nextId, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
+import { addCeiling, addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ArchEdit, curtainWeight, gridDivisions, rampGradient, roofEffectiveOutline, roofWeight, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, nextId, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, updateType, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
 import { addComponent, addMass, deleteArchType, duplicateArchType, exportTypesLibrary, importTypesLibrary, massFloorAreaSummary, massVolumeM3, mirrorComponent, renameArchType } from '../../browser/architectureComponents.js';
 import { snapLinear } from '../../browser/floorPlanSnap.js';
 
@@ -222,5 +222,32 @@ suite('SAEngine - Architecture', () => {
 		const lib = exportTypesLibrary(arch);
 		const imp = importTypesLibrary(newArchitecture(), lib, false);
 		assert.ok(imp.ok && imp.value.componentTypes?.some(t => t.id === 'BED-QUEEN'));
+	});
+
+	test('ceilings, curtain grid rules and footprint roof overhangs in the model', () => {
+		let arch = flat();
+		arch = value(addRoom(arch, 'L1', [1500, 2500], elevations, 'Bed'));
+		arch = value(addCeiling(arch, 'CL2', 'L1', 'R1', 2700));
+		assert.strictEqual(arch.ceilings.length, 1);
+		assert.strictEqual(addCeiling(arch, 'CL2', 'L1', 'R1', 2700).ok, false, 'duplicate room ceiling');
+
+		assert.deepStrictEqual(gridDivisions(6000, { layout: 'maxSpacing', spacing: 1500 }), [0, 1500, 3000, 4500, 6000]);
+		assert.deepStrictEqual(gridDivisions(3600, { layout: 'fixedNumber', count: 2 }), [0, 1200, 2400, 3600]);
+
+		arch = updateType(arch, 'curtainWallTypes', 'CW1', {
+			verticalGrid: { layout: 'maxSpacing', spacing: 1500 },
+			horizontalGrid: { layout: 'fixedNumber', count: 2 },
+			panelType: 'CP-GLZ',
+		});
+		arch = value(addCurtainWall(arch, 'CW1', 'L1', [[0, 0], [6000, 0]], elevations));
+		assert.ok(curtainWeight(arch.curtainWallTypes[0], arch, arch.curtainWalls[0], 3600) > 0);
+
+		arch = value(addRoof(arch, 'RF2', 'L2', [[0, 0], [10000, 0], [10000, 6000], [0, 6000]]));
+		arch = updateItem(arch, { kind: 'roofs', id: 'RF1' }, { overhang: 500, edgeSlopes: [30, 30, 30, 30] });
+		assert.deepStrictEqual(roofEffectiveOutline(arch.roofs[0]), [[-500, -500], [10500, -500], [10500, 6500], [-500, 6500]]);
+
+		const drawing = architectureDrawing(arch, 'L1', elevations);
+		assert.ok(drawing.shapes.some(s => s.kind === 'ceilings' && s.id === 'CL1'));
+		assert.ok(drawing.entities.some(e => e.layer === 'A-CLNG'));
 	});
 });

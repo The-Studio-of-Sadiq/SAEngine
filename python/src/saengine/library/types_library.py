@@ -16,6 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.library.architecture import (
     Architecture,
+    CeilingType,
+    CurtainMullionType,
+    CurtainPanelType,
     CurtainWallType,
     DoorType,
     FinishType,
@@ -26,7 +29,6 @@ from saengine.library.architecture import (
 )
 from saengine.library.components import ComponentType
 from saengine.library.labels import field_title
-from saengine.library.materials import Id
 
 TYPES_LIBRARY_SCHEMA_ID = "saengine.typesLibrary/1"
 
@@ -73,18 +75,6 @@ class _Model(BaseModel):
     )
 
 
-class CeilingType(_Model):
-    """Ceiling assembly type for the unified types library JSON (forward-compatible)."""
-
-    id: Id
-    name: str = Field(min_length=1)
-    thickness: float = Field(default=12.0, gt=0, description="[mm]")
-    unitWeight: float = Field(default=10.0, ge=0, description="[kN/m³]")
-    gridSpacing: float | None = Field(default=None, gt=0, description="[mm]")
-    plenumHeight: float | None = Field(default=None, ge=0, description="[mm]")
-    parameters: dict[str, float | str | bool] = Field(default_factory=dict)
-
-
 _TYPE_MODELS: dict[TypeCategory, type[BaseModel]] = {
     "wall": WallType,
     "door": DoorType,
@@ -113,6 +103,8 @@ class TypesLibrary(_Model):
     railingTypes: list[RailingType] = Field(default_factory=list)
     ceilingTypes: list[CeilingType] = Field(default_factory=list)
     curtainWallTypes: list[CurtainWallType] = Field(default_factory=list)
+    curtainPanelTypes: list[CurtainPanelType] = Field(default_factory=list)
+    curtainMullionTypes: list[CurtainMullionType] = Field(default_factory=list)
     componentTypes: list[ComponentType] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -123,6 +115,14 @@ class TypesLibrary(_Model):
             dups = sorted({i for i in ids if ids.count(i) > 1})
             if dups:
                 raise ValueError(f"duplicate {cat} type ids: {', '.join(dups)}")
+        for label, items in (
+            ("curtain panel", self.curtainPanelTypes),
+            ("curtain mullion", self.curtainMullionTypes),
+        ):
+            ids = [t.id for t in items]
+            dups = sorted({i for i in ids if ids.count(i) > 1})
+            if dups:
+                raise ValueError(f"duplicate {label} type ids: {', '.join(dups)}")
         return self
 
 
@@ -168,8 +168,7 @@ def type_usages(arch: Architecture, category: TypeCategory, type_id: str) -> lis
     if category == "railing":
         return [r.id for r in arch.railings if r.type == type_id]
     if category == "ceiling":
-        ceilings = getattr(arch, "ceilings", ())
-        return [c.id for c in ceilings if getattr(c, "type", None) == type_id]
+        return [c.id for c in arch.ceilings if c.type == type_id]
     if category == "curtainWall":
         return [c.id for c in arch.curtainWalls if c.type == type_id]
     if category == "component":
@@ -351,6 +350,12 @@ def export_types_library(
                 t.model_dump(mode="json", by_alias=True, exclude_none=True)
                 for t in _get_list(arch, cat)
             ]
+    if "curtainWall" in chosen:
+        for sub_field in ("curtainPanelTypes", "curtainMullionTypes"):
+            payload[sub_field] = [
+                t.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for t in getattr(arch, sub_field, ())
+            ]
     return TypesLibrary.model_validate(payload)
 
 
@@ -389,6 +394,25 @@ def import_types_library(
     added = 0
     updated = 0
     skipped = 0
+
+    for sub_field in ("curtainPanelTypes", "curtainMullionTypes"):
+        incoming_sub = getattr(lib, sub_field)
+        if not incoming_sub:
+            continue
+        current_list = list(data.get(sub_field, []))
+        by_id = {entry["id"]: i for i, entry in enumerate(current_list)}
+        incoming_dicts = [
+            item.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for item in incoming_sub
+        ]
+        for d in incoming_dicts:
+            if d["id"] in by_id:
+                if mode in ("overwrite", "replace"):
+                    current_list[by_id[d["id"]]] = d
+            else:
+                current_list.append(d)
+                by_id[d["id"]] = len(current_list) - 1
+        data[sub_field] = current_list
 
     for cat in TYPE_CATEGORIES:
         field = _ARCH_FIELD[cat]

@@ -7,7 +7,7 @@ import type { CadEntitySpec, CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { signedArea } from '../../../../platform/saengine/common/geometry.js';
 import { insidePolygon } from './floorPlanDrawing.js';
-import type { IArchShape, IArchitecture, IRoomOutline } from './architectureModel.js';
+import type { IArchShape, IArchitecture, ICeilingType, IRoomOutline } from './architectureModel.js';
 
 export type ComponentCategory = 'furniture' | 'casework' | 'plumbingFixture' | 'equipment' | 'generic';
 export type ComponentIfcClass = 'IfcFurniture' | 'IfcSanitaryTerminal' | 'IfcFlowTerminal' | 'IfcBuildingElementProxy';
@@ -92,16 +92,6 @@ export interface IInPlaceElement {
 	readonly parameters?: { readonly [key: string]: ParameterValue };
 }
 
-export interface ICeilingType {
-	readonly id: string;
-	readonly name: string;
-	readonly thickness?: number;
-	readonly unitWeight?: number;
-	readonly gridSpacing?: number;
-	readonly plenumHeight?: number;
-	readonly parameters?: { readonly [key: string]: ParameterValue };
-}
-
 export const TYPES_LIBRARY_SCHEMA_ID = 'saengine.typesLibrary/1';
 
 export type ArchTypeCategory = 'wall' | 'door' | 'window' | 'finish' | 'roof' | 'railing' | 'ceiling' | 'curtainWall' | 'component';
@@ -121,6 +111,8 @@ export interface ITypesLibrary {
 	readonly railingTypes?: readonly unknown[];
 	readonly ceilingTypes?: readonly ICeilingType[];
 	readonly curtainWallTypes?: readonly unknown[];
+	readonly curtainPanelTypes?: readonly unknown[];
+	readonly curtainMullionTypes?: readonly unknown[];
 	readonly componentTypes?: readonly IComponentType[];
 }
 
@@ -622,7 +614,7 @@ function setTypeList(arch: IArchitecture, category: ArchTypeCategory, items: rea
 		case 'railing': return { ...arch, railingTypes: items as unknown as IArchitecture['railingTypes'] };
 		case 'curtainWall': return { ...arch, curtainWallTypes: items as unknown as IArchitecture['curtainWallTypes'] };
 		case 'component': return { ...arch, componentTypes: items as unknown as IComponentType[] };
-		case 'ceiling': return { ...arch, ceilingTypes: items };
+		case 'ceiling': return { ...arch, ceilingTypes: items as unknown as IArchitecture['ceilingTypes'] };
 	}
 }
 
@@ -639,10 +631,7 @@ export function typeUsages(arch: IArchitecture, category: ArchTypeCategory, type
 		case 'railing': return arch.railings.filter(r => r.type === typeId).map(r => r.id);
 		case 'curtainWall': return arch.curtainWalls.filter(c => c.type === typeId).map(c => c.id);
 		case 'component': return (arch.components ?? []).filter(c => c.type === typeId).map(c => c.id);
-		case 'ceiling': {
-			const ceilings = (arch as unknown as Json).ceilings;
-			return Array.isArray(ceilings) ? ceilings.filter(isObject).filter(c => c.type === typeId && typeof c.id === 'string').map(c => String(c.id)) : [];
-		}
+		case 'ceiling': return arch.ceilings.filter(c => c.type === typeId).map(c => c.id);
 	}
 }
 
@@ -727,7 +716,7 @@ export function renameArchType(arch: IArchitecture, category: ArchTypeCategory, 
 			case 'railing': next = { ...next, railings: next.railings.map(r => r.type === oldId ? { ...r, type: targetId } : r) }; break;
 			case 'curtainWall': next = { ...next, curtainWalls: next.curtainWalls.map(c => c.type === oldId ? { ...c, type: targetId } : c) }; break;
 			case 'component': next = { ...next, components: (next.components ?? []).map(c => c.type === oldId ? { ...c, type: targetId } : c) }; break;
-			case 'ceiling': break;
+			case 'ceiling': next = { ...next, ceilings: next.ceilings.map(c => c.type === oldId ? { ...c, type: targetId } : c) }; break;
 		}
 	}
 	return { ok: true, value: next };
@@ -767,10 +756,13 @@ export function exportTypesLibrary(arch: IArchitecture, name = 'Office Standards
 	const out: { [key: string]: unknown } = { schema: TYPES_LIBRARY_SCHEMA_ID, name };
 	for (const cat of ARCH_TYPE_CATEGORIES) {
 		const field = ARCH_TYPE_FIELD[cat];
-		const items = typeList(arch, cat);
-		if (items.length || cat !== 'ceiling') {
-			out[field] = items;
-		}
+		out[field] = typeList(arch, cat);
+	}
+	if (arch.curtainPanelTypes.length) {
+		out.curtainPanelTypes = arch.curtainPanelTypes;
+	}
+	if (arch.curtainMullionTypes.length) {
+		out.curtainMullionTypes = arch.curtainMullionTypes;
 	}
 	return out as unknown as ITypesLibrary;
 }
@@ -782,13 +774,30 @@ export function importTypesLibrary(arch: IArchitecture, raw: unknown, overwrite 
 	let next = arch;
 	let added = 0;
 	let updated = 0;
+	for (const subField of ['curtainPanelTypes', 'curtainMullionTypes'] as const) {
+		const incoming = Array.isArray(raw[subField]) ? (raw[subField] as unknown[]).filter(isObject).filter(t => typeof t.id === 'string') : [];
+		if (!incoming.length) {
+			continue;
+		}
+		const current = [...(next[subField] as unknown as readonly Json[])];
+		const indexById = new Map(current.map((t, i) => [String(t.id), i]));
+		for (const item of incoming) {
+			const idx = indexById.get(String(item.id));
+			if (idx !== undefined) {
+				if (overwrite) {
+					current[idx] = item;
+				}
+			} else {
+				indexById.set(String(item.id), current.length);
+				current.push(item);
+			}
+		}
+		next = { ...next, [subField]: current };
+	}
 	for (const cat of ARCH_TYPE_CATEGORIES) {
 		const field = ARCH_TYPE_FIELD[cat];
 		const incoming = Array.isArray(raw[field]) ? (raw[field] as unknown[]).filter(isObject).filter(t => typeof t.id === 'string') : [];
 		if (!incoming.length) {
-			continue;
-		}
-		if (cat === 'ceiling' && !Array.isArray((arch as unknown as Json).ceilingTypes)) {
 			continue;
 		}
 		const current = [...typeList(next, cat)];

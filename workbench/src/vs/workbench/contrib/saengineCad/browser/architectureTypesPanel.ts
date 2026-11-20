@@ -279,6 +279,12 @@ export class ArchitectureTypesPanel extends Disposable {
 			numRow(localize('typesLib.height', "Height (mm)"), 'height', data.height ?? 1000, 1);
 			numRow(localize('typesLib.weightKnm', "Weight (kN/m)"), 'weight', data.weight ?? 0.3, 0);
 			numRow(localize('typesLib.width', "Width (mm)"), 'width', data.width ?? 50, 1);
+		} else if (entry.category === 'ceiling') {
+			enumRow(localize('typesLib.ceilingKind', "Kind"), 'kind', ['gypsum', 'grid', 'plaster', 'timber', 'metal', 'other'], data.kind ?? 'gypsum');
+			numRow(localize('typesLib.thickness', "Thickness (mm)"), 'thickness', data.thickness ?? 12.5, 1);
+			numRow(localize('typesLib.weightKnm2', "Weight (kN/m²)"), 'weight', data.weight ?? 0.15, 0);
+			numRow(localize('typesLib.gridX', "Grid X (mm)"), 'gridX', data.gridX, 1);
+			numRow(localize('typesLib.gridY', "Grid Y (mm)"), 'gridY', data.gridY, 1);
 		} else if (entry.category === 'curtainWall') {
 			numRow(localize('typesLib.glassThickness', "Glass thickness (mm)"), 'glassThickness', data.glassThickness ?? 12, 1);
 			numRow(localize('typesLib.mullionSpacing', "Mullion spacing (mm)"), 'mullionSpacing', data.mullionSpacing ?? 1500, 1);

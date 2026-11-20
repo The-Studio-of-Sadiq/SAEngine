@@ -260,7 +260,18 @@ def architecture_loads(
     if apply_walls:
         curtain_types = {t.id: t for t in arch.curtainWallTypes}
         for curtain in arch.curtainWalls:
-            _wall(curtain, curtain_types[curtain.type], [], context, out, partition=False)
+            cw_type = curtain_types[curtain.type]
+            layout = arch_lib.curtain_wall_layout(arch, curtain, context.elevations)
+            if layout is not None and layout.detailed:
+                class _CurtainAdapter:
+                    id = cw_type.id
+                    thickness = layout.depth
+                    locationLine = "center"
+                    weight = layout.weight_per_m2
+
+                _wall(curtain, _CurtainAdapter(), [], context, out, partition=False)
+            else:
+                _wall(curtain, cw_type, [], context, out, partition=False)
         railing_types = {t.id: t for t in arch.railingTypes}
         for railing in arch.railings:
             railing_type = railing_types[railing.type]
@@ -399,7 +410,9 @@ def _ramps_and_roofs(
                 f"{roof.id}: rooms or ramps cover all of it; its loads are not applied"
             )
             continue
-        covering = roof_types[roof.type].weight / math.cos(math.radians(roof.slope))
+        plan_area, sloped_area = arch_lib.roof_area(roof)
+        ratio = sloped_area / plan_area if plan_area > 0 else 1.0
+        covering = roof_types[roof.type].weight * ratio
         live = _live_of(roof, uses, out)
         out.rooms.append(RoomLoad(roof.id, roof.story, level, polygon, covering, live))
         out.room_rows.append(
