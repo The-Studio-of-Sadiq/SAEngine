@@ -297,7 +297,7 @@ def _category(group: str, kind: str | None) -> Category | None:
         return "foundations"
     if group == "masonry":
         return "masonry"
-    if group == "finishes" or kind in ("door", "window", "plaster", "filling"):
+    if group in ("finishes", "furniture") or kind in ("door", "window", "plaster", "filling"):
         return "finishes"
     if group == "mep":
         return "mep"

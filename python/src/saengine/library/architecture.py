@@ -34,7 +34,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from saengine.library.components import ComponentInstance, ComponentType, starter_component_types
 from saengine.library.labels import field_title
+from saengine.library.massing import ConceptualMass, InPlaceElement
 from saengine.library.materials import Id
 
 SCHEMA_ID = "saengine.architecture/1"
@@ -103,6 +105,30 @@ class DoorType(_Model):
     width: Length = Field(description="Clear opening width [mm].")
     height: Length = Field(description="Clear opening height [mm].")
     frame: Length = Field(default=50, description="Frame width [mm].")
+    leafCount: int | None = Field(
+        default=None, ge=1, le=4, title="Leaf count", description="Number of door leaves/panels."
+    )
+    swing: Literal["left", "right", "both", "none"] | None = Field(
+        default=None,
+        title="Swing",
+        description="Hinge side or swing direction (left, right, both for double, none for sliding).",
+    )
+    sill: Mm = Field(default=0, ge=0, description="Threshold/sill height above floor [mm].")
+    lintel: Length | None = Field(
+        default=None, description="Optional lintel depth above the door [mm]."
+    )
+
+    @property
+    def resolved_leaf_count(self) -> int:
+        if self.leafCount is not None:
+            return self.leafCount
+        return 2 if self.style in ("double", "sliding") else 1
+
+    @property
+    def resolved_swing(self) -> str:
+        if self.swing is not None:
+            return self.swing
+        return {"single": "left", "double": "both", "sliding": "none"}[self.style]
 
 
 class WindowType(_Model):
@@ -118,6 +144,29 @@ class WindowType(_Model):
     height: Length
     sill: Mm = Field(default=900, ge=0, description="Sill height above the floor [mm].")
     frame: Length = Field(default=50, description="Frame width [mm].")
+    leafCount: int | None = Field(
+        default=None, ge=1, le=6, title="Leaf count", description="Number of sashes/panels."
+    )
+    swing: Literal["inward", "outward", "left", "right", "none"] | None = Field(
+        default=None,
+        title="Swing",
+        description="Opening direction (inward, outward, left, right, or none for fixed).",
+    )
+    lintel: Length | None = Field(
+        default=None, description="Optional lintel depth above the window [mm]."
+    )
+
+    @property
+    def resolved_leaf_count(self) -> int:
+        if self.leafCount is not None:
+            return self.leafCount
+        return 2 if self.style == "sliding" else 1
+
+    @property
+    def resolved_swing(self) -> str:
+        if self.swing is not None:
+            return self.swing
+        return {"fixed": "none", "casement": "outward", "sliding": "none"}[self.style]
 
 
 class FinishType(_Model):
@@ -410,6 +459,9 @@ class Architecture(_Model):
     )
     roofTypes: list[RoofType] = Field(default_factory=list, title="Roof types")
     railingTypes: list[RailingType] = Field(default_factory=list, title="Railing types")
+    componentTypes: list[ComponentType] = Field(
+        default_factory=list, title="Component types"
+    )
     walls: list[ArchWall] = Field(default_factory=list)
     doors: list[Door] = Field(default_factory=list)
     windows: list[Window] = Field(default_factory=list)
@@ -419,6 +471,11 @@ class Architecture(_Model):
     roofs: list[Roof] = Field(default_factory=list)
     ramps: list[Ramp] = Field(default_factory=list)
     railings: list[Railing] = Field(default_factory=list)
+    components: list[ComponentInstance] = Field(default_factory=list)
+    masses: list[ConceptualMass] = Field(default_factory=list)
+    inPlaceElements: list[InPlaceElement] = Field(
+        default_factory=list, title="In-place elements"
+    )
     imports: list[DrawingImport] = Field(
         default_factory=list,
         title="Drawing imports",
@@ -436,6 +493,9 @@ class Architecture(_Model):
             *self.roofs,
             *self.ramps,
             *self.railings,
+            *self.components,
+            *self.masses,
+            *self.inPlaceElements,
         ]
 
     @model_validator(mode="after")
@@ -448,6 +508,7 @@ class Architecture(_Model):
             ("curtain wall type", self.curtainWallTypes),
             ("roof type", self.roofTypes),
             ("railing type", self.railingTypes),
+            ("component type", self.componentTypes),
         ):
             ids = [t.id for t in items]
             duplicates = sorted({i for i in ids if ids.count(i) > 1})
@@ -514,6 +575,16 @@ class Architecture(_Model):
         for ramp in self.ramps:
             if ramp.finish is not None and finishes.get(ramp.finish) != "floor":
                 raise ValueError(f"{ramp.id}: no floor finish '{ramp.finish}'")
+        component_types = {t.id for t in self.componentTypes}
+        room_ids = {r.id for r in self.rooms}
+        for comp in self.components:
+            if comp.type not in component_types:
+                raise ValueError(f"{comp.id}: no component type '{comp.type}'")
+            if comp.hostRoom is not None and comp.hostRoom not in room_ids:
+                raise ValueError(f"{comp.id}: no host room '{comp.hostRoom}'")
+        for elem in self.inPlaceElements:
+            if elem.hostRoom is not None and elem.hostRoom not in room_ids:
+                raise ValueError(f"{elem.id}: no host room '{elem.hostRoom}'")
         return self
 
 
@@ -633,6 +704,10 @@ def default_architecture() -> Architecture:
                     "weight": 0.5,
                     "width": 20,
                 },
+            ],
+            "componentTypes": [
+                t.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for t in starter_component_types()
             ],
         }
     )
@@ -881,7 +956,7 @@ def check(arch: Architecture, floor_plan: Any = None) -> list[str]:
                     problems.append(f"{curtain.id}: no story '{story}'")
             if wall_levels(curtain, elevations) is None and curtain.base in elevations:
                 problems.append(f"{curtain.id}: no story above to rise to; give its height")
-        for item in [*arch.roofs, *arch.ramps]:
+        for item in [*arch.roofs, *arch.ramps, *arch.components, *arch.inPlaceElements]:
             if item.story not in elevations:
                 problems.append(f"{item.id}: no story '{item.story}'")
         for railing in arch.railings:

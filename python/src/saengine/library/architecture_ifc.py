@@ -66,6 +66,29 @@ _WINDOW_PARTITIONING = {
     "sliding": "DOUBLE_PANEL_VERTICAL",
 }
 
+
+def _door_operation(door_type: DoorType) -> str:
+    swing = door_type.resolved_swing
+    leaves = door_type.resolved_leaf_count
+    if door_type.style == "sliding":
+        if swing == "right":
+            return "SLIDING_TO_RIGHT"
+        return "SLIDING_TO_LEFT"
+    if leaves >= 2 or door_type.style == "double":
+        return "DOUBLE_DOOR_SINGLE_SWING"
+    if swing == "right":
+        return "SINGLE_SWING_RIGHT"
+    return _DOOR_OPERATION.get(door_type.style, "SINGLE_SWING_LEFT")
+
+
+def _window_partitioning(window_type: WindowType) -> str:
+    leaves = window_type.resolved_leaf_count
+    if leaves >= 3:
+        return "TRIPLE_PANEL_VERTICAL"
+    if leaves == 2:
+        return "DOUBLE_PANEL_VERTICAL"
+    return _WINDOW_PARTITIONING.get(window_type.style, "SINGLE_PANEL")
+
 #: Unit weights [kN/m³] guessed from a material's name, for imported wall layers.
 _UNIT_WEIGHTS = (
     (re.compile(r"brick|masonry|clay", re.IGNORECASE), 18.85),
@@ -222,26 +245,62 @@ def export_architecture(
         if is_door:
             door_type: DoorType = next(t for t in arch.doorTypes if t.id == opening.type)
             product = w.entity("IfcDoor", opening.id, f"arch:{opening.id}", "DOOR")
-            product.OperationType = _DOOR_OPERATION[door_type.style]
+            op_type = _door_operation(door_type)
+            product.OperationType = op_type
             leaf = _DOOR_LEAF
             relating = element_type(
                 "IfcDoorType",
                 door_type.id,
                 door_type.name,
                 PredefinedType="DOOR",
-                OperationType=_DOOR_OPERATION[door_type.style],
+                OperationType=op_type,
+            )
+            type_props = w.run(
+                "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
+            )
+            w.run(
+                "pset.edit_pset",
+                w.file,
+                pset=type_props,
+                properties={
+                    "FrameWidth": float(door_type.frame),
+                    "LeafCount": int(door_type.resolved_leaf_count),
+                    "Swing": door_type.resolved_swing,
+                    "Sill": float(door_type.sill),
+                    **({"Lintel": float(door_type.lintel)} if door_type.lintel is not None else {}),
+                },
             )
         else:
             window_type: WindowType = next(t for t in arch.windowTypes if t.id == opening.type)
             product = w.entity("IfcWindow", opening.id, f"arch:{opening.id}", "WINDOW")
-            product.PartitioningType = _WINDOW_PARTITIONING[window_type.style]
+            part_type = _window_partitioning(window_type)
+            product.PartitioningType = part_type
             leaf = _WINDOW_FRAME
             relating = element_type(
                 "IfcWindowType",
                 window_type.id,
                 window_type.name,
                 PredefinedType="WINDOW",
-                PartitioningType=_WINDOW_PARTITIONING[window_type.style],
+                PartitioningType=part_type,
+            )
+            type_props = w.run(
+                "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
+            )
+            w.run(
+                "pset.edit_pset",
+                w.file,
+                pset=type_props,
+                properties={
+                    "FrameWidth": float(window_type.frame),
+                    "LeafCount": int(window_type.resolved_leaf_count),
+                    "Swing": window_type.resolved_swing,
+                    "Sill": float(window_type.sill),
+                    **(
+                        {"Lintel": float(window_type.lintel)}
+                        if window_type.lintel is not None
+                        else {}
+                    ),
+                },
             )
         product.Tag = opening.id
         product.ObjectType = opening.type
@@ -347,6 +406,12 @@ def export_architecture(
             )
 
     _export_extras(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    from saengine.library.components import export_components_ifc
+    from saengine.library.massing import export_in_place_ifc, export_masses_ifc
+
+    export_components_ifc(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    export_in_place_ifc(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    export_masses_ifc(w, arch, ids, skipped, pset)
 
 
 def _export_extras(
@@ -1077,6 +1142,9 @@ def architecture_summary(arch: Architecture) -> dict[str, int]:
         "roofs": len(arch.roofs),
         "ramps": len(arch.ramps),
         "railings": len(arch.railings),
+        "components": len(arch.components),
+        "masses": len(arch.masses),
+        "inPlaceElements": len(arch.inPlaceElements),
     }
 
 

@@ -159,12 +159,25 @@ class RoomLoad:
     live: float | None
 
 
+@dataclass(frozen=True)
+class ComponentLoad:
+    """An explicitly modelled component weight on a slab: ``force`` [N, down] at ``(x, y)`` [m]."""
+
+    source: str
+    slab: str
+    x: float
+    y: float
+    force: float
+    case: str = "SD"
+
+
 @dataclass
 class ArchitectureLoads:
     lines: list[MemberLineLoad] = field(default_factory=list)  # on beams, case SD
     points: list[MemberPointLoad] = field(default_factory=list)  # walls crossing beams
     slabs: list[SlabWallLoad] = field(default_factory=list)
     rooms: list[RoomLoad] = field(default_factory=list)
+    component_loads: list[ComponentLoad] = field(default_factory=list)
     #: Beam id -> points (mm) where pieces start or stop inside it (the beam is split there).
     cuts: dict[str, list[tuple[float, float, float]]] = field(default_factory=dict)
     #: Story ids where interior partitions are drawn: the flat partition allowance is dropped
@@ -175,22 +188,32 @@ class ArchitectureLoads:
     partitions: dict[str, dict[str, float]] = field(default_factory=dict)
     wall_rows: list[dict[str, Any]] = field(default_factory=list)
     room_rows: list[dict[str, Any]] = field(default_factory=list)
+    component_rows: list[dict[str, Any]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def summary(self, mode: str) -> dict[str, Any]:
         """The rows for the Floor Plan's Loads panel and the report (kept with the derivation)."""
-        return {
+        out: dict[str, Any] = {
             "mode": mode,
             "walledStories": sorted(self.walled),
             "walls": self.wall_rows,
             "rooms": self.room_rows,
         }
+        if self.component_rows:
+            out["components"] = self.component_rows
+        return out
 
 
 def has_loads(arch: arch_lib.Architecture | None) -> bool:
-    return arch is not None and bool(
-        arch.walls or arch.rooms or arch.curtainWalls or arch.roofs or arch.ramps or arch.railings
-    )
+    if arch is None:
+        return False
+    if arch.walls or arch.rooms or arch.curtainWalls or arch.roofs or arch.ramps or arch.railings:
+        return True
+    if arch.components or arch.inPlaceElements:
+        from saengine.library.components import explicit_furnishings_allowed
+
+        return explicit_furnishings_allowed()
+    return False
 
 
 def finish_weight(finish: arch_lib.FinishType, wet: bool) -> float:
@@ -296,6 +319,9 @@ def architecture_loads(
             }
         )
     _ramps_and_roofs(arch, elevations, uses, finishes, out)
+    from saengine.library.components import component_loads
+
+    component_loads(arch, building, out, mode)
     return out
 
 
@@ -708,23 +734,24 @@ def _lines(geometry: Any) -> list[Any]:
 
 def panel_pressures(loads: ArchitectureLoads, slab: SlabElement) -> tuple[float, list[str]]:
     """The uniform SD pressure [N/m²] on a slab panel (slabs as loads to beams) for the walls
-    on it: the larger of their weight over its area and the code pack's share (33 %) of the
-    heaviest wall's weight per metre run (``areaLoads.partitions``), and the walls."""
+    and any explicitly modelled components on it."""
     on = [w for w in loads.slabs if w.slab == slab.id]
-    if not on:
+    comp_on = [c for c in loads.component_loads if c.slab == slab.id]
+    if not on and not comp_on:
         return 0.0, []
     area = Polygon(slab.boundary).area * 1e-6  # m²
     if area <= 0:
         return 0.0, []
-    total = sum(w.load * math.dist(w.start, w.end) for w in on)  # N
-    share, light, _ = partition_rule()
-    # The uniform equivalent is the code's for light partitions only (the default pack's Part 6
-    # Sec 2.3.6, p. 540: at most 5.5 kN/m a run); a heavier wall is its weight in place (Sec
-    # 2.2.5), here its total over the panel (R2: 8.75 kN/m spread as 0.33 x 8.75 = 2.89 kN/m²
-    # put 87 kN on a 30 m² panel for a 44 kN wall), with the note to model it as shells.
-    lights = [w.load for w in on if w.load <= light * KN + 1e-6]
-    equivalent = share * max(lights) if lights else 0.0
-    return max(total / area, equivalent), sorted({w.source for w in on})
+    wall_pressure = 0.0
+    if on:
+        total = sum(w.load * math.dist(w.start, w.end) for w in on)  # N
+        share, light, _ = partition_rule()
+        lights = [w.load for w in on if w.load <= light * KN + 1e-6]
+        equivalent = share * max(lights) if lights else 0.0
+        wall_pressure = max(total / area, equivalent)
+    comp_pressure = sum(c.force for c in comp_on) / area if comp_on else 0.0
+    sources = sorted({w.source for w in on} | {c.source for c in comp_on})
+    return wall_pressure + comp_pressure, sources
 
 
 def room_shares(loads: ArchitectureLoads, slab: SlabElement) -> list[tuple[RoomLoad, float]]:

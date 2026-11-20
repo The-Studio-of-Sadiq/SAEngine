@@ -155,6 +155,9 @@ def measure_architecture(measure: Any, arch: arch_lib.Architecture, objects: Any
 
     _rooms(measure, arch, building, hosted, sizes)
     _extras(measure, arch, building)
+    from saengine.library.components import measure_components
+
+    measure_components(measure, arch, building)
 
     for opening in [*arch.doors, *arch.windows]:
         door = isinstance(opening, arch_lib.Door)
@@ -400,4 +403,6 @@ def has_content(arch: arch_lib.Architecture | None) -> bool:
         or arch.roofs
         or arch.ramps
         or arch.railings
+        or arch.components
+        or arch.inPlaceElements
     )

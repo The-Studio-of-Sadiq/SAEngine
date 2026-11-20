@@ -114,6 +114,9 @@ class Opening:
     thickness: float  # of the wall
     flip: bool = False
     segment: int = 0  # the piece of the wall's centre line it is in
+    leaf_count: int = 1
+    swing: str = "left"
+    lintel: float | None = None
 
     def at(self, u: float, v: float) -> Point:
         """The point ``u`` along the wall from the centre and ``v`` to its left."""
@@ -222,6 +225,9 @@ def wall_geometry(arch: Any, building: Building) -> list[WallGeometry]:
                     host.thickness,
                     bool(getattr(item, "flip", False)),
                     _segment_at(host.centre, item.offset),
+                    getattr(t, "resolved_leaf_count", 1),
+                    getattr(t, "resolved_swing", "left"),
+                    getattr(t, "lintel", None),
                 )
             )
     return out
@@ -400,6 +406,7 @@ def _swing(view: View, o: Opening, hinge: float, length: float, sense: int, side
 
 def _opening_in_plan(view: View, o: Opening) -> None:
     h, t = o.width / 2, o.thickness / 2
+    frame = min(o.frame, o.width / 4)
     if o.kind == "window":
         above = {"linetype": "HIDDEN"} if o.sill >= CUT else {}
         for v in (-t, 0.0, t):
@@ -407,18 +414,37 @@ def _opening_in_plan(view: View, o: Opening) -> None:
         if not above:
             for u in (-h, h):
                 view.line(o.at(u, -t), o.at(u, t), "A-GLAZ")
+            if frame > 0:
+                for u in (-h + frame, h - frame):
+                    view.line(o.at(u, -t), o.at(u, t), "A-GLAZ")
+            leaves = max(1, o.leaf_count)
+            for k in range(1, leaves):
+                u = -h + o.width * k / leaves
+                view.line(o.at(u, -t * 0.6), o.at(u, t * 0.6), "A-GLAZ")
         view.reserve([o.at(-h, -t), o.at(h, t)])
         return
     for u in (-h, h):
         view.line(o.at(u, -t), o.at(u, t), "A-DOOR")
+    if frame > 0:
+        for u in (-h + frame, h - frame):
+            view.line(o.at(u, -t), o.at(u, t), "A-DOOR")
     side = -1 if o.flip else 1
-    if o.style == "double":
+    if o.swing == "inward":
+        side = -side
+    if o.style == "double" or o.leaf_count >= 2 and o.style != "sliding":
         _swing(view, o, -h, h, 1, side)
         _swing(view, o, h, h, -1, side)
     elif o.style == "sliding":
-        view.line(o.at(-h, t / 3), o.at(h * 0.1, t / 3), "A-DOOR")
-        view.line(o.at(-h * 0.1, -t / 3), o.at(h, -t / 3), "A-DOOR")
+        panels = max(2, o.leaf_count)
+        step = o.width / panels
+        for k in range(panels):
+            u0 = -h + k * step * 0.9
+            u1 = min(h, u0 + step * 1.1)
+            v = (t / 3) if k % 2 == 0 else (-t / 3)
+            view.line(o.at(u0, v), o.at(u1, v), "A-DOOR")
         view.reserve([o.at(-h, -t), o.at(h, t)])
+    elif o.swing == "right":
+        _swing(view, o, h, o.width, -1, side)
     else:
         _swing(view, o, -h, o.width, 1, side)
 

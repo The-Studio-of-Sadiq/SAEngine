@@ -10,6 +10,21 @@ import { storiesOf } from '../../../services/saengineProject/common/floorPlanMem
 import { DEFAULT_ARCHITECTURE } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { distanceToSegment, insidePolygon } from './floorPlanDrawing.js';
 import { ISnapSegment, snapSegments } from './floorPlanSnap.js';
+import {
+	drawComponents,
+	drawInPlaceElements,
+	drawMasses,
+	IComponentInstance,
+	IComponentType,
+	IConceptualMass,
+	IInPlaceElement,
+	parseComponents,
+	parseComponentTypes,
+	parseInPlaceElements,
+	parseMasses,
+} from './architectureComponents.js';
+
+export type { IComponentInstance, IComponentType, IConceptualMass, IInPlaceElement } from './architectureComponents.js';
 
 /*
  * The architecture (`05 Floor Plan/architecture.json`, `saengine.library.architecture`): walls of
@@ -28,8 +43,14 @@ export interface IWallLayer { readonly material: string; readonly thickness: num
 export interface IWallType { readonly id: string; readonly name: string; readonly layers: readonly IWallLayer[]; readonly locationLine?: 'center' | 'left' | 'right' }
 export type DoorStyle = 'single' | 'double' | 'sliding';
 export type WindowStyle = 'fixed' | 'casement' | 'sliding';
-export interface IDoorType { readonly id: string; readonly name: string; readonly style?: DoorStyle; readonly width: number; readonly height: number; readonly frame?: number }
-export interface IWindowType { readonly id: string; readonly name: string; readonly style?: WindowStyle; readonly width: number; readonly height: number; readonly sill?: number; readonly frame?: number }
+export interface IDoorType {
+	readonly id: string; readonly name: string; readonly style?: DoorStyle; readonly width: number; readonly height: number; readonly frame?: number;
+	readonly leafCount?: number; readonly swing?: 'left' | 'right' | 'both' | 'none'; readonly sill?: number; readonly lintel?: number;
+}
+export interface IWindowType {
+	readonly id: string; readonly name: string; readonly style?: WindowStyle; readonly width: number; readonly height: number; readonly sill?: number; readonly frame?: number;
+	readonly leafCount?: number; readonly swing?: 'inward' | 'outward' | 'left' | 'right' | 'none'; readonly lintel?: number;
+}
 export interface IFinishType {
 	readonly id: string; readonly name: string; readonly kind: 'floor' | 'wall' | 'ceiling'; readonly thickness: number; readonly unitWeight: number;
 	/** A sunk slab's filling under the finish in wet rooms [mm], and its unit weight [kN/m³] (16 when not given). */
@@ -110,17 +131,22 @@ export interface IArchitecture {
 	readonly curtainWallTypes: readonly ICurtainWallType[];
 	readonly roofTypes: readonly IRoofType[];
 	readonly railingTypes: readonly IRailingType[];
+	readonly ceilingTypes?: readonly { readonly [key: string]: unknown }[];
+	readonly componentTypes?: readonly IComponentType[];
 	readonly curtainWalls: readonly ICurtainWall[];
 	readonly roofs: readonly IRoof[];
 	readonly ramps: readonly IRamp[];
 	readonly railings: readonly IRailing[];
+	readonly components?: readonly IComponentInstance[];
+	readonly masses?: readonly IConceptualMass[];
+	readonly inPlaceElements?: readonly IInPlaceElement[];
 }
 
 /** The kinds of things drawn and picked, by their list in the file. */
-export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators' | 'curtainWalls' | 'roofs' | 'ramps' | 'railings';
+export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators' | 'curtainWalls' | 'roofs' | 'ramps' | 'railings' | 'components' | 'masses' | 'inPlaceElements';
 
 /** Every kind, in the order of the file. */
-export const ARCH_KINDS: readonly ArchKind[] = ['walls', 'doors', 'windows', 'rooms', 'separators', 'curtainWalls', 'roofs', 'ramps', 'railings'];
+export const ARCH_KINDS: readonly ArchKind[] = ['walls', 'doors', 'windows', 'rooms', 'separators', 'curtainWalls', 'roofs', 'ramps', 'railings', 'components', 'masses', 'inPlaceElements'];
 
 export interface IArchRef { readonly kind: ArchKind; readonly id: string }
 
@@ -180,10 +206,14 @@ export function parseArchitecture(text: string): ArchitectureParse {
 			curtainWallTypes: list<ICurtainWallType>('curtainWallTypes', named),
 			roofTypes: list<IRoofType>('roofTypes', t => named(t) && Array.isArray(t.layers)),
 			railingTypes: list<IRailingType>('railingTypes', named),
+			componentTypes: parseComponentTypes(value.componentTypes),
 			curtainWalls: list<ICurtainWall>('curtainWalls', w => named(w) && typeof w.type === 'string' && typeof w.base === 'string' && Array.isArray(w.path) && w.path.length >= 2 && w.path.every(isPoint)),
 			roofs: list<IRoof>('roofs', r => named(r) && typeof r.type === 'string' && typeof r.story === 'string' && Array.isArray(r.outline) && r.outline.length >= 3 && r.outline.every(isPoint)),
 			ramps: list<IRamp>('ramps', r => named(r) && typeof r.story === 'string' && isPoint(r.start) && isPoint(r.end)),
 			railings: list<IRailing>('railings', r => named(r) && typeof r.type === 'string' && typeof r.base === 'string' && Array.isArray(r.path) && r.path.length >= 2 && r.path.every(isPoint)),
+			components: parseComponents(value.components),
+			masses: parseMasses(value.masses),
+			inPlaceElements: parseInPlaceElements(value.inPlaceElements),
 		},
 	};
 }
@@ -619,6 +649,8 @@ export const ARCH_LAYERS = {
 	roofs: 'A-ROOF',
 	ramps: 'A-FLOR-LEVL',
 	railings: 'A-FLOR-HRAL',
+	components: 'A-FURN',
+	masses: 'A-MASS',
 	labels: 'A-ANNO-NOTE',
 } as const;
 
@@ -633,6 +665,8 @@ export const ARCH_LAYER_SPECS: readonly CadLayerSpec[] = [
 	{ name: ARCH_LAYERS.roofs, color: 3, linetype: 'DASHED', description: 'Roofs' },
 	{ name: ARCH_LAYERS.ramps, color: 5, description: 'Ramps' },
 	{ name: ARCH_LAYERS.railings, color: 1, description: 'Railings' },
+	{ name: ARCH_LAYERS.components, color: 2, description: 'Furniture, casework and equipment' },
+	{ name: ARCH_LAYERS.masses, color: 6, linetype: 'DASHED', description: 'Conceptual masses' },
 	{ name: ARCH_LAYERS.labels, color: 7, description: 'Notes: roof slopes, ramp gradients' },
 ];
 
@@ -843,6 +877,10 @@ function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyM
 		}
 		shapes.push({ kind: 'railings', id: railing.id, points: wallOutline(railing.path.map(([x, y]) => [x, y] as CadPoint), Math.max(width, 100)), closed: true });
 	}
+
+	drawComponents(arch, story, ARCH_LAYERS.components, ARCH_LAYERS.labels, entities, shapes, problems);
+	drawInPlaceElements(arch, story, ARCH_LAYERS.components, ARCH_LAYERS.labels, entities, shapes);
+	drawMasses(arch, ARCH_LAYERS.masses, ARCH_LAYERS.labels, entities, shapes);
 }
 
 function square([x, y]: CadPoint, r: number): CadPoint[] {
@@ -877,11 +915,30 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 	line(at(-half, -t), at(-half, t));
 	line(at(half, -t), at(half, t));
 	if (kind === 'windows') {
+		const winType = arch.windowTypes.find(w => w.id === opening.type);
+		const frame = Math.min(winType?.frame ?? 50, width / 4);
+		const leaves = Math.max(1, winType?.leafCount ?? (winType?.style === 'sliding' ? 2 : 1));
 		line(at(-half, -t), at(half, -t));
 		line(at(-half, t), at(half, t));
 		line(at(-half, 0), at(half, 0));
+		if (frame > 0) {
+			line(at(-half + frame, -t), at(-half + frame, t));
+			line(at(half - frame, -t), at(half - frame, t));
+		}
+		for (let k = 1; k < leaves; k++) {
+			const u = -half + width * k / leaves;
+			line(at(u, -t * 0.6), at(u, t * 0.6));
+		}
 	} else {
-		const style = arch.doorTypes.find(d => d.id === opening.type)?.style ?? 'single';
+		const doorType = arch.doorTypes.find(d => d.id === opening.type);
+		const style = doorType?.style ?? 'single';
+		const frame = Math.min(doorType?.frame ?? 50, width / 4);
+		const leaves = Math.max(1, doorType?.leafCount ?? (style === 'double' || style === 'sliding' ? 2 : 1));
+		const swing = doorType?.swing;
+		if (frame > 0) {
+			line(at(-half + frame, -t), at(-half + frame, t));
+			line(at(half - frame, -t), at(half - frame, t));
+		}
 		const side = (opening as IDoor).flip ? -1 : 1;
 		const leaf = (hinge: number, length: number, sense: number) => {
 			// The open leaf at right angles to the wall, and its swing back to the jamb.
@@ -894,12 +951,19 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 			}
 			entities.push({ kind: 'polyline', layer, points, closed: false });
 		};
-		if (style === 'double') {
+		if (style === 'double' || (leaves >= 2 && style !== 'sliding')) {
 			leaf(-half, half, 1);
 			leaf(half, half, -1);
 		} else if (style === 'sliding') {
-			line(at(-half, t / 3), at(half * 0.1, t / 3));
-			line(at(-half * 0.1, -t / 3), at(half, -t / 3));
+			const step = width / Math.max(2, leaves);
+			for (let k = 0; k < Math.max(2, leaves); k++) {
+				const u0 = -half + k * step * 0.9;
+				const u1 = Math.min(half, u0 + step * 1.1);
+				const v = k % 2 === 0 ? t / 3 : -t / 3;
+				line(at(u0, v), at(u1, v));
+			}
+		} else if (swing === 'right') {
+			leaf(half, width, -1);
 		} else {
 			leaf(-half, width, 1);
 		}
@@ -907,9 +971,9 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 	return { entities, outline: [at(-half, -t), at(half, -t), at(half, t), at(-half, t)] };
 }
 
-/** The item of `shapes` at `point`: openings first, then walls, separators, rooms. */
+/** The item of `shapes` at `point`: openings and components first, then walls, separators, rooms, masses. */
 export function pickItem(shapes: readonly IArchShape[], point: CadPoint, tolerance: number): IArchShape | undefined {
-	for (const kind of ['doors', 'windows', 'railings', 'walls', 'curtainWalls', 'separators', 'ramps', 'rooms', 'roofs'] as const) {
+	for (const kind of ['doors', 'windows', 'components', 'inPlaceElements', 'railings', 'walls', 'curtainWalls', 'separators', 'ramps', 'rooms', 'roofs', 'masses'] as const) {
 		const hit = shapes.find(s => s.kind === kind && (s.closed ? insidePolygon(point, s.points) || nearOutline(s.points, point, tolerance) : distanceToSegment(point, s.points[0], s.points[1]) <= tolerance));
 		if (hit) {
 			return hit;
@@ -936,11 +1000,11 @@ export function structureUnder(layout: unknown, story: string, start: CadPoint, 
 
 export type ArchEdit = { readonly ok: true; readonly value: IArchitecture; readonly id: string } | { readonly ok: false; readonly error: string };
 
-const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS', curtainWalls: 'CW', roofs: 'RF', ramps: 'RP', railings: 'RL' };
+const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS', curtainWalls: 'CW', roofs: 'RF', ramps: 'RP', railings: 'RL', components: 'C', masses: 'M', inPlaceElements: 'IP' };
 
 /** The next free id of `kind`: AW1, AW2, ... (unique across all the items). */
 export function nextId(arch: IArchitecture, kind: ArchKind): string {
-	const used = new Set(ARCH_KINDS.flatMap(k => (arch[k] as readonly { readonly id: string }[]).map(i => i.id)));
+	const used = new Set(ARCH_KINDS.flatMap(k => ((arch[k] ?? []) as readonly { readonly id: string }[]).map(i => i.id)));
 	let n = 1;
 	while (used.has(`${PREFIX[kind]}${n}`)) {
 		n++;
@@ -1080,8 +1144,8 @@ const roundPoint = (p: CadPoint): CadPoint => [Math.round(p[0]), Math.round(p[1]
 
 /** `arch` without the item; a wall goes with its doors and windows. */
 export function removeItem(arch: IArchitecture, ref: IArchRef): IArchitecture {
-	const without = <T extends { readonly id: string }>(items: readonly T[]) => items.filter(i => i.id !== ref.id);
-	const next = { ...arch, [ref.kind]: without(arch[ref.kind] as readonly { readonly id: string }[]) };
+	const without = <T extends { readonly id: string }>(items: readonly T[] | undefined) => (items ?? []).filter(i => i.id !== ref.id);
+	const next = { ...arch, [ref.kind]: without(arch[ref.kind] as readonly { readonly id: string }[] | undefined) };
 	if (ref.kind === 'walls') {
 		return { ...next, doors: arch.doors.filter(d => d.wall !== ref.id), windows: arch.windows.filter(w => w.wall !== ref.id) };
 	}
@@ -1090,7 +1154,7 @@ export function removeItem(arch: IArchitecture, ref: IArchRef): IArchitecture {
 
 /** `arch` with fields of an item changed; `undefined` removes a field. */
 export function updateItem(arch: IArchitecture, ref: IArchRef, change: { readonly [field: string]: unknown }): IArchitecture {
-	const items = (arch[ref.kind] as unknown as readonly Json[]).map(item => {
+	const items = ((arch[ref.kind] ?? []) as unknown as readonly Json[]).map(item => {
 		if (item.id !== ref.id) {
 			return item;
 		}
@@ -1108,7 +1172,7 @@ export function updateItem(arch: IArchitecture, ref: IArchRef, change: { readonl
 }
 
 export function itemOf(arch: IArchitecture, ref: IArchRef): Json | undefined {
-	return (arch[ref.kind] as unknown as readonly Json[]).find(i => i.id === ref.id);
+	return ((arch[ref.kind] ?? []) as unknown as readonly Json[]).find(i => i.id === ref.id);
 }
 
 /** Counts of the story's items, for the status line. */

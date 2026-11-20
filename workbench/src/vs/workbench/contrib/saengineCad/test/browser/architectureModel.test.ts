@@ -6,7 +6,8 @@
 import assert from 'assert';
 import type { CadPoint } from '@saengine/cad-editor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ArchEdit, curtainWeight, rampGradient, roofWeight, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
+import { addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ArchEdit, curtainWeight, rampGradient, roofWeight, architectureDrawing, findRoom, IArchitecture, insetPolygon, newArchitecture, nextId, offsetPath, parseArchitecture, pickItem, removeItem, storyCounts, structureUnder, updateItem, wallLevels, wallSnapSegments } from '../../browser/architectureModel.js';
+import { addComponent, addMass, deleteArchType, duplicateArchType, exportTypesLibrary, importTypesLibrary, massFloorAreaSummary, massVolumeM3, mirrorComponent, renameArchType } from '../../browser/architectureComponents.js';
 import { snapLinear } from '../../browser/floorPlanSnap.js';
 
 suite('SAEngine - Architecture', () => {
@@ -175,5 +176,51 @@ suite('SAEngine - Architecture', () => {
 		assert.strictEqual(architectureDrawing(arch, 'L2', elevations).shapes.some(s => s.kind === 'roofs'), true);
 		assert.deepStrictEqual(removeItem(arch, { kind: 'roofs', id: 'RF1' }).roofs, []);
 		assert.strictEqual(parseArchitecture(JSON.stringify(arch)).kind, 'ok');
+	});
+
+	test('components, host rooms, mirror, mass floors, loft prismoid volume and types library', () => {
+		let arch = flat();
+		arch = value(addRoom(arch, 'L1', [1500, 2500], elevations, 'Bed'));
+		arch = value(addRoom(arch, 'L1', [4500, 2500], elevations, 'Study'));
+		const drawingBefore = architectureDrawing(arch, 'L1', elevations);
+		const compRes = addComponent(arch, 'BED-DBL', 'L1', [1500, 2500], nextId(arch, 'components'), drawingBefore.rooms);
+		assert.ok(compRes.ok);
+		arch = compRes.value;
+		assert.strictEqual(arch.components?.[0].hostRoom, 'R1');
+
+		const mirrorRes = mirrorComponent(arch, 'C1', [3000, 0], [3000, 5000], nextId(arch, 'components'), drawingBefore.rooms);
+		assert.ok(mirrorRes.ok);
+		arch = mirrorRes.value;
+		assert.strictEqual(arch.components?.[1].hostRoom, 'R2');
+		assert.strictEqual(arch.components?.[1].mirrored, true);
+
+		const massRes = addMass(arch, [[0, 0], [20000, 0], [20000, 15000], [0, 15000]], 30000, nextId(arch, 'masses'), 0, 3000);
+		assert.ok(massRes.ok);
+		arch = massRes.value;
+		const summary = massFloorAreaSummary(arch.masses![0]);
+		assert.strictEqual(summary.floorCount, 10);
+		assert.ok(Math.abs(summary.grossFloorArea - 3000) < 1e-6);
+
+		const loftVol = massVolumeM3({
+			id: 'M2',
+			kind: 'loft',
+			height: 30000,
+			baseOutline: [[0, 0], [20000, 0], [20000, 15000], [0, 15000]],
+			topOutline: [[5000, 2500], [15000, 2500], [15000, 12500], [5000, 12500]],
+		});
+		assert.ok(Math.abs(loftVol - 5750) < 1e-6);
+
+		// Types library: delete used refused, duplicate + rename cascades, export -> import round trip
+		assert.strictEqual(deleteArchType(arch, 'component', 'BED-DBL').ok, false);
+		const dup = duplicateArchType(arch, 'door', 'D1', 'D1-COPY');
+		assert.ok(dup.ok);
+		arch = dup.value;
+		const ren = renameArchType(arch, 'component', 'BED-DBL', 'BED-QUEEN');
+		assert.ok(ren.ok);
+		arch = ren.value;
+		assert.strictEqual(arch.components?.[0].type, 'BED-QUEEN');
+		const lib = exportTypesLibrary(arch);
+		const imp = importTypesLibrary(newArchitecture(), lib, false);
+		assert.ok(imp.ok && imp.value.componentTypes?.some(t => t.id === 'BED-QUEEN'));
 	});
 });

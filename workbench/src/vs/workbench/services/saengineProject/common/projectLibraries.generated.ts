@@ -38463,6 +38463,455 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'ArchWall',
 			type: 'object',
 		},
+		ComponentInstance: {
+			additionalProperties: false,
+			description: 'A placed instance of a :class:`ComponentType` on a story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Component type',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				point: {
+					description: 'Insertion centre [x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Point',
+					type: 'array',
+				},
+				rotation: {
+					default: 0.0,
+					description: 'Plan rotation CCW [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				mirrored: {
+					default: false,
+					description: 'Mirrored across local Y axis before rotation.',
+					title: 'Mirrored',
+					type: 'boolean',
+				},
+				elevation: {
+					default: 0.0,
+					description: 'Offset above the story level [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+				hostRoom: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Id of the room enclosing this component.',
+					title: 'Host room',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					description: 'Instance parameter overrides.',
+					title: 'Parameters',
+					type: 'object',
+				},
+			},
+			required: ['id', 'type', 'story', 'point'],
+			title: 'ComponentInstance',
+			type: 'object',
+		},
+		ComponentType: {
+			additionalProperties: false,
+			description: 'Parametric component type definition (no family editor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				category: {
+					default: 'furniture',
+					enum: ['furniture', 'casework', 'plumbingFixture', 'equipment', 'generic'],
+					title: 'Category',
+					type: 'string',
+				},
+				width: {
+					description: 'Overall plan X extent [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					description: 'Overall plan Y extent [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				height: {
+					description: 'Overall Z height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				weight: {
+					default: 0.0,
+					description: 'Mass [kg].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				material: {
+					default: '',
+					description: 'Primary material description.',
+					title: 'Material',
+					type: 'string',
+				},
+				symbol2d: {
+					description: 'Simple outline primitives in local mm (origin at centre).',
+					items: {
+						oneOf: [
+							{
+								$ref: '#/$defs/SymbolLine',
+							},
+							{
+								$ref: '#/$defs/SymbolRect',
+							},
+							{
+								$ref: '#/$defs/SymbolCircle',
+							},
+							{
+								$ref: '#/$defs/SymbolPolyline',
+							},
+						],
+					},
+					title: '2D plan symbol',
+					type: 'array',
+				},
+				representation3d: {
+					default: 'box',
+					description: 'Simple 3D solid representation used in BIM/IFC export.',
+					enum: ['box', 'cylinder', 'extrusion'],
+					title: '3D representation',
+					type: 'string',
+				},
+				extrusionOutline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline [mm] in local coordinates when representation3d is extrusion.',
+					title: 'Extrusion outline',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					description: 'Default parametric attributes (type properties).',
+					title: 'Parameters',
+					type: 'object',
+				},
+				ifcClass: {
+					anyOf: [
+						{
+							enum: ['IfcFurniture', 'IfcSanitaryTerminal', 'IfcFlowTerminal', 'IfcBuildingElementProxy'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override default IFC class for this component\'s category.',
+					title: 'IFC class',
+				},
+				ifcPredefinedType: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional IFC4 PredefinedType (e.g. BED, CHAIR, TOILETPAN).',
+					title: 'IFC predefined type',
+				},
+			},
+			required: ['id', 'name', 'width', 'depth', 'height'],
+			title: 'ComponentType',
+			type: 'object',
+		},
+		ConceptualMass: {
+			additionalProperties: false,
+			description: 'A conceptual architectural mass volume (excluded from structural analysis).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: 'Mass',
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'extrusion',
+					enum: ['extrusion', 'box', 'cylinder', 'loft'],
+					title: 'Kind',
+					type: 'string',
+				},
+				baseElevation: {
+					default: 0.0,
+					description: 'Base elevation [mm].',
+					title: 'Base elevation',
+					type: 'number',
+				},
+				height: {
+					description: 'Height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan polygon [mm] for extrusion.',
+					title: 'Outline',
+				},
+				origin: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre [x, y] in mm for box.',
+					title: 'Origin',
+				},
+				width: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Box X width [mm].',
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Box Y depth [mm].',
+					title: 'Depth',
+				},
+				rotation: {
+					default: 0.0,
+					description: 'Plan rotation CCW [°] for box.',
+					title: 'Rotation',
+					type: 'number',
+				},
+				center: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre [x, y] in mm for cylinder.',
+					title: 'Center',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cylinder radius [mm].',
+					title: 'Radius',
+				},
+				baseOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bottom polygon [mm] for loft.',
+					title: 'Base outline',
+				},
+				topOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Top polygon [mm] for loft.',
+					title: 'Top outline',
+				},
+				floorHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional uniform mass-floor spacing [mm] when slicing floors.',
+					title: 'Floor height',
+				},
+				use: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional planning use key (e.g. residential, commercial).',
+					title: 'Use',
+				},
+			},
+			required: ['id', 'height'],
+			title: 'ConceptualMass',
+			type: 'object',
+		},
 		CurtainWall: {
 			additionalProperties: false,
 			description: 'A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type\n(``type``); doors and windows are not hosted in it (its glazing is its own).',
@@ -38727,6 +39176,57 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Frame',
 					type: 'number',
 				},
+				leafCount: {
+					anyOf: [
+						{
+							maximum: 4,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of door leaves/panels.',
+					title: 'Leaf count',
+				},
+				swing: {
+					anyOf: [
+						{
+							enum: ['left', 'right', 'both', 'none'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hinge side or swing direction (left, right, both for double, none for sliding).',
+					title: 'Swing',
+				},
+				sill: {
+					default: 0,
+					description: 'Threshold/sill height above floor [mm].',
+					minimum: 0,
+					title: 'Sill',
+					type: 'number',
+				},
+				lintel: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional lintel depth above the door [mm].',
+					title: 'Lintel',
+				},
 			},
 			required: ['id', 'name', 'width', 'height'],
 			title: 'DoorType',
@@ -38865,6 +39365,230 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'kind', 'thickness', 'unitWeight'],
 			title: 'FinishType',
+			type: 'object',
+		},
+		InPlaceElement: {
+			additionalProperties: false,
+			description: 'A one-off in-place architectural element with custom geometry, category and parameters.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				category: {
+					default: 'generic',
+					enum: ['furniture', 'casework', 'plumbingFixture', 'equipment', 'generic'],
+					title: 'Category',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				geometry: {
+					default: 'extrusion',
+					enum: ['extrusion', 'box', 'cylinder', 'loft'],
+					title: 'Geometry',
+					type: 'string',
+				},
+				baseOffset: {
+					default: 0.0,
+					description: 'Offset above story level [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				height: {
+					description: 'Height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Outline',
+				},
+				origin: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Origin',
+				},
+				width: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Depth',
+				},
+				rotation: {
+					default: 0.0,
+					title: 'Rotation',
+					type: 'number',
+				},
+				center: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Center',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Radius',
+				},
+				baseOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Base outline',
+				},
+				topOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Top outline',
+				},
+				weight: {
+					default: 0.0,
+					description: 'Mass [kg].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				material: {
+					default: '',
+					title: 'Material',
+					type: 'string',
+				},
+				hostRoom: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Host room',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					title: 'Parameters',
+					type: 'object',
+				},
+			},
+			required: ['id', 'name', 'story', 'height'],
+			title: 'InPlaceElement',
 			type: 'object',
 		},
 		Railing: {
@@ -39339,6 +40063,143 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'RoomSeparator',
 			type: 'object',
 		},
+		SymbolCircle: {
+			additionalProperties: false,
+			description: 'A circle in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'circle',
+					default: 'circle',
+					title: 'Kind',
+					type: 'string',
+				},
+				center: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Center',
+					type: 'array',
+				},
+				radius: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Radius',
+					type: 'number',
+				},
+			},
+			required: ['radius'],
+			title: 'SymbolCircle',
+			type: 'object',
+		},
+		SymbolLine: {
+			additionalProperties: false,
+			description: 'A line segment in the component\'s local plan coordinates (mm, origin at centre).',
+			properties: {
+				kind: {
+					const: 'line',
+					default: 'line',
+					title: 'Kind',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+			},
+			required: ['start', 'end'],
+			title: 'SymbolLine',
+			type: 'object',
+		},
+		SymbolPolyline: {
+			additionalProperties: false,
+			description: 'A polyline (open or closed) in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'polyline',
+					default: 'polyline',
+					title: 'Kind',
+					type: 'string',
+				},
+				points: {
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Points',
+					type: 'array',
+				},
+				closed: {
+					default: false,
+					title: 'Closed',
+					type: 'boolean',
+				},
+			},
+			required: ['points'],
+			title: 'SymbolPolyline',
+			type: 'object',
+		},
+		SymbolRect: {
+			additionalProperties: false,
+			description: 'An axis-aligned rectangle centred at ``(x, y)`` in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'rect',
+					default: 'rect',
+					title: 'Kind',
+					type: 'string',
+				},
+				x: {
+					default: 0.0,
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0.0,
+					title: 'Y',
+					type: 'number',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+			},
+			required: ['width', 'depth'],
+			title: 'SymbolRect',
+			type: 'object',
+		},
 		WallLayer: {
 			additionalProperties: false,
 			description: 'One layer of a wall type, from the wall\'s left face to its right (seen along its path).',
@@ -39501,6 +40362,50 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Frame',
 					type: 'number',
 				},
+				leafCount: {
+					anyOf: [
+						{
+							maximum: 6,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of sashes/panels.',
+					title: 'Leaf count',
+				},
+				swing: {
+					anyOf: [
+						{
+							enum: ['inward', 'outward', 'left', 'right', 'none'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Opening direction (inward, outward, left, right, or none for fixed).',
+					title: 'Swing',
+				},
+				lintel: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional lintel depth above the window [mm].',
+					title: 'Lintel',
+				},
 			},
 			required: ['id', 'name', 'width', 'height'],
 			title: 'WindowType',
@@ -39564,6 +40469,13 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Railing types',
 			type: 'array',
 		},
+		componentTypes: {
+			items: {
+				$ref: '#/$defs/ComponentType',
+			},
+			title: 'Component types',
+			type: 'array',
+		},
 		walls: {
 			items: {
 				$ref: '#/$defs/ArchWall',
@@ -39625,6 +40537,27 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 				$ref: '#/$defs/Railing',
 			},
 			title: 'Railings',
+			type: 'array',
+		},
+		components: {
+			items: {
+				$ref: '#/$defs/ComponentInstance',
+			},
+			title: 'Components',
+			type: 'array',
+		},
+		masses: {
+			items: {
+				$ref: '#/$defs/ConceptualMass',
+			},
+			title: 'Masses',
+			type: 'array',
+		},
+		inPlaceElements: {
+			items: {
+				$ref: '#/$defs/InPlaceElement',
+			},
+			title: 'In-place elements',
 			type: 'array',
 		},
 		imports: {
@@ -39696,6 +40629,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 1000.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'D2',
@@ -39704,6 +40638,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 900.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'D3',
@@ -39712,6 +40647,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 750.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'DD',
@@ -39720,6 +40656,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 1500.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 	],
 	windowTypes: [
@@ -39841,6 +40778,553 @@ export const DEFAULT_ARCHITECTURE: object = {
 			postSpacing: 1200.0,
 		},
 	],
+	componentTypes: [
+		{
+			id: 'BED-DBL',
+			name: 'Double bed',
+			category: 'furniture',
+			width: 2000.0,
+			depth: 1600.0,
+			height: 550.0,
+			weight: 65.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2000.0,
+					depth: 1600.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: -380.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: 380.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -800.0],
+					end: [-450.0, 800.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				headboardHeight: 1000.0,
+				sizeLabel: 'Queen/Double',
+			},
+			ifcPredefinedType: 'BED',
+		},
+		{
+			id: 'BED-SGL',
+			name: 'Single bed',
+			category: 'furniture',
+			width: 2000.0,
+			depth: 1000.0,
+			height: 550.0,
+			weight: 40.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2000.0,
+					depth: 1000.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: 0.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -500.0],
+					end: [-450.0, 500.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				headboardHeight: 950.0,
+				sizeLabel: 'Single',
+			},
+			ifcPredefinedType: 'BED',
+		},
+		{
+			id: 'SOFA-3',
+			name: '3-seat sofa',
+			category: 'furniture',
+			width: 2100.0,
+			depth: 900.0,
+			height: 850.0,
+			weight: 55.0,
+			material: 'Fabric / timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2100.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -250.0],
+					end: [900.0, -250.0],
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -250.0],
+					end: [-900.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [900.0, -250.0],
+					end: [900.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [-300.0, -250.0],
+					end: [-300.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [300.0, -250.0],
+					end: [300.0, 450.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seats: 3.0,
+			},
+			ifcPredefinedType: 'SOFA',
+		},
+		{
+			id: 'TABLE-DIN',
+			name: 'Dining table',
+			category: 'furniture',
+			width: 1800.0,
+			depth: 900.0,
+			height: 750.0,
+			weight: 45.0,
+			material: 'Timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1680.0,
+					depth: 780.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seats: 6.0,
+			},
+			ifcPredefinedType: 'TABLE',
+		},
+		{
+			id: 'WARDROBE',
+			name: 'Wardrobe',
+			category: 'casework',
+			width: 1800.0,
+			depth: 600.0,
+			height: 2100.0,
+			weight: 95.0,
+			material: 'Engineered wood',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 600.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -300.0],
+					end: [900.0, 300.0],
+				},
+				{
+					kind: 'line',
+					start: [-900.0, 300.0],
+					end: [900.0, -300.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				doors: 3.0,
+				mount: 'floor',
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'CAB-BASE',
+			name: 'Kitchen cabinet run (base)',
+			category: 'casework',
+			width: 1800.0,
+			depth: 600.0,
+			height: 850.0,
+			weight: 60.0,
+			material: 'Engineered wood / stone',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 600.0,
+				},
+				{
+					kind: 'line',
+					start: [-300.0, -300.0],
+					end: [-300.0, 300.0],
+				},
+				{
+					kind: 'line',
+					start: [300.0, -300.0],
+					end: [300.0, 300.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'floor',
+				counterThickness: 30.0,
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'CAB-WALL',
+			name: 'Kitchen cabinet run (wall)',
+			category: 'casework',
+			width: 1800.0,
+			depth: 350.0,
+			height: 720.0,
+			weight: 35.0,
+			material: 'Engineered wood',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 350.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, 0.0],
+					end: [900.0, 0.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'wall',
+				mountingHeight: 1450.0,
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'WC',
+			name: 'Water closet (WC)',
+			category: 'plumbingFixture',
+			width: 380.0,
+			depth: 680.0,
+			height: 760.0,
+			weight: 32.0,
+			material: 'Vitreous china',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 240.0,
+					width: 380.0,
+					depth: 200.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, -100.0],
+					radius: 175.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 3.0,
+				flushLitres: 6.0,
+			},
+			ifcPredefinedType: 'TOILETPAN',
+		},
+		{
+			id: 'BASIN',
+			name: 'Wash basin',
+			category: 'plumbingFixture',
+			width: 550.0,
+			depth: 450.0,
+			height: 850.0,
+			weight: 18.0,
+			material: 'Vitreous china',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 550.0,
+					depth: 450.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, -20.0],
+					radius: 150.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 1.0,
+			},
+			ifcPredefinedType: 'WASHHANDBASIN',
+		},
+		{
+			id: 'SINK',
+			name: 'Kitchen sink',
+			category: 'plumbingFixture',
+			width: 1000.0,
+			depth: 500.0,
+			height: 850.0,
+			weight: 15.0,
+			material: 'Stainless steel',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1000.0,
+					depth: 500.0,
+				},
+				{
+					kind: 'rect',
+					x: -210.0,
+					y: 0.0,
+					width: 440.0,
+					depth: 380.0,
+				},
+				{
+					kind: 'circle',
+					center: [-210.0, 0.0],
+					radius: 25.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 2.0,
+				bowls: 1.0,
+			},
+			ifcPredefinedType: 'SINK',
+		},
+		{
+			id: 'SHOWER',
+			name: 'Shower tray',
+			category: 'plumbingFixture',
+			width: 900.0,
+			depth: 900.0,
+			height: 120.0,
+			weight: 28.0,
+			material: 'Acrylic / ceramic',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 900.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -450.0],
+					end: [450.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [-450.0, 450.0],
+					end: [450.0, -450.0],
+				},
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 35.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 2.0,
+			},
+			ifcPredefinedType: 'SHOWER',
+		},
+		{
+			id: 'DESK',
+			name: 'Office desk',
+			category: 'furniture',
+			width: 1400.0,
+			depth: 700.0,
+			height: 750.0,
+			weight: 32.0,
+			material: 'Engineered wood / steel',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1400.0,
+					depth: 700.0,
+				},
+				{
+					kind: 'line',
+					start: [-550.0, -350.0],
+					end: [-550.0, 350.0],
+				},
+				{
+					kind: 'line',
+					start: [550.0, -350.0],
+					end: [550.0, 350.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				cableTray: true,
+			},
+			ifcPredefinedType: 'DESK',
+		},
+		{
+			id: 'CHAIR',
+			name: 'Chair',
+			category: 'furniture',
+			width: 500.0,
+			depth: 500.0,
+			height: 850.0,
+			weight: 7.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 500.0,
+					depth: 500.0,
+				},
+				{
+					kind: 'line',
+					start: [-250.0, 170.0],
+					end: [250.0, 170.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seatHeight: 450.0,
+			},
+			ifcPredefinedType: 'CHAIR',
+		},
+		{
+			id: 'SHELF',
+			name: 'Shelving unit',
+			category: 'casework',
+			width: 1200.0,
+			depth: 350.0,
+			height: 1800.0,
+			weight: 40.0,
+			material: 'Steel / timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1200.0,
+					depth: 350.0,
+				},
+				{
+					kind: 'line',
+					start: [-600.0, -175.0],
+					end: [600.0, 175.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				shelves: 5.0,
+			},
+			ifcPredefinedType: 'SHELF',
+		},
+		{
+			id: 'AC-IDU',
+			name: 'AC indoor unit',
+			category: 'equipment',
+			width: 900.0,
+			depth: 220.0,
+			height: 300.0,
+			weight: 14.0,
+			material: 'ABS / metal',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 900.0,
+					depth: 220.0,
+				},
+				{
+					kind: 'line',
+					start: [-400.0, -60.0],
+					end: [400.0, -60.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'wall',
+				mountingHeight: 2200.0,
+				coolingKw: 5.2,
+			},
+		},
+		{
+			id: 'WH-ELEC',
+			name: 'Water heater',
+			category: 'equipment',
+			width: 450.0,
+			depth: 450.0,
+			height: 700.0,
+			weight: 55.0,
+			material: 'Enamelled steel',
+			symbol2d: [
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 225.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 60.0,
+				},
+			],
+			representation3d: 'cylinder',
+			parameters: {
+				capacityLitres: 50.0,
+				powerKw: 2.0,
+			},
+		},
+	],
 	walls: [],
 	doors: [],
 	windows: [],
@@ -39850,6 +41334,9 @@ export const DEFAULT_ARCHITECTURE: object = {
 	roofs: [],
 	ramps: [],
 	railings: [],
+	components: [],
+	masses: [],
+	inPlaceElements: [],
 	imports: [],
 };
 

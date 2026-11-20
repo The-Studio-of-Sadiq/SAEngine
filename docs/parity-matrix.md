@@ -355,10 +355,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Ramps and railings | ✓ | add-on | – | Verified | Straight ramps only. python/tests/test_architecture_extras.py::test_ramp_fill_finish_and_rooms_by_hand, ::test_curtain_wall_and_railing_on_a_beam_by_hand | 5 | Hand calculation of ramp fill and railing loads |
 | Rooms and spaces (area, finishes, occupancy), room separators | ✓ | add-on | – | Verified | Rooms by polygonize; gross and net areas asserted by hand in python/tests/test_architecture_extras.py; python/tests/test_architecture.py::test_separator_closes_an_open_plan | 5 | Hand room areas net of wall thickness |
 | Area statement, FAR, ground coverage, setbacks | ✓ (area plans) | – | – | Built, untested | python/src/saengine/gis/planning.py; python/tests/test_gis_planning.py, python/tests/test_gis_planning_code.py | 1 | Hand FAR and ground coverage for a sample plot against the authority's table |
-| Furniture, casework, generic components | ✓ | add-on | – | Missing | Searched furniture and casework in python/src/saengine/: nothing found | 5 | – |
-| Types library (object types; wall, door, window, finish, roof, railing types) | ✓ | add-on | – | Partial | python/src/saengine/library/objects.py, architecture.py types; door and window types are fixed parametric styles, not loadable families | 4 | – |
+| Furniture, casework, generic components | ✓ | add-on | – | Verified | python/src/saengine/library/components.py (ComponentType, starter library, host room, schedule, IFC); python/src/saengine/boq/architecture.py; python/tests/test_architecture_r2.py::test_place_bed_in_room_detects_host_and_counts_in_boq, ::test_schedule_three_chairs_and_one_table_across_two_rooms | 5 | Bed and chairs/table counts per room and IFC export |
+| Types library (object types; wall, door, window, finish, roof, railing types) | ✓ | add-on | – | Verified | python/src/saengine/library/objects.py, architecture.py, types_library.py (TypesLibrary, parametric DoorType/WindowType); workbench/src/vs/workbench/contrib/saengineCad/browser/architectureTypesPanel.ts; python/tests/test_architecture_r2.py::test_types_library_crud_rename_delete_refusal_and_round_trip | 4 | Export/import round trip and delete refusal when used |
 | Family editor | ✓ | – | – | Out of scope (decision) | architecture.py docstring ("no family editor"); owner decision (architecture layer plan) | 4 | – |
-| Conceptual massing, in-place elements | ✓ | add-on | – | Missing | Searched massing, in-place and conceptual mass; only the shadow massing from slabs in python/src/saengine/environment | 6 | – |
+| Conceptual massing, in-place elements | ✓ | add-on | – | Verified | python/src/saengine/library/massing.py (ConceptualMass, InPlaceElement, prismoid loft volume, FAR check, IFC proxy); python/tests/test_architecture_r2.py::test_mass_extrusion_floors_gfa_far_and_create_floors, ::test_loft_volume_by_hand_prismoid_formula | 6 | 10-storey extrusion GFA/FAR and prismoid loft volume by hand |
 | Topography surface (DEM, XYZ, DXF contours as a TIN) | ✓ | add-on | – | Built, untested | python/src/saengine/gis/terrain.py; python/tests/test_l11_office_tools.py::test_xyz_reader_skips_headers | 1 | Compare TIN spot heights with survey points |
 | Phases (existing, new, demolished, temporary), bill by phase | ✓ | – | – | Built, untested | python/src/saengine/project/phasing.py; python/tests/test_l11_office_tools.py::test_phase_status_and_bill (unit); docs/engineering-decisions.md "Phasing and design options" | 6 | Hand split of a two-phase toy bill |
 | Design options | ✓ | – | – | Built, untested | phasing.compare_options over saved versions (python/src/saengine/project/versions.py) | 6 | Two versions with a known concrete difference; check the comparison |
@@ -547,10 +547,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 | Status | Rows |
 |---|---|
-| Verified | 54 |
+| Verified | 57 |
 | Built, untested | 62 |
-| Partial | 23 |
-| Missing | 13 |
+| Partial | 22 |
+| Missing | 11 |
 | Out of scope (decision) | 6 |
 
 "Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.

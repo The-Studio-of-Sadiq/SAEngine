@@ -66,7 +66,17 @@ UNITS: dict[str, tuple[str, float]] = {
 #: Alpha 9 L11: siteCut and siteFill are the terrain's cut and fill to the building platform.
 SUBSTRUCTURE_KINDS = {"excavation", "backfill", "blinding", "footing", "pileCap", "pile", "raft",
                       "tieBeam", "siteCut", "siteFill"}  # fmt: skip
-ARCHITECTURE_KINDS = {"door", "window", "plaster", "filling"}
+ARCHITECTURE_KINDS = {
+    "door",
+    "window",
+    "plaster",
+    "filling",
+    "furniture",
+    "casework",
+    "plumbingFixture",
+    "equipment",
+    "generic",
+}
 PARTS = ("Superstructure", "Substructure", "Architecture", "MEP")
 
 #: Loose densities of the materials take-off's kinds [kg/m³], when a factor gives none.
@@ -265,7 +275,7 @@ def part_of(group: str, kind: str | None) -> str | None:
     """The part an entry of this group and kind belongs to; None: decided by its element."""
     if group == "mep":
         return "MEP"
-    if group in ("masonry", "finishes") or kind in ARCHITECTURE_KINDS:
+    if group in ("masonry", "finishes", "furniture") or kind in ARCHITECTURE_KINDS:
         return "Architecture"
     if kind in SUBSTRUCTURE_KINDS:
         return "Substructure"

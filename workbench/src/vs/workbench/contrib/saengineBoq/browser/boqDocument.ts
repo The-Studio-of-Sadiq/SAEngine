@@ -21,7 +21,7 @@ export const BOQ_SCHEMA_ID = 'saengine.boq/1';
 /** Desktop command measuring the bill (registered where the Python backend is). */
 export const BOQ_COMPUTE_COMMAND = 'saengine.boq.compute';
 
-export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'finishes' | 'reinforcement' | 'formwork' | 'steel' | 'composite' | 'special' | 'mep' | 'materials';
+export type BoqGroup = 'earthwork' | 'concrete' | 'masonry' | 'finishes' | 'furniture' | 'reinforcement' | 'formwork' | 'steel' | 'composite' | 'special' | 'mep' | 'materials';
 export type BoqUnit = 'm3' | 'm2' | 'kg' | 'nr' | 'm' | 'cft' | 'bag' | 'l';
 
 export interface IBoqBreakdownEntry {
@@ -129,6 +129,7 @@ export const BOQ_GROUPS: readonly { readonly group: BoqGroup; readonly title: st
 	{ group: 'concrete', title: localize('boq.group.concrete', "Concrete") },
 	{ group: 'masonry', title: localize('boq.group.masonry', "Masonry") },
 	{ group: 'finishes', title: localize('boq.group.finishes', "Plaster, Finishes, Doors and Windows") },
+	{ group: 'furniture', title: localize('boq.group.furniture', "Furniture, Casework and Components") },
 	{ group: 'reinforcement', title: localize('boq.group.reinforcement', "Reinforcement by Bar Diameter") },
 	{ group: 'formwork', title: localize('boq.group.formwork', "Formwork") },
 	{ group: 'steel', title: localize('boq.group.steel', "Structural Steel") },
