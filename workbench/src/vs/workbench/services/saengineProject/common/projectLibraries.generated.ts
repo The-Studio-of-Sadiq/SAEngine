@@ -34119,6 +34119,261 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'CableTray',
 			type: 'object',
 		},
+		Circuit: {
+			additionalProperties: false,
+			description: 'One final circuit fed from a distribution board.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				way: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Way number on the DB.',
+					title: 'Way',
+				},
+				description: {
+					default: '',
+					title: 'Description',
+					type: 'string',
+				},
+				kind: {
+					default: 'power',
+					enum: ['lighting', 'socket', 'ac', 'power', 'motor', 'spare'],
+					title: 'Kind',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id or name served.',
+					title: 'Room',
+				},
+				points: {
+					default: 1,
+					description: 'Number of points on the circuit.',
+					minimum: 0,
+					title: 'Points',
+					type: 'integer',
+				},
+				loadW: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Connected active load [W].',
+					title: 'Load w',
+				},
+				loadVA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Connected apparent load [VA].',
+					title: 'Load v a',
+				},
+				powerFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Power factor',
+				},
+				phases: {
+					default: 1,
+					enum: [1, 3],
+					title: 'Phases',
+					type: 'integer',
+				},
+				phase: {
+					anyOf: [
+						{
+							enum: ['L1', 'L2', 'L3', '3P'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Phase assignment; empty: balanced greedily across L1, L2, L3.',
+					title: 'Phase',
+				},
+				deviceType: {
+					default: 'MCB',
+					enum: ['MCB', 'MCCB', 'RCBO', 'ACB'],
+					title: 'Device type',
+					type: 'string',
+				},
+				curve: {
+					anyOf: [
+						{
+							enum: ['B', 'C', 'D'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Curve',
+				},
+				rating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Protective device In [A].',
+					title: 'Rating',
+				},
+				breakingCapacityKa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Icu / Icn [kA].',
+					title: 'Breaking capacity ka',
+				},
+				cableSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Conductor size [mm²].',
+					title: 'Cable size',
+				},
+				cpcSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Protective conductor [mm²].',
+					title: 'Cpc size',
+				},
+				conductor: {
+					default: 'Cu',
+					enum: ['Cu', 'Al'],
+					title: 'Conductor',
+					type: 'string',
+				},
+				insulation: {
+					default: 'PVC',
+					enum: ['PVC', 'XLPE'],
+					title: 'Insulation',
+					type: 'string',
+				},
+				method: {
+					default: 'C',
+					description: 'IEC 60364-5-52 installation method.',
+					title: 'Method',
+					type: 'string',
+				},
+				length: {
+					default: 20.0,
+					description: 'One-way run length [m].',
+					minimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				ambientTemp: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ambient temperature [°C].',
+					title: 'Ambient temp',
+				},
+				groupedCircuits: {
+					default: 1,
+					description: 'Circuits grouped together.',
+					minimum: 1,
+					title: 'Grouped circuits',
+					type: 'integer',
+				},
+				groupingArrangement: {
+					default: 'bunched',
+					enum: ['bunched', 'singleLayerWall', 'perforatedTray'],
+					title: 'Grouping arrangement',
+					type: 'string',
+				},
+				thermalInsulation: {
+					default: 'none',
+					enum: ['none', 'oneSide', 'enclosed50mm', 'enclosed100mm', 'enclosed200mm', 'surrounded'],
+					title: 'Thermal insulation',
+					type: 'string',
+				},
+			},
+			required: ['id'],
+			title: 'Circuit',
+			type: 'object',
+		},
 		ClashTest: {
 			additionalProperties: false,
 			description: 'A clash rule: every element of the sets ``a`` against every element of the sets ``b``,\neither intersecting (hard) or closer than the clearance.',
@@ -34256,6 +34511,236 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['path'],
 			title: 'CoordinationModel',
+			type: 'object',
+		},
+		DistributionBoard: {
+			additionalProperties: false,
+			description: 'A distribution board (panel) fed from a rising main or upstream panel.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it is located on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id or name where the DB stands.',
+					title: 'Room',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Y',
+				},
+				fedFrom: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Upstream rising main or panel id (empty: auto).',
+					title: 'Fed from',
+				},
+				feederLength: {
+					default: 15.0,
+					description: 'Sub-main run length [m].',
+					minimum: 0,
+					title: 'Feeder length',
+					type: 'number',
+				},
+				feederMethod: {
+					default: 'C',
+					title: 'Feeder method',
+					type: 'string',
+				},
+				feederInsulation: {
+					default: 'XLPE',
+					enum: ['PVC', 'XLPE'],
+					title: 'Feeder insulation',
+					type: 'string',
+				},
+				feederConductor: {
+					default: 'Cu',
+					enum: ['Cu', 'Al'],
+					title: 'Feeder conductor',
+					type: 'string',
+				},
+				feederCableSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Feeder cable size',
+				},
+				feederCpcSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Feeder cpc size',
+				},
+				feederGrouped: {
+					default: 1,
+					minimum: 1,
+					title: 'Feeder grouped',
+					type: 'integer',
+				},
+				phases: {
+					default: 3,
+					enum: [1, 3],
+					title: 'Phases',
+					type: 'integer',
+				},
+				poles: {
+					default: 4,
+					enum: [2, 3, 4],
+					title: 'Poles',
+					type: 'integer',
+				},
+				incomerType: {
+					default: 'MCCB',
+					enum: ['MCCB', 'MCB', 'ACB', 'Isolator'],
+					title: 'Incomer type',
+					type: 'string',
+				},
+				incomerRating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[A]',
+					title: 'Incomer rating',
+				},
+				incomerCurve: {
+					anyOf: [
+						{
+							enum: ['B', 'C', 'D'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Incomer curve',
+				},
+				breakingCapacityKa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kA]',
+					title: 'Breaking capacity ka',
+				},
+				busbarRating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[A]',
+					title: 'Busbar rating',
+				},
+				ways: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ways',
+				},
+				circuits: {
+					items: {
+						$ref: '#/$defs/Circuit',
+					},
+					title: 'Circuits',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story'],
+			title: 'DistributionBoard',
 			type: 'object',
 		},
 		Duct: {
@@ -34478,6 +34963,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/ElectricalRoom',
 					},
 					title: 'Rooms',
+					type: 'array',
+				},
+				boards: {
+					items: {
+						$ref: '#/$defs/DistributionBoard',
+					},
+					title: 'Boards',
 					type: 'array',
 				},
 				lightning: {

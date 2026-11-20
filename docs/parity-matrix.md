@@ -487,10 +487,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Standpipes, fire pump, fire-water reservoir | add-on | – | ✓ | Verified | python/src/saengine/fire/supply.py, network.py; python/src/saengine/verification/cases/fire.py DF1, DF2 | 7 | – |
 | Fire alarm and detection | ✓ | – | ✓ | Partial | Requirement and bill counts only (python/src/saengine/fire/requirements.py, python/src/saengine/fire/boq.py); no device layout or battery calculation | 7 | – |
 | Connected load and maximum demand | ✓ | – | ✓ | Verified | Per storey from unit load densities; python/src/saengine/electrical/demand.py; python/src/saengine/verification/cases/electrical.py DE1 | 7 | – |
-| Panel and distribution-board schedules, circuiting | ✓ | – | ✓ | Missing | Searched panel schedule, circuit, distribution board and MCB in python/src/saengine/electrical | 7 | – |
-| Cable sizing (ampacity, derating) | ✓ | – | ✓ | Partial | Rising-main busbar rating and riser cable from a typical table (python/src/saengine/electrical/risers.py); no ampacity or derating (searched) | 7 | Hand cable size from a published current-rating table |
-| Voltage drop | ✓ | – | ✓ | Missing | Searched "voltage drop" in python/src/saengine/: nothing | 7 | Hand mV/A/m calculation |
-| Short circuit and fault level | – | – | ✓ | Missing | Searched short circuit, fault current and breaking capacity | 7 | IEC 60909-style worked example |
+| Panel and distribution-board schedules, circuiting | ✓ | – | ✓ | Verified | python/src/saengine/electrical/panels.py, python/src/saengine/drawings/sheets/mep.py (db_schedule_tables); python/tests/test_electrical_circuits.py (greedy phase balancing [5,4,3,3,2,1] -> 6 kW, schedule rows sum to incomer load, Excel export via write_xlsx and drawing schedule tables) | 7 | – |
+| Cable sizing (ampacity, derating) | ✓ | – | ✓ | Verified | python/src/saengine/electrical/cables.py, python/src/saengine/electrical/risers.py; python/tests/test_electrical_circuits.py (2.5 mm² Cu PVC method C 30 °C Iz=27 A, 3-circuit grouping Cg=0.70 Iz=18.9 A, adiabatic k²S²≥I²t); IEC 60364-5-52 Annex B / IEC 60364-4-43 pack tables in bnbc2020/data/electrical.json marked "to be checked" | 7 | Hand cable size from a published current-rating table |
+| Voltage drop | ✓ | – | ✓ | Verified | python/src/saengine/electrical/cables.py (mV/A/m and R/X with cos φ, cumulative from transformer); python/tests/test_electrical_circuits.py (18 mV/A/m × 16 A × 20 m / 1000 = 5.76 V = 2.50 %, failing 60 m run recommends 4 mm²); IEC 60364-5-52 Annex G pack limits marked "to be checked" | 7 | Hand mV/A/m calculation |
+| Short circuit and fault level | – | – | ✓ | Verified | python/src/saengine/electrical/short_circuit.py; python/tests/test_electrical_circuits.py (1000 kVA 11/0.415 kV uk 5 % -> Ik3 27.82 kA at c=1.0 / 29.22 kA at c=1.05, breaking capacity Icu, Zs ≤ limit); IEC 60909-0 / IEC 60898-1 pack parameters marked "to be checked" | 7 | IEC 60909-style worked example |
 | Transformer, standby generator and fuel, UPS, room checks | – | – | ✓ | Verified | python/src/saengine/electrical/supply.py, rooms.py; python/src/saengine/verification/cases/electrical.py DE1, DE2 | 7 | – |
 | Lighting design (lux levels, luminaire layout) | add-on | – | ✓ | Missing | Searched lux, illuminance, luminaire and lumen; only lighting power density as an HVAC gain (python/src/saengine/hvac/tables.py) | 7 | Lumen-method hand calculation |
 | Lightning protection and earthing | – | – | ✓ | Verified | python/src/saengine/electrical/lightning.py; python/src/saengine/verification/cases/electrical.py DE4 | 7 | – |
@@ -547,10 +547,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 | Status | Rows |
 |---|---|
-| Verified | 54 |
+| Verified | 58 |
 | Built, untested | 62 |
-| Partial | 23 |
-| Missing | 13 |
+| Partial | 22 |
+| Missing | 10 |
 | Out of scope (decision) | 6 |
 
 "Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.
@@ -563,7 +563,7 @@ Verification is concentrated where the structure meets MEP (equipment loads, sle
 - **MEP has grown past coordination.** It now sizes plumbing, fire, HVAC and electrical supply, but still has no circuit-level electrical design.
 
 **12 most important gaps for a Bangladeshi structural engineer coordinating architecture and MEP:**
-1. **Electrical circuits.** There are no distribution-board schedules, cable sizing with derating, voltage drop or short-circuit checks. Utility and approval submissions (e.g. DESCO/DPDC/RAJUK) typically need them.
+1. **Electrical circuits (now built and unit-verified in R5, pack tables to be checked).** Distribution-board schedules, circuiting, cable sizing with derating, voltage drop and short-circuit checks are implemented in `saengine/electrical/` with IEC 60364 / IEC 60909 data in `bnbc2020/data/electrical.json` (marked "to be checked" against printed editions); workbench UI controls for editing circuits are not yet added.
 2. **Revit round trip.** The Revit link has no add-in in the repo, so it cannot work end to end.
 3. **No third-party IFC tested.** IFC is tested only on SAEngine's own synthetic files, and there is no IFC2x3 export or IfcMapConversion.
 4. **3D view.** It has no section box, measure or hide/isolate, which are the basic coordination-review tools.
