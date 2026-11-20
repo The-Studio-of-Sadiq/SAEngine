@@ -12475,6 +12475,49 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'DrawingRevision',
 			type: 'object',
 		},
+		DrawingScopeBox: {
+			additionalProperties: false,
+			description: 'A named plan crop used to generate dependent drawing sheets.',
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				bounds: {
+					description: 'Crop bounds [x0, y0, x1, y1] in model millimetres.',
+					maxItems: 4,
+					minItems: 4,
+					prefixItems: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+					],
+					title: 'Plan rectangle',
+					type: 'array',
+				},
+				levels: {
+					description: 'Level ids to generate; empty means every level with a plan.',
+					items: {
+						type: 'string',
+					},
+					title: 'Levels',
+					type: 'array',
+				},
+			},
+			required: ['name', 'bounds'],
+			title: 'DrawingScopeBox',
+			type: 'object',
+		},
 		Drawings: {
 			additionalProperties: false,
 			description: 'The structural drawings of 11 Exports: the title block and the sheets. The project\'s\nname, number, client and address come from Project; the fields here print on every sheet.',
@@ -12566,6 +12609,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/DrawingRevision',
 					},
 					title: 'Revisions',
+					type: 'array',
+				},
+				scopeBoxes: {
+					description: 'Named plan rectangles in model millimetres. When present, each applicable level is generated as a dependent sheet per scope box, with matchlines and key plans.',
+					items: {
+						$ref: '#/$defs/DrawingScopeBox',
+					},
+					title: 'Dependent plan scope boxes',
 					type: 'array',
 				},
 				sheetSize: {
