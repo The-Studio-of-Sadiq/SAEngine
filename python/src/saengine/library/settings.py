@@ -3039,6 +3039,28 @@ class DrawingRevision(_Model):
     by: str | None = Field(default=None, title="By", description="Initials of who revised it.")
 
 
+class DrawingScopeBox(_Model):
+    """A named plan crop used to generate dependent drawing sheets."""
+
+    name: str = Field(min_length=1, title="Name")
+    bounds: tuple[float, float, float, float] = Field(
+        title="Plan rectangle",
+        description="Crop bounds [x0, y0, x1, y1] in model millimetres.",
+    )
+    levels: list[str] = Field(
+        default_factory=list,
+        title="Levels",
+        description="Level ids to generate; empty means every level with a plan.",
+    )
+
+    @model_validator(mode="after")
+    def _positive_bounds(self) -> DrawingScopeBox:
+        x0, y0, x1, y1 = self.bounds
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError("scope box bounds must have positive width and height")
+        return self
+
+
 DRAFTING_FONTS = ("Arial", "Arial Narrow", "Calibri", "Segoe UI", "Tahoma")
 LINEWEIGHTS = (0.09, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0)
 
@@ -3194,6 +3216,13 @@ class Drawings(_Model):
         default_factory=list,
         description="The revisions of the set, oldest first; the last is the current revision "
         "(0 when there is none).",
+    )
+    scopeBoxes: list[DrawingScopeBox] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        title="Dependent plan scope boxes",
+        description="Named plan rectangles in model millimetres. When present, each applicable "
+        "level is generated as a dependent sheet per scope box, with matchlines and key plans.",
     )
     sheetSize: Literal["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"] = Field(
         default="A1",

@@ -98,7 +98,9 @@ def test_the_plan_walls_doors_windows_and_rooms() -> None:
     # windows: the ventilator (sill 1650) is above the cut: dashed, the others solid
     glass = _on(sheet, "A-GLAZ", "LINE")
     assert sum(1 for e in glass if e.dxf.get("linetype") == "HIDDEN") == 3
-    assert len(glass) == 3 * 5 + 3
+    # three lines per window and the ventilator, plus a frame line at both jambs of the four
+    # framed windows (parametric window types draw their frames since Revit parity R2)
+    assert len(glass) == 3 * 5 + 3 + 2 * 4
     # marks and room tags
     marks = _texts(sheet, "S-TEXT")
     for mark in ("D1", "D2", "DD", "DS", "W1", "W2", "W3", "V1"):

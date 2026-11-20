@@ -237,6 +237,7 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `mep/plumbingSleeves` | **projectRoot**, mepText | `plumbing_sleeves` | The sleeves the risers and stacks still need through the slabs (07 MEP openings, those no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/report` | **projectRoot**, outDir, mepText | `mep_report` | The MEP coordination report (``saengine.mep.mep_report``), or ``{"problems"}``. |
 | `mep/suggestSleeves` | **projectRoot**, mepText, allowance | `mep_suggest_sleeves` | Sleeves and openings that would coordinate the clashes (``{openings, notes}``). |
+| `mep/systems` | **projectRoot**, mepText | `mep_systems` | Connector-based MEP systems, totals, critical paths and connectivity checks (``saengine.mep.systems.mep_systems_report``), or ``{"problems"}``. |
 | `office/cancel` | — |  |  |
 | `office/info` | — |  |  |
 | `office/status` | — |  |  |

@@ -238,7 +238,8 @@ def _empty(problems: list[str], note: str) -> dict[str, Any]:
         "requirements": None, "stories": [], "demand": None, "hydraulics": None, "pumps": [],
         "pumpRoom": None, "storage": None, "tankDesigns": [], "supports": [],
         "testPressures": [], "openings": [], "crossings": [], "proposals": {"tanks": [],
-        "pumps": []}, "quantities": {}, "checks": [], "summary": [], "notes": [note],
+        "pumps": []}, "alarm": None, "sprinklerLayout": None,
+        "quantities": {}, "checks": [], "summary": [], "notes": [note],
         "problems": problems, "method": method() if code_pack.covers("fire") else [],
     }  # fmt: skip
 
@@ -250,6 +251,8 @@ def fire_results(
     ground: float | None = None,
     tank_designs: list[dict[str, Any]] | None = None,
     hydraulics: bool = True,
+    rooms: Any = None,
+    arch: Any = None,
 ) -> dict[str, Any]:
     """The fire report of parsed models (all but ``mep`` optional). ``tank_designs``: the
     designs of ``fire.tanks`` (:func:`design_fire_tanks`) when the integrator ran them."""
@@ -331,6 +334,8 @@ def fire_results(
                                  T.cite("5.8.2", "(iii)")))  # fmt: skip
 
     # Per story: extinguishers, alarm, detectors, sprinklers.
+    sprinkler_layout_by_story: dict[str, dict[str, Any]] = {}
+    sprinkler_risers_pre = [x for x in fire.risers if x.system in ("sprinkler", "combined")]
     for r in rows:
         count, note = extinguishers(r["area"], r["hazard"])
         r["extinguishers"] = count if status["extinguishers"]["provided"] else 0
@@ -355,6 +360,69 @@ def fire_results(
                 r["area"], r["hazard"], r["ceiling"], extent, material
             )
             r["bounds"] = bounds
+            story_rooms = (
+                rooms.story(r["story"]).rooms
+                if (rooms is not None and rooms.story(r["story"]))
+                else []
+            )
+            entered_heads = [
+                h.model_dump(mode="json") for h in fire.sprinklerHeads if h.story == r["story"]
+            ]
+            entered_pipes = [
+                p.model_dump(mode="json") for p in fire.sprinklerPipes if p.story == r["story"]
+            ]
+            if entered_heads and entered_pipes:
+                sprinkler_layout_by_story[r["story"]] = {
+                    "story": r["story"],
+                    "heads": entered_heads,
+                    "pipes": entered_pipes,
+                    "headCount": len(entered_heads),
+                    "mainSize": r["sprinklers"]["mainSize"],
+                }
+            elif story_rooms and sprinkler_risers_pre:
+                from saengine.fire.sprinklers import layout_story_sprinklers
+
+                riser0 = sprinkler_risers_pre[0]
+                floor_poly = building.roof(r["story"]) if building.known else None
+                lay = layout_story_sprinklers(
+                    r["story"],
+                    (riser0.x, riser0.y),
+                    story_rooms,
+                    floor_poly,
+                    r["hazard"],
+                    r["ceiling"],
+                    material,
+                )
+                sprinkler_layout_by_story[r["story"]] = lay
+                r["sprinklers"]["heads"] = max(r["sprinklers"]["heads"], lay["headCount"])
+                r["sprinklers"]["placedHeads"] = lay["headCount"]
+
+    alarm_out = None
+    if T.ALARM is not None and (
+        status["manualAlarm"]["provided"]
+        or status["automaticAlarm"]["provided"]
+        or fire.alarmDevices
+    ):
+        from saengine.fire.alarm import alarm_layout
+
+        alarm_out = alarm_layout(
+            mep,
+            building,
+            rooms,
+            arch,
+            stories=rows,
+            automatic=status["automaticAlarm"]["provided"],
+            manual=status["manualAlarm"]["provided"] or status["automaticAlarm"]["provided"],
+        )
+        if alarm_out and alarm_out["devices"]:
+            for r in rows:
+                s_devs = [d for d in alarm_out["devices"] if d["story"] == r["story"]]
+                mcps = sum(1 for d in s_devs if d["kind"] == "callPoint")
+                dets = sum(1 for d in s_devs if d["kind"] in ("smokeDetector", "heatDetector"))
+                if mcps:
+                    r["callPoints"] = mcps
+                if dets:
+                    r["detectors"] = dets
     if status["manualAlarm"]["provided"] or status["automaticAlarm"]["provided"]:
         notes.append(
             f"alarm: each floor a zone ({T.PAGES['4.6.2.2']}): {len(rows)} zones; call points one "
@@ -424,7 +492,7 @@ def fire_results(
         try:
             hyd = _hydraulics(fire, building, rows, hazard, (pxy[0] / 1000, pxy[1] / 1000, pump_z),
                               standpipes, sprinkler_risers, hydrant, sprinklers, material,
-                              sizes_used)  # fmt: skip
+                              sizes_used, sprinkler_layout_by_story)  # fmt: skip
         except Exception as error:  # noqa: BLE001 - a partly entered network must not fail all
             notes.append(f"the hydraulic calculation failed: {error!r}")
             hyd = None
@@ -534,7 +602,17 @@ def fire_results(
     working = hyd["pumpHead"] * 9.807 if hyd else 0.0
     tests = S.test_pressures(working, sprinklers, hydrant)
 
-    quantities = _quantities(fire, rows, hyd, status, pump_rows, sizes_used, building)
+    quantities = _quantities(
+        fire,
+        rows,
+        hyd,
+        status,
+        pump_rows,
+        sizes_used,
+        building,
+        sprinkler_layout_by_story,
+        alarm_out,
+    )
     failed = [c["name"] for c in checks if not c["ok"]]
     required = [s["label"] for s in req["systems"] if s["status"] == "required"]
     summary = [
@@ -574,6 +652,10 @@ def fire_results(
         "openings": openings,
         "crossings": crossings,
         "proposals": proposals,
+        "alarm": alarm_out,
+        "sprinklerLayout": list(sprinkler_layout_by_story.values())
+        if sprinkler_layout_by_story
+        else None,
         "quantities": quantities,
         "checks": checks,
         "summary": summary,
@@ -585,7 +667,8 @@ def fire_results(
 
 def _hydraulics(fire: Any, building: Building, rows: list[dict[str, Any]], hazard: str,
                 pump: tuple[float, float, float], standpipes: list[Any], sprinkler_risers: list[Any],
-                hydrant: bool, sprinklers: bool, material: str, sizes_used: dict[float, str]
+                hydrant: bool, sprinklers: bool, material: str, sizes_used: dict[float, str],
+                sprinkler_layout: dict[str, dict[str, Any]] | None = None,
                 ) -> dict[str, Any]:  # fmt: skip
     """The standpipe and sprinkler scenarios: the head each needs at the pump and the duty."""
     first_flow = T.FLOWS[hazard][1]
@@ -684,8 +767,22 @@ def _hydraulics(fire: Any, building: Building, rows: list[dict[str, Any]], hazar
             sizes_used.setdefault(branch, "hanger")
             net, take = N.build(pump, [run], material, header)
             takeoff = take[riser.id][floor["story"]]
-            heads = N.design_area(net, takeoff, start, far, head_z, info,
-                                  {"cross": cross, "branch": branch})  # fmt: skip
+            placed = (sprinkler_layout or {}).get(floor["story"])
+            if placed and placed.get("heads") and placed.get("pipes"):
+                heads = N.placed_sprinkler_network(
+                    net,
+                    takeoff,
+                    start,
+                    head_z,
+                    placed["heads"],
+                    placed["pipes"],
+                    info["designHeads"],
+                    fallback_size=cross,
+                )
+            else:
+                heads = N.design_area(
+                    net, takeoff, start, far, head_z, info, {"cross": cross, "branch": branch}
+                )
             sol = N.emitter_head(net, heads, info["headFlow"], {})
             flows = [sol["flow"][h] for h in heads]
             valve = f"{takeoff}:FCV"
@@ -1070,8 +1167,12 @@ def _main_sleeves(mep: MepModel, building: Building, objects: Any, bim: Any,
 
 def _quantities(fire: Any, rows: list[dict[str, Any]], hyd: dict[str, Any] | None,
                 status: dict[str, Any], pumps: list[dict[str, Any]], sizes_used: dict[float, str],
-                building: Building) -> dict[str, Any]:  # fmt: skip
+                building: Building,
+                sprinkler_layout: dict[str, dict[str, Any]] | None = None,
+                alarm_out: dict[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
     """Pipes by size [m], heads, valves, hose cabinets, pumps and devices for the bill."""
+    from saengine.mep.routing import path_length
+
     pipes: dict[float, float] = {}
 
     def add(size: float, length: float) -> None:
@@ -1094,17 +1195,27 @@ def _quantities(fire: Any, rows: list[dict[str, Any]], hyd: dict[str, Any] | Non
         info = r.get("sprinklers")
         if not info:
             continue
-        heads += info["heads"]
-        # branch lines: a head's spacing of pipe each; the cross main the floor's square side
-        branch = schedule_size(min(info["heads"], 8), r["hazard"], fire.supply.material) or 32
-        add(branch, info["heads"] * info["spacing"])
-        if info["mainSize"]:
-            add(info["mainSize"], math.sqrt(r["area"]))
+        placed = (sprinkler_layout or {}).get(r["story"])
+        if placed and placed.get("heads") and placed.get("pipes"):
+            heads += len(placed["heads"])
+            for p in placed["pipes"]:
+                add(
+                    float(p.get("diameter") or info["mainSize"] or 50),
+                    path_length(p["path"]) / 1000.0,
+                )
+        else:
+            heads += info["heads"]
+            # branch lines: a head's spacing of pipe each; the cross main the floor's square side
+            branch = schedule_size(min(info["heads"], 8), r["hazard"], fire.supply.material) or 32
+            add(branch, info["heads"] * info["spacing"])
+            if info["mainSize"]:
+                add(info["mainSize"], math.sqrt(r["area"]))
     standpipes = [x for x in fire.risers if x.system in ("standpipe", "combined")]
     outlets = sum(len(building.between(x.fromStory, x.toStory)) if building.known else 1
                   for x in standpipes)  # fmt: skip
     sprinkled = sum(1 for r in rows if r.get("sprinklers"))
     hydrant = status["hydrant"]["provided"]
+    alarm_counts = (alarm_out or {}).get("counts") or {}
     return {
         "pipes": [{"size": s, "length": round(v, 1)} for s, v in sorted(pipes.items())],
         "heads": heads,
@@ -1116,6 +1227,8 @@ def _quantities(fire: Any, rows: list[dict[str, Any]], hyd: dict[str, Any] | Non
         "extinguishers": sum(r["extinguishers"] for r in rows),
         "callPoints": sum(r["callPoints"] for r in rows),
         "detectors": sum(r["detectors"] for r in rows),
+        "sounders": alarm_counts.get("sounder", 0),
+        "panels": alarm_counts.get("panel", 0),
         "pumps": [
             {
                 "duty": p["duty"],
@@ -1253,6 +1366,15 @@ def _load(project_root: str | Path, mep_text: str | None = None) -> dict[str, An
             objects = ObjectLibrary.model_validate_json(objects_text)
         except ValueError as error:
             problems.append(f"04 Objects is not valid: {error}")
+    arch = None
+    arch_text = _read(root, "05 Floor Plan/architecture.json")
+    if arch_text:
+        try:
+            from saengine.library import architecture as arch_lib
+
+            arch = arch_lib.parse(arch_text)
+        except ValueError:
+            arch = None
     ground = None
     settings_text = _read(root, "02 Project Settings/project-settings.json")
     if settings_text:
@@ -1260,7 +1382,7 @@ def _load(project_root: str | Path, mep_text: str | None = None) -> dict[str, An
             ground = (json.loads(settings_text).get("foundation") or {}).get("groundLevel")
         except ValueError:
             pass
-    return {"mep": mep, "bim": bim, "objects": objects,
+    return {"mep": mep, "bim": bim, "objects": objects, "arch": arch,
             "ground": ground if isinstance(ground, int | float) else None,
             "materials": _read(root, "03 Materials/materials.json"),
             "soil": _read(root, "01 Soil Report/soil-report.json"),
@@ -1271,6 +1393,7 @@ def fire_report(project_root: str | Path, mep_text: str | None = None, *,
                 designs: bool = True) -> dict[str, Any]:  # fmt: skip
     """The fire report of a project (``mep_text``: unsaved ``07 MEP/mep.json``). Never raises:
     ``{problems}`` when 07 MEP cannot be read. JSON-safe (no infinities)."""
+    from saengine.mep.rooms import room_inputs
     from saengine.plumbing.project import finite, missing_sleeves
 
     try:
@@ -1278,12 +1401,17 @@ def fire_report(project_root: str | Path, mep_text: str | None = None, *,
     except ValueError as error:
         return {"problems": [str(error)]}
     mep = loaded["mep"]
+    rooms = (
+        room_inputs(loaded["arch"], loaded["bim"], mep.plumbing)
+        if loaded["arch"] is not None
+        else None
+    )
     tank_designs = None
     if designs and mep.fire is not None and mep.fire.tanks:
         tank_designs = design_fire_tanks(project_root, mep, loaded["materials"], loaded["soil"])
     try:
         result = fire_results(mep, loaded["bim"], loaded["objects"], loaded["ground"],
-                              tank_designs)  # fmt: skip
+                              tank_designs, rooms=rooms, arch=loaded["arch"])  # fmt: skip
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [*loaded["problems"], f"the fire sizing failed: {error!r}"]}
     result["problems"] = [*loaded["problems"], *result["problems"]]

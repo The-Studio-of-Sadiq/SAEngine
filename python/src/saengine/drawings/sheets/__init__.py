@@ -21,19 +21,50 @@ from saengine.drawings.sheets.build import (
     categories,
     write_drawings,
 )
+from saengine.drawings.sheets.documentation import (
+    Callout,
+    DependentPlan,
+    ScopeBox,
+    build_dependent_plans,
+    create_callout,
+    documentation_legend,
+    place_documentation_legend,
+    update_callout_reference,
+)
+from saengine.drawings.sheets.keynotes import (
+    keynote_legend,
+    load_keynotes,
+    place_keynote_legend,
+    used_keynotes,
+)
 from saengine.drawings.sheets.layout import LAYERS, PAPER, Sheet, TitleInfo
 from saengine.drawings.sheets.model import DrawingSet
 from saengine.drawings.sheets.project import drawing_set
+from saengine.drawings.sheets.schedule_builder import ScheduleResult, build_schedule
 
 __all__ = [
     "LAYERS",
     "PAPER",
+    "Callout",
+    "DependentPlan",
     "DrawingSet",
     "DrawingSettings",
+    "ScheduleResult",
+    "ScopeBox",
     "Sheet",
     "TitleInfo",
+    "build_dependent_plans",
+    "build_schedule",
     "build_sheets",
     "categories",
+    "create_callout",
+    "documentation_legend",
     "drawing_set",
+    "keynote_legend",
+    "load_keynotes",
+    "place_documentation_legend",
+    "place_keynote_legend",
+    "update_callout_reference",
+    "used_keynotes",
     "write_drawings",
 ]

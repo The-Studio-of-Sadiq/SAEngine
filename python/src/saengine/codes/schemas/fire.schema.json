@@ -1,5 +1,218 @@
 {
   "$defs": {
+    "AlarmDeviceSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "standbyMa": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Standbyma"
+        },
+        "alarmMa": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Alarmma"
+        },
+        "maxTravelM": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtravelm"
+        },
+        "maxArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxarea"
+        }
+      },
+      "required": [
+        "standbyMa",
+        "alarmMa"
+      ],
+      "title": "AlarmDeviceSpec",
+      "type": "object"
+    },
+    "AlarmPanelSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "standbyA": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Standbya"
+        },
+        "alarmA": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Alarma"
+        }
+      },
+      "required": [
+        "standbyA",
+        "alarmA"
+      ],
+      "title": "AlarmPanelSpec",
+      "type": "object"
+    },
+    "DetectorSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "maxArea": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxarea"
+        },
+        "maxSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxspacing"
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Radius"
+        },
+        "standbyMa": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Standbyma"
+        },
+        "alarmMa": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Alarmma"
+        }
+      },
+      "required": [
+        "maxArea",
+        "maxSpacing",
+        "radius",
+        "standbyMa",
+        "alarmMa"
+      ],
+      "title": "DetectorSpec",
+      "type": "object"
+    },
     "Extinguisher": {
       "additionalProperties": false,
       "properties": {
@@ -52,6 +265,103 @@
         "max"
       ],
       "title": "Extinguisher",
+      "type": "object"
+    },
+    "FireAlarmTable": {
+      "additionalProperties": false,
+      "description": "R7: fire alarm device layout and battery sizing data (NFPA 72 / BS 5839-1).",
+      "properties": {
+        "detectors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DetectorSpec"
+          },
+          "title": "Detectors",
+          "type": "object"
+        },
+        "heatRoomUses": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Heatroomuses",
+          "type": "array"
+        },
+        "callPoint": {
+          "$ref": "#/$defs/AlarmDeviceSpec"
+        },
+        "sounder": {
+          "$ref": "#/$defs/AlarmDeviceSpec"
+        },
+        "panel": {
+          "$ref": "#/$defs/AlarmPanelSpec"
+        },
+        "standbyHours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Standbyhours"
+        },
+        "alarmMinutes": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Alarmminutes"
+        },
+        "ageingFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Ageingfactor"
+        },
+        "batterySizesAh": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Batterysizesah",
+          "type": "array"
+        }
+      },
+      "required": [
+        "detectors",
+        "heatRoomUses",
+        "callPoint",
+        "sounder",
+        "panel",
+        "standbyHours",
+        "alarmMinutes",
+        "ageingFactor",
+        "batterySizesAh"
+      ],
+      "title": "FireAlarmTable",
       "type": "object"
     },
     "FireFlow": {
@@ -245,6 +555,50 @@
         "pipe"
       ],
       "title": "PumpRating",
+      "type": "object"
+    },
+    "SprinklerLayoutRules": {
+      "additionalProperties": false,
+      "properties": {
+        "wallDistanceFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Walldistancefactor",
+          "type": "number"
+        },
+        "minWallDistance": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Minwalldistance"
+        },
+        "minHeadSpacing": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Minheadspacing"
+        }
+      },
+      "required": [
+        "wallDistanceFactor",
+        "minWallDistance",
+        "minHeadSpacing"
+      ],
+      "title": "SprinklerLayoutRules",
       "type": "object"
     }
   },
@@ -1111,6 +1465,28 @@
       ],
       "description": "[m]",
       "title": "Pumpcentre"
+    },
+    "sprinklerLayout": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SprinklerLayoutRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "alarm": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FireAlarmTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

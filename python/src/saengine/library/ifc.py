@@ -18,6 +18,7 @@ same file, and uses the returned id → GlobalId map to link the view with the p
 
 from __future__ import annotations
 
+import itertools
 import math
 import uuid
 from typing import Any
@@ -171,6 +172,7 @@ class _Writer:
         self.material_names = {m.id: m.name for m in (materials.materials if materials else [])}
         self.materials: dict[str, Any] = {}
         self.profiles: dict[str, Any] = {}
+        self.mep_products: dict[str, list[Any]] = {}
 
         self.project = self.entity("IfcProject", name, "project")
         self.run("unit.assign_unit", self.file, length={"is_metric": True, "raw": "MILLIMETERS"})
@@ -455,8 +457,15 @@ def export_ifc(
         _export_mep(w, building, mep, products, storey_at, ids, skipped)
         if getattr(mep, "plumbing", None) is not None:
             _export_plumbing(w, building, mep, ground_level, storey_at, ids, skipped)
-        if getattr(mep, "hvac", None) is not None or getattr(mep, "electrical", None) is not None:
+        if (
+            getattr(mep, "hvac", None) is not None
+            or getattr(mep, "electrical", None) is not None
+            or getattr(mep, "fire", None) is not None
+            or getattr(mep, "gas", None) is not None
+            or getattr(mep, "medicalGas", None) is not None
+        ):
             _export_services(w, building, mep, storey_at, ids, skipped)
+        _export_systems(w, building, mep, skipped)
     if architecture is not None and not building.stories:
         # FD-13: before the building model is built it has no stories; the architecture is not
         # wrong, it has nothing to stand on yet.
@@ -583,6 +592,7 @@ def _export_plumbing(
         if tank.material:
             w.material(product, tank.material)
         ids[tank.id] = product.GlobalId
+        w.mep_products.setdefault(tank.id, []).append(product)
     for riser in plumbing.risers:
         if riser.fromStory not in levels or riser.toStory not in levels:
             skipped.append(f"{riser.id}: no story '{riser.fromStory}' or '{riser.toStory}'")
@@ -611,6 +621,24 @@ def _export_plumbing(
             relating_structure=storey_at(low),
         )
         ids[riser.id] = product.GlobalId
+        w.mep_products.setdefault(riser.id, []).append(product)
+    for pipe in getattr(plumbing, "pipes", []):
+        if pipe.story not in levels:
+            skipped.append(f"{pipe.id}: no story '{pipe.story}'")
+            continue
+        diameter = float(pipe.diameter or _RISER_DIAMETER)
+        profile = w.run(
+            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+        )
+        profile.Radius = diameter / 2
+        floor = levels[pipe.story]
+        centre = (
+            floor + float(pipe.bottom) + diameter / 2 if pipe.bottom is not None else floor + 2700.0
+        )
+        _run_segments(
+            w, "IfcPipeSegment", "RIGIDSEGMENT", pipe.id, f"pipe:{pipe.id}", pipe.path,
+            profile, centre, storey_at(floor), ids,
+        )  # fmt: skip
 
 
 #: IFC4 classes of the HVAC plant kinds of 7 MEP (class, predefined type).
@@ -703,6 +731,7 @@ def _run_segments(
         w.place(product, _placement((a[0], a[1], centre), (-d[1], d[0], 0.0), d))
         w.run("spatial.assign_container", w.file, products=[product], relating_structure=storey)
         ids[item_id if k == 1 else f"{item_id}/{k}"] = product.GlobalId
+        w.mep_products.setdefault(item_id, []).append(product)
 
 
 def _soffits(w: _Writer, building: BuildingModel) -> dict[float, float]:
@@ -761,6 +790,8 @@ def _export_services(
                 skipped.append(f"{plant.id}: no story '{plant.story}'")
                 continue
             if carried(plant):
+                if getattr(plant, "equipment", None) and plant.equipment in w.mep_products:
+                    w.mep_products[plant.id] = w.mep_products[plant.equipment]
                 continue
             size = [plant.length, plant.width, plant.height]
             if None in size and plant.capacity:
@@ -768,8 +799,11 @@ def _export_services(
                 if typical is not None:
                     size = [s if s is not None else t for s, t in zip(size, typical[:3])]
             if size[0] is None or size[1] is None:
-                skipped.append(f"{plant.id}: no size")
-                continue
+                if plant.kind == "ahu":
+                    size = [size[0] or 1500.0, size[1] or 1200.0, size[2] or _EQUIPMENT_HEIGHT]
+                else:
+                    skipped.append(f"{plant.id}: no size")
+                    continue
             ifc_class, predefined = _PLANT_CLASSES.get(
                 plant.kind, ("IfcBuildingElementProxy", None)
             )
@@ -785,6 +819,7 @@ def _export_services(
                 f"{plant.operatingWeight:g} kN operating" if plant.operatingWeight else None
             )
             ids[plant.id] = product.GlobalId
+            w.mep_products.setdefault(plant.id, []).append(product)
         for duct in hvac.ducts:
             if duct.story not in levels:
                 skipped.append(f"{duct.id}: no story '{duct.story}'")
@@ -817,89 +852,420 @@ def _export_services(
                 )  # fmt: skip
                 product.ObjectType = duct.system
                 ids[duct.id] = product.GlobalId
+                w.mep_products.setdefault(duct.id, []).append(product)
                 continue
             floor = levels[duct.story]
             if duct.bottom is not None:
                 centre = floor + duct.bottom + height / 2
             else:
                 top = soffit(duct.story)
-                if top is None:
-                    skipped.append(f"{duct.id}: no floor above its story to hang from")
-                    continue
-                centre = top - _DUCT_HANGER - height / 2
+                centre = (top - _DUCT_HANGER - height / 2) if top is not None else (floor + 2700.0)
             _run_segments(
                 w, "IfcDuctSegment", "RIGIDSEGMENT", duct.id, f"duct:{duct.id}", duct.path,
                 profile, centre, storey_at(floor), ids,
             )  # fmt: skip
-    electrical = getattr(mep, "electrical", None)
-    if electrical is None:
-        return
-    from saengine.electrical.report import with_typical
-    from saengine.library.mep import ELECTRICAL_EQUIPMENT_KINDS
-
-    for item in electrical.equipment:
-        if item.story not in levels:
-            skipped.append(f"{item.id}: no story '{item.story}'")
-            continue
-        if carried(item):
-            continue
-        full = with_typical(item.model_dump(mode="json"), electrical.supply.transformerType)
-        if not full.get("length") or not full.get("width"):
-            skipped.append(f"{item.id}: no size")
-            continue
-        ifc_class, predefined = _ELECTRICAL_CLASSES.get(
-            item.kind, ("IfcBuildingElementProxy", None)
-        )
-        floor = levels[item.story]
-        product = _box_product(
-            w, ifc_class, predefined, f"electrical:{item.id}",
-            item.name or f"{ELECTRICAL_EQUIPMENT_KINDS.get(item.kind, item.kind)} {item.id}",
-            item.id, (full["length"], full["width"], full.get("height") or _EQUIPMENT_HEIGHT),
-            (item.x, item.y, floor), storey_at(floor),
-        )  # fmt: skip
-        product.ObjectType = item.kind
-        weight = full.get("operatingWeight")
-        product.Description = f"{weight:g} kN operating" if weight else None
-        ids[item.id] = product.GlobalId
-    for riser in electrical.risers:
-        low, high = levels.get(riser.fromStory), levels.get(riser.toStory)
-        if low is None or high is None or high <= low:
-            skipped.append(f"{riser.id}: its stories are not in the building model")
-            continue
-        ifc_class, predefined = _RISER_CLASSES.get(riser.kind, _RISER_CLASSES["cableTray"])
-        product = w.entity(ifc_class, riser.id, f"riser:{riser.id}", predefined)
-        product.Tag = riser.id
-        product.ObjectType = riser.kind
-        w.extrusion(
-            product,
-            w.rectangle(
-                riser.width or _ELECTRICAL_RISER_SIZE, riser.depth or _ELECTRICAL_RISER_SIZE
-            ),
-            high - low,
-        )
-        w.place(product, _placement((riser.x, riser.y, low), (1, 0, 0), (0, 0, 1)))
-        w.run(
-            "spatial.assign_container", w.file, products=[product],
-            relating_structure=storey_at(low),
-        )  # fmt: skip
-        ids[riser.id] = product.GlobalId
-    for tray in electrical.trays:
-        if tray.story not in levels:
-            skipped.append(f"{tray.id}: no story '{tray.story}'")
-            continue
-        floor = levels[tray.story]
-        if tray.bottom is not None:
-            centre = floor + tray.bottom + tray.height / 2
-        else:
-            top = soffit(tray.story)
-            if top is None:
-                skipped.append(f"{tray.id}: no floor above its story to hang from")
+        for term in getattr(hvac, "terminals", []):
+            if term.story not in levels:
+                skipped.append(f"{term.id}: no story '{term.story}'")
                 continue
-            centre = top - _TRAY_HEADROOM - tray.height / 2
-        _run_segments(
-            w, "IfcCableCarrierSegment", "CABLETRAYSEGMENT", tray.id, f"tray:{tray.id}",
-            tray.path, w.rectangle(tray.width, tray.height), centre, storey_at(floor), ids,
-        )  # fmt: skip
+            floor = levels[term.story]
+            top = soffit(term.story)
+            z = (
+                float(term.z)
+                if term.z is not None
+                else (top - _DUCT_HANGER if top is not None else floor + 2700.0)
+            )
+            size_x = float(term.width or term.diameter or 400.0)
+            size_y = float(term.height or term.diameter or 400.0)
+            predefined = {
+                "supplyDiffuser": "DIFFUSER",
+                "returnGrille": "GRILLE",
+                "exhaustGrille": "GRILLE",
+                "freshAirLouvre": "LOUVRE",
+            }.get(term.kind, "DIFFUSER")
+            product = _box_product(
+                w, "IfcAirTerminal", predefined, f"terminal:{term.id}", term.id, term.id,
+                (size_x, size_y, 150.0), (term.x, term.y, z), storey_at(floor),
+            )  # fmt: skip
+            product.ObjectType = term.system
+            ids[term.id] = product.GlobalId
+            w.mep_products.setdefault(term.id, []).append(product)
+        for pipe in getattr(hvac, "pipes", []):
+            if pipe.story not in levels:
+                skipped.append(f"{pipe.id}: no story '{pipe.story}'")
+                continue
+            diameter = float(pipe.diameter or _RISER_DIAMETER)
+            profile = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            profile.Radius = diameter / 2
+            floor = levels[pipe.story]
+            top = soffit(pipe.story)
+            centre = (
+                floor + float(pipe.bottom) + diameter / 2
+                if pipe.bottom is not None
+                else (top - _TRAY_HEADROOM - diameter / 2 if top is not None else floor + 2700.0)
+            )
+            _run_segments(
+                w, "IfcPipeSegment", "RIGIDSEGMENT", pipe.id, f"hvacPipe:{pipe.id}", pipe.path,
+                profile, centre, storey_at(floor), ids,
+            )  # fmt: skip
+    electrical = getattr(mep, "electrical", None)
+    if electrical is not None:
+        from saengine.electrical.report import with_typical
+        from saengine.library.mep import ELECTRICAL_EQUIPMENT_KINDS
+
+        for item in electrical.equipment:
+            if item.story not in levels:
+                skipped.append(f"{item.id}: no story '{item.story}'")
+                continue
+            if carried(item):
+                if getattr(item, "equipment", None) and item.equipment in w.mep_products:
+                    w.mep_products[item.id] = w.mep_products[item.equipment]
+                continue
+            full = with_typical(item.model_dump(mode="json"), electrical.supply.transformerType)
+            if not full.get("length") or not full.get("width"):
+                skipped.append(f"{item.id}: no size")
+                continue
+            ifc_class, predefined = _ELECTRICAL_CLASSES.get(
+                item.kind, ("IfcBuildingElementProxy", None)
+            )
+            floor = levels[item.story]
+            product = _box_product(
+                w, ifc_class, predefined, f"electrical:{item.id}",
+                item.name or f"{ELECTRICAL_EQUIPMENT_KINDS.get(item.kind, item.kind)} {item.id}",
+                item.id, (full["length"], full["width"], full.get("height") or _EQUIPMENT_HEIGHT),
+                (item.x, item.y, floor), storey_at(floor),
+            )  # fmt: skip
+            product.ObjectType = item.kind
+            weight = full.get("operatingWeight")
+            product.Description = f"{weight:g} kN operating" if weight else None
+            ids[item.id] = product.GlobalId
+            w.mep_products.setdefault(item.id, []).append(product)
+        for riser in electrical.risers:
+            low, high = levels.get(riser.fromStory), levels.get(riser.toStory)
+            if low is None or high is None or high <= low:
+                skipped.append(f"{riser.id}: its stories are not in the building model")
+                continue
+            ifc_class, predefined = _RISER_CLASSES.get(riser.kind, _RISER_CLASSES["cableTray"])
+            product = w.entity(ifc_class, riser.id, f"riser:{riser.id}", predefined)
+            product.Tag = riser.id
+            product.ObjectType = riser.kind
+            w.extrusion(
+                product,
+                w.rectangle(
+                    riser.width or _ELECTRICAL_RISER_SIZE, riser.depth or _ELECTRICAL_RISER_SIZE
+                ),
+                high - low,
+            )
+            w.place(product, _placement((riser.x, riser.y, low), (1, 0, 0), (0, 0, 1)))
+            w.run(
+                "spatial.assign_container", w.file, products=[product],
+                relating_structure=storey_at(low),
+            )  # fmt: skip
+            ids[riser.id] = product.GlobalId
+            w.mep_products.setdefault(riser.id, []).append(product)
+        for tray in electrical.trays:
+            if tray.story not in levels:
+                skipped.append(f"{tray.id}: no story '{tray.story}'")
+                continue
+            floor = levels[tray.story]
+            if tray.bottom is not None:
+                centre = floor + tray.bottom + tray.height / 2
+            else:
+                top = soffit(tray.story)
+                if top is None:
+                    skipped.append(f"{tray.id}: no floor above its story to hang from")
+                    continue
+                centre = top - _TRAY_HEADROOM - tray.height / 2
+            _run_segments(
+                w, "IfcCableCarrierSegment", "CABLETRAYSEGMENT", tray.id, f"tray:{tray.id}",
+                tray.path, w.rectangle(tray.width, tray.height), centre, storey_at(floor), ids,
+            )  # fmt: skip
+        for lum in electrical.luminaires:
+            if lum.story not in levels:
+                continue
+            floor = levels[lum.story]
+            z_pt = floor + (lum.z if lum.z is not None else 2800.0)
+            product = _box_product(
+                w,
+                "IfcLightFixture",
+                "POINTSOURCE",
+                f"luminaire:{lum.id}",
+                f"{lum.type} {lum.id}",
+                lum.id,
+                (600.0, 600.0, 50.0),
+                (lum.x, lum.y, z_pt),
+                storey_at(floor),
+            )
+            ids[lum.id] = product.GlobalId
+            w.mep_products.setdefault(lum.id, []).append(product)
+    fire = getattr(mep, "fire", None)
+    if fire is not None:
+        for pump in fire.pumps:
+            if pump.story not in levels or carried(pump):
+                if getattr(pump, "equipment", None) and pump.equipment in w.mep_products:
+                    w.mep_products[pump.id] = w.mep_products[pump.equipment]
+                continue
+            floor = levels[pump.story]
+            product = _box_product(
+                w, "IfcPump", "ENDSUCTION", f"fire:{pump.id}", pump.id, pump.id,
+                (pump.length or 900.0, pump.width or 600.0, pump.height or 700.0),
+                (pump.x, pump.y, floor), storey_at(floor),
+            )  # fmt: skip
+            ids[pump.id] = product.GlobalId
+            w.mep_products.setdefault(pump.id, []).append(product)
+        for riser in fire.risers:
+            low, high = levels.get(riser.fromStory), levels.get(riser.toStory)
+            if low is None or high is None or high <= low:
+                continue
+            diam = float(riser.diameter or _RISER_DIAMETER)
+            profile = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            profile.Radius = diam / 2
+            product = w.entity("IfcPipeSegment", riser.id, f"fireRiser:{riser.id}", "RIGIDSEGMENT")
+            product.Tag = riser.id
+            w.extrusion(product, profile, high - low)
+            w.place(product, _placement((riser.x, riser.y, low), (1, 0, 0), (0, 0, 1)))
+            w.run(
+                "spatial.assign_container", w.file, products=[product],
+                relating_structure=storey_at(low),
+            )  # fmt: skip
+            ids[riser.id] = product.GlobalId
+            w.mep_products.setdefault(riser.id, []).append(product)
+        for main in fire.mains:
+            if main.story not in levels:
+                continue
+            diam = float(main.diameter or _RISER_DIAMETER)
+            profile = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            profile.Radius = diam / 2
+            floor = levels[main.story]
+            top = soffit(main.story)
+            centre = (
+                floor + float(main.bottom) + diam / 2
+                if main.bottom is not None
+                else (top - _TRAY_HEADROOM - diam / 2 if top is not None else floor + 2700.0)
+            )
+            _run_segments(
+                w, "IfcPipeSegment", "RIGIDSEGMENT", main.id, f"fireMain:{main.id}", main.path,
+                profile, centre, storey_at(floor), ids,
+            )  # fmt: skip
+        for sh in fire.sprinklerHeads:
+            if sh.story not in levels:
+                continue
+            floor = levels[sh.story]
+            z_pt = floor + (sh.z if sh.z is not None else 2700.0)
+            product = _box_product(
+                w,
+                "IfcFireSuppressionTerminal",
+                "SPRINKLER",
+                f"sprinkler:{sh.id}",
+                sh.id,
+                sh.id,
+                (80.0, 80.0, 80.0),
+                (sh.x, sh.y, z_pt),
+                storey_at(floor),
+            )
+            ids[sh.id] = product.GlobalId
+            w.mep_products.setdefault(sh.id, []).append(product)
+        for sp in fire.sprinklerPipes:
+            if sp.story not in levels or not sp.diameter:
+                continue
+            floor = levels[sp.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(sp.diameter) / 2
+            z_pt = floor + (sp.bottom if sp.bottom is not None else 2750.0)
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                sp.id,
+                f"firepipe:{sp.id}",
+                sp.path,
+                prof,
+                z_pt,
+                storey_at(floor),
+                ids,
+            )
+        for dev in fire.alarmDevices:
+            if dev.story not in levels:
+                continue
+            floor = levels[dev.story]
+            ifc_cls, predef = (
+                ("IfcAlarm", "BELL")
+                if dev.kind in ("callPoint", "sounder", "panel")
+                else ("IfcSensor", "SMOKESENSOR" if dev.kind == "smokeDetector" else "HEATSENSOR")
+            )
+            z_pt = floor + (1400.0 if dev.kind in ("callPoint", "panel") else 2800.0)
+            product = _box_product(
+                w,
+                ifc_cls,
+                predef,
+                f"alarm:{dev.id}",
+                dev.id,
+                dev.id,
+                (120.0, 120.0, 60.0),
+                (dev.x, dev.y, z_pt),
+                storey_at(floor),
+            )
+            ids[dev.id] = product.GlobalId
+            w.mep_products.setdefault(dev.id, []).append(product)
+    gas = getattr(mep, "gas", None)
+    if gas is not None:
+        for gp in gas.pipes:
+            if gp.story not in levels or not gp.diameter:
+                continue
+            floor = levels[gp.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(gp.diameter) / 2
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                gp.id,
+                f"gas:{gp.id}",
+                gp.path,
+                prof,
+                floor + 2600.0,
+                storey_at(floor),
+                ids,
+            )
+    med = getattr(mep, "medicalGas", None)
+    if med is not None:
+        for mp_pipe in med.pipes:
+            if mp_pipe.story not in levels or not mp_pipe.diameter:
+                continue
+            floor = levels[mp_pipe.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(mp_pipe.diameter) / 2
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                mp_pipe.id,
+                f"medgas:{mp_pipe.id}",
+                mp_pipe.path,
+                prof,
+                floor + 2650.0,
+                storey_at(floor),
+                ids,
+            )
+
+
+_IFC_SYSTEM_TYPES: dict[str, str] = {
+    "supplyAir": "AIRCONDITIONING",
+    "returnAir": "VENTILATION",
+    "exhaustAir": "EXHAUST",
+    "freshAir": "VENTILATION",
+    "kitchenExhaust": "EXHAUST",
+    "smokeExtract": "EXHAUST",
+    "chilledWater": "CHILLEDWATER",
+    "condenserWater": "CONDENSERWATER",
+    "domesticColdWater": "DOMESTICCOLDWATER",
+    "domesticHotWater": "DOMESTICHOTWATER",
+    "sanitary": "SEWAGE",
+    "vent": "VENT",
+    "stormWater": "STORMWATER",
+    "fireProtection": "FIREPROTECTION",
+    "power": "ELECTRICAL",
+    "cableTray": "ELECTRICAL",
+}
+_IFC_PORT_TYPES: dict[str, str] = {
+    "duct": "DUCT",
+    "pipe": "PIPE",
+    "electrical": "CABLE",
+    "cableTray": "CABLECARRIER",
+}
+_IFC_FLOW_DIR: dict[str, str] = {
+    "out": "SOURCE",
+    "in": "SINK",
+    "bidirectional": "NOTDEFINED",
+}
+
+
+def _export_systems(
+    w: _Writer,
+    building: BuildingModel,
+    mep: Any,
+    skipped: list[str],
+) -> None:
+    """Exports logical MEP systems as ``IfcDistributionSystem`` and port connections as
+    ``IfcDistributionPort`` + ``IfcRelConnectsPorts``."""
+    from saengine.mep.systems import analyze_systems
+
+    if not w.mep_products:
+        return
+    try:
+        analysis = analyze_systems(mep, building)
+    except Exception as error:  # noqa: BLE001 - system graph never blocks IFC geometry export
+        skipped.append(f"MEP systems: {error}")
+        return
+
+    for sys in analysis.get("systems", []):
+        products = [p for eid in sys.get("elements", []) for p in w.mep_products.get(eid, [])]
+        if not products:
+            continue
+        ifc_sys = w.run("system.add_system", w.file, ifc_class="IfcDistributionSystem")
+        ifc_sys.GlobalId = global_id(f"system:{sys['id']}")
+        ifc_sys.Name = sys["name"]
+        ifc_sys.PredefinedType = _IFC_SYSTEM_TYPES.get(sys["classification"], "NOTDEFINED")
+        w.run("system.assign_system", w.file, products=products, system=ifc_sys)
+
+    # Connect consecutive segments of multi-leg runs so every leg is part of the port chain.
+    for eid, segs in w.mep_products.items():
+        if len(segs) <= 1:
+            continue
+        for a, b in itertools.pairwise(segs):
+            pa = w.run("system.add_port", w.file, element=a)
+            pb = w.run("system.add_port", w.file, element=b)
+            pa.Name, pb.Name = f"{eid}:seg-out", f"{eid}:seg-in"
+            w.run("system.connect_port", w.file, port1=pa, port2=pb, direction="NOTDEFINED")
+
+    # Add IfcDistributionPorts and IfcRelConnectsPorts for each connection.
+    connectors_by_key = {f"{c['elementId']}:{c['id']}": c for c in analysis.get("connectors", [])}
+
+    def _product_for(elem_id: str, port_id: str) -> Any:
+        segs = w.mep_products.get(elem_id, [])
+        if not segs:
+            return None
+        return segs[-1] if port_id == "end" else segs[0]
+
+    for conn in analysis.get("connections", []):
+        ca = connectors_by_key.get(conn["from"])
+        cb = connectors_by_key.get(conn["to"])
+        if not ca or not cb:
+            continue
+        pa_elem = _product_for(ca["elementId"], ca["id"])
+        pb_elem = _product_for(cb["elementId"], cb["id"])
+        if pa_elem is None or pb_elem is None:
+            continue
+        pa = w.run("system.add_port", w.file, element=pa_elem)
+        pb = w.run("system.add_port", w.file, element=pb_elem)
+        pa.Name = conn["from"]
+        pb.Name = conn["to"]
+        pa.PredefinedType = _IFC_PORT_TYPES.get(ca["domain"], "NOTDEFINED")
+        pb.PredefinedType = _IFC_PORT_TYPES.get(cb["domain"], "NOTDEFINED")
+        pa.FlowDirection = _IFC_FLOW_DIR.get(ca["direction"], "NOTDEFINED")
+        pb.FlowDirection = _IFC_FLOW_DIR.get(cb["direction"], "NOTDEFINED")
+        pa.SystemType = _IFC_SYSTEM_TYPES.get(ca["classification"], "NOTDEFINED")
+        pb.SystemType = _IFC_SYSTEM_TYPES.get(cb["classification"], "NOTDEFINED")
+        direction = (
+            "SOURCE"
+            if ca["direction"] == "out" or cb["direction"] == "in"
+            else "SINK"
+            if ca["direction"] == "in" or cb["direction"] == "out"
+            else "NOTDEFINED"
+        )
+        w.run("system.connect_port", w.file, port1=pa, port2=pb, direction=direction)
 
 
 #: IFC4 classes of the equipment kinds of 7 MEP (class, predefined type).
@@ -976,6 +1342,7 @@ def _export_mep(
             relating_structure=storey_at(floor),
         )
         ids[item.id] = product.GlobalId
+        w.mep_products.setdefault(item.id, []).append(product)
 
     for opening in mep.openings:
         host_element, host = elements.get(opening.host), products.get(opening.host)

@@ -14,7 +14,8 @@ export type ModelSelection =
 	| { readonly kind: 'member'; readonly group: MemberGroup; readonly id: string }
 	| { readonly kind: 'story'; readonly id: string }
 	| { readonly kind: 'gridLine'; readonly axis: 'x' | 'y'; readonly label: string }
-	| { readonly kind: 'objectType'; readonly id: string };
+	| { readonly kind: 'objectType'; readonly id: string }
+	| { readonly kind: 'mep'; readonly id: string; readonly story?: string };
 
 export interface IModelSelectionChange {
 	readonly selection: ModelSelection | undefined;

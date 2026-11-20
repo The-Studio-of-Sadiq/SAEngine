@@ -1836,6 +1836,33 @@ def _derive_fem(
                 f"{source}: {lost / 1e3:.1f} kN of its load is off the slab's shells; not applied"
             )
 
+    def shell_point_load(
+        source: str,
+        shells: list[_Shell],
+        x_m: float,
+        y_m: float,
+        z_m: float,
+        force: float,
+        case: str = "SD",
+    ) -> None:
+        """A point load (N, down) at ``(x_m, y_m, z_m)`` [m] distributed to the shell triangle."""
+        point = np.array([x_m, y_m, z_m], dtype=float)
+        stage = stage_of(z_m)
+        share = seismic_share(case)
+        for shell in shells:
+            corners = list(shell.nodes)
+            for k in range(1, len(corners) - 1):
+                nodes = (corners[0], corners[k], corners[k + 1])
+                weights = _barycentric(point, [b.coords[n] for n in nodes])
+                if weights is None:
+                    continue
+                for node_id, weight in zip(nodes, weights, strict=True):
+                    if weight:
+                        add_nodal(case, node_id, down * force * weight, stage)
+                        add_weight(node_id, force * weight * share, part_of(case))
+                return
+        b.notes.append(f"{source}: {force / 1e3:.2f} kN is off the slab's shells; not applied")
+
     walls = {e.id for e in building.elements if isinstance(e, WallElement | AreaElement)}
     for shell in b.shells:
         if shell.source in walls:
@@ -2017,6 +2044,17 @@ def _derive_fem(
                         line.source, shells_of[element.id], line.start, line.end, line.load,
                         line.case,
                     )  # fmt: skip
+            for comp in arch_set.component_loads if arch_set is not None else []:
+                if comp.slab == element.id:
+                    shell_point_load(
+                        comp.source,
+                        shells_of[element.id],
+                        comp.x,
+                        comp.y,
+                        element.elevation * MM,
+                        comp.force,
+                        comp.case,
+                    )
             continue
         if rooms_here:
             # Slabs as loads to beams: the panel takes the area-weighted mean of its rooms' loads

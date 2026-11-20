@@ -43,7 +43,13 @@ STATUS_ALIASES = {
     "accepted": "approved",
 }
 PRIORITY_LABELS = {"low": "Low", "normal": "Normal", "high": "High", "critical": "Critical"}
-TOPIC_TYPES = {"clash": "Clash", "ids": "Model check", "bcf": "Issue", "manual": "Issue"}
+TOPIC_TYPES = {
+    "clash": "Clash",
+    "ids": "Model check",
+    "bcf": "Issue",
+    "manual": "Issue",
+    "systems": "MEP system check",
+}
 #: Where the camera of a viewpoint stands from the issue's point [m], and its field of view.
 CAMERA_OFFSET = (6.0, -6.0, 4.5)
 FIELD_OF_VIEW = 60.0

@@ -104,6 +104,8 @@ def _build(t: Any) -> dict[str, Any]:
         "PUMP_CLEARANCE": t.pumpClearance,
         "CONTROLLER_STRIP": t.controllerStrip,
         "PUMP_CENTRE": t.pumpCentre,
+        "SPRINKLER_LAYOUT": t.sprinklerLayout,
+        "ALARM": t.alarm,
     }
 
 

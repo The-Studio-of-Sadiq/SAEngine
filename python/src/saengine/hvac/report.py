@@ -31,7 +31,7 @@ from saengine.hvac import energyplus as EP
 from saengine.hvac import fallback as F
 from saengine.hvac import tables as T
 from saengine.hvac.constructions import envelope as envelope_choice
-from saengine.hvac.gains import design_conditions, room_gains
+from saengine.hvac.gains import design_conditions, room_gains, single_room_gains, zone_gains
 from saengine.hvac.geometry import zones as make_zones
 from saengine.library.mep import HVAC_PLANT_KINDS, MEP_FILE, MepModel, hvac_references, parse
 from saengine.plumbing.building import Building
@@ -39,7 +39,7 @@ from saengine.plumbing.building import Building
 RESULTS_DIR = "07 MEP/hvac.results"
 RESULTS_FILE = f"{RESULTS_DIR}/loads.json"
 #: Version of the cached runs: a change to the method invalidates them.
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 #: kW per ton of refrigeration (12 000 Btu/h).
 KW_PER_TON = 3.51685
 
@@ -153,50 +153,80 @@ def hvac_results(
     folder: Path | None = None,
     run_energyplus: bool = True,
     rooms: Any = None,
+    zoning: str | None = None,
+    arch: Any = None,
 ) -> dict[str, Any]:
-    """The cooling loads of parsed models (``bim``: a BuildingModel; ``location``: the Project
-    Settings site location). ``cache``: the stored ``{stamp, run}`` of an EnergyPlus run, reused
-    (not run again) when its stamp matches; the result's ``run`` key holds a fresh run to store.
-    ``folder``: where EnergyPlus runs (kept); a temporary folder when None.
-    ``run_energyplus`` False: EnergyPlus is not started (the editor's report after each edit,
-    Run All); its cached run is still used when its stamp matches, else the estimate is given
-    with ``calculated`` False ("loads not calculated: run Calculate Loads").
-    ``rooms``: the architecture's rooms (:class:`saengine.mep.rooms.RoomInputs`): a story's
-    occupants, gains and outdoor air come from its rooms' areas and uses where it has any
-    (:func:`saengine.hvac.gains.room_gains`; each zone's ``gainsFrom`` and ``rooms`` say so),
-    and the plumbing population the dwellings share from its fixtures."""
+    """The cooling and heating loads of parsed models (``bim``: a BuildingModel; ``location``:
+    the Project Settings site location). ``zoning``: ``"room"`` (default when architecture rooms
+    exist) or ``"story"`` (per-storey block zones, for speed). See module docstring for cache and
+    EnergyPlus options."""
     from saengine.mep.rooms import with_rooms
 
     mep, _ = with_rooms(mep, rooms)
     hvac = mep.hvac
     if hvac is None:
-        return {"engine": None, "zones": [], "total": 0.0, "notes": [],
-                "problems": ["07 MEP has no hvac section"]}  # fmt: skip
+        return {"engine": None, "zones": [], "stories": [], "total": 0.0, "heatingTotal": 0.0,
+                "notes": [], "problems": ["07 MEP has no hvac section"]}  # fmt: skip
     building = Building.of(bim, ground)
     problems = hvac_references(mep, building.stories) if building.known else []
     if not building.known:
         problems.append("06 BIM is needed for the zones (stories and slabs)")
-    zoning = make_zones(building, hvac)
-    problems.extend(zoning.problems)
+    mode = zoning if zoning in ("room", "story") else getattr(hvac, "zoning", "room")
+    if mode not in ("room", "story"):
+        mode = "room"
+    zoning_res = make_zones(building, hvac, rooms=rooms, by_room=(mode == "room"), arch=arch)
+    problems.extend(zoning_res.problems)
     design = design_conditions(hvac, location)
     env = envelope_choice(hvac.envelope)
     populations = _populations(mep, building)
+    room_by_id = (
+        {r.id: r for s in rooms.stories.values() for r in s.rooms} if rooms is not None else {}
+    )
+    from saengine.electrical.lighting import story_lighting_loads
+
+    lighting_loads = story_lighting_loads(mep, building, rooms)
     gains = {}
-    for zone in zoning.zones:
+    for zone in zoning_res.zones:
         if zone.conditioned or zone.entry is not None:
             story_rooms = rooms.story(zone.story) if rooms is not None else None
-            groups = story_rooms.hvac_groups() if story_rooms is not None else []
-            if zone.entry is not None and zone.entry.gainsFrom == "rooms" and not groups:
-                problems.append(
-                    f"{zone.story}: gains from the rooms asked for, but the architecture has no "
-                    "rooms with a use on this story: the typed use is taken"
+            story_light = lighting_loads.get(zone.story) or {}
+            story_lpd = story_light.get("lpd")
+            if zone.room is not None and zone.room in room_by_id:
+                room_lpd = (story_light.get("rooms") or {}).get(zone.room)
+                g = single_room_gains(
+                    zone,
+                    room_by_id[zone.room],
+                    hvac,
+                    story_rooms,
+                    populations.get(zone.story),
+                    lighting_lpd=room_lpd if room_lpd is not None else story_lpd,
                 )
-            g = room_gains(zone, hvac, groups, populations.get(zone.story))
+            elif zone.roomLabel == "Unallocated":
+                g = zone_gains(
+                    zone,
+                    hvac,
+                    populations.get(zone.story),
+                    lighting_lpd=story_lpd,
+                )
+            else:
+                groups = story_rooms.hvac_groups() if story_rooms is not None else []
+                if zone.entry is not None and zone.entry.gainsFrom == "rooms" and not groups:
+                    problems.append(
+                        f"{zone.story}: gains from the rooms asked for, but the architecture has no "
+                        "rooms with a use on this story: the typed use is taken"
+                    )
+                g = room_gains(
+                    zone,
+                    hvac,
+                    groups,
+                    populations.get(zone.story),
+                    lighting_lpd=story_lpd,
+                )
             gains[zone.name] = g
             problems.extend(g.problems if zone.conditioned else [])
-    conditioned = [z for z in zoning.zones if z.conditioned]
-    notes = [*design.sources, *env.notes, *zoning.notes]
-    for zone in zoning.zones:
+    conditioned = [z for z in zoning_res.zones if z.conditioned]
+    notes = [*design.sources, *env.notes, *zoning_res.notes]
+    for zone in zoning_res.zones:
         if not zone.conditioned:
             flow, source = EP.unconditioned_air(zone, gains.get(zone.name))
             notes.append(
@@ -213,10 +243,12 @@ def hvac_results(
             )
     base = {
         "method": method(),
+        "zoning": mode,
         "design": {
             "station": design.station.key, "outdoorDB": design.db, "outdoorWB": design.wb,
             "dailyRange": design.range, "latitude": design.latitude,
-            "longitude": design.longitude,
+            "longitude": design.longitude, "heatingOutdoorDB": design.heatingDB,
+            "infiltrationACH": design.infiltrationACH,
         },
         "envelope": {
             "wall": env.wall.label, "roof": env.roof.label, "glazing": env.glazing.label,
@@ -226,9 +258,10 @@ def hvac_results(
         "assumptions": list(T.ASSUMPTIONS),
     }  # fmt: skip
     if not conditioned:
-        return {**base, "engine": None, "zones": [], "total": 0.0, "notes": notes,
+        return {**base, "engine": None, "zones": [], "stories": [], "total": 0.0,
+                "heatingTotal": 0.0, "notes": notes,
                 "problems": [*problems, "no conditioned story to work out"]}  # fmt: skip
-    model = EP.build(zoning.zones, gains, env, design)
+    model = EP.build(zoning_res.zones, gains, env, design)
     exe = EP.find_energyplus(energyplus) if use_energyplus else None
     stamp = _stamp(
         {"version": CACHE_VERSION, "model": model.epjson, "engine": str(exe) if exe else None}
@@ -257,22 +290,35 @@ def hvac_results(
             problems.append(f"EnergyPlus: {warning[:400]}")
     else:
         notes.append(f"{F.LABEL}: install EnergyPlus or set {EP.ENV_VAR}")
+    other_cool: dict[str, float] = {}
+    other_heat: dict[str, float] = {}
+    for z in zoning_res.zones:
+        gz = gains.get(z.name)
+        t_c = gz.indoorDB if gz is not None else design.db
+        t_h = gz.heatingIndoorDB if gz is not None else design.heatingDB
+        for s in z.surfaces:
+            other_cool[s.name] = t_c
+            other_heat[s.name] = t_h
     out_zones = []
     for zone in conditioned:
         g = gains[zone.name]
-        row = {
+        row: dict[str, Any] = {
             "story": zone.story,
             "zone": zone.name,
+            "room": zone.room,
+            "roomLabel": zone.roomLabel,
             "use": g.use,
             "area": zone.area,
             "volume": zone.volume,
             "occupants": g.occupants,
             "indoorDB": g.indoorDB,
             "indoorRH": g.indoorRH,
+            "heatingIndoorDB": g.heatingIndoorDB,
             "sources": g.sources,
             "gainsFrom": g.gainsFrom,
             "rooms": g.rooms,
         }
+        heat_est = F.heating_load(zone, g, env, design, other_temps=other_heat)
         if run is not None and "problem" not in run["zones"].get(zone.name, {"problem": 1}):
             r = run["zones"][zone.name]
             components = dict(r["components"])
@@ -283,11 +329,20 @@ def hvac_results(
                 airflow=r["airflow"], outdoorAir=r["ventilation"]["flow"], peak=r["peak"],
                 breakdown=breakdown, ventilation=r["ventilation"],
                 componentsTotal=components.get("total"), engine=EP.ENGINE,
+                heating=r.get("heating", heat_est["total"]),
+                heatingAirflow=r.get("heatingAirflow", heat_est["airflow"]),
+                heatingBreakdown=heat_est["breakdown"],
             )  # fmt: skip
         else:
             if run is not None:
                 problems.append(f"{zone.story}: EnergyPlus gave no cooling: the estimate is given")
-            row.update(F.zone_load(zone, g, env, design), engine=F.ENGINE)
+            row.update(
+                F.zone_load(zone, g, env, design, other_temps=other_cool),
+                engine=F.ENGINE,
+                heating=heat_est["total"],
+                heatingAirflow=heat_est["airflow"],
+                heatingBreakdown=heat_est["breakdown"],
+            )
         row["glazing"] = row["breakdown"]["glazingConduction"] + row["breakdown"]["glazingSolar"]
         row["breakdown"]["glazing"] = row["glazing"]
         row["peakMonth"], row["peakHour"] = row["peak"].get("month"), row["peak"].get("time")
@@ -295,13 +350,41 @@ def hvac_results(
         row["density"] = row["total"] * 1000.0 / zone.area if zone.area else None
         row["supply"], row["freshAir"] = row["airflow"], row["outdoorAir"]
         out_zones.append(row)
+    stories_map: dict[str, dict[str, Any]] = {}
+    for z in out_zones:
+        s = stories_map.setdefault(
+            z["story"],
+            {
+                "story": z["story"],
+                "area": 0.0,
+                "sensible": 0.0,
+                "latent": 0.0,
+                "total": 0.0,
+                "heating": 0.0,
+                "airflow": 0.0,
+                "outdoorAir": 0.0,
+                "rooms": [],
+            },
+        )
+        s["area"] += z["area"]
+        s["sensible"] += z["sensible"]
+        s["latent"] += z["latent"]
+        s["total"] += z["total"]
+        s["heating"] += z["heating"]
+        s["airflow"] += z["airflow"] or 0.0
+        s["outdoorAir"] += z["outdoorAir"] or 0.0
+        if z.get("room") is not None:
+            s["rooms"].append(z["room"])
     total = sum(z["total"] for z in out_zones)
+    heating_total = sum(z["heating"] for z in out_zones)
     result = {
         **base,
         "engine": EP.ENGINE if run is not None else F.ENGINE,
         "engineLabel": EP.ENGINE if run is not None else F.LABEL,
         "zones": out_zones,
+        "stories": list(stories_map.values()),
         "total": total,
+        "heatingTotal": heating_total,
         "tons": total / KW_PER_TON,
         "sensible": sum(z["sensible"] for z in out_zones),
         "latent": sum(z["latent"] for z in out_zones),
@@ -390,33 +473,45 @@ def hvac_loads(
     use_energyplus: bool = True,
     cache: bool = True,
     run_energyplus: bool = True,
+    zoning: str | None = None,
 ) -> dict[str, Any]:
-    """The cooling loads of a project (``mep_text``: unsaved ``07 MEP/mep.json``):
-    ``{engine: "EnergyPlus version 26.2.0" | "estimate", zones: [{story, area, sensible,
-    latent, total, airflow, peak, breakdown}], total, notes, problems, ...}`` (kW, m³/s).
+    """The cooling and heating loads of a project (``mep_text``: unsaved ``07 MEP/mep.json``):
+    ``{engine: "EnergyPlus version 26.2.0" | "estimate", zones: [{story, room, area, sensible,
+    latent, total, heating, airflow, peak, breakdown}], total, heatingTotal, notes, problems,
+    ...}`` (kW, m³/s).
     ``run_energyplus`` False: only a cached EnergyPlus run of this input is used, else the
     estimate (``calculated`` False), so that it is fast (:func:`hvac_results`).
+    ``zoning``: ``"room"`` (default when architecture rooms exist) or ``"story"``.
     Never raises: ``{problems}`` when 07 MEP cannot be read."""
     root = Path(project_root)
     try:
         mep, bim, location, ground, problems = _load(root, mep_text)
     except ValueError as error:
-        return {"engine": None, "zones": [], "total": 0.0, "notes": [], "problems": [str(error)]}
+        return {"engine": None, "zones": [], "stories": [], "total": 0.0, "heatingTotal": 0.0,
+                "notes": [], "problems": [str(error)]}  # fmt: skip
     old = read_cache(root) if cache else None
+    from saengine.library import architecture as arch_lib
     from saengine.mep.rooms import read_room_inputs
 
     rooms, problem = read_room_inputs(root, mep.plumbing)
     if problem:
         problems.append(problem)
+    arch = None
+    arch_text = _read(root, arch_lib.ARCHITECTURE_FILE)
+    if arch_text:
+        try:
+            arch = arch_lib.parse(arch_text)
+        except ValueError:
+            arch = None
     try:
         result = hvac_results(
             mep, bim, location, ground, energyplus=energyplus,
             use_energyplus=use_energyplus, cache=old, run_energyplus=run_energyplus,
-            rooms=rooms,
+            rooms=rooms, zoning=zoning, arch=arch,
         )  # fmt: skip
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
-        return {"engine": None, "zones": [], "total": 0.0, "notes": [],
-                "problems": [*problems, f"the cooling load failed: {error!r}"]}  # fmt: skip
+        return {"engine": None, "zones": [], "stories": [], "total": 0.0, "heatingTotal": 0.0,
+                "notes": [], "problems": [*problems, f"the cooling load failed: {error!r}"]}  # fmt: skip
     result["problems"] = [*problems, *result.get("problems", [])]
     stamp = result.get("stamp")
     run = result.pop("run", None)  # only a fresh, successful EnergyPlus run

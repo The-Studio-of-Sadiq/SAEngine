@@ -66,8 +66,10 @@ Risers** adds slab sleeves where a riser is not in a shaft.
 
 Results (*Plumbing coordination*): daily demand and storage, the **RC tank design** (walls, base
 and roof analysed as shells, with reinforcement and quantities), riser and rainwater leader sizes
-(Table 8.7.2), septic tank and soak well (Appendix S), and the **hydraulics**: residual head at
-every floor against the required head, solved with the EPANET 2.2 engine (WNTR).
+(Table 8.7.2), septic tank and soak well (Appendix S), the **hydraulics** (residual head at
+every floor against the required head, solved with the EPANET 2.2 engine (WNTR)), **hot water**
+heater sizing (storage + recovery) and recirculation loop flow, and **fuel gas / medical gas**
+demand, diversity, meter checks and pipe sizes.
 
 ## HVAC
 
@@ -81,8 +83,18 @@ the envelope, the storeys (use from Table 8.2.3), plant and ducts. While drawing
 points, double-click or Enter to end, Backspace removes the last point, Esc cancels.
 
 **Calculate Loads** runs EnergyPlus for the design day when it is installed (about half a
-minute); without it, a hand estimate is used and labelled as such. **Propose Plant** sizes plant
-entries; **Add Duct Openings** proposes and checks beam web openings for the ducts.
+minute); without it, a CLTD/CLF-style steady-state hand estimate is used and labelled as such.
+When architectural rooms are drawn (`05 Floor Plan/architecture.json`), loads, sensible/latent
+splits, heating loads (envelope conduction, infiltration, and outdoor air against the site's winter
+design temperature), and supply airflows are computed **room by room** by default, with a
+per-storey option (`zoning: "story"`) for speed. **Propose Plant** sizes plant entries; **Add Duct
+Openings** proposes and checks beam web openings for the ducts.
+
+Air-side sizing (`saengine.hvac.air`) supports **equal friction**, **static regain**, and
+**velocity reduction**, computes Darcy–Weisbach friction and fitting pressure drops along the
+critical path to report **fan static pressure**, and flags ducts exceeding noise velocity limits.
+`auto_route_ducts` (`saengine.hvac.routing`) lays out supply/return duct trees from an AHU or FCU
+to room diffusers along corridors using `RoomGraph` with penalties for crossing structural beams.
 
 ## Electrical
 
@@ -91,10 +103,27 @@ battery bank, PFI capacitor bank, distribution board, solar PV array), **Add Ris
 trunking, cable tray, cable ladder, conduit bank), **Draw Tray**, **Propose Equipment**, **Add
 Openings**.
 
-Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers and trays.
-Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, risers, trays and the
-lightning protection risk with the down-conductor columns needed. Equipment weights are typical
-catalogue values: replace them with the supplier's data.
+Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays and
+Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays,
+distribution boards/circuits, and room lighting design (lumen method with luminaire grid layout;
+its W/m² feeds back into HVAC gains and electrical demand).
+Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, lighting circuits,
+risers, trays, distribution-board schedules (generated from room loads or entered in
+`electrical.boards`, with greedy phase balancing across L1/L2/L3), cable sizing (`Ib <= In <= Iz`
+with `Ca`, `Cg`, `Ci` derating and adiabatic fault withstand `k²S² >= I²t`), cumulative voltage drop
+(`mV/A/m` and `R/X` against the code pack's 3 % lighting / 5 % other limits), IEC 60909 simplified
+short-circuit fault levels (`Ik3 max`, `Ik1 min`, device breaking capacity `Icu`, earth-fault loop
+`Zs` disconnection), and the lightning protection risk with the down-conductor columns needed. DB
+schedules are included in the MEP drawing schedules (`db_schedule_tables`) and can be exported to
+Excel (`export_db_schedules_xlsx`).
+Equipment weights are typical catalogue values: replace them with the supplier's data.
+
+## Fire Protection
+
+Automatic and manual fire requirements (Part 4 Chapter 5), **sprinklers** (individual head grid
+placement per room, branch lines and cross main routed via RoomGraph, pipe schedule sizing and
+EPANET hydraulic calculation), standpipes, fire pumps, fire reservoir and **fire alarm** device
+layout (smoke/heat detectors, exit call points, sounders, panel and standby battery Ah sizing).
 
 ## Files
 
@@ -111,6 +140,21 @@ with their design load). A spool sheet per run (DXF) and the cut list, fittings 
 (CSV) are written to `11 Exports/MEP Fabrication`. Shop practice (radii, stock lengths, wall
 thicknesses) and project spacings are in `07 MEP/fabrication.json`. Runs without a size are
 skipped until sized; plumbing branches, sanitary fittings and seismic bracing are not detailed.
+
+## Systems and Connectors
+
+Each MEP element supports explicit `connectors` (domain, shape, size, flow direction, system
+classification); when omitted, SAEngine derives them from run endpoints, equipment footprints and
+terminals, snap-connecting coinciding points, branch tees and riser taps (`saengine.mep.systems`).
+
+- **Views:** switch to **Systems** in the MEP editor toolbar (or **7 MEP › Systems** in the
+  project navigator) to open the **System Browser** tree (*Systems → Classification → System →
+  Elements*), filter by classification, inspect system totals (airflow l/s, water flow l/s,
+  fixture units, electrical load kW, critical path length m) and connectivity warnings (open
+  connectors, unassigned elements, mixed classifications, flow direction conflicts, size
+  mismatches), export warnings to BCF 3.0, or click an element to select it in the plan.
+- **IFC export:** logical systems and port connections are exported as `IfcDistributionSystem`,
+  `IfcDistributionPort` and `IfcRelConnectsPorts`.
 
 ## Not confirmed / limitations
 

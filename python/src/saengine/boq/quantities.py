@@ -94,6 +94,7 @@ Group = Literal[
     "concrete",
     "masonry",
     "finishes",
+    "furniture",
     "reinforcement",
     "formwork",
     "steel",
@@ -146,6 +147,7 @@ GROUPS: dict[str, str] = {
     "concrete": "C",
     "masonry": "M",
     "finishes": "A",
+    "furniture": "FF",
     "reinforcement": "R",
     "formwork": "F",
     "steel": "S",
@@ -2400,7 +2402,12 @@ class _Measure:
         rooms = room_inputs(architecture, self.building, plumbing)
         mep, _ = with_rooms(mep, rooms)
         plumbing = mep.plumbing
-        if not (plumbing.tanks or plumbing.risers or plumbing.stories):
+        if not (
+            plumbing.tanks
+            or plumbing.risers
+            or plumbing.stories
+            or (plumbing.hotWater is not None and plumbing.hotWater.heater is not None)
+        ):
             return
         from saengine.library.mep import PLUMBING_SYSTEMS, TANK_KINDS, Fixtures
         from saengine.plumbing.project import _with_proposals, pipe_runs, tank_stamp
@@ -2524,19 +2531,73 @@ class _Measure:
                         story=entry.story,
                         kind="fixture",
                     )
+        if plumbing.hotWater is not None and plumbing.hotWater.heater is not None:
+            h = plumbing.hotWater.heater
+            self.bill.add(
+                "mep",
+                (25, "hotWaterHeater"),
+                "Hot water storage heater / calorifier",
+                "nr",
+                h.id,
+                1.0,
+                story=h.story,
+                kind="equipment",
+            )
 
     def measure_services(self) -> None:
-        """The HVAC ducts and plant, the electrical trays, risers and equipment, and the
-        lightning protection's bonding points (:data:`SERVICES_CONVENTIONS`)."""
+        """The HVAC ducts and plant, the electrical trays, risers and equipment, gas/medical gas
+        systems, and the lightning protection's bonding points (:data:`SERVICES_CONVENTIONS`)."""
         mep = self.mep
         hvac = getattr(mep, "hvac", None)
         electrical = getattr(mep, "electrical", None)
-        if hvac is None and electrical is None:
+        gas = getattr(mep, "gas", None)
+        medical_gas = getattr(mep, "medicalGas", None)
+        if hvac is None and electrical is None and gas is None and medical_gas is None:
             return
         from saengine.mep.routing import path_length
 
         levels = {s.id: s.elevation for s in self.building.stories}
         self.services_measured = True
+
+        if gas is not None:
+            for gp in gas.pipes:
+                if gp.diameter:
+                    self.bill.add(
+                        "mep",
+                        (26, "gasPipe", gp.diameter),
+                        f"Gas pipes ({gas.fuel}), Ø{gp.diameter:g} mm",
+                        "m",
+                        gp.id,
+                        path_length(gp.path) / 1000.0,
+                        story=gp.story,
+                        kind="pipe",
+                        diameter=gp.diameter,
+                    )
+        if medical_gas is not None:
+            for mo in medical_gas.outlets:
+                self.bill.add(
+                    "mep",
+                    (27, "medGasOutlet", mo.gas),
+                    f"Medical gas outlets: {mo.gas}",
+                    "nr",
+                    mo.id,
+                    float(mo.count),
+                    story=mo.story,
+                    kind="fixture",
+                )
+            for mp_pipe in medical_gas.pipes:
+                if mp_pipe.diameter:
+                    self.bill.add(
+                        "mep",
+                        (28, "medGasPipe", mp_pipe.gas, mp_pipe.diameter),
+                        f"Medical gas copper pipes ({mp_pipe.gas}), Ø{mp_pipe.diameter:g} mm",
+                        "m",
+                        mp_pipe.id,
+                        path_length(mp_pipe.path) / 1000.0,
+                        story=mp_pipe.story,
+                        kind="pipe",
+                        diameter=mp_pipe.diameter,
+                    )
 
         def vertical(item_id: str, low: str, high: str) -> float:
             if low not in levels or high not in levels:
@@ -2638,6 +2699,17 @@ class _Measure:
                 1.0,
                 story=item.story,
                 kind="equipment",
+            )
+        for lum in electrical.luminaires:
+            self.bill.add(
+                "mep",
+                (65, "luminaire", lum.type),
+                f"Luminaires: {lum.type}",
+                "nr",
+                lum.id,
+                1.0,
+                story=lum.story,
+                kind="luminaire",
             )
         conductors = (lightning or {}).get("downConductors") or []
         if lightning and lightning.get("enabled") and conductors:

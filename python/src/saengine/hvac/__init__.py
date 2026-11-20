@@ -29,9 +29,10 @@ _EXPORTS = {
     "hvac_results": "saengine.hvac.report",
     "plant_equipment": "saengine.hvac.report",
     "find_energyplus": "saengine.hvac.energyplus",
+    "auto_route_ducts": "saengine.hvac.routing",
 }
 
-__all__ = ["find_energyplus", "hvac_loads", "hvac_results", "plant_equipment"]
+__all__ = ["auto_route_ducts", "find_energyplus", "hvac_loads", "hvac_results", "plant_equipment"]
 
 
 def __getattr__(name: str) -> Any:

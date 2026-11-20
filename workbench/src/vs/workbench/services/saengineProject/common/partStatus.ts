@@ -625,7 +625,7 @@ export function architectureHasContent(text: string | undefined): boolean {
 	}
 	try {
 		const value = JSON.parse(text);
-		return ['walls', 'rooms', 'curtainWalls', 'roofs', 'ramps', 'railings'].some(key => Array.isArray(value?.[key]) && value[key].length > 0);
+		return ['walls', 'rooms', 'curtainWalls', 'roofs', 'ramps', 'railings', 'components', 'inPlaceElements'].some(key => Array.isArray(value?.[key]) && value[key].length > 0);
 	} catch {
 		return true;
 	}

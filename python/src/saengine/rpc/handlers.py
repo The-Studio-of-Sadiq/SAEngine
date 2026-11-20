@@ -419,7 +419,15 @@ def building_ifc(
             for key in (r.id, f"{r.id}:flooring", f"{r.id}:ceiling")
         },
         **{f"arch:{c.id}": c.base for c in [*architecture.curtainWalls, *architecture.railings]},
-        **{f"arch:{i.id}": i.story for i in [*architecture.roofs, *architecture.ramps]},
+        **{
+            f"arch:{i.id}": i.story
+            for i in [
+                *architecture.roofs,
+                *architecture.ramps,
+                *architecture.components,
+                *architecture.inPlaceElements,
+            ]
+        },
     }
     return {
         "text": ifc.to_string(),
@@ -1810,6 +1818,17 @@ def mep_check_ids(project_root: str, mep_text: str | None = None) -> dict[str, A
 
     try:
         return check_ids(project_root, mep_text)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+
+
+def mep_systems(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """Connector-based MEP systems, totals, critical paths and connectivity checks
+    (``saengine.mep.systems.mep_systems_report``), or ``{"problems"}``."""
+    from saengine.mep.systems import mep_systems_report
+
+    try:
+        return mep_systems_report(project_root, mep_text)
     except (OSError, RuntimeError, ValueError) as error:
         return {"problems": [_first_line(error)]}
 

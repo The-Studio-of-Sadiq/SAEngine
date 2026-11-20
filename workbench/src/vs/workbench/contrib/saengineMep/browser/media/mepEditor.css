@@ -1871,3 +1871,114 @@
 	font-weight: 600;
 	pointer-events: none;
 }
+
+/* ── system browser (systemBrowserView.ts) ────────────────────────────────── */
+
+.saengine-mep-editor .sys-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2);
+	margin-bottom: var(--sa-space-2);
+}
+
+.saengine-mep-editor .sys-filter {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	margin-left: auto;
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .sys-tree {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sa-space-2);
+}
+
+.saengine-mep-editor .sys-group {
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius, 4px);
+	padding: var(--sa-space-1) var(--sa-space-2);
+}
+
+.saengine-mep-editor .sys-group-header,
+.saengine-mep-editor .sys-node-header {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	cursor: pointer;
+	padding: 3px 0;
+}
+
+.saengine-mep-editor .sys-group-name {
+	font-weight: 600;
+}
+
+.saengine-mep-editor .sys-badge {
+	font-size: var(--sa-font-s);
+	color: var(--sa-muted);
+}
+
+.saengine-mep-editor .sys-node {
+	margin-left: var(--sa-space-3);
+	padding-left: var(--sa-space-2);
+	border-left: 1px solid var(--sa-border);
+}
+
+.saengine-mep-editor .sys-node-name {
+	font-weight: 500;
+}
+
+.saengine-mep-editor .sys-node-meta,
+.saengine-mep-editor .sys-element-meta {
+	color: var(--sa-muted);
+	font-size: var(--sa-font-s);
+}
+
+.saengine-mep-editor .sys-elements,
+.saengine-mep-editor .sys-issues {
+	list-style: none;
+	margin: 2px 0 4px 0;
+	padding: 0;
+}
+
+.saengine-mep-editor .sys-elements {
+	margin-left: var(--sa-space-3);
+}
+
+.saengine-mep-editor .sys-element-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	width: 100%;
+	padding: 2px 6px;
+	border: none;
+	border-radius: var(--sa-radius, 4px);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.saengine-mep-editor .sys-element-btn:hover,
+.saengine-mep-editor .sys-element.selected .sys-element-btn {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.saengine-mep-editor .sys-element-id {
+	font-weight: 500;
+}
+
+.saengine-mep-editor .sys-issue {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2);
+	padding: 3px 0;
+}
+
+.saengine-mep-editor .sys-issue-link {
+	text-align: left;
+}

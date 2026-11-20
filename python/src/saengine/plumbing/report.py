@@ -504,6 +504,17 @@ def plumbing_results(
 
     room_section = _rooms_section(mep, rooms, sources, building, bim)
 
+    from saengine.plumbing.gas import gas_results, medical_gas_results
+    from saengine.plumbing.hot_water import hot_water_results
+
+    hw = hot_water_results(mep, building)
+    gas = gas_results(mep, building)
+    if gas and gas.get("checks"):
+        checks.extend(gas["checks"])
+    if gas and gas.get("notes"):
+        notes.extend(gas["notes"])
+    medgas = medical_gas_results(mep, rooms)
+
     failed = [c["name"] for c in checks if not c["ok"]]
     summary = [
         *([room_section["line"]] if room_section["line"] else []),
@@ -536,6 +547,9 @@ def plumbing_results(
         "problems": problems,
         "method": method(),
         "rooms": room_section,
+        "hotWater": hw,
+        "gas": gas,
+        "medicalGas": medgas,
     }
 
 
