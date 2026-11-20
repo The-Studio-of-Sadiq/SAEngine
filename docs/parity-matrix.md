@@ -21,7 +21,7 @@ How to read it:
   repository on 12 November 2026; the verification pack was not re-run for this document (its last
   recorded run is in [verification/README.md](verification/README.md)).
 
-Overall: **348 features**: 153 verified, 155 built but untested, 24 partial, 10 missing, 6 out of
+Overall: **343 features**: 154 verified, 155 built but untested, 20 partial, 8 missing, 6 out of
 scope by decision. The gaps and the first verifications to do are tracked on the
 [project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8).
 
@@ -543,14 +543,14 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 ### Summary
 
-**Counts (158 rows; CAD drafting rows updated 19 November 2026 after the CAD parity and AutoCAD-gaps rounds):**
+**Counts (153 rows; CAD drafting rows updated 19 November 2026 after the CAD parity and AutoCAD-gaps rounds):**
 
 | Status | Rows |
 |---|---|
-| Verified | 77 |
+| Verified | 78 |
 | Built, untested | 63 |
-| Partial | 10 |
-| Missing | 2 |
+| Partial | 6 |
+| Missing | 0 |
 | Out of scope (decision) | 6 |
 
 "Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.
