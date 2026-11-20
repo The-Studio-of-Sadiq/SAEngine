@@ -141,6 +141,21 @@ with their design load). A spool sheet per run (DXF) and the cut list, fittings 
 thicknesses) and project spacings are in `07 MEP/fabrication.json`. Runs without a size are
 skipped until sized; plumbing branches, sanitary fittings and seismic bracing are not detailed.
 
+## Systems and Connectors
+
+Each MEP element supports explicit `connectors` (domain, shape, size, flow direction, system
+classification); when omitted, SAEngine derives them from run endpoints, equipment footprints and
+terminals, snap-connecting coinciding points, branch tees and riser taps (`saengine.mep.systems`).
+
+- **Views:** switch to **Systems** in the MEP editor toolbar (or **7 MEP › Systems** in the
+  project navigator) to open the **System Browser** tree (*Systems → Classification → System →
+  Elements*), filter by classification, inspect system totals (airflow l/s, water flow l/s,
+  fixture units, electrical load kW, critical path length m) and connectivity warnings (open
+  connectors, unassigned elements, mixed classifications, flow direction conflicts, size
+  mismatches), export warnings to BCF 3.0, or click an element to select it in the plan.
+- **IFC export:** logical systems and port connections are exported as `IfcDistributionSystem`,
+  `IfcDistributionPort` and `IfcRelConnectsPorts`.
+
 ## Not confirmed / limitations
 
 - Large beam openings (Vierendeel action) and Imhoff tanks (above 300 residential users) are

@@ -130,6 +130,7 @@ export function partSections(partId: string): readonly IPartSection[] {
 			{ id: 'hvac', label: localize('partSection.mepHvac', "HVAC"), sections: ['hvac'] },
 			{ id: 'electrical', label: localize('partSection.mepElectrical', "Electrical"), sections: ['electrical'] },
 			{ id: 'fire', label: localize('partSection.mepFire', "Fire"), sections: ['fire'] },
+			{ id: 'systems', label: localize('partSection.mepSystems', "Systems"), sections: ['systems'] },
 		];
 		case 'fem': return [
 			{ id: 'model', label: localize('partSection.femModel', "Model and Analysis"), typeId: FEM_MODEL_INPUT, alsoTypeIds: [FEM_MEMBER_INPUT] },

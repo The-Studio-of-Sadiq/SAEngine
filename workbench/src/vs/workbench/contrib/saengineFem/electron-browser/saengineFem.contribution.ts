@@ -644,6 +644,7 @@ registerMepService('saengine.electrical.uses', 'mep/electricalUses', ['uses']);
 registerMepService('saengine.fire.report', 'mep/fireReport', ['requirements', 'checks']);
 registerMepService('saengine.fire.proposals', 'mep/fireProposals', ['tanks', 'pumps']);
 registerMepService('saengine.fire.openings', 'mep/fireOpenings', ['openings']);
+registerMepService('saengine.mep.systems', 'mep/systems', ['systems', 'issues']);
 
 CommandsRegistry.registerCommand('saengine.hvac.loads', async (accessor, args: IMepCommandArgs, token?: CancellationToken) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();

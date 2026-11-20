@@ -71,6 +71,88 @@ class _Model(BaseModel):
     )
 
 
+ConnectorDomain = Literal["duct", "pipe", "electrical", "cableTray"]
+ConnectorShape = Literal["round", "rect", "oval", "point"]
+ConnectorDirection = Literal["in", "out", "bidirectional"]
+SystemClassification = Literal[
+    "supplyAir",
+    "returnAir",
+    "exhaustAir",
+    "freshAir",
+    "kitchenExhaust",
+    "smokeExtract",
+    "chilledWater",
+    "condenserWater",
+    "domesticColdWater",
+    "domesticHotWater",
+    "sanitary",
+    "vent",
+    "stormWater",
+    "fireProtection",
+    "power",
+    "cableTray",
+]
+SYSTEM_CLASSIFICATIONS = {
+    "supplyAir": "Supply air",
+    "returnAir": "Return air",
+    "exhaustAir": "Exhaust air",
+    "freshAir": "Fresh air",
+    "kitchenExhaust": "Kitchen exhaust",
+    "smokeExtract": "Smoke extract",
+    "chilledWater": "Chilled water",
+    "condenserWater": "Condenser water",
+    "domesticColdWater": "Domestic cold water",
+    "domesticHotWater": "Domestic hot water",
+    "sanitary": "Sanitary",
+    "vent": "Vent",
+    "stormWater": "Storm water",
+    "fireProtection": "Fire protection",
+    "power": "Power circuit",
+    "cableTray": "Cable tray",
+}
+
+
+class Connector(_Model):
+    """A connection port on an MEP element: domain, size, flow direction and system
+    classification. When omitted on an element, SAEngine derives connectors from its geometry
+    and run endpoints."""
+
+    id: str = Field(default="", description="Port id within the element.")
+    domain: ConnectorDomain = Field(  # type: ignore[valid-type]
+        json_schema_extra=_labels(["Duct", "Pipe", "Electrical", "Cable tray"]),
+    )
+    shape: ConnectorShape = Field(  # type: ignore[valid-type]
+        default="round",
+        json_schema_extra=_labels(["Round", "Rectangular", "Oval", "Point"]),
+    )
+    width: Length | None = None
+    height: Length | None = None
+    diameter: Length | None = None
+    direction: ConnectorDirection = Field(  # type: ignore[valid-type]
+        default="bidirectional",
+        json_schema_extra=_labels(
+            ["In (supply into element)", "Out (from element)", "Bidirectional"]
+        ),
+    )
+    classification: SystemClassification = Field(  # type: ignore[valid-type]
+        json_schema_extra=_labels(list(SYSTEM_CLASSIFICATIONS.values())),
+    )
+    systemName: str = Field(default="", title="System name", description="Logical system name.")
+    story: Id | None = Field(default=None, description="Story id when z is omitted.")
+    x: Mm | None = Field(default=None, description="Plan X [mm].")
+    y: Mm | None = Field(default=None, description="Plan Y [mm].")
+    z: Mm | None = Field(default=None, description="Elevation [mm].")
+    flow: float | None = Field(default=None, ge=0, description="Flow [l/s].")
+    fixtureUnits: float | None = Field(default=None, ge=0, title="Fixture units")
+    load: float | None = Field(default=None, ge=0, description="Electrical load [kW].")
+    circuit: str | None = Field(default=None, description="Electrical circuit reference.")
+    connectedTo: str | None = Field(
+        default=None,
+        title="Connected to",
+        description="Optional explicit target '<elementId>' or '<elementId>:<connectorId>'.",
+    )
+
+
 class Plinth(_Model):
     """A concrete plinth under a piece of equipment, of the equipment's footprint."""
 
@@ -170,6 +252,7 @@ class Equipment(_Model):
         description="Fundamental period of the non-building structure itself [s]; empty: the "
         "plateau of the design spectrum (on the safe side).",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _weights(self) -> Equipment:
@@ -337,7 +420,7 @@ class Issue(_Model):
     id: Id
     guid: str = Field(default="", description="BCF topic GUID.")
     title: str = Field(default="")
-    source: Literal["clash", "ids", "bcf", "manual"] = "clash"
+    source: Literal["clash", "ids", "bcf", "manual", "systems"] = "clash"
     key: str = Field(default="", description="test:globalIdA:globalIdB for a clash.")
     test: str | None = None
     status: IssueStatus = Field(
@@ -562,6 +645,37 @@ class Riser(_Model):
         default=None, description="Nominal diameter [mm]; empty: sized by SAEngine."
     )
     material: PipeMaterial | None = None  # type: ignore[valid-type]
+    connectors: list[Connector] = Field(default_factory=list)
+
+
+PipeSystem = Literal[
+    "coldWater",
+    "hotWater",
+    "soil",
+    "waste",
+    "soilWaste",
+    "vent",
+    "rainwater",
+    "pumpMain",
+    "chilledWater",
+    "condenserWater",
+    "fireProtection",
+]
+
+
+class Pipe(_Model):
+    """A horizontal pipe run on a story."""
+
+    id: Id
+    system: PipeSystem = Field(default="coldWater")  # type: ignore[valid-type]
+    story: Id = Field(description="Building-model story.")
+    path: list[Point2] = Field(min_length=2, description="Plan points [mm].")
+    diameter: Length | None = Field(default=None, description="Nominal diameter [mm].")
+    bottom: Mm | None = Field(default=None, description="Pipe bottom above the story's floor [mm].")
+    material: PipeMaterial | None = None  # type: ignore[valid-type]
+    flow: float | None = Field(default=None, ge=0, description="Design flow [l/s].")
+    fixtureUnits: float | None = Field(default=None, ge=0, title="Fixture units")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class PlumbingTank(_Model):
@@ -629,6 +743,7 @@ class PlumbingTank(_Model):
         description="Soak well: percolation test rate [minutes for 25 mm]; empty: estimated "
         "from 01 Soil Report.",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class RoofDrain(_Model):
@@ -639,6 +754,7 @@ class RoofDrain(_Model):
     area: float | None = Field(
         default=None, gt=0, description="Catchment [m²]; empty: its share of the roof slab."
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class Harvest(_Model):
@@ -687,6 +803,7 @@ class HotWaterHeater(_Model):
     equipment: Id | None = Field(
         default=None, description="07 MEP equipment that already carries its weight."
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class HotWaterSystem(_Model):
@@ -731,6 +848,7 @@ class Plumbing(_Model):
         description="Wet rooms of the architecture given their own kind or fixtures.",
     )
     risers: list[Riser] = Field(default_factory=list)
+    pipes: list[Pipe] = Field(default_factory=list)
     tanks: list[PlumbingTank] = Field(default_factory=list)
     roof: PlumbingRoof | None = None
     hotWater: HotWaterSystem | None = None
@@ -750,7 +868,7 @@ class Plumbing(_Model):
     @model_validator(mode="after")
     def _ids(self) -> Plumbing:
         drains = self.roof.drains if self.roof else []
-        ids = [x.id for x in (*self.risers, *self.tanks, *drains)]
+        ids = [x.id for x in (*self.risers, *self.pipes, *self.tanks, *drains)]
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate plumbing ids: {', '.join(duplicates)}")
@@ -966,6 +1084,7 @@ class HvacPlant(_Model):
         description="The 07 MEP equipment that already carries its weight in the analysis; "
         "empty: SAEngine loads the model with this item (unless an equipment stands there).",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class DuctRiser(_Model):
@@ -1005,6 +1124,38 @@ class Duct(_Model):
     terminalDrop: float | None = Field(
         default=None, ge=0, description="Fixed terminal/diffuser pressure drop [Pa]."
     )
+    connectors: list[Connector] = Field(default_factory=list)
+
+
+AirTerminalKind = Literal["supplyDiffuser", "returnGrille", "exhaustGrille", "freshAirLouvre"]
+AIR_TERMINAL_KINDS = {
+    "supplyDiffuser": "Supply diffuser",
+    "returnGrille": "Return grille",
+    "exhaustGrille": "Exhaust grille",
+    "freshAirLouvre": "Fresh air louvre",
+}
+
+
+class AirTerminal(_Model):
+    """A supply diffuser, return grille or exhaust grille connected to a duct run."""
+
+    id: Id
+    kind: AirTerminalKind = Field(  # type: ignore[valid-type]
+        default="supplyDiffuser",
+        json_schema_extra=_labels(list(AIR_TERMINAL_KINDS.values())),
+    )
+    system: Literal[tuple(DUCT_SYSTEMS)] = Field(  # type: ignore[valid-type]
+        default="supply", json_schema_extra=_labels(list(DUCT_SYSTEMS.values()))
+    )
+    story: Id = Field(description="Building-model story.")
+    x: Mm = Field(description="Plan X [mm].")
+    y: Mm = Field(description="Plan Y [mm].")
+    z: Mm | None = Field(default=None, description="Elevation [mm]; empty: ceiling duct level.")
+    diameter: Length | None = None
+    width: Length | None = None
+    height: Length | None = None
+    flow: float | None = Field(default=None, ge=0, description="Design airflow [l/s].")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class Hvac(_Model):
@@ -1023,10 +1174,12 @@ class Hvac(_Model):
     stories: list[HvacStory] = Field(default_factory=list)
     plant: list[HvacPlant] = Field(default_factory=list)
     ducts: list[Duct] = Field(default_factory=list)
+    terminals: list[AirTerminal] = Field(default_factory=list)
+    pipes: list[Pipe] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _ids(self) -> Hvac:
-        ids = [x.id for x in (*self.plant, *self.ducts)]
+        ids = [x.id for x in (*self.plant, *self.ducts, *self.terminals, *self.pipes)]
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:
             raise ValueError(f"duplicate hvac ids: {', '.join(duplicates)}")
@@ -1061,6 +1214,12 @@ def hvac_references(mep: MepModel, stories: dict[str, float]) -> list[str]:
             problems.append(f"{duct.id}: its riser's top story must be above its start")
         if duct.shaft is not None and duct.shaft not in shafts:
             problems.append(f"{duct.id}: no shaft '{duct.shaft}'")
+    for terminal in hvac.terminals:
+        if terminal.story not in stories:
+            problems.append(f"{terminal.id}: no story '{terminal.story}'")
+    for pipe in hvac.pipes:
+        if pipe.story not in stories:
+            problems.append(f"{pipe.id}: no story '{pipe.story}'")
     return problems
 
 
@@ -1212,6 +1371,10 @@ class Motor(_Model):
         default=None,
         description="On the standby generator; empty: lifts, pumps and fire pumps are.",
     )
+    story: Id | None = Field(default=None, description="Optional story it stands on.")
+    x: Mm | None = Field(default=None, description="Optional plan X [mm].")
+    y: Mm | None = Field(default=None, description="Optional plan Y [mm].")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class ElectricalEquipment(_Model):
@@ -1255,6 +1418,7 @@ class ElectricalEquipment(_Model):
         description="The 07 MEP equipment that already carries its weight in the analysis; "
         "empty: SAEngine loads the model with this item (unless an equipment stands there).",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class ElectricalRiser(_Model):
@@ -1275,6 +1439,7 @@ class ElectricalRiser(_Model):
         default=None, description="Stories it feeds; empty: all it passes."
     )
     rating: float | None = Field(default=None, gt=0, description="[A]; empty: sized.")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class CableTray(_Model):
@@ -1296,6 +1461,7 @@ class CableTray(_Model):
         title="Cable area",
         description="Sum of the cables' cross-sections (outside diameter) [mm²]: checks the fill.",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class ElectricalRoom(_Model):
@@ -1459,6 +1625,7 @@ class Luminaire(_Model):
     lumens: float | None = Field(default=None, gt=0, description="Initial luminous flux [lm].")
     circuit: str | None = Field(default=None, description="Lighting circuit reference.")
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class LightingRoomOverride(_Model):
@@ -1679,6 +1846,7 @@ class FireRiser(_Model):
     toStory: Id = Field(title="To story", description="Highest story whose floor it cuts.")
     shaft: Id | None = Field(default=None, description="Shaft it runs in.")
     diameter: Length | None = Field(default=None, description="Nominal [mm]; empty: sized.")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class FireMain(_Model):
@@ -1693,6 +1861,7 @@ class FireMain(_Model):
         description="Pipe bottom above the story's floor [mm]; empty: 150 mm "
         "below the soffit of the slab above (as the cable trays).",
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class FirePump(_Model):
@@ -1718,6 +1887,7 @@ class FirePump(_Model):
     equipment: Id | None = Field(
         default=None, description="An equipment of 07 MEP that is this pump (loaded once)."
     )
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class FirePumpRoom(_Model):
@@ -1739,6 +1909,7 @@ class SprinklerHead(_Model):
     kFactor: float | None = Field(default=None, gt=0, description="[l/min/bar^0.5]")
     hazard: Literal[tuple(FIRE_HAZARDS)] | None = None  # type: ignore[valid-type]
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class SprinklerPipe(_Model):
@@ -1752,6 +1923,7 @@ class SprinklerPipe(_Model):
     heads: int | None = Field(default=None, ge=0, description="Sprinkler heads supplied.")
     bottom: Mm | None = Field(default=None, description="Pipe bottom above story floor [mm].")
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class FireAlarmDevice(_Model):
@@ -1766,6 +1938,7 @@ class FireAlarmDevice(_Model):
     z: Mm | None = Field(default=None, description="Mounting height above the floor [mm].")
     zone: str | None = None
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class FireAlarmSettings(_Model):
@@ -1860,6 +2033,7 @@ class GasPipe(_Model):
     diameter: Length | None = Field(default=None, description="Nominal diameter [mm].")
     flowM3h: float | None = Field(default=None, ge=0, description="Design flow [m³/h].")
     sized: bool = Field(default=False, description="Proposed by SAEngine (editable).")
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class GasSystem(_Model):
@@ -1911,6 +2085,7 @@ class MedicalGasPipe(_Model):
     diameter: Length | None = Field(default=None, description="Nominal diameter [mm].")
     flowLpm: float | None = Field(default=None, ge=0, description="Design flow [l/min].")
     sized: bool = Field(default=False)
+    connectors: list[Connector] = Field(default_factory=list)
 
 
 class MedicalGasRoom(_Model):
@@ -2124,6 +2299,9 @@ def _plumbing_references(mep: MepModel, stories: dict[str, float]) -> list[str]:
             problems.append(f"{riser.id}: its top story must be above the story it starts at")
         if riser.shaft is not None and riser.shaft not in shafts:
             problems.append(f"{riser.id}: no shaft '{riser.shaft}'")
+    for pipe in plumbing.pipes:
+        if pipe.story not in stories:
+            problems.append(f"{pipe.id}: no story '{pipe.story}'")
     for tank in plumbing.tanks:
         if tank.story is not None and tank.story not in stories:
             problems.append(f"{tank.id}: no story '{tank.story}'")
