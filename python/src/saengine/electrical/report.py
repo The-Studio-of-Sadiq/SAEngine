@@ -408,6 +408,7 @@ def electrical_results(
     building_use: str | None = None,
     hvac: list[dict[str, Any]] | None = None,
     extra: list[dict[str, Any]] | None = None,
+    rooms: Any = None,
 ) -> dict[str, Any]:
     """The electrical report of parsed models (all but ``mep`` optional). ``hvac`` and
     ``extra``: loads the integrator supplies (see :func:`saengine.electrical.demand.demand`)."""
@@ -423,6 +424,7 @@ def electrical_results(
         )
         return {
             "demand": None, "supply": None, "rooms": [], "risers": [], "trays": [],
+            "boards": [], "shortCircuit": None, "failingVoltageDrop": [],
             "lightning": None, "equipment": [], "openings": [], "checks": [], "summary": [],
             "notes": [note], "problems": problems, "method": method() if covered else [],
         }  # fmt: skip
@@ -517,9 +519,9 @@ def electrical_results(
         )
 
     # Rooms and shafts.
-    rooms = room_checks(electrical, placed, building, frame.slab_thickness, set(uses))
-    checks.extend(rooms["checks"])
-    notes.extend(rooms["notes"])
+    room_out = room_checks(electrical, placed, building, frame.slab_thickness, set(uses))
+    checks.extend(room_out["checks"])
+    notes.extend(room_out["notes"])
     max_area = max((s["area"] for s in dem["stories"]), default=0.0)
     if not max_area and building.known:
         max_area = max((building.floor_area(s) for s in order), default=0.0)
@@ -543,6 +545,26 @@ def electrical_results(
     notes.extend(trays["notes"])
     openings = rise["openings"] + trays["openings"]
 
+    # Distribution boards, circuiting, cable sizing, voltage drop and short-circuit checks.
+    pack_el = code_pack.table("electrical")
+    boards_result: dict[str, Any] = {"source": None, "boards": [], "failingVd": [], "checks": []}
+    if (
+        getattr(pack_el, "circuitRules", None) is not None
+        and getattr(pack_el, "cables", None) is not None
+        and getattr(pack_el, "shortCircuit", None) is not None
+    ):
+        from saengine.electrical.panels import evaluate_boards, generate_boards
+
+        raw_boards = generate_boards(electrical, dem, building, room_inputs=rooms, risers=risers)
+        if raw_boards:
+            boards_result = evaluate_boards(raw_boards, supply_result, dem, building, risers=risers)
+            checks.extend(boards_result["checks"])
+            if boards_result["failingVd"]:
+                notes.append(
+                    f"{len(boards_result['failingVd'])} circuit(s) exceed the voltage-drop limit; "
+                    "see recommended cable sizes in boards"
+                )
+
     # Lightning.
     lightning_model = electrical.lightning or Lightning()
     lightning = lightning_protection(
@@ -552,6 +574,7 @@ def electrical_results(
     notes.extend(lightning["notes"])
 
     failed = [c["name"] for c in checks if not c["ok"]]
+    boards_list = boards_result["boards"]
     summary = [
         (
             f"Connected load {dem['connected']:.1f} kW, maximum demand {dem['maximumDemand']:.1f} kW "
@@ -560,6 +583,16 @@ def electrical_results(
         _substation_line(sub, supply, tx, entered_tx, installed, dem),
         _generator_line(gen, ess, entered_gen),
         f"{len(risers)} risers, {len(electrical.trays)} trays, {len(openings)} openings proposed",
+        *(
+            [
+                (
+                    f"{len(boards_list)} distribution boards, "
+                    f"{sum(b['usedWays'] for b in boards_list)} circuits"
+                )
+            ]
+            if boards_list
+            else []
+        ),
         (
             f"Lightning: {len(lightning['downConductors'])} down conductors, "
             f"{len(lightning['airTerminals'])} air terminals ({lightning['risk']['decision']})"
@@ -569,9 +602,12 @@ def electrical_results(
     return {
         "demand": dem,
         "supply": supply_result,
-        "rooms": rooms["checks"],
+        "rooms": room_out["checks"],
         "risers": risers,
         "trays": trays["crossings"],
+        "boards": boards_list,
+        "shortCircuit": boards_result["source"],
+        "failingVoltageDrop": boards_result["failingVd"],
         "lightning": lightning,
         "equipment": proposals,
         "openings": openings,
@@ -713,13 +749,23 @@ def electrical_report(
         hvac = own_hvac if hvac is None else hvac
         extra = own_extra if extra is None else extra
     try:
+        from saengine.mep.rooms import read_room_inputs
+
+        room_inputs, room_problem = read_room_inputs(project_root, loaded["mep"].plumbing)
+    except Exception:  # noqa: BLE001
+        room_inputs, room_problem = None, ""
+    try:
         result = electrical_results(
             loaded["mep"], loaded["bim"], loaded["objects"], loaded["ground"],
-            loaded["substructure"], loaded["use"], hvac=hvac, extra=extra,
+            loaded["substructure"], loaded["use"], hvac=hvac, extra=extra, rooms=room_inputs,
         )  # fmt: skip
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"problems": [*loaded["problems"], f"the electrical sizing failed: {error!r}"]}
-    result["problems"] = [*loaded["problems"], *result["problems"]]
+    result["problems"] = [
+        *loaded["problems"],
+        *([room_problem] if room_problem else []),
+        *result["problems"],
+    ]
     result["notes"] = [*fed, *result.get("notes", [])]
     if result.get("openings"):
         from saengine.plumbing.project import missing_sleeves

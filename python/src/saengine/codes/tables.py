@@ -6385,6 +6385,106 @@ class LtPanel(_Group):
     ampsPerSection: PosNum = Field(description="Amperes per section beyond the incomer.")
 
 
+class CircuitDefault(_Row):
+    """Default parameters of one final circuit category."""
+
+    wattsPerPoint: PosNum = Field(description="Assumed load per point [W].")
+    areaPerPoint: PosNum = Field(description="Floor area per point when points are estimated [m²].")
+    pf: Share = Field(description="Default power factor.")
+    curve: Literal["B", "C", "D"] = Field(description="Default MCB tripping curve.")
+    maxLoadW: PosNum = Field(description="Maximum active load per circuit [W].")
+    minCableMm2: PosNum = Field(description="Minimum conductor cross-section [mm²].")
+
+
+class CircuitRulesGroup(_Group):
+    """Distribution-board, circuiting, breaker and phase-voltage rules."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    phaseVoltage: PosNum = Field(description="Nominal phase-to-neutral voltage U0 [V].")
+    defaultConductor: Literal["Cu", "Al"] = "Cu"
+    defaultFinalInsulation: Literal["PVC", "XLPE"] = "PVC"
+    defaultFeederInsulation: Literal["PVC", "XLPE"] = "XLPE"
+    defaultMethod: str = "C"
+    defaultAmbientTemp: float = 30.0
+    maxPointsPerCircuit: dict[str, Annotated[int, Field(gt=0)]]
+    circuitDefaults: dict[str, CircuitDefault]
+    circuitDiversity: dict[str, Share]
+    breakerRatings: list[PosNum]
+    standardWays: list[Annotated[int, Field(gt=0)]]
+    busbarRatings: list[PosNum]
+    breakingCapacityKa: dict[str, PosNum] = Field(
+        description="Default breaking capacity Icu/Icn [kA] by device type."
+    )
+    standardBreakingCapacitiesKa: list[PosNum] = Field(
+        default_factory=lambda: [6.0, 10.0, 15.0, 25.0, 36.0, 50.0, 65.0],
+        description="Standard short-circuit breaking capacities Icu/Icn [kA] for auto-selection.",
+    )
+
+
+class CableImpedance(_Row):
+    """Cable resistance at 20 °C and reactance at 50 Hz [ohm/km]."""
+
+    r20: PosNum = Field(description="DC resistance at 20 °C [ohm/km].")
+    x: NonNegNum = Field(description="AC reactance at 50 Hz [ohm/km].")
+
+
+class CablesGroup(_Group):
+    """IEC 60364-5-52 ampacity, correction factors, voltage drop and adiabatic withstand."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    sizes: list[PosNum] = Field(description="Standard conductor cross-sections [mm²].")
+    referenceAmbient: float = Field(description="Reference ambient temperature in air [°C].")
+    ampacity: dict[str, dict[str, dict[str, dict[str, dict[str, PosNum]]]]] = Field(
+        description="conductor -> insulation -> method -> loadedCores ('2'|'3') -> size -> It [A]."
+    )
+    ambientFactor: dict[str, dict[str, PosNum]] = Field(
+        description="insulation -> ambientTemp [°C] -> Ca."
+    )
+    groupingFactor: dict[str, dict[str, PosNum]] = Field(
+        description="arrangement -> circuitCount -> Cg."
+    )
+    thermalInsulationFactor: dict[str, PosNum] = Field(description="condition -> Ci.")
+    conductorTempFactor: dict[str, PosNum] = Field(
+        description="insulation -> R_op / R_20 multiplier at operating temperature."
+    )
+    impedance: dict[str, dict[str, CableImpedance]] = Field(
+        description="conductor -> size -> {r20, x}."
+    )
+    mvAm: dict[str, dict[str, dict[str, dict[str, PosNum]]]] = Field(
+        description="conductor -> insulation -> ('1ph'|'3ph') -> size -> mV/A/m."
+    )
+    voltageDropLimits: dict[str, PosNum] = Field(
+        description="Maximum cumulative voltage drop [%] by category."
+    )
+    adiabaticK: dict[str, dict[str, PosNum]] = Field(
+        description="conductor -> insulation -> adiabatic constant k [A·s^0.5/mm²]."
+    )
+
+
+class ShortCircuitGroup(_Group):
+    """IEC 60909 simplified short-circuit and IEC 60364-4-41 disconnection parameters."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    cMax: PosNum = Field(description="IEC 60909 voltage factor c_max for Ik3 max.")
+    cMin: PosNum = Field(description="IEC 60909 voltage factor c_min for Ik1 min.")
+    zsCmin: PosNum = Field(description="Voltage factor Cmin for earth-fault loop Zs limit.")
+    gridSkMva: PosNum | None = Field(
+        default=None, description="Default HV grid fault level [MVA]; null for infinite bus."
+    )
+    gridRxRatio: NonNegNum = Field(description="Upstream HV grid R/X ratio.")
+    transformerUk: dict[str, PosNum] = Field(description="Transformer kVA -> uk [%].")
+    transformerXr: dict[str, PosNum] = Field(description="Transformer kVA -> X/R ratio.")
+    mcbTripMultiplier: dict[str, PosNum] = Field(
+        description="Instantaneous magnetic trip multiple (Ia / In) by curve ('B'|'C'|'D')."
+    )
+    faultDurationS: dict[str, PosNum] = Field(
+        description="Default fault clearing time [s] by circuit role ('final'|'submain'|'incomer')."
+    )
+    busbarImpedancePerM: dict[str, tuple[NonNegNum, NonNegNum]] = Field(
+        default_factory=dict, description="Busbar rating [A] -> (R [mohm/m], X [mohm/m])."
+    )
+
+
 class ElectricalTable(_Services):
     """The default pack's Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
     data for the first layout and SAEngine practice where the code is silent (marked in
@@ -6471,6 +6571,9 @@ class ElectricalTable(_Services):
     upsAutonomyMin: PosNum
     tankPlate: PosNum
     steelWeight: PosNum
+    circuitRules: CircuitRulesGroup | None = None
+    cables: CablesGroup | None = None
+    shortCircuit: ShortCircuitGroup | None = None
 
 
 class FireFlow(_Row):

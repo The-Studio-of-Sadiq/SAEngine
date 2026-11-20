@@ -176,6 +176,7 @@ class MepDrawing:
     model: Any
     rooms: Any = None
     sized: dict[str, float] = field(default_factory=dict)
+    electrical_boards: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _rect(cx: float, cy: float, lx: float, ly: float, rotation: float = 0.0) -> list[Point]:
@@ -773,6 +774,31 @@ def sleeve_table(drawing: MepDrawing, building: Building) -> Table:
     return Table("Sleeve and opening schedule", columns, rows)
 
 
+def db_schedule_tables(drawing: MepDrawing) -> list[Table]:
+    """Distribution-board schedule tables (way, description, load, phase, MCB, cable, length, Vd)."""
+    if not drawing.electrical_boards:
+        return []
+    from saengine.electrical.panels import db_schedule_table
+
+    columns = [
+        _column("way", "Way", 5, "right"),
+        _column("description", "Description", 24),
+        _column("load", "Load\n(W)", 8, "right"),
+        _column("phase", "Phase", 6),
+        _column("mcb", "MCB", 11),
+        _column("cable", "Cable", 16),
+        _column("length", "Length\n(m)", 7, "right"),
+        _column("vd", "Vd\n(%)", 6, "right"),
+    ]
+    tables = []
+    for b in drawing.electrical_boards:
+        sched = db_schedule_table(b)
+        rows = [[str(cell) for cell in row] for row in sched["rows"]]
+        if rows:
+            tables.append(Table(sched["name"], columns, rows, notes=sched["notes"]))
+    return tables
+
+
 def schedule_tables(drawing: MepDrawing, building: Building) -> list[Table]:
     """The MEP schedules that have rows."""
     tables = [
@@ -780,6 +806,7 @@ def schedule_tables(drawing: MepDrawing, building: Building) -> list[Table]:
         equipment_table(drawing, building),
         tank_table(drawing, building),
         sleeve_table(drawing, building),
+        *db_schedule_tables(drawing),
     ]
     return [t for t in tables if t.rows]
 
@@ -817,4 +844,13 @@ def mep_drawing(text: str, bim: Any, arch: Any = None) -> tuple[MepDrawing | Non
         except Exception as error:  # noqa: BLE001 - drawn without the sized diameters
             problems.append(f"07 MEP sheets: the plumbing sizing failed ({error}); risers "
                             "without a diameter are drawn without one.")  # fmt: skip
-    return MepDrawing(model, rooms, sized), problems
+    boards: list[dict[str, Any]] = []
+    if model.electrical is not None and bim is not None:
+        try:
+            from saengine.electrical.report import electrical_results
+
+            el_rep = electrical_results(model, bim, rooms=rooms)
+            boards = list(el_rep.get("boards") or [])
+        except Exception as error:  # noqa: BLE001 - drawn without DB schedules
+            problems.append(f"07 MEP sheets: the electrical DB schedules failed ({error}).")
+    return MepDrawing(model, rooms, sized, boards), problems

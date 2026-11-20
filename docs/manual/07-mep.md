@@ -91,10 +91,17 @@ battery bank, PFI capacitor bank, distribution board, solar PV array), **Add Ris
 trunking, cable tray, cable ladder, conduit bank), **Draw Tray**, **Propose Equipment**, **Add
 Openings**.
 
-Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers and trays.
-Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, risers, trays and the
-lightning protection risk with the down-conductor columns needed. Equipment weights are typical
-catalogue values: replace them with the supplier's data.
+Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays and
+distribution boards/circuits.
+Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, risers, trays,
+distribution-board schedules (generated from room loads or entered in `electrical.boards`, with
+greedy phase balancing across L1/L2/L3), cable sizing (`Ib <= In <= Iz` with `Ca`, `Cg`, `Ci`
+derating and adiabatic fault withstand `k²S² >= I²t`), cumulative voltage drop (`mV/A/m` and `R/X`
+against the code pack's 3 % lighting / 5 % other limits), IEC 60909 simplified short-circuit fault
+levels (`Ik3 max`, `Ik1 min`, device breaking capacity `Icu`, earth-fault loop `Zs` disconnection),
+and the lightning protection risk with the down-conductor columns needed. DB schedules are included
+in the MEP drawing schedules (`db_schedule_tables`) and can be exported to Excel (`export_db_schedules_xlsx`).
+Equipment weights are typical catalogue values: replace them with the supplier's data.
 
 ## Files
 

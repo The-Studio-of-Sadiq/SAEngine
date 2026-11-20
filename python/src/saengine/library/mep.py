@@ -1234,6 +1234,81 @@ class ElectricalRoom(_Model):
     height: Length | None = Field(default=None, description="Clear height [mm]; empty: story's.")
 
 
+CircuitKind = Literal["lighting", "socket", "ac", "power", "motor", "spare"]
+CIRCUIT_KINDS = {
+    "lighting": "Lighting",
+    "socket": "Socket outlets",
+    "ac": "Air conditioning",
+    "power": "General power",
+    "motor": "Motor",
+    "spare": "Spare",
+}
+
+
+class Circuit(_Model):
+    """One final circuit fed from a distribution board."""
+
+    id: Id
+    way: int | None = Field(default=None, ge=1, description="Way number on the DB.")
+    description: str = Field(default="")
+    kind: CircuitKind = "power"
+    room: str | None = Field(default=None, description="Room id or name served.")
+    points: int = Field(default=1, ge=0, description="Number of points on the circuit.")
+    loadW: float | None = Field(default=None, ge=0, description="Connected active load [W].")
+    loadVA: float | None = Field(default=None, ge=0, description="Connected apparent load [VA].")
+    powerFactor: float | None = Field(default=None, gt=0, le=1)
+    phases: Literal[1, 3] = 1
+    phase: Literal["L1", "L2", "L3", "3P"] | None = Field(
+        default=None, description="Phase assignment; empty: balanced greedily across L1, L2, L3."
+    )
+    deviceType: Literal["MCB", "MCCB", "RCBO", "ACB"] = "MCB"
+    curve: Literal["B", "C", "D"] | None = None
+    rating: float | None = Field(default=None, gt=0, description="Protective device In [A].")
+    breakingCapacityKa: float | None = Field(default=None, gt=0, description="Icu / Icn [kA].")
+    cableSize: float | None = Field(default=None, gt=0, description="Conductor size [mm²].")
+    cpcSize: float | None = Field(default=None, gt=0, description="Protective conductor [mm²].")
+    conductor: Literal["Cu", "Al"] = "Cu"
+    insulation: Literal["PVC", "XLPE"] = "PVC"
+    method: str = Field(default="C", description="IEC 60364-5-52 installation method.")
+    length: float = Field(default=20.0, ge=0, description="One-way run length [m].")
+    ambientTemp: float | None = Field(default=None, description="Ambient temperature [°C].")
+    groupedCircuits: int = Field(default=1, ge=1, description="Circuits grouped together.")
+    groupingArrangement: Literal["bunched", "singleLayerWall", "perforatedTray"] = "bunched"
+    thermalInsulation: Literal[
+        "none", "oneSide", "enclosed50mm", "enclosed100mm", "enclosed200mm", "surrounded"
+    ] = "none"
+
+
+class DistributionBoard(_Model):
+    """A distribution board (panel) fed from a rising main or upstream panel."""
+
+    id: Id
+    name: str = Field(default="")
+    story: Id = Field(description="Building-model story it is located on.")
+    room: str | None = Field(default=None, description="Room id or name where the DB stands.")
+    x: Mm | None = None
+    y: Mm | None = None
+    fedFrom: str | None = Field(
+        default=None, description="Upstream rising main or panel id (empty: auto)."
+    )
+    feederLength: float = Field(default=15.0, ge=0, description="Sub-main run length [m].")
+    feederMethod: str = "C"
+    feederInsulation: Literal["PVC", "XLPE"] = "XLPE"
+    feederConductor: Literal["Cu", "Al"] = "Cu"
+    feederCableSize: float | None = Field(default=None, gt=0)
+    feederCpcSize: float | None = Field(default=None, gt=0)
+    feederGrouped: int = Field(default=1, ge=1)
+    phases: Literal[1, 3] = 3
+    poles: Literal[2, 3, 4] = 4
+    incomerType: Literal["MCCB", "MCB", "ACB", "Isolator"] = "MCCB"
+    incomerRating: float | None = Field(default=None, gt=0, description="[A]")
+    incomerCurve: Literal["B", "C", "D"] | None = None
+    breakingCapacityKa: float | None = Field(default=None, gt=0, description="[kA]")
+    busbarRating: float | None = Field(default=None, gt=0, description="[A]")
+    ways: int | None = Field(default=None, ge=1)
+    circuits: list[Circuit] = Field(default_factory=list)
+
+
 class Lightning(_Model):
     """Lightning protection and earthing (the default pack's Part 8 Sec 1.3.33)."""
 
@@ -1304,6 +1379,7 @@ class Electrical(_Model):
     risers: list[ElectricalRiser] = Field(default_factory=list)
     trays: list[CableTray] = Field(default_factory=list)
     rooms: list[ElectricalRoom] = Field(default_factory=list)
+    boards: list[DistributionBoard] = Field(default_factory=list)
     lightning: Lightning | None = None
 
     @model_validator(mode="after")
@@ -1311,7 +1387,7 @@ class Electrical(_Model):
         ids = [
             x.id
             for x in (
-                *self.motors, *self.equipment, *self.risers, *self.trays, *self.rooms
+                *self.motors, *self.equipment, *self.risers, *self.trays, *self.rooms, *self.boards
             )
         ]  # fmt: skip
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
