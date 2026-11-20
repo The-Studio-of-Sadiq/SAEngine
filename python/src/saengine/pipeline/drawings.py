@@ -261,6 +261,7 @@ def _sheet_settings(settings: dict[str, Any], size: str | None) -> dict[str, Any
         "elevationScale": settings["elevationScale"],
         "detailScale": settings["detailScale"],
         "standard": settings.get("standard"),
+        "scopeBoxes": settings.get("scopeBoxes") or [],
     }
 
 

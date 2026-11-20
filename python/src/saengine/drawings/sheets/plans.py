@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 
 from saengine.drawings.sheets.layout import TEXT, TEXT_LARGE, View, ViewSpec, tag
 from saengine.drawings.sheets.model import (
@@ -32,6 +33,58 @@ def _bounds(points: Iterable[Point]) -> tuple[float, float, float, float]:
     pts = list(points)
     xs, ys = [p[0] for p in pts], [p[1] for p in pts]
     return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _clip_polygon(
+    points: Sequence[Point], bounds: tuple[float, float, float, float]
+) -> list[Point]:
+    """Clip a polygon to an axis-aligned scope box."""
+    clipped = list(points)
+    x0, y0, x1, y1 = bounds
+    for axis, edge, keep_greater in ((0, x0, True), (0, x1, False), (1, y0, True), (1, y1, False)):
+        if not clipped:
+            break
+        out: list[Point] = []
+        previous = clipped[-1]
+        previous_inside = previous[axis] >= edge if keep_greater else previous[axis] <= edge
+        for current in clipped:
+            current_inside = current[axis] >= edge if keep_greater else current[axis] <= edge
+            if current_inside != previous_inside:
+                delta = current[axis] - previous[axis]
+                if abs(delta) > 1e-12:
+                    ratio = (edge - previous[axis]) / delta
+                    other = 1 - axis
+                    point = list(previous)
+                    point[axis] = edge
+                    point[other] = previous[other] + ratio * (current[other] - previous[other])
+                    out.append((point[0], point[1]))
+            if current_inside:
+                out.append(current)
+            previous, previous_inside = current, current_inside
+        clipped = out
+    return clipped
+
+
+def _clip_line(
+    a: Point, b: Point, bounds: tuple[float, float, float, float]
+) -> tuple[Point, Point] | None:
+    """Clip a segment to an axis-aligned scope box (Liang-Barsky)."""
+    x0, y0, x1, y1 = bounds
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    lo, hi = 0.0, 1.0
+    for p, q in ((-dx, a[0] - x0), (dx, x1 - a[0]), (-dy, a[1] - y0), (dy, y1 - a[1])):
+        if abs(p) < 1e-12:
+            if q < 0:
+                return None
+            continue
+        ratio = q / p
+        if p < 0:
+            lo = max(lo, ratio)
+        else:
+            hi = min(hi, ratio)
+        if lo > hi:
+            return None
+    return ((a[0] + lo * dx, a[1] + lo * dy), (a[0] + hi * dx, a[1] + hi * dy))
 
 
 def _level_points(building: Building, level: Level) -> list[Point]:
@@ -205,11 +258,20 @@ def _along_label(view: View, text: str, a: Point, b: Point, offset: float) -> No
     view.label(text, mid, candidates, TEXT, "MC", rotation=angle)
 
 
-def _columns(view: View, building: Building, z: float) -> None:
+def _columns(
+    view: View,
+    building: Building,
+    z: float,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> None:
     for c in building.columns:
         if not (c.bottom < z + EPS and c.top > z - EPS):
             continue
         outline = c.outline()
+        if bounds is not None:
+            outline = _clip_polygon(outline, bounds)
+            if len(outline) < 3:
+                continue
         below = c.bottom < z - EPS
         view.polyline(outline, "S-COLS", close=True)
         view.reserve(outline, 0.3)
@@ -217,9 +279,18 @@ def _columns(view: View, building: Building, z: float) -> None:
             view.hatch(outline)
 
 
-def _column_marks(view: View, building: Building, z: float) -> None:
+def _column_marks(
+    view: View,
+    building: Building,
+    z: float,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> None:
     for c in building.columns:
         if not (c.bottom < z + EPS and c.top > z - EPS):
+            continue
+        if bounds is not None and not (
+            bounds[0] <= c.x <= bounds[2] and bounds[1] <= c.y <= bounds[3]
+        ):
             continue
         half = max(c.b, c.h) / 2 / view.scale + 1.2
         view.label(
@@ -234,7 +305,13 @@ def _column_marks(view: View, building: Building, z: float) -> None:
         )
 
 
-def _walls(view: View, building: Building, z: float, hatch: bool = True) -> None:
+def _walls(
+    view: View,
+    building: Building,
+    z: float,
+    hatch: bool = True,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> None:
     for w in building.walls:
         if not (w.bottom < z + EPS and w.top > z - EPS):
             continue
@@ -247,65 +324,149 @@ def _walls(view: View, building: Building, z: float, hatch: bool = True) -> None
             (w.end[0] - nx, w.end[1] - ny),
             (w.start[0] - nx, w.start[1] - ny),
         ]
+        if bounds is not None:
+            outline = _clip_polygon(outline, bounds)
+            if len(outline) < 3:
+                continue
         view.polyline(outline, "S-WALL", close=True)
         if hatch and w.bottom < z - EPS:
             view.hatch(outline)
 
 
-def _wall_marks(view: View, building: Building, z: float) -> None:
+def _wall_marks(
+    view: View,
+    building: Building,
+    z: float,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> None:
     for w in building.walls:
         if not (w.bottom < z + EPS and w.top > z - EPS):
             continue
+        a, b = w.start, w.end
+        if bounds is not None:
+            clipped = _clip_line(a, b, bounds)
+            if clipped is None:
+                continue
+            a, b = clipped
         offset = w.thickness / 2 / view.scale + 2.2
-        _along_label(view, f"{w.mark} ({w.thickness:g} THK)", w.start, w.end, offset)
+        _along_label(view, f"{w.mark} ({w.thickness:g} THK)", a, b, offset)
 
 
-def _beam_edges(view: View, building: Building, z: float, layer: str) -> list:
+def _beam_edges(
+    view: View,
+    building: Building,
+    z: float,
+    layer: str,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> list:
     beams = [b for b in building.beams if abs(b.elevation - z) < EPS]
+    visible = []
     for b in beams:
+        start, end = b.start, b.end
+        if bounds is not None:
+            clipped = _clip_line(start, end, bounds)
+            if clipped is None:
+                continue
+            start, end = clipped
         dx, dy = b.end[0] - b.start[0], b.end[1] - b.start[1]
         length = math.hypot(dx, dy) or 1.0
         nx, ny = -dy / length * b.width / 2, dx / length * b.width / 2
-        view.line((b.start[0] + nx, b.start[1] + ny), (b.end[0] + nx, b.end[1] + ny), layer)
-        view.line((b.start[0] - nx, b.start[1] - ny), (b.end[0] - nx, b.end[1] - ny), layer)
+        a1, b1 = (start[0] + nx, start[1] + ny), (end[0] + nx, end[1] + ny)
+        a2, b2 = (start[0] - nx, start[1] - ny), (end[0] - nx, end[1] - ny)
+        if bounds is not None:
+            clipped1, clipped2 = _clip_line(a1, b1, bounds), _clip_line(a2, b2, bounds)
+            if clipped1 is None and clipped2 is None:
+                continue
+            if clipped1 is not None:
+                a1, b1 = clipped1
+            if clipped2 is not None:
+                a2, b2 = clipped2
+        if bounds is None or clipped1 is not None:
+            view.line(a1, b1, layer)
+        if bounds is None or clipped2 is not None:
+            view.line(a2, b2, layer)
         if abs(dx) < 1 or abs(dy) < 1:  # an axis-aligned beam: keep the labels off it
-            view.reserve([(b.start[0] + nx, b.start[1] + ny), (b.end[0] - nx, b.end[1] - ny)])
-    return beams
+            view.reserve([a1, b2])
+        visible.append(replace(b, start=start, end=end) if bounds is not None else b)
+    return visible
 
 
-def framing_plan(building: Building, level: Level, scale: float = 100) -> ViewSpec:
+def framing_plan(
+    building: Building,
+    level: Level,
+    scale: float = 100,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> ViewSpec:
     """The framing plan of ``level``: what is drawn at its elevation, looking down."""
-    bbox = _bounds(_level_points(building, level))
+    bbox = bounds or _bounds(_level_points(building, level))
+    view_building = building
+    if bounds is not None:
+        view_building = replace(
+            building,
+            grids_x=[g for g in building.grids_x if bounds[0] <= g.position <= bounds[2]],
+            grids_y=[g for g in building.grids_y if bounds[1] <= g.position <= bounds[3]],
+        )
 
     def draw(view: View) -> None:
         z = level.elevation
         # the linework first, then the labels clear of it
-        grids(view, building, bbox)
-        _columns(view, building, z)
-        _walls(view, building, z)
-        for s in (s for s in building.slabs if abs(s.elevation - z) < EPS):
-            view.polyline(s.boundary, "S-SLAB", close=True)
-        beams = _beam_edges(view, building, z, "S-BEAM")
-        for s in (s for s in building.slabs if abs(s.elevation - z) < EPS):
+        grids(view, view_building, bbox)
+        _columns(view, building, z, bounds)
+        _walls(view, building, z, bounds=bounds)
+        slabs = []
+        for slab in (s for s in building.slabs if abs(s.elevation - z) < EPS):
+            boundary = _clip_polygon(slab.boundary, bounds) if bounds is not None else slab.boundary
+            if len(boundary) >= 3:
+                slabs.append((slab, boundary))
+                view.polyline(boundary, "S-SLAB", close=True)
+        beams = _beam_edges(view, building, z, "S-BEAM", bounds)
+        for s, _ in slabs:
             for hole in s.openings:
-                view.polyline(hole, "S-OPEN", close=True)
-                view.line(hole[0], hole[2], "S-OPEN")
-                view.line(hole[1], hole[3], "S-OPEN")
-        stairs = [st for st in building.stairs if abs(st.base - z) < EPS or abs(st.top - z) < EPS]
+                opening = _clip_polygon(hole, bounds) if bounds is not None else hole
+                if len(opening) >= 3:
+                    view.polyline(opening, "S-OPEN", close=True)
+                diagonals = ((hole[0], hole[2]), (hole[1], hole[3]))
+                for a, b in diagonals:
+                    clipped = _clip_line(a, b, bounds) if bounds is not None else (a, b)
+                    if clipped is not None:
+                        view.line(*clipped, "S-OPEN")
+        stairs = [
+            st
+            for st in building.stairs
+            if (abs(st.base - z) < EPS or abs(st.top - z) < EPS)
+            and (
+                bounds is None
+                or any(
+                    len(_clip_polygon(outline, bounds)) >= 3
+                    for outline in (*st.flights, *st.landings)
+                )
+                or any(_clip_line(a, b, bounds) is not None for a, b in st.treads)
+                or any(_clip_line(a, b, bounds) is not None for a, b in zip(st.arrow, st.arrow[1:]))
+            )
+        ]
         for st in stairs:
-            _stair(view, st)
-        _column_marks(view, building, z)
-        _wall_marks(view, building, z)
+            _stair(view, st, bounds)
+        _column_marks(view, building, z, bounds)
+        _wall_marks(view, building, z, bounds)
         for b in beams:
+            if bounds is not None:
+                clipped = _clip_line(b.start, b.end, bounds)
+                if clipped is None:
+                    continue
+                a, end = clipped
+            else:
+                a, end = b.start, b.end
             offset = b.width / 2 / view.scale + 2.2
-            _along_label(view, f"{b.mark} {b.width:g}x{b.depth:g}", b.start, b.end, offset)
+            _along_label(view, f"{b.mark} {b.width:g}x{b.depth:g}", a, end, offset)
         for st in stairs:
-            _stair_mark(view, st, up=abs(st.base - z) < EPS)
-        for s in (s for s in building.slabs if abs(s.elevation - z) < EPS):
+            _stair_mark(view, st, up=abs(st.base - z) < EPS, bounds=bounds)
+        for s, boundary in slabs:
             for hole in s.openings:
-                view.reserve(hole)
-        for s in (s for s in building.slabs if abs(s.elevation - z) < EPS):
-            _inside_label(view, f"{s.mark}\n{s.thickness:g} THK", s.boundary)
+                opening = _clip_polygon(hole, bounds) if bounds is not None else hole
+                if len(opening) >= 3:
+                    view.reserve(opening)
+        for s, boundary in slabs:
+            _inside_label(view, f"{s.mark}\n{s.thickness:g} THK", boundary)
 
     return ViewSpec(
         title=f"Framing plan - {level.name}",
@@ -318,26 +479,43 @@ def framing_plan(building: Building, level: Level, scale: float = 100) -> ViewSp
     )
 
 
-def _stair(view: View, stair) -> None:
-    for outline in stair.flights:
-        view.polyline(outline, "S-STAIR", close=True)
-    for outline in stair.landings:
-        view.polyline(outline, "S-STAIR", close=True)
+def _stair(view: View, stair, bounds: tuple[float, float, float, float] | None = None) -> None:
+    outlines = []
+    for outline in (*stair.flights, *stair.landings):
+        points = _clip_polygon(outline, bounds) if bounds is not None else outline
+        if len(points) >= 3:
+            outlines.append(points)
+            view.polyline(points, "S-STAIR", close=True)
     for a, b in stair.treads:
-        view.line(a, b, "S-STAIR")
-    if len(stair.arrow) >= 2:
-        view.polyline(stair.arrow, "S-STAIR")
-        tip, before = stair.arrow[-1], stair.arrow[-2]
+        clipped = _clip_line(a, b, bounds) if bounds is not None else (a, b)
+        if clipped is not None:
+            view.line(*clipped, "S-STAIR")
+    arrow_segments = []
+    for a, b in zip(stair.arrow, stair.arrow[1:]):
+        clipped = _clip_line(a, b, bounds) if bounds is not None else (a, b)
+        if clipped is not None:
+            arrow_segments.append(clipped)
+            view.line(*clipped, "S-STAIR")
+    if arrow_segments and (
+        bounds is None
+        or (
+            bounds[0] <= stair.arrow[-1][0] <= bounds[2]
+            and bounds[1] <= stair.arrow[-1][1] <= bounds[3]
+        )
+    ):
+        tip, before = arrow_segments[-1][1], arrow_segments[-1][0]
         ang = math.atan2(tip[1] - before[1], tip[0] - before[0])
         s = view.real(2.5)
         for side in (1, -1):
             a = ang + math.pi + side * math.radians(25)
             view.line(tip, (tip[0] + s * math.cos(a), tip[1] + s * math.sin(a)), "S-STAIR")
-    for outline in (*stair.flights, *stair.landings):
+    for outline in outlines:
         view.reserve(outline)
 
 
-def _stair_mark(view: View, stair, up: bool) -> None:
+def _stair_mark(
+    view: View, stair, up: bool, bounds: tuple[float, float, float, float] | None = None
+) -> None:
     if not stair.arrow:
         return
     # the leader points at the walking line a little inside the foot (not along its edge)
@@ -345,6 +523,10 @@ def _stair_mark(view: View, stair, up: bool) -> None:
     length = math.hypot(x1 - x0, y1 - y0) or 1.0
     step = min(view.real(2.0), length / 3)
     anchor = (x0 + (x1 - x0) / length * step, y0 + (y1 - y0) / length * step)
+    if bounds is not None and not (
+        bounds[0] <= anchor[0] <= bounds[2] and bounds[1] <= anchor[1] <= bounds[3]
+    ):
+        return
     bx0, by0, bx1, by1 = _bounds([p for o in (*stair.flights, *stair.landings) for p in o])
     ax, ay = view.p(*anchor)
     left, right = view.p(bx0, anchor[1])[0], view.p(bx1, anchor[1])[0]
