@@ -792,6 +792,22 @@ class HvacDesign(_Model):
         json_schema_extra={"unitKind": "temperatureChange"},
         description="Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.",
     )
+    heatingOutdoorDB: float | None = Field(
+        default=None,
+        title="Heating outdoor dry bulb",
+        description="Winter design dry bulb [°C]; empty: the station's winter design temperature.",
+    )
+    heatingIndoorDB: float | None = Field(
+        default=None,
+        title="Heating indoor dry bulb",
+        description="Winter heating setpoint [°C]; empty: 20 °C (ASHRAE practice, to be checked).",
+    )
+    infiltrationACH: float | None = Field(
+        default=None,
+        ge=0,
+        title="Infiltration rate",
+        description="Envelope infiltration [ACH] for heating; empty: default from code/practice table.",
+    )
 
 
 class HvacEnvelope(_Model):
@@ -933,6 +949,16 @@ class Duct(_Model):
     riser: DuctRiser | None = None
     shaft: Id | None = None
     flow: float | None = Field(default=None, gt=0, description="[m³/s]")
+    material: str | None = Field(default=None, description="Duct material key for roughness.")
+    fittings: list[Any] | None = Field(
+        default=None, description="Fitting keys or {kind, count, c} entries along this segment."
+    )
+    parent: Id | None = Field(default=None, description="Upstream duct segment id.")
+    room: Id | None = Field(default=None, description="Target room id for branch/runout ducts.")
+    role: Literal["main", "branch", "runout", "riser"] | None = None
+    terminalDrop: float | None = Field(
+        default=None, ge=0, description="Fixed terminal/diffuser pressure drop [Pa]."
+    )
 
 
 class Hvac(_Model):
@@ -941,6 +967,10 @@ class Hvac(_Model):
 
     system: Literal[tuple(HVAC_SYSTEMS)] = Field(  # type: ignore[valid-type]
         default="split", json_schema_extra=_labels(list(HVAC_SYSTEMS.values()))
+    )
+    zoning: Literal["room", "story"] = Field(
+        default="room",
+        description="Thermal zoning mode: per room (when architecture rooms exist) or per story.",
     )
     design: HvacDesign = Field(default_factory=HvacDesign)
     envelope: HvacEnvelope = Field(default_factory=HvacEnvelope)

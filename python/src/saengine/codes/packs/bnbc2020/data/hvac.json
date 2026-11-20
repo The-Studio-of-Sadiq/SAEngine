@@ -2388,6 +2388,75 @@
       "other": 3600.0
     }
   },
+  "heating": {
+    "indoorDb": 20.0,
+    "defaultOutdoorDb": 11.0,
+    "infiltrationAch": 0.5,
+    "stations": {
+      "barisal": 12.0,
+      "bogra": 9.5,
+      "chandpur": 12.0,
+      "chittagong": 13.0,
+      "comilla": 11.0,
+      "coxsbazar": 13.5,
+      "dhaka": 11.0,
+      "dinajpur": 8.5,
+      "faridpur": 10.5,
+      "ishurdi": 9.0,
+      "jessore": 10.0,
+      "khulna": 11.5,
+      "mongla": 12.0,
+      "mymensingh": 10.0,
+      "patuakhali": 12.5,
+      "rajshahi": 9.0,
+      "rangamati": 11.5,
+      "rangpur": 8.5,
+      "sylhet": 10.5,
+      "tangail": 10.0
+    }
+  },
+  "ductDesign": {
+    "defaultMaterial": "galvanisedSteel",
+    "roughness": {
+      "galvanisedSteel": 0.09,
+      "aluminum": 0.05,
+      "stainlessSteel": 0.05,
+      "fiberglass": 0.9,
+      "flexible": 3.0,
+      "pvc": 0.03
+    },
+    "fittings": {
+      "elbow_90_radius": 0.3,
+      "elbow_90_mitered": 1.2,
+      "elbow_90_vaned": 0.35,
+      "elbow_45": 0.2,
+      "tee_branch": 0.8,
+      "tee_main": 0.15,
+      "tee_45_branch": 0.45,
+      "contraction": 0.1,
+      "expansion": 0.3,
+      "abrupt_expansion": 0.6,
+      "diffuser": 1.5,
+      "damper_open": 0.2,
+      "fire_damper": 0.35,
+      "louver": 2.0
+    },
+    "staticRegainFactor": 0.75,
+    "velocityReduction": {
+      "supply": { "main": 7.5, "branch": 5.5, "runout": 4.0 },
+      "return": { "main": 6.0, "branch": 4.5, "runout": 3.5 },
+      "exhaust": { "main": 6.0, "branch": 4.5, "runout": 3.5 },
+      "freshAir": { "main": 5.0, "branch": 4.0, "runout": 3.0 },
+      "kitchenExhaust": { "main": 10.0, "branch": 9.0, "runout": 8.0 },
+      "smoke": { "main": 10.0, "branch": 10.0, "runout": 8.0 }
+    },
+    "noiseVelocityMax": {
+      "main": 7.5,
+      "branch": 5.5,
+      "runout": 4.0,
+      "riser": 8.5
+    }
+  },
   "sources": {
     "stations": "BNBC 2020 Part 8 Table 8.2.2 (Sec 2.7.2.2) (p862), notes p863; columns (2)-(14) as printed (Dhaka's 0.4 % DB is printed 35.55); latitude and longitude: SAEngine, from memory, to be checked (BNBC gives none)",
     "defaultStation": "SAEngine: Dhaka when the project gives no site location",
@@ -2424,6 +2493,12 @@
     "air.kitchenClearance": "BNBC 2020 Part 8 Sec 2.11.5.1(f), p. 912: a kitchen exhaust duct 75 mm clear of its enclosure, one exhaust duct an enclosure",
     "plant.cop": "BNBC 2020 Part 8 Table 8.2.11, p. 919: minimum COP by chiller class and size",
     "plant.waterCooledFrom": "SAEngine: water-cooled chillers from the largest size category of BNBC 2020 Part 8 Table 8.2.11 (p. 919)",
-    "plant.headroom": "BNBC 2020 Part 8 Sec 2.6.2.4(b) (p. 853), water-cooled chiller installations of 500 TR and above: 4.5 m centrifugal, 3.6 m screw/reciprocating"
+    "plant.headroom": "BNBC 2020 Part 8 Sec 2.6.2.4(b) (p. 853), water-cooled chiller installations of 500 TR and above: 4.5 m centrifugal, 3.6 m screw/reciprocating",
+    "heating": "SAEngine practice (ASHRAE Fundamentals Ch 16-18 winter heating setpoint 20 °C, infiltration 0.5 ACH; station winter dry-bulb estimates from memory, BNBC 2020 Table 8.2.2 gives summer only), to be checked",
+    "ductDesign.roughness": "ASHRAE Handbook Fundamentals Ch 21 (galvanised steel 0.09 mm; other materials from memory, to be checked)",
+    "ductDesign.fittings": "ASHRAE Duct Fitting Database / ASHRAE Fundamentals Ch 21 / SMACNA (typical local loss coefficients C from memory, to be checked)",
+    "ductDesign.staticRegainFactor": "ASHRAE Handbook Fundamentals Ch 21 static regain method (R = 0.75 from memory, to be checked)",
+    "ductDesign.velocityReduction": "ASHRAE Handbook Fundamentals Ch 21 commercial low-velocity duct practice (from memory, to be checked)",
+    "ductDesign.noiseVelocityMax": "ASHRAE Handbook Fundamentals Ch 21 / Ch 48 recommended duct velocity limits for noise control (from memory, to be checked)"
   }
 }

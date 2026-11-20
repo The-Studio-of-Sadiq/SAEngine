@@ -34403,6 +34403,92 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: '[m³/s]',
 					title: 'Flow',
 				},
+				material: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Duct material key for roughness.',
+					title: 'Material',
+				},
+				fittings: {
+					anyOf: [
+						{
+							items: {},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fitting keys or {kind, count, c} entries along this segment.',
+					title: 'Fittings',
+				},
+				parent: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Upstream duct segment id.',
+					title: 'Parent',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Target room id for branch/runout ducts.',
+					title: 'Room',
+				},
+				role: {
+					anyOf: [
+						{
+							enum: ['main', 'branch', 'runout', 'riser'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Role',
+				},
+				terminalDrop: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fixed terminal/diffuser pressure drop [Pa].',
+					title: 'Terminal drop',
+				},
 			},
 			required: ['id', 'story', 'path'],
 			title: 'Duct',
@@ -36215,6 +36301,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					title: 'System',
 					type: 'string',
 				},
+				zoning: {
+					default: 'room',
+					description: 'Thermal zoning mode: per room (when architecture rooms exist) or per story.',
+					enum: ['room', 'story'],
+					title: 'Zoning',
+					type: 'string',
+				},
 				design: {
 					$ref: '#/$defs/HvacDesign',
 					title: 'Design',
@@ -36335,6 +36428,46 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.',
 					title: 'Daily range',
 					unitKind: 'temperatureChange',
+				},
+				heatingOutdoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Winter design dry bulb [°C]; empty: the station\'s winter design temperature.',
+					title: 'Heating outdoor dry bulb',
+				},
+				heatingIndoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Winter heating setpoint [°C]; empty: 20 °C (ASHRAE practice, to be checked).',
+					title: 'Heating indoor dry bulb',
+				},
+				infiltrationACH: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Envelope infiltration [ACH] for heating; empty: default from code/practice table.',
+					title: 'Infiltration rate',
 				},
 			},
 			title: 'HvacDesign',

@@ -6250,6 +6250,47 @@ class HvacPlant(_Group):
     )
 
 
+class HvacHeating(_Group):
+    """Winter heating design conditions and infiltration defaults (ASHRAE Fundamentals Ch 16-18)."""
+
+    indoorDb: Num = Field(default=20.0, description="Default winter indoor setpoint [°C].")
+    defaultOutdoorDb: Num = Field(
+        default=11.0, description="Default winter outdoor design dry bulb [°C]."
+    )
+    infiltrationAch: NonNegNum = Field(
+        default=0.5, description="Default envelope infiltration rate [ACH]."
+    )
+    stations: dict[str, Num] = Field(
+        default_factory=dict, description="Station key -> winter 99 % design dry bulb [°C]."
+    )
+
+
+class HvacDuctDesign(_Group):
+    """Duct material roughness, fitting loss coefficients, sizing targets and noise limits
+    (ASHRAE Fundamentals Ch 21, Ch 48; ASHRAE Duct Fitting Database / SMACNA)."""
+
+    defaultMaterial: str = Field(
+        default="galvanisedSteel", description="Default duct material key."
+    )
+    roughness: dict[str, PosNum] = Field(
+        default_factory=dict, description="Material key -> absolute roughness ε [mm]."
+    )
+    fittings: dict[str, NonNegNum] = Field(
+        default_factory=dict, description="Fitting key -> local loss coefficient C."
+    )
+    staticRegainFactor: Share = Field(
+        default=0.75, description="Static pressure regain recovery factor R (ASHRAE Ch 21)."
+    )
+    velocityReduction: dict[str, dict[str, PosNum]] = Field(
+        default_factory=dict,
+        description="Duct system -> {main, branch, runout} target velocity [m/s].",
+    )
+    noiseVelocityMax: dict[str, PosNum] = Field(
+        default_factory=dict,
+        description="Duct role (main, branch, runout, riser) -> noise velocity limit [m/s].",
+    )
+
+
 class HvacTable(_Services):
     """The default pack's Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
     stated assumptions where the code is silent (marked in ``sources``, listed in
@@ -6285,6 +6326,9 @@ class HvacTable(_Services):
     # D5: the air distribution's and the plant's code values (None: not covered by the pack)
     air: HvacAir | None = None
     plant: HvacPlant | None = None
+    # R6: winter heating defaults and duct pressure/sizing data (optional for custom packs)
+    heating: HvacHeating | None = None
+    ductDesign: HvacDuctDesign | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> HvacTable:
