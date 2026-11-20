@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>SAEngine Revit Link</Name>
+    <Assembly>SAEngine.RevitLink.dll</Assembly>
+    <AddInId>7D2A9B4C-6E1F-4A8D-9C3B-5F0E1A2D4C8E</AddInId>
+    <FullClassName>SAEngine.RevitLink.SAEngineApp</FullClassName>
+    <VendorId>SAEN</VendorId>
+    <VendorDescription>SAEngine contributors (MIT Licence)</VendorDescription>
+  </AddIn>
+</RevitAddIns>

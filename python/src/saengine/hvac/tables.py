@@ -149,6 +149,9 @@ def _build(t: Any) -> dict[str, Any]:
         # R6: heating and duct design tables (private/optional on HvacTable)
         "_HEATING": t.heating,
         "_DUCT_DESIGN": t.ductDesign,
+        # R10: annual schedules and envelope compliance limits
+        "_SCHEDULES": t.schedules,
+        "_ENVELOPE_COMPLIANCE": t.envelopeCompliance,
     }
 
 
@@ -325,3 +328,53 @@ def inside_conditions(use: str) -> tuple[float, float, str]:
     if inside.rh is None:
         source += " (the row gives no humidity: office buildings' 60 % taken)"
     return db, rh, source
+
+
+def schedules() -> Any:
+    """The pack's annual operating schedules (``hvac.schedules``), or ASHRAE 90.1-style defaults."""
+    found = _names().get("_SCHEDULES")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacScheduleProfile, HvacSchedules
+
+    flat = [0.05] * 7 + [0.9] * 11 + [0.1] * 6
+    weekend = [0.05] * 24
+    return HvacSchedules(
+        defaultProfile="office",
+        groupSchedule={"office": "office"},
+        profiles={
+            "office": HvacScheduleProfile(
+                occupancyWeekday=flat,
+                occupancyWeekend=weekend,
+                lightingWeekday=flat,
+                lightingWeekend=weekend,
+                equipmentWeekday=[0.3] * 7 + [0.9] * 11 + [0.3] * 6,
+                equipmentWeekend=[0.3] * 24,
+            )
+        },
+    )
+
+
+def schedule_profile_for(use: str) -> tuple[str, Any]:
+    """The ``(profile_key, HvacScheduleProfile)`` for a Table 8.2.3 ``use`` key."""
+    sched = schedules()
+    vent = _names()["VENTILATION"].get(use)
+    group = vent.group if vent is not None else "office"
+    key = sched.groupSchedule.get(group, sched.defaultProfile)
+    if key not in sched.profiles:
+        key = (
+            sched.defaultProfile
+            if sched.defaultProfile in sched.profiles
+            else next(iter(sched.profiles))
+        )
+    return key, sched.profiles[key]
+
+
+def envelope_limits() -> Any:
+    """The pack's prescriptive envelope compliance limits (``hvac.envelopeCompliance``)."""
+    found = _names().get("_ENVELOPE_COMPLIANCE")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacEnvelopeCompliance
+
+    return HvacEnvelopeCompliance()
