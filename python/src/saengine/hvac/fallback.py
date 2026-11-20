@@ -1,27 +1,37 @@
-"""The cooling load estimate when EnergyPlus is not available: "estimate, EnergyPlus not
-available".
+"""The cooling and heating load estimates when EnergyPlus is not available: "estimate,
+EnergyPlus not available".
 
-A steady-state block load per zone, at the design day's maximum dry bulb, from the same inputs
-as the EnergyPlus model (:mod:`saengine.hvac.gains`, :mod:`saengine.hvac.constructions`,
+Cooling uses a **CLTD/CLF-style steady-state peak block method** (ASHRAE Fundamentals Ch 18 /
+Ch 28, with CLF = 1.0 and sol-air equivalent temperature difference ``ΔTe = To - Ti + a I / ho``
+for opaque surfaces), at the design day's maximum dry bulb, from the same inputs as the EnergyPlus
+model (:mod:`saengine.hvac.gains`, :mod:`saengine.hvac.constructions`,
 :mod:`saengine.hvac.geometry`):
 
 - walls and roof: U A (To - Ti + a I / ho), the sol-air temperature excess with a = 0.7 and
   ho = 17 W/m²K, I the mean daytime irradiance of the facade (N 100, E 300, S 200, W 300 W/m²)
   or of the roof (600 W/m²);
 - glazing: U A (To - Ti) + A SHGC I, I the peak irradiance of the facade (N 120, E 500, S 300,
-  W 500 W/m²) with only the larger of east and west (they peak at different times); an
-  overhang of Sec 4.4.3.1 scales the SHGC by SHGC / (SHGC + A), A of Table 3.4.3 at its
-  projection factor 0.234 (the default pack's own equivalence of a shaded window); interior blinds by 0.6;
-- exposed floors: U A (To - Ti); floors on the ground and between stories: none;
+  W 500 W/m²) with only the larger of east and west per zone (they peak at different times; note
+  that summing individual room peaks therefore exceeds a whole-storey block load when a building
+  has both east and west glazing); an overhang of Sec 4.4.3.1 scales the SHGC by SHGC / (SHGC + A),
+  A of Table 3.4.3 at its projection factor 0.234 (the default pack's own equivalence of a shaded
+  window); interior blinds by 0.6;
+- exposed floors: U A (To - Ti); floors on the ground and between stories: none (interzone walls
+  and floors conduct when the adjacent zone has a different indoor temperature);
 - people: 75 W sensible and 55 W latent a person at 130 W of activity, in proportion for others;
   lights and equipment: their W/m², all sensible;
 - outdoor air: rho V cp (To - Ti) sensible and rho V hfg (Wo - Wi) latent (ASHRAE Fundamentals
   Ch 1 psychrometrics), rho = 1.204 kg/m³ (standard density), cp = 1.006 + 1.86 Wo kJ/kg K,
   hfg = 2501 kJ/kg.
 
-The irradiances, a, ho, the people's split and the blinds' factor are from memory (ASHRAE
-Fundamentals load-calculation practice), to be checked; it is an estimate for coordinating the
-plant's size and weight, not a design.
+Heating uses the steady-state envelope conduction + infiltration + outdoor ventilation heat loss
+method (ASHRAE Fundamentals Ch 17/18, with no solar or internal heat gain credits):
+- envelope: U A (Ti_heat - To_heat) for exterior walls, glazing, roofs and exposed floors;
+- infiltration & ventilation: rho V cp (Ti_heat - To_heat) with V_inf = ACH · Volume / 3600.
+
+The irradiances, a, ho, the people's split, the blinds' factor and infiltration ACH are from
+memory (ASHRAE Fundamentals load-calculation practice), to be checked; it is an estimate for
+coordinating the plant's size and weight, not a design.
 """
 
 from __future__ import annotations
@@ -46,7 +56,10 @@ PEOPLE_SENSIBLE, PEOPLE_LATENT, PEOPLE_ACTIVITY = 75.0, 55.0, 130.0
 BLINDS = 0.6
 RHO = 1.204  # kg/m³, standard density
 HFG = 2501.0  # kJ/kg
-SUPPLY_DT = 11.0  # K, the design airflow's supply air difference (13 °C supply at 24 °C)
+SUPPLY_DT = 11.0  # K, the cooling design airflow's supply air difference (13 °C supply at 24 °C)
+HEATING_SUPPLY_DT = (
+    15.0  # K, heating supply difference (35 °C supply at 20 °C, matching EnergyPlus)
+)
 
 
 # ─────────────────────────────────── psychrometrics (ASHRAE) ───────────────────────────────────
@@ -108,9 +121,14 @@ def overhang_factor(shgc: float) -> float:
 
 
 def zone_load(
-    zone: ThermalZone, g: ZoneGains, envelope: EnvelopeChoice, design: Design
+    zone: ThermalZone,
+    g: ZoneGains,
+    envelope: EnvelopeChoice,
+    design: Design,
+    *,
+    other_temps: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    """The estimate of one conditioned zone [kW]."""
+    """The CLTD/CLF-style steady-state cooling estimate of one conditioned zone [kW]."""
     dt = design.db - g.indoorDB
     u_wall, u_roof, u_floor = envelope.uWall, envelope.uRoof, u_value(FLOOR)
     walls = roof = floors = conduction = 0.0
@@ -121,6 +139,13 @@ def zone_load(
     elif envelope.shading == "blinds":
         shgc *= BLINDS
     for s in zone.surfaces:
+        if s.boundary == "Surface" and other_temps and s.other in other_temps:
+            t_adj = other_temps[s.other]
+            if s.kind == "Wall":
+                walls += u_wall * s.area * (t_adj - g.indoorDB)
+            elif s.kind in ("Floor", "Ceiling"):
+                floors += u_floor * s.area * (t_adj - g.indoorDB)
+            continue
         if s.boundary != "Outdoors":
             continue
         if s.kind == "Wall":
@@ -174,3 +199,68 @@ def zone_load(
             "ventilation": vent_s + vent_l,
         },
     }  # fmt: skip
+
+
+def heating_load(
+    zone: ThermalZone,
+    g: ZoneGains,
+    envelope: EnvelopeChoice,
+    design: Design,
+    *,
+    ach: float | None = None,
+    include_ventilation: bool = True,
+    other_temps: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    """Steady-state heating load estimate of one conditioned zone [kW] (ASHRAE Fundamentals
+    Ch 17/18: envelope U·A·ΔT conduction + infiltration + outdoor ventilation, no solar or
+    internal heat gain credits)."""
+    t_in = g.heatingIndoorDB
+    t_out = design.heatingDB
+    dt = max(t_in - t_out, 0.0)
+    u_wall, u_roof, u_floor = envelope.uWall, envelope.uRoof, u_value(FLOOR)
+    walls = roof = floors = glazing = 0.0
+    for s in zone.surfaces:
+        if s.boundary == "Surface" and other_temps and s.other in other_temps:
+            t_adj = other_temps[s.other]
+            adj_dt = max(t_in - t_adj, 0.0)
+            if s.kind == "Wall":
+                walls += u_wall * s.area * adj_dt
+            elif s.kind in ("Floor", "Ceiling"):
+                floors += u_floor * s.area * adj_dt
+            continue
+        if s.boundary != "Outdoors":
+            continue
+        if s.kind == "Wall":
+            glass = sum(w.area for w in s.windows)
+            walls += u_wall * max(s.area - glass, 0.0) * dt
+            glazing += envelope.uGlazing * glass * dt
+        elif s.kind == "Roof":
+            roof += u_roof * s.area * dt
+        elif s.kind == "Floor":
+            floors += u_floor * s.area * dt
+    ach_val = design.infiltrationACH if ach is None else max(float(ach), 0.0)
+    v_inf = ach_val * zone.volume / 3600.0
+    infiltration = RHO * 1.006 * v_inf * dt  # kW (RHO in kg/m³, cp in kJ/kg·K -> kW)
+    flow = g.outdoor_air(zone.area, zone.volume) if include_ventilation else 0.0
+    ventilation = RHO * 1.006 * flow * dt
+    conduction = (walls + roof + floors + glazing) / 1000.0
+    total = conduction + infiltration + ventilation
+    zone_sensible = conduction + infiltration
+    airflow = max(zone_sensible / (RHO * 1.006 * HEATING_SUPPLY_DT), flow) if total > 0 else 0.0
+    return {
+        "total": total,
+        "conduction": conduction,
+        "infiltration": infiltration,
+        "ventilation": ventilation,
+        "airflow": airflow,
+        "indoorDB": t_in,
+        "outdoorDB": t_out,
+        "breakdown": {
+            "walls": walls / 1000.0,
+            "roof": roof / 1000.0,
+            "floors": floors / 1000.0,
+            "glazing": glazing / 1000.0,
+            "infiltration": infiltration,
+            "ventilation": ventilation,
+        },
+    }

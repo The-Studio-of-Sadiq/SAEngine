@@ -55,6 +55,8 @@ OUTPUT_VARIABLES = (
     "Zone Ideal Loads Supply Air Sensible Cooling Rate",
     "Zone Ideal Loads Supply Air Latent Cooling Rate",
     "Zone Ideal Loads Zone Total Cooling Rate",
+    "Zone Ideal Loads Supply Air Sensible Heating Rate",
+    "Zone Ideal Loads Zone Heating Rate",
     "Zone Ideal Loads Outdoor Air Total Cooling Rate",
     "Zone Ideal Loads Outdoor Air Sensible Cooling Rate",
     "Zone Ideal Loads Outdoor Air Latent Cooling Rate",
@@ -243,6 +245,22 @@ def build(
             "solar_model_indicator": "ASHRAEClearSky",
             "sky_clearness": 1.0,
         }
+    days["Heating 01-21"] = {
+        "month": 1,
+        "day_of_month": 21,
+        "day_type": "WinterDesignDay",
+        "maximum_dry_bulb_temperature": design.heatingDB,
+        "daily_dry_bulb_temperature_range": 0.0,
+        "humidity_condition_type": "WetBulb",
+        "wetbulb_or_dewpoint_at_maximum_dry_bulb": design.heatingDB - 2.0,
+        "wind_speed": T.DESIGN_WIND_SPEED,
+        "wind_direction": 180.0,
+        "rain_indicator": "No",
+        "snow_indicator": "No",
+        "daylight_saving_time_indicator": "No",
+        "solar_model_indicator": "ASHRAEClearSky",
+        "sky_clearness": 0.0,
+    }
     m["SizingPeriod:DesignDay"] = days
     m.update(epjson_objects(envelope))
     on = _schedule(m, 1.0)
@@ -389,7 +407,7 @@ def _ideal_loads(m: dict[str, Any], zone: ThermalZone, g: ZoneGains) -> str:
         }
     stat = f"{zone.name} setpoints"
     m.setdefault("ThermostatSetpoint:DualSetpoint", {})[stat] = {
-        "heating_setpoint_temperature_schedule_name": _schedule(m, -50.0),
+        "heating_setpoint_temperature_schedule_name": _schedule(m, g.heatingIndoorDB),
         "cooling_setpoint_temperature_schedule_name": _schedule(m, g.indoorDB),
     }
     m.setdefault("ZoneControl:Thermostat", {})[f"{zone.name} thermostat"] = {
@@ -623,6 +641,12 @@ def read_results(sql: Path, model: Model) -> dict[str, Any]:
             "from ZoneSizes where LoadType = 'Cooling'"
         ):
             sizes[row[0].upper()] = row
+        heat_sizes = {}
+        for row in con.execute(
+            "select ZoneName, CalcDesLoad, UserDesFlow, DesDayName, PeakHrMin, PeakTemp "
+            "from ZoneSizes where LoadType = 'Heating'"
+        ):
+            heat_sizes[row[0].upper()] = row
         series = _series(con)
         components = _components(con)
         envelope = _envelope(con)
@@ -647,11 +671,16 @@ def read_results(sql: Path, model: Model) -> dict[str, Any]:
             if key.upper() == "ENVIRONMENT"
         }
         size = sizes.get(z)
+        h_size = heat_sizes.get(z)
+        heat_series = series.get(("Zone Ideal Loads Supply Air Sensible Heating Rate", s), {})
+        heat_peak = max(heat_series.values(), default=0.0) / 1000.0
         environment, month, day, hour, minute = when
         zones[zone] = {
             "sensible": at.get("Supply Air Sensible Cooling Rate", 0.0) / 1000.0,
             "latent": at.get("Supply Air Latent Cooling Rate", 0.0) / 1000.0,
             "total": total[when] / 1000.0,
+            "heating": float(h_size[1]) / 1000.0 if h_size and h_size[1] is not None else heat_peak,
+            "heatingAirflow": float(h_size[2]) if h_size and h_size[2] is not None else 0.0,
             "zoneTotal": at.get("Zone Total Cooling Rate", 0.0) / 1000.0,
             "ventilation": {
                 "sensible": at.get("Outdoor Air Sensible Cooling Rate", 0.0) / 1000.0,

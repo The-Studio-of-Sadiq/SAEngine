@@ -376,6 +376,163 @@
       "title": "HvacAir",
       "type": "object"
     },
+    "HvacDuctDesign": {
+      "additionalProperties": false,
+      "description": "Duct material roughness, fitting loss coefficients, sizing targets and noise limits\n(ASHRAE Fundamentals Ch 21, Ch 48; ASHRAE Duct Fitting Database / SMACNA).",
+      "properties": {
+        "defaultMaterial": {
+          "default": "galvanisedSteel",
+          "description": "Default duct material key.",
+          "title": "Defaultmaterial",
+          "type": "string"
+        },
+        "roughness": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Material key -> absolute roughness ε [mm].",
+          "title": "Roughness",
+          "type": "object"
+        },
+        "fittings": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Fitting key -> local loss coefficient C.",
+          "title": "Fittings",
+          "type": "object"
+        },
+        "staticRegainFactor": {
+          "default": 0.75,
+          "description": "Static pressure regain recovery factor R (ASHRAE Ch 21).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Staticregainfactor",
+          "type": "number"
+        },
+        "velocityReduction": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "description": "Duct system -> {main, branch, runout} target velocity [m/s].",
+          "title": "Velocityreduction",
+          "type": "object"
+        },
+        "noiseVelocityMax": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Duct role (main, branch, runout, riser) -> noise velocity limit [m/s].",
+          "title": "Noisevelocitymax",
+          "type": "object"
+        }
+      },
+      "title": "HvacDuctDesign",
+      "type": "object"
+    },
+    "HvacHeating": {
+      "additionalProperties": false,
+      "description": "Winter heating design conditions and infiltration defaults (ASHRAE Fundamentals Ch 16-18).",
+      "properties": {
+        "indoorDb": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 20.0,
+          "description": "Default winter indoor setpoint [°C].",
+          "title": "Indoordb"
+        },
+        "defaultOutdoorDb": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 11.0,
+          "description": "Default winter outdoor design dry bulb [°C].",
+          "title": "Defaultoutdoordb"
+        },
+        "infiltrationAch": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "default": 0.5,
+          "description": "Default envelope infiltration rate [ACH].",
+          "title": "Infiltrationach"
+        },
+        "stations": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Station key -> winter 99 % design dry bulb [°C].",
+          "title": "Stations",
+          "type": "object"
+        }
+      },
+      "title": "HvacHeating",
+      "type": "object"
+    },
     "HvacPlant": {
       "additionalProperties": false,
       "description": "The code values of the plant proposal (D5: ``hvac/plant.py``'s constants).",
@@ -1223,6 +1380,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/HvacPlant"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "heating": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacHeating"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ductDesign": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacDuctDesign"
         },
         {
           "type": "null"

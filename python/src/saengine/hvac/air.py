@@ -49,6 +49,7 @@ works with or without its pydantic model.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from dataclasses import dataclass, field
@@ -321,23 +322,85 @@ def story_exhaust(
 # ─────────────────────────────────────── ducts ───────────────────────────────────────
 
 
-def friction_gradient(flow: float, diameter: float) -> float:
+def friction_gradient(
+    flow: float,
+    diameter: float,
+    roughness: float | None = None,
+    material: str | None = None,
+) -> float:
     """Pressure loss [Pa/m] of ``flow`` m³/s in a round duct of ``diameter`` mm (Darcy-Weisbach
-    with the Colebrook friction factor of ``fluids``)."""
+    with the Colebrook friction factor of ``fluids``; roughness from ``roughness`` [mm] else
+    the code pack's ``ductDesign.roughness`` for ``material``)."""
     from fluids.friction import friction_factor
 
+    eps = float(roughness) if roughness is not None else T.duct_roughness(material)
     d = diameter / 1000.0
     v = flow / (math.pi * d * d / 4)
     re = RHO * v * d / MU
-    f = friction_factor(Re=re, eD=ROUGHNESS / diameter)
+    f = friction_factor(Re=re, eD=eps / diameter)
     return f / d * RHO * v * v / 2
 
 
-def round_for_friction(flow: float, rate: float = FRICTION_RATE) -> float:
+def round_for_friction(
+    flow: float,
+    rate: float = FRICTION_RATE,
+    roughness: float | None = None,
+    material: str | None = None,
+) -> float:
     """Round duct diameter [mm] at which ``flow`` loses ``rate`` Pa/m (equal friction)."""
     from scipy.optimize import brentq
 
-    return float(brentq(lambda d: friction_gradient(flow, d) - rate, 10.0, 10000.0, xtol=0.01))
+    return float(
+        brentq(
+            lambda d: friction_gradient(flow, d, roughness, material) - rate,
+            10.0,
+            10000.0,
+            xtol=0.01,
+        )
+    )
+
+
+def fitting_loss(
+    fitting: str | float | dict[str, Any], velocity: float, rho: float = RHO
+) -> dict[str, Any]:
+    """Local pressure loss Δp = C · (0.5 · ρ · v²) [Pa] for a duct fitting (ASHRAE Duct
+    Fitting Database / Fundamentals Ch 21). ``fitting`` is a table key, a numeric ``C``, or
+    ``{kind, c, count}``."""
+    count = 1
+    if isinstance(fitting, int | float):
+        kind, c = "custom", float(fitting)
+    elif isinstance(fitting, str):
+        kind, c = fitting, T.fitting_c(fitting)
+    else:
+        kind = str(fitting.get("kind") or "custom")
+        count = int(fitting.get("count", 1) or 1)
+        c = float(fitting["c"]) if fitting.get("c") is not None else T.fitting_c(kind)
+    pv = 0.5 * rho * velocity * velocity
+    dp = count * c * pv
+    return {"kind": kind, "c": c, "count": count, "velocityPressure": pv, "dp": dp}
+
+
+def noise_check(velocity: float, system: str = "supply", role: str = "main") -> dict[str, Any]:
+    """Check ``velocity`` [m/s] against the ASHRAE Ch 21/48 noise velocity limit for ``role``."""
+    limit = T.noise_velocity_limit(system, role)
+    if limit is None:
+        return {"noiseOk": True, "noiseLimit": None, "noiseFlag": None}
+    ok = velocity <= limit + 1e-9
+    flag = (
+        None
+        if ok
+        else f"noise velocity limit exceeded: {velocity:.2f} m/s > {limit:g} m/s ({role})"
+    )
+    return {"noiseOk": ok, "noiseLimit": limit, "noiseFlag": flag}
+
+
+def _duct_area_de(size: dict[str, Any]) -> tuple[float, float]:
+    """(cross-section area [mm²], equivalent diameter [mm]) of a round or rectangular duct."""
+    if size.get("shape") == "round" or size.get("diameter"):
+        d = float(size["diameter"])
+        return math.pi * d * d / 4, d
+    w, h = float(size["width"]), float(size["height"])
+    return w * h, equivalent_diameter(w, h)
 
 
 def equivalent_diameter(width: float, height: float) -> float:
@@ -350,52 +413,134 @@ def _up(value: float, step: float = STEP, least: float = MIN_SIDE) -> float:
     return max(least, math.ceil(value / step - 1e-9) * step)
 
 
+def _candidates(
+    shape: str, area_need: float, max_height: float | None, max_side: float = 3000.0
+) -> list[tuple[dict[str, Any], float, float]]:
+    """Standard duct sizes >= ``area_need`` [mm²] as ``(size_dict, area_mm2, de_mm)`` sorted by
+    area ascending."""
+    out: list[tuple[dict[str, Any], float, float]] = []
+    if shape == "round":
+        d_min = _up(math.sqrt(4 * max(area_need, 1.0) / math.pi))
+        d = d_min
+        while d <= max_side + 1e-9:
+            a = math.pi * d * d / 4
+            out.append(({"shape": "round", "diameter": d}, a, d))
+            d += STEP
+        return out
+    top = max_height if max_height is not None else max_side
+    h = MIN_SIDE
+    while h <= top + 1e-9:
+        w = h
+        while w <= ASPECT_MAX * h + 1e-9:
+            a = w * h
+            if a >= area_need - 1e-6:
+                out.append(
+                    ({"shape": "rect", "width": w, "height": h}, a, equivalent_diameter(w, h))
+                )
+            w += STEP
+        h += STEP
+    if not out and max_height is not None:
+        return _candidates(shape, area_need, None, max_side)
+    out.sort(key=lambda item: (item[1], item[0]["height"], item[0]["width"]))
+    return out
+
+
 def size_duct(
     flow: float,
     system: str = "supply",
     shape: str = "rect",
     rate: float = FRICTION_RATE,
     max_height: float | None = None,
+    *,
+    method: str = "equalFriction",
+    material: str | None = None,
+    roughness: float | None = None,
+    role: str = "main",
+    upstream_velocity: float | None = None,
+    length_m: float = 10.0,
+    fittings: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """The duct for ``flow`` m³/s of ``system``: by equal friction at ``rate`` Pa/m and by the
-    velocity limits; a rectangle no deeper than ``max_height`` mm when it can be.
-    ``{"shape", "width", "height" | "diameter", "velocity", "friction", "governs", "ok",
-    "note", "frictionDiameter", "velocityDiameter"}``."""
+    """The duct for ``flow`` m³/s of ``system`` by ``method`` (``"equalFriction"``,
+    ``"velocityReduction"``, or ``"staticRegain"``) and by the velocity limits; a rectangle no
+    deeper than ``max_height`` mm when it can be. Includes ``noiseOk`` and ``noiseFlag``."""
     if flow <= 0:
         raise ValueError("a duct needs a positive airflow")
     vmin, vmax, vsource = velocity_limits(system)
-    area_v = flow / vmax * 1e6  # mm²
+    target_v = vmax
+    if method == "velocityReduction":
+        v_red = T.velocity_reduction_target(system, role)
+        if v_red is not None:
+            target_v = min(vmax, v_red)
+    area_v = flow / target_v * 1e6  # mm²
     d_v = math.sqrt(4 * area_v / math.pi)
-    by_velocity = system == "kitchenExhaust"  # the code's velocity range governs, not friction
-    d_f = 0.0 if by_velocity else round_for_friction(flow, rate)
-    governs = "velocity" if d_v >= d_f else "friction"
-    need_d = max(d_f, d_v)
-    notes = [f"velocity limit {vmax:g} m/s ({vsource})"]
-    if not by_velocity:
-        notes.append(f"equal friction {rate:g} Pa/m (SAEngine default)")
-    if shape == "round":
-        d = _up(need_d)
-        result = {"shape": "round", "diameter": d}
-        area, de = math.pi * d * d / 4, d
+    by_velocity = system == "kitchenExhaust" or method == "velocityReduction"
+    d_f = 0.0 if by_velocity else round_for_friction(flow, rate, roughness, material)
+    if method == "staticRegain" and upstream_velocity is not None and upstream_velocity > 0:
+        r_regain = float(T.duct_design().staticRegainFactor)
+        v_cap = min(vmax, upstream_velocity - 1e-4) if upstream_velocity > 0.5 else vmax
+        cands = _candidates(shape, flow / v_cap * 1e6, max_height)
+        best_pick: tuple[dict[str, Any], float, float] | None = None
+        closest: tuple[float, tuple[dict[str, Any], float, float]] | None = None
+        for cand in cands:
+            _size_c, area_c, de_c = cand
+            v_c = flow / (area_c / 1e6)
+            if v_c >= upstream_velocity - 1e-6 and len(cands) > 1:
+                continue
+            regain = r_regain * 0.5 * RHO * (upstream_velocity**2 - v_c**2)
+            loss = friction_gradient(flow, de_c, roughness, material) * max(length_m, 0.0)
+            for f in fittings or ():
+                loss += fitting_loss(f, v_c)["dp"]
+            if regain >= loss:
+                best_pick = cand
+                break
+            diff = abs(loss - regain)
+            if v_c >= 1.5 and (closest is None or diff < closest[0]):
+                closest = (diff, cand)
+        if best_pick is None:
+            best_pick = closest[1] if closest is not None else cands[0]
+        result, area, de = best_pick
+        governs = "staticRegain"
+        notes = [
+            f"static regain R={r_regain:g} from {upstream_velocity:.2f} m/s (ASHRAE Ch 21)",
+            f"velocity limit {vmax:g} m/s ({vsource})",
+        ]
     else:
-        w, h = _rectangle(d_f, area_v, max_height)
-        if w is None:
-            w, h = _rectangle(d_f, area_v, None)
-            notes.append(f"no duct of aspect ratio up to {ASPECT_MAX:g} fits {max_height:g} mm")
-        result = {"shape": "rect", "width": w, "height": h}
-        area, de = w * h, equivalent_diameter(w, h)
+        governs = "velocity" if (by_velocity or d_v >= d_f) else "friction"
+        need_d = max(d_f, d_v)
+        notes = [f"velocity limit {target_v:g} m/s ({vsource})"]
+        if method == "velocityReduction":
+            notes.append(f"velocity reduction ({role}, {target_v:g} m/s)")
+        elif not by_velocity:
+            notes.append(f"equal friction {rate:g} Pa/m (SAEngine default)")
+        if shape == "round":
+            d = _up(need_d)
+            result = {"shape": "round", "diameter": d}
+            area, de = math.pi * d * d / 4, d
+        else:
+            w, h = _rectangle(d_f, area_v, max_height)
+            if w is None:
+                w, h = _rectangle(d_f, area_v, None)
+                notes.append(f"no duct of aspect ratio up to {ASPECT_MAX:g} fits {max_height:g} mm")
+            result = {"shape": "rect", "width": w, "height": h}
+            area, de = w * h, equivalent_diameter(w, h)
     velocity = flow / (area / 1e6)
     ok = velocity <= vmax + 1e-9 and (vmin is None or velocity >= vmin - 1e-9)
     if vmin is not None and velocity < vmin:
         notes.append(f"{velocity:.2f} m/s is below the {vmin:g} m/s minimum")
+    noise = noise_check(velocity, system, role)
+    if noise["noiseFlag"]:
+        notes.append(noise["noiseFlag"])
     return {
         **result,
         "velocity": velocity,
-        "friction": friction_gradient(flow, de),
+        "friction": friction_gradient(flow, de, roughness, material),
         "governs": governs,
+        "method": method,
+        "material": material or T.duct_design().defaultMaterial,
         "frictionDiameter": d_f,
         "velocityDiameter": d_v,
         "ok": ok,
+        **noise,
         "note": "; ".join(notes),
     }
 
@@ -418,19 +563,240 @@ def _rectangle(
     return None, None
 
 
-def check_duct(flow: float, size: dict[str, Any], system: str = "supply") -> dict[str, Any]:
-    """Velocity [m/s] and friction [Pa/m] of ``flow`` in a given duct, against the limits."""
+def check_duct(
+    flow: float,
+    size: dict[str, Any],
+    system: str = "supply",
+    *,
+    material: str | None = None,
+    roughness: float | None = None,
+    role: str = "main",
+) -> dict[str, Any]:
+    """Velocity [m/s], friction [Pa/m] and noise velocity flag of ``flow`` in a given duct."""
     vmin, vmax, vsource = velocity_limits(system)
-    if size.get("shape") == "round" or size.get("diameter"):
-        d = float(size["diameter"])
-        area, de = math.pi * d * d / 4, d
-    else:
-        w, h = float(size["width"]), float(size["height"])
-        area, de = w * h, equivalent_diameter(w, h)
+    area, de = _duct_area_de(size)
     velocity = flow / (area / 1e6)
     ok = velocity <= vmax + 1e-9 and (vmin is None or velocity >= vmin - 1e-9)
-    return {"velocity": velocity, "friction": friction_gradient(flow, de), "ok": ok,
-            "limit": vmax, "minimum": vmin, "note": vsource}  # fmt: skip
+    noise = noise_check(velocity, system, role)
+    return {
+        "velocity": velocity,
+        "friction": friction_gradient(flow, de, roughness, material),
+        "ok": ok,
+        "limit": vmax,
+        "minimum": vmin,
+        **noise,
+        "note": vsource,
+    }
+
+
+def _segment_length_m(seg: dict[str, Any]) -> float:
+    if seg.get("length") is not None:
+        return float(seg["length"])
+    path = seg.get("path") or []
+    if len(path) >= 2:
+        return sum(math.dist(a[:2], b[:2]) for a, b in itertools.pairwise(path)) / 1000.0
+    return 0.0
+
+
+def _infer_parents(segments: list[dict[str, Any]]) -> dict[str, str | None]:
+    """Parent id of each segment: explicit ``parent``, else matched by start==parent.end."""
+    parents: dict[str, str | None] = {}
+    end_to_id: dict[tuple[float, float], str] = {}
+    for seg in segments:
+        path = seg.get("path") or []
+        if len(path) >= 2:
+            end_to_id[(round(float(path[-1][0]), 1), round(float(path[-1][1]), 1))] = seg["id"]
+    for seg in segments:
+        if "parent" in seg:
+            parents[seg["id"]] = seg["parent"]
+            continue
+        path = seg.get("path") or []
+        if len(path) >= 2:
+            start = (round(float(path[0][0]), 1), round(float(path[0][1]), 1))
+            cand = end_to_id.get(start)
+            parents[seg["id"]] = cand if cand != seg["id"] else None
+        else:
+            parents[seg["id"]] = None
+    return parents
+
+
+def duct_network_pressure(segments: list[dict[str, Any]], rho: float = RHO) -> dict[str, Any]:
+    """Friction + fitting pressure loss per segment, critical path total pressure and fan static
+    pressure of a duct tree (ASHRAE Fundamentals Ch 21).
+
+    Each segment may supply ``id``, ``parent``, ``flow`` [m³/s], ``size`` (or ``width``/``height``/
+    ``diameter``), ``length`` [m] (or ``path`` in mm), ``material``, ``fittings``, and
+    ``terminalDrop`` [Pa]. ``fanStaticPressure = criticalTotalPressure - fanVelocityPressure``.
+    """
+    if not segments:
+        return {
+            "segments": [],
+            "paths": [],
+            "criticalPath": [],
+            "criticalTotalPressure": 0.0,
+            "fanVelocityPressure": 0.0,
+            "fanStaticPressure": 0.0,
+        }
+    parents = _infer_parents(segments)
+    children: dict[str | None, list[str]] = {}
+    for seg in segments:
+        children.setdefault(parents.get(seg["id"]), []).append(seg["id"])
+    seg_results: dict[str, dict[str, Any]] = {}
+    for seg in segments:
+        sid = seg["id"]
+        size = seg.get("size") or given_size(seg)
+        flow = float(seg.get("flow") or 0.0)
+        length = _segment_length_m(seg)
+        material = seg.get("material")
+        roughness = seg.get("roughness")
+        if size is None or flow <= 0:
+            seg_results[sid] = {
+                "id": sid,
+                "parent": parents.get(sid),
+                "flow": flow,
+                "length": length,
+                "velocity": 0.0,
+                "velocityPressure": 0.0,
+                "frictionGradient": 0.0,
+                "frictionLoss": 0.0,
+                "fittingLoss": 0.0,
+                "terminalDrop": 0.0,
+                "totalLoss": 0.0,
+                "fittings": [],
+            }
+            continue
+        area, de = _duct_area_de(size)
+        v = flow / (area / 1e6)
+        pv = 0.5 * rho * v * v
+        dp_m = friction_gradient(flow, de, roughness, material)
+        dp_f = dp_m * length
+        fit_rows = [fitting_loss(f, v, rho) for f in (seg.get("fittings") or ())]
+        dp_c = sum(r["dp"] for r in fit_rows)
+        term = float(seg.get("terminalDrop") or 0.0)
+        seg_results[sid] = {
+            "id": sid,
+            "parent": parents.get(sid),
+            "flow": flow,
+            "length": length,
+            "size": size,
+            "material": material or T.duct_design().defaultMaterial,
+            "velocity": v,
+            "velocityPressure": pv,
+            "frictionGradient": dp_m,
+            "frictionLoss": dp_f,
+            "fittingLoss": dp_c,
+            "terminalDrop": term,
+            "totalLoss": dp_f + dp_c + term,
+            "fittings": fit_rows,
+        }
+    # Walk from roots (parent is None or missing) to all leaves.
+    ids = {seg["id"] for seg in segments}
+    roots = [seg["id"] for seg in segments if parents.get(seg["id"]) not in ids]
+    leaves = [seg["id"] for seg in segments if not children.get(seg["id"])]
+    paths: list[dict[str, Any]] = []
+    for leaf in leaves:
+        chain: list[str] = []
+        cur: str | None = leaf
+        seen: set[str] = set()
+        while cur is not None and cur in seg_results and cur not in seen:
+            seen.add(cur)
+            chain.append(cur)
+            cur = parents.get(cur)
+        chain.reverse()
+        f_sum = sum(seg_results[s]["frictionLoss"] for s in chain)
+        c_sum = sum(seg_results[s]["fittingLoss"] + seg_results[s]["terminalDrop"] for s in chain)
+        tot = f_sum + c_sum
+        paths.append(
+            {
+                "leaf": leaf,
+                "path": chain,
+                "frictionLoss": f_sum,
+                "fittingLoss": c_sum,
+                "totalPressure": tot,
+            }
+        )
+    critical = max(paths, key=lambda p: p["totalPressure"]) if paths else None
+    crit_total = critical["totalPressure"] if critical else 0.0
+    for p in paths:
+        p["balancingExcess"] = max(crit_total - p["totalPressure"], 0.0)
+    root_id = (
+        critical["path"][0] if critical and critical["path"] else (roots[0] if roots else None)
+    )
+    fan_vp = seg_results[root_id]["velocityPressure"] if root_id in seg_results else 0.0
+    return {
+        "segments": [seg_results[seg["id"]] for seg in segments],
+        "paths": paths,
+        "criticalPath": critical["path"] if critical else [],
+        "criticalTotalPressure": crit_total,
+        "fanVelocityPressure": fan_vp,
+        "fanStaticPressure": max(crit_total - fan_vp, 0.0),
+    }
+
+
+def size_duct_network(
+    segments: list[dict[str, Any]],
+    system: str = "supply",
+    shape: str = "rect",
+    method: str = "equalFriction",
+    rate: float = FRICTION_RATE,
+    max_height: float | None = None,
+    material: str | None = None,
+) -> dict[str, Any]:
+    """Size every segment in a duct tree from root to leaves using ``method`` (``"equalFriction"``,
+    ``"staticRegain"``, or ``"velocityReduction"``) and compute critical-path pressures."""
+    parents = _infer_parents(segments)
+    by_id = {seg["id"]: dict(seg) for seg in segments}
+    ordered: list[dict[str, Any]] = []
+    remaining = list(segments)
+    done: set[str] = set()
+    while remaining:
+        progressed = False
+        next_rem = []
+        for seg in remaining:
+            p = parents.get(seg["id"])
+            if p is None or p not in by_id or p in done:
+                ordered.append(by_id[seg["id"]])
+                done.add(seg["id"])
+                progressed = True
+            else:
+                next_rem.append(seg)
+        if not progressed:
+            ordered.extend(by_id[s["id"]] for s in next_rem)
+            break
+        remaining = next_rem
+    velocities: dict[str, float] = {}
+    sized_list: list[dict[str, Any]] = []
+    for seg in ordered:
+        sid = seg["id"]
+        sys_name = seg.get("system") or system
+        seg_shape = seg.get("shape") or shape
+        role = seg.get("role") or ("main" if parents.get(sid) is None else "branch")
+        flow = float(seg.get("flow") or 0.0)
+        seg_mat = seg.get("material") or material
+        if flow <= 0:
+            sized_list.append(seg)
+            continue
+        up_v = velocities.get(parents.get(sid) or "")
+        length_m = _segment_length_m(seg) or 10.0
+        sized = size_duct(
+            flow,
+            sys_name,
+            seg_shape,
+            rate,
+            max_height,
+            method=method,
+            material=seg_mat,
+            role=role,
+            upstream_velocity=up_v,
+            length_m=length_m,
+            fittings=seg.get("fittings"),
+        )
+        size_dict = {k: sized[k] for k in ("shape", "width", "height", "diameter") if k in sized}
+        velocities[sid] = sized["velocity"]
+        updated = {**seg, **size_dict, "size": size_dict, "sizing": sized}
+        sized_list.append(updated)
+    pressure = duct_network_pressure(sized_list)
+    return {"ducts": sized_list, "pressure": pressure, "method": method}
 
 
 def outside(duct: dict[str, Any], size: dict[str, Any] | None = None) -> tuple[float, float, bool]:
@@ -599,17 +965,18 @@ def zone_air(
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Supply and outdoor air of each zone of ``loads`` (H1's ``{"zones": [{"story",
     "sensible" kW, "total", "latent", "airflow" m³/s?, "area" m²?, "occupants"?,
-    "outdoorAir" m³/s?}]}``) and the exhaust of each story."""
+    "outdoorAir" m³/s?}]}``) and the exhaust of each story. When ``loads`` has room-by-room
+    zones on a story, returns one aggregated entry per story with ``rooms`` holding each room."""
     notes: list[str] = []
     entries = {s.get("story"): s for s in project.hvac.get("stories", [])}
     plumbing = {s.story: s for s in (project.mep.plumbing.stories if project.mep.plumbing else [])}
-    zones = []
+    raw_zones = []
     for story, zone in _zone_items(loads, project):
         if zone.get("problem"):
             notes.append(f"{story}: {zone['problem']}")
             continue
         entry = entries.get(story, {})
-        use = entry.get("use") or zone.get("use")
+        use = zone.get("use") or entry.get("use")
         area = _num(zone, "area", "floorArea") or _floor_area(project, story)
         sensible = _num(zone, "sensible", "sensibleKw") or 0.0
         airflow = _num(zone, "airflow", "supplyAir")
@@ -619,7 +986,11 @@ def zone_air(
             source = (
                 f"qs / (rho cp dT) = {sensible:.2f} / (1.2 x 1.005 x {dt:g}) (SAEngine practice dT)"
             )
-        occupants = entry.get("occupants", zone.get("occupants"))
+        occupants = (
+            zone.get("occupants")
+            if zone.get("room") is not None
+            else entry.get("occupants", zone.get("occupants"))
+        )
         height = project.story_height(story)
         oa = outdoor_air(use, area, occupants, height / 1000 if height else None)
         given_oa = _num(zone, "outdoorAir")
@@ -627,18 +998,58 @@ def zone_air(
             given_oa = _num(zone["ventilation"], "flow")
         outdoor = given_oa if given_oa is not None else oa["flow"]
         fixtures = plumbing[story].fixtures if story in plumbing else None
-        exhaust = story_exhaust(use, area, fixtures, kitchen_kw=_kitchen_kw(entry, area))
+        exhaust = story_exhaust(
+            entry.get("use") or use, area, fixtures, kitchen_kw=_kitchen_kw(entry, area)
+        )
         supply = max(airflow, outdoor)
         zone_notes = [n for n in (oa["note"],) if n]
         if supply > airflow + 1e-9:
             zone_notes.append("supply raised to the outdoor air")
-        zones.append({
-            "story": story, "use": use, "area": area, "sensible": sensible,
-            "total": _num(zone, "total", "totalKw"), "airflow": supply,
-            "airflowSource": source, "outdoorAir": outdoor, "outdoorAirSource": oa["source"]
-            if given_oa is None else "the load calculation", "occupants": oa["occupants"],
-            "exhaust": exhaust, "notes": zone_notes, "conditioned": True,
+        raw_zones.append({
+            "story": story, "room": zone.get("room"), "roomLabel": zone.get("roomLabel"),
+            "use": use, "area": area, "sensible": sensible,
+            "total": _num(zone, "total", "totalKw"), "heating": _num(zone, "heating") or 0.0,
+            "airflow": supply, "airflowSource": source, "outdoorAir": outdoor,
+            "outdoorAirSource": oa["source"] if given_oa is None else "the load calculation",
+            "occupants": oa["occupants"], "exhaust": exhaust, "notes": zone_notes,
+            "conditioned": True,
         })  # fmt: skip
+    # Aggregate room zones into one story zone per story (keeping "rooms" when room-level).
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for rz in raw_zones:
+        grouped.setdefault(rz["story"], []).append(rz)
+    zones = []
+    for story, items in grouped.items():
+        if len(items) == 1 and items[0].get("room") is None:
+            item = dict(items[0])
+            item.pop("room", None)
+            item.pop("roomLabel", None)
+            zones.append(item)
+            continue
+        entry = entries.get(story, {})
+        area = sum(i["area"] for i in items)
+        use = entry.get("use") or items[0]["use"]
+        fixtures = plumbing[story].fixtures if story in plumbing else None
+        exhaust = story_exhaust(use, area, fixtures, kitchen_kw=_kitchen_kw(entry, area))
+        zones.append(
+            {
+                "story": story,
+                "use": use,
+                "area": area,
+                "sensible": sum(i["sensible"] for i in items),
+                "total": sum(i["total"] or 0.0 for i in items),
+                "heating": sum(i["heating"] for i in items),
+                "airflow": sum(i["airflow"] for i in items),
+                "airflowSource": items[0]["airflowSource"],
+                "outdoorAir": sum(i["outdoorAir"] for i in items),
+                "outdoorAirSource": items[0]["outdoorAirSource"],
+                "occupants": sum(i["occupants"] or 0.0 for i in items),
+                "exhaust": exhaust,
+                "notes": list(dict.fromkeys(n for i in items for n in i["notes"])),
+                "conditioned": True,
+                "rooms": items,
+            }
+        )
     if not zones:
         notes.append("no zone loads: run the HVAC load calculation first")
     zones += _unconditioned(project, {z["story"] for z in zones}, entries, plumbing, notes)
@@ -799,7 +1210,14 @@ def duct_sizes(
             if check["minimum"] is not None:
                 note += f", at least {check['minimum']:g} m/s"
         else:
-            sized = size_duct(flow, system, d.get("shape") or "rect", rate)
+            sized = size_duct(
+                flow,
+                system,
+                d.get("shape") or "rect",
+                rate,
+                material=d.get("material"),
+                role=d.get("role") or ("riser" if d.get("riser") else "main"),
+            )
             check = sized
             size = {k: sized[k] for k in ("shape", "width", "height", "diameter") if k in sized}
             proposed, note = True, sized["note"]
@@ -807,7 +1225,9 @@ def duct_sizes(
             "id": d["id"], "system": system, "story": d.get("story"),
             "riser": bool(d.get("riser")), "flow": flow, "flowSource": sources.get(d["id"], ""),
             "size": size, "proposed": proposed, "velocity": check["velocity"],
-            "friction": check["friction"], "ok": check["ok"], "note": note,
+            "friction": check["friction"], "ok": check["ok"],
+            "noiseOk": check.get("noiseOk", True), "noiseFlag": check.get("noiseFlag"),
+            "note": note,
         })  # fmt: skip
     return results, notes
 
@@ -979,6 +1399,15 @@ def hvac_air(
     ducts, more = duct_sizes(project, zones, rate)
     notes += more
     sizes = {d["id"]: {**d["size"], "flow": d["flow"]} for d in ducts}
+    raw_by_id = {
+        d["id"]: d for d in project.hvac.get("ducts", []) if isinstance(d, dict) and d.get("id")
+    }
+    net_segments = [
+        {**raw_by_id.get(d["id"], {}), **d, "size": d["size"]}
+        for d in ducts
+        if d.get("flow") and d.get("size")
+    ]
+    pressure = duct_network_pressure(net_segments) if net_segments else None
     shafts, checks = shaft_needs(project, sizes)
     for d in ducts:
         if d["velocity"] is None:
@@ -986,8 +1415,23 @@ def hvac_air(
         _, vmax, source = velocity_limits(d["system"])
         checks.append(_check(f"Duct {d['id']} velocity", d["velocity"], vmax, "m/s", d["ok"],
                              d["note"] or source))  # fmt: skip
+        if d.get("noiseFlag"):
+            checks.append(
+                {
+                    "name": f"Duct {d['id']} noise limit",
+                    "demand": d["velocity"],
+                    "capacity": check_duct(d["flow"], d["size"], d["system"]).get("noiseLimit")
+                    or vmax,
+                    "unit": "m/s",
+                    "utilisation": d["velocity"]
+                    / (check_duct(d["flow"], d["size"], d["system"]).get("noiseLimit") or vmax),
+                    "ok": False,
+                    "flag": True,
+                    "note": d["noiseFlag"],
+                }
+            )
     result: dict[str, Any] = {
-        "zones": zones, "ducts": ducts, "shafts": shafts, "plant": [], "pipes": [],
+        "zones": zones, "ducts": ducts, "shafts": shafts, "pressure": pressure, "plant": [], "pipes": [],
         "openings": [], "conflicts": [], "checks": checks, "notes": notes,
         "problems": list(project.problems),
         "method": {"supplyDeltaT": dt, "frictionRate": rate, "aspectMax": ASPECT_MAX,

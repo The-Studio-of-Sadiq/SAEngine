@@ -81,8 +81,18 @@ the envelope, the storeys (use from Table 8.2.3), plant and ducts. While drawing
 points, double-click or Enter to end, Backspace removes the last point, Esc cancels.
 
 **Calculate Loads** runs EnergyPlus for the design day when it is installed (about half a
-minute); without it, a hand estimate is used and labelled as such. **Propose Plant** sizes plant
-entries; **Add Duct Openings** proposes and checks beam web openings for the ducts.
+minute); without it, a CLTD/CLF-style steady-state hand estimate is used and labelled as such.
+When architectural rooms are drawn (`05 Floor Plan/architecture.json`), loads, sensible/latent
+splits, heating loads (envelope conduction, infiltration, and outdoor air against the site's winter
+design temperature), and supply airflows are computed **room by room** by default, with a
+per-storey option (`zoning: "story"`) for speed. **Propose Plant** sizes plant entries; **Add Duct
+Openings** proposes and checks beam web openings for the ducts.
+
+Air-side sizing (`saengine.hvac.air`) supports **equal friction**, **static regain**, and
+**velocity reduction**, computes Darcy–Weisbach friction and fitting pressure drops along the
+critical path to report **fan static pressure**, and flags ducts exceeding noise velocity limits.
+`auto_route_ducts` (`saengine.hvac.routing`) lays out supply/return duct trees from an AHU or FCU
+to room diffusers along corridors using `RoomGraph` with penalties for crossing structural beams.
 
 ## Electrical
 
