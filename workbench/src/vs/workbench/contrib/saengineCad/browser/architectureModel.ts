@@ -10,6 +10,21 @@ import { storiesOf } from '../../../services/saengineProject/common/floorPlanMem
 import { DEFAULT_ARCHITECTURE } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { distanceToSegment, insidePolygon } from './floorPlanDrawing.js';
 import { ISnapSegment, snapSegments } from './floorPlanSnap.js';
+import {
+	drawComponents,
+	drawInPlaceElements,
+	drawMasses,
+	IComponentInstance,
+	IComponentType,
+	IConceptualMass,
+	IInPlaceElement,
+	parseComponents,
+	parseComponentTypes,
+	parseInPlaceElements,
+	parseMasses,
+} from './architectureComponents.js';
+
+export type { IComponentInstance, IComponentType, IConceptualMass, IInPlaceElement } from './architectureComponents.js';
 
 /*
  * The architecture (`05 Floor Plan/architecture.json`, `saengine.library.architecture`): walls of
@@ -28,19 +43,53 @@ export interface IWallLayer { readonly material: string; readonly thickness: num
 export interface IWallType { readonly id: string; readonly name: string; readonly layers: readonly IWallLayer[]; readonly locationLine?: 'center' | 'left' | 'right' }
 export type DoorStyle = 'single' | 'double' | 'sliding';
 export type WindowStyle = 'fixed' | 'casement' | 'sliding';
-export interface IDoorType { readonly id: string; readonly name: string; readonly style?: DoorStyle; readonly width: number; readonly height: number; readonly frame?: number }
-export interface IWindowType { readonly id: string; readonly name: string; readonly style?: WindowStyle; readonly width: number; readonly height: number; readonly sill?: number; readonly frame?: number }
+export interface IDoorType {
+	readonly id: string; readonly name: string; readonly style?: DoorStyle; readonly width: number; readonly height: number; readonly frame?: number;
+	readonly leafCount?: number; readonly swing?: 'left' | 'right' | 'both' | 'none'; readonly sill?: number; readonly lintel?: number;
+}
+export interface IWindowType {
+	readonly id: string; readonly name: string; readonly style?: WindowStyle; readonly width: number; readonly height: number; readonly sill?: number; readonly frame?: number;
+	readonly leafCount?: number; readonly swing?: 'inward' | 'outward' | 'left' | 'right' | 'none'; readonly lintel?: number;
+}
 export interface IFinishType {
 	readonly id: string; readonly name: string; readonly kind: 'floor' | 'wall' | 'ceiling'; readonly thickness: number; readonly unitWeight: number;
 	/** A sunk slab's filling under the finish in wet rooms [mm], and its unit weight [kN/m³] (16 when not given). */
 	readonly sunkFilling?: number; readonly sunkUnitWeight?: number;
 }
 
+export type GridLayout = 'fixedDistance' | 'fixedNumber' | 'maxSpacing' | 'none';
+export interface ICurtainGridRule { readonly layout: GridLayout; readonly spacing?: number; readonly count?: number }
+export type PanelKind = 'glazed' | 'solid' | 'door';
+export interface ICurtainPanelType {
+	readonly id: string; readonly name: string; readonly kind?: PanelKind; readonly material?: string;
+	readonly thickness?: number; readonly unitWeight?: number; readonly weight?: number;
+}
+export interface ICurtainMullionType {
+	readonly id: string; readonly name: string; readonly width?: number; readonly depth?: number;
+	readonly wallThickness?: number; readonly material?: string; readonly unitWeight?: number; readonly weightPerMetre?: number;
+}
+export interface ICurtainPanelOverride { readonly segment?: number; readonly column: number; readonly row: number; readonly panelType: string }
+
 /** A curtain wall type: glazing on a mullion grid (defaults as `CurtainWallType`'s). */
 export interface ICurtainWallType {
 	readonly id: string; readonly name: string;
 	readonly glassThickness?: number; readonly glassUnitWeight?: number; readonly frameWeight?: number;
 	readonly depth?: number; readonly mullionSpacing?: number; readonly transomSpacing?: number;
+	readonly verticalGrid?: ICurtainGridRule; readonly horizontalGrid?: ICurtainGridRule;
+	readonly panelType?: string; readonly verticalMullion?: string; readonly horizontalMullion?: string; readonly borderMullion?: string;
+}
+export type CeilingKind = 'gypsum' | 'grid' | 'plaster' | 'timber' | 'metal' | 'other';
+/** A ceiling type (gypsum, acoustic grid tiles, etc.). */
+export interface ICeilingType {
+	readonly id: string; readonly name: string; readonly kind?: CeilingKind;
+	readonly thickness?: number; readonly weight?: number; readonly gridX?: number; readonly gridY?: number;
+}
+export interface ICeilingOpening { readonly id?: string; readonly outline: readonly CadPoint[] }
+/** A ceiling element hosted in a room or by closed plan outline. */
+export interface ICeiling {
+	readonly id: string; readonly type: string; readonly story: string; readonly height?: number;
+	readonly room?: string; readonly outline?: readonly CadPoint[];
+	readonly gridRotation?: number; readonly gridOrigin?: CadPoint; readonly openings?: readonly ICeilingOpening[];
 }
 /** A roof covering: its layers, top down. */
 export interface IRoofType { readonly id: string; readonly name: string; readonly layers: readonly IWallLayer[] }
@@ -72,12 +121,16 @@ export interface IRoom {
 	readonly wet?: boolean;
 }
 export interface ISeparator { readonly id: string; readonly story: string; readonly start: CadPoint; readonly end: CadPoint }
-/** A curtain wall: placed as a wall, of a curtain wall type. */
-export type ICurtainWall = IArchWall;
-/** A roof over a plan outline on a story: flat, or rising `slope` degrees towards `direction` (degrees from x). */
+/** A curtain wall: placed as a wall, of a curtain wall type, optionally with per-panel overrides. */
+export interface ICurtainWall extends IArchWall { readonly panelOverrides?: readonly ICurtainPanelOverride[] }
+/** A roof over a plan outline on a story: flat, drainage-sloped, single-pitch, or per-edge footprint / mansard. */
 export interface IRoof {
 	readonly id: string; readonly type: string; readonly story: string; readonly outline: readonly CadPoint[];
 	readonly baseOffset?: number; readonly slope?: number; readonly direction?: number; readonly occupancy?: string;
+	readonly edgeSlopes?: readonly (number | null)[];
+	readonly overhang?: number; readonly edgeOverhangs?: readonly number[];
+	readonly upperSlope?: number; readonly breakHeight?: number;
+	readonly drainageSlope?: number; readonly thickness?: number;
 }
 /** A straight ramp built up on a floor from `start` (low end) to `end` (high end). */
 export interface IRamp {
@@ -108,19 +161,27 @@ export interface IArchitecture {
 	readonly rooms: readonly IRoom[];
 	readonly separators: readonly ISeparator[];
 	readonly curtainWallTypes: readonly ICurtainWallType[];
+	readonly curtainPanelTypes: readonly ICurtainPanelType[];
+	readonly curtainMullionTypes: readonly ICurtainMullionType[];
+	readonly ceilingTypes: readonly ICeilingType[];
 	readonly roofTypes: readonly IRoofType[];
 	readonly railingTypes: readonly IRailingType[];
+	readonly componentTypes?: readonly IComponentType[];
 	readonly curtainWalls: readonly ICurtainWall[];
+	readonly ceilings: readonly ICeiling[];
 	readonly roofs: readonly IRoof[];
 	readonly ramps: readonly IRamp[];
 	readonly railings: readonly IRailing[];
+	readonly components?: readonly IComponentInstance[];
+	readonly masses?: readonly IConceptualMass[];
+	readonly inPlaceElements?: readonly IInPlaceElement[];
 }
 
 /** The kinds of things drawn and picked, by their list in the file. */
-export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators' | 'curtainWalls' | 'roofs' | 'ramps' | 'railings';
+export type ArchKind = 'walls' | 'doors' | 'windows' | 'rooms' | 'separators' | 'curtainWalls' | 'ceilings' | 'roofs' | 'ramps' | 'railings' | 'components' | 'masses' | 'inPlaceElements';
 
 /** Every kind, in the order of the file. */
-export const ARCH_KINDS: readonly ArchKind[] = ['walls', 'doors', 'windows', 'rooms', 'separators', 'curtainWalls', 'roofs', 'ramps', 'railings'];
+export const ARCH_KINDS: readonly ArchKind[] = ['walls', 'doors', 'windows', 'rooms', 'separators', 'curtainWalls', 'ceilings', 'roofs', 'ramps', 'railings', 'components', 'masses', 'inPlaceElements'];
 
 export interface IArchRef { readonly kind: ArchKind; readonly id: string }
 
@@ -178,12 +239,20 @@ export function parseArchitecture(text: string): ArchitectureParse {
 			rooms: list<IRoom>('rooms', r => named(r) && typeof r.story === 'string' && isPoint(r.point)),
 			separators: list<ISeparator>('separators', s => named(s) && typeof s.story === 'string' && isPoint(s.start) && isPoint(s.end)),
 			curtainWallTypes: list<ICurtainWallType>('curtainWallTypes', named),
+			curtainPanelTypes: list<ICurtainPanelType>('curtainPanelTypes', named),
+			curtainMullionTypes: list<ICurtainMullionType>('curtainMullionTypes', named),
+			ceilingTypes: list<ICeilingType>('ceilingTypes', named),
 			roofTypes: list<IRoofType>('roofTypes', t => named(t) && Array.isArray(t.layers)),
 			railingTypes: list<IRailingType>('railingTypes', named),
+			componentTypes: parseComponentTypes(value.componentTypes),
 			curtainWalls: list<ICurtainWall>('curtainWalls', w => named(w) && typeof w.type === 'string' && typeof w.base === 'string' && Array.isArray(w.path) && w.path.length >= 2 && w.path.every(isPoint)),
+			ceilings: list<ICeiling>('ceilings', c => named(c) && typeof c.type === 'string' && typeof c.story === 'string' && (typeof c.room === 'string' || (Array.isArray(c.outline) && c.outline.length >= 3 && c.outline.every(isPoint)))),
 			roofs: list<IRoof>('roofs', r => named(r) && typeof r.type === 'string' && typeof r.story === 'string' && Array.isArray(r.outline) && r.outline.length >= 3 && r.outline.every(isPoint)),
 			ramps: list<IRamp>('ramps', r => named(r) && typeof r.story === 'string' && isPoint(r.start) && isPoint(r.end)),
 			railings: list<IRailing>('railings', r => named(r) && typeof r.type === 'string' && typeof r.base === 'string' && Array.isArray(r.path) && r.path.length >= 2 && r.path.every(isPoint)),
+			components: parseComponents(value.components),
+			masses: parseMasses(value.masses),
+			inPlaceElements: parseInPlaceElements(value.inPlaceElements),
 		},
 	};
 }
@@ -206,9 +275,160 @@ export function curtainDepth(type: ICurtainWallType | undefined): number {
 	return type?.depth ?? 150;
 }
 
-/** A curtain wall's weight per m² [kN/m²]: glass and frame (as `CurtainWallType.weight`). */
-export function curtainWeight(type: ICurtainWallType): number {
-	return (type.glassThickness ?? 12) / 1000 * (type.glassUnitWeight ?? 25) + (type.frameWeight ?? 0.15);
+/** Grid division offsets [0 .. length] in mm for a curtain grid rule. */
+export function gridDivisions(length: number, rule: ICurtainGridRule | undefined, fallbackSpacing = 1500): number[] {
+	if (length <= 0) {
+		return [0];
+	}
+	const layout: GridLayout = rule?.layout ?? 'fixedDistance';
+	if (layout === 'none') {
+		return [0, length];
+	}
+	if (layout === 'fixedNumber') {
+		const n = Math.max(1, (rule?.count ?? 0) + 1);
+		return Array.from({ length: n + 1 }, (_, k) => length * k / n);
+	}
+	if (layout === 'maxSpacing') {
+		const step = rule?.spacing || fallbackSpacing;
+		const n = Math.max(1, Math.ceil((length - 1e-6) / step));
+		return Array.from({ length: n + 1 }, (_, k) => length * k / n);
+	}
+	const step = rule?.spacing || fallbackSpacing;
+	const pts = [0];
+	for (let pos = step; pos < length - 1e-6; pos += step) {
+		pts.push(pos);
+	}
+	pts.push(length);
+	return pts;
+}
+
+function panelAreaWeight(type: ICurtainPanelType): number {
+	if (type.weight !== undefined) {
+		return type.weight;
+	}
+	const density = type.unitWeight ?? (type.kind === 'glazed' || type.kind === undefined ? 25 : 20);
+	return (type.thickness ?? 12) / 1000 * density;
+}
+
+function mullionLinearWeight(type: ICurtainMullionType): number {
+	if (type.weightPerMetre !== undefined) {
+		return type.weightPerMetre;
+	}
+	const w = type.width ?? 50;
+	const d = type.depth ?? 150;
+	const wt = type.wallThickness;
+	const areaMm2 = wt !== undefined && 2 * wt < Math.min(w, d)
+		? w * d - (w - 2 * wt) * (d - 2 * wt)
+		: w * d;
+	return areaMm2 / 1e6 * (type.unitWeight ?? 27);
+}
+
+/** A curtain wall's weight per m² [kN/m²]: panels + mullions when configured, else glass and frame. */
+export function curtainWeight(type: ICurtainWallType, arch?: IArchitecture, wall?: ICurtainWall, height = 3000): number {
+	const nominal = (type.glassThickness ?? 12) / 1000 * (type.glassUnitWeight ?? 25) + (type.frameWeight ?? 0.15);
+	if (!arch || height <= 0) {
+		return nominal;
+	}
+	const defaultPanel = type.panelType ? arch.curtainPanelTypes.find(p => p.id === type.panelType) : undefined;
+	const vMullion = type.verticalMullion ? arch.curtainMullionTypes.find(m => m.id === type.verticalMullion) : undefined;
+	const hMullion = type.horizontalMullion ? arch.curtainMullionTypes.find(m => m.id === type.horizontalMullion) : undefined;
+	const bMullion = type.borderMullion ? arch.curtainMullionTypes.find(m => m.id === type.borderMullion) : undefined;
+	const overrides = wall?.panelOverrides ?? [];
+	const hasPanels = !!defaultPanel || overrides.length > 0;
+	const hasMullions = !!(vMullion || hMullion || bMullion);
+	if (!hasPanels && !hasMullions) {
+		return nominal;
+	}
+	const path = wall?.path ?? [[0, 0], [3000, 0]];
+	const zDivs = gridDivisions(height, type.horizontalGrid, type.transomSpacing ?? 1500);
+	const rows = zDivs.length - 1;
+	const fallbackPanelW = (type.glassThickness ?? 12) / 1000 * (type.glassUnitWeight ?? 25);
+	let totalLen = 0;
+	let panelsW = 0;
+	let mullionsW = 0;
+	for (let segIdx = 1; segIdx < path.length; segIdx++) {
+		const segLen = distance(path[segIdx - 1], path[segIdx]);
+		if (segLen <= 1e-6) {
+			continue;
+		}
+		totalLen += segLen;
+		const uDivs = gridDivisions(segLen, type.verticalGrid, type.mullionSpacing ?? 1500);
+		for (let r = 0; r < rows; r++) {
+			const cellH = zDivs[r + 1] - zDivs[r];
+			for (let c = 0; c < uDivs.length - 1; c++) {
+				const cellW = uDivs[c + 1] - uDivs[c];
+				const ov = overrides.find(o => (o.segment ?? 0) === segIdx - 1 && o.column === c && o.row === r);
+				const pType = (ov ? arch.curtainPanelTypes.find(p => p.id === ov.panelType) : undefined) ?? defaultPanel;
+				panelsW += (cellW / 1000) * (cellH / 1000) * (pType ? panelAreaWeight(pType) : fallbackPanelW);
+			}
+		}
+		if (hasMullions) {
+			const startCol = segIdx === 1 ? 0 : 1;
+			for (let k = startCol; k < uDivs.length; k++) {
+				const isBorder = (segIdx === 1 && k === 0) || (segIdx === path.length - 1 && k === uDivs.length - 1);
+				const mType = (isBorder && bMullion) ? bMullion : vMullion;
+				if (mType) {
+					mullionsW += (height / 1000) * mullionLinearWeight(mType);
+				}
+			}
+			for (let r = 0; r < zDivs.length; r++) {
+				const isBorder = r === 0 || r === zDivs.length - 1;
+				const mType = (isBorder && bMullion) ? bMullion : hMullion;
+				if (mType) {
+					mullionsW += (segLen / 1000) * mullionLinearWeight(mType);
+				}
+			}
+		}
+	}
+	const areaM2 = (totalLen / 1000) * (height / 1000);
+	if (areaM2 <= 0) {
+		return nominal;
+	}
+	if (!hasMullions) {
+		mullionsW = (type.frameWeight ?? 0.15) * areaM2;
+	}
+	return (panelsW + mullionsW) / areaM2;
+}
+
+/** A roof's outer plan outline including uniform or per-edge overhangs [mm]. */
+export function roofEffectiveOutline(roof: IRoof): CadPoint[] {
+	const pts: CadPoint[] = roof.outline.length > 3 && distance(roof.outline[0], roof.outline[roof.outline.length - 1]) < 1e-6
+		? [...roof.outline.slice(0, -1)]
+		: [...roof.outline];
+	const n = pts.length;
+	if (n < 3) {
+		return pts;
+	}
+	const overhangs = roof.edgeOverhangs && roof.edgeOverhangs.length === n
+		? roof.edgeOverhangs
+		: Array.from({ length: n }, () => roof.overhang ?? 0);
+	if (!overhangs.some(oh => oh > 1e-9)) {
+		return pts;
+	}
+	const ccw = signedArea(pts) >= 0;
+	const oriented = ccw ? pts : [...pts].reverse();
+	const ohAligned = ccw ? overhangs : [...overhangs].reverse();
+	const lines = oriented.map((p, i) => {
+		const q = oriented[(i + 1) % n];
+		const len = distance(p, q) || 1;
+		const [tx, ty] = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
+		const [ox, oy] = [ty, -tx];
+		const oh = ohAligned[i] ?? 0;
+		return { p: [p[0] + ox * oh, p[1] + oy * oh] as CadPoint, t: [tx, ty] as CadPoint };
+	});
+	const out: CadPoint[] = [];
+	for (let i = 0; i < n; i++) {
+		const l1 = lines[(i - 1 + n) % n];
+		const l2 = lines[i];
+		const det = l1.t[0] * l2.t[1] - l1.t[1] * l2.t[0];
+		if (Math.abs(det) <= 1e-9) {
+			out.push(l2.p);
+		} else {
+			const s = ((l2.p[0] - l1.p[0]) * l2.t[1] - (l2.p[1] - l1.p[1]) * l2.t[0]) / det;
+			out.push([l1.p[0] + l1.t[0] * s, l1.p[1] + l1.t[1] * s]);
+		}
+	}
+	return out;
 }
 
 /** A roof covering's weight per m² of its surface [kN/m²], and its thickness [mm]. */
@@ -616,9 +836,12 @@ export const ARCH_LAYERS = {
 	roomLabels: 'A-AREA-IDEN',
 	separators: 'A-AREA-SEPR',
 	curtainWalls: 'A-GLAZ-CWMG',
+	ceilings: 'A-CLNG',
 	roofs: 'A-ROOF',
 	ramps: 'A-FLOR-LEVL',
 	railings: 'A-FLOR-HRAL',
+	components: 'A-FURN',
+	masses: 'A-MASS',
 	labels: 'A-ANNO-NOTE',
 } as const;
 
@@ -630,9 +853,12 @@ export const ARCH_LAYER_SPECS: readonly CadLayerSpec[] = [
 	{ name: ARCH_LAYERS.roomLabels, color: 7, description: 'Room names, numbers and areas' },
 	{ name: ARCH_LAYERS.separators, color: 6, linetype: 'DASHED', description: 'Room separators' },
 	{ name: ARCH_LAYERS.curtainWalls, color: 4, description: 'Curtain walls and mullions' },
+	{ name: ARCH_LAYERS.ceilings, color: 9, linetype: 'DASHED', description: 'Ceilings and tile grids' },
 	{ name: ARCH_LAYERS.roofs, color: 3, linetype: 'DASHED', description: 'Roofs' },
 	{ name: ARCH_LAYERS.ramps, color: 5, description: 'Ramps' },
 	{ name: ARCH_LAYERS.railings, color: 1, description: 'Railings' },
+	{ name: ARCH_LAYERS.components, color: 2, description: 'Furniture, casework and equipment' },
+	{ name: ARCH_LAYERS.masses, color: 6, linetype: 'DASHED', description: 'Conceptual masses' },
 	{ name: ARCH_LAYERS.labels, color: 7, description: 'Notes: roof slopes, ramp gradients' },
 ];
 
@@ -719,8 +945,6 @@ export function architectureDrawing(arch: IArchitecture, story: string, elevatio
 		}
 	}
 
-	extrasDrawing(arch, story, elevations, entities, shapes, problems);
-
 	const rooms = new Map<string, IRoomOutline>();
 	for (const room of arch.rooms) {
 		if (room.story !== story) {
@@ -741,11 +965,13 @@ export function architectureDrawing(arch: IArchitecture, story: string, elevatio
 		entities.push({ kind: 'text', layer: ARCH_LAYERS.roomLabels, position: [x, y - ROOM_TEXT * 0.8], height: ROOM_TEXT * 0.8, text: localize('arch.roomArea', "{0} m²", outline.area.toFixed(2)) });
 		shapes.push({ kind: 'rooms', id: room.id, points: outline.net, closed: true });
 	}
+
+	extrasDrawing(arch, story, elevations, rooms, entities, shapes, problems);
 	return { entities, shapes, rooms, problems };
 }
 
-/** Curtain walls (faces, glass line, mullions), roofs (outline, pitch arrow), ramps (outline, "up" arrow) and railings (line, posts) of `story`. */
-function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyMap<string, number>, entities: CadEntitySpec[], shapes: IArchShape[], problems: string[]): void {
+/** Curtain walls (faces, glass line, mullions), ceilings (outline, grid), roofs (outline, overhang, slope labels), ramps and railings of `story`. */
+function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyMap<string, number>, rooms: ReadonlyMap<string, IRoomOutline>, entities: CadEntitySpec[], shapes: IArchShape[], problems: string[]): void {
 	const line = (layer: string, start: CadPoint, end: CadPoint) => entities.push({ kind: 'line', layer, start, end });
 	const arrow = (layer: string, from: CadPoint, to: CadPoint) => {
 		line(layer, from, to);
@@ -785,11 +1011,50 @@ function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyM
 		}
 		line(layer, left[0], right[0]);
 		line(layer, left[left.length - 1], right[right.length - 1]);
-		along(centre, type.mullionSpacing ?? 1500, ([x, y], [dx, dy]) => {
-			const t = thickness / 2;
-			line(layer, [x - dy * t, y + dx * t], [x + dy * t, y - dx * t]);
-		});
+		const t = thickness / 2;
+		for (let i = 1; i < centre.length; i++) {
+			const [a, b] = [centre[i - 1], centre[i]];
+			const segLen = distance(a, b);
+			if (segLen <= 1e-6) {
+				continue;
+			}
+			const [dx, dy] = [(b[0] - a[0]) / segLen, (b[1] - a[1]) / segLen];
+			const divs = gridDivisions(segLen, type.verticalGrid, type.mullionSpacing ?? 1500);
+			for (let k = 1; k < divs.length - 1; k++) {
+				const u = divs[k];
+				const [x, y] = [a[0] + dx * u, a[1] + dy * u];
+				line(layer, [x - dy * t, y + dx * t], [x + dy * t, y - dx * t]);
+			}
+		}
 		shapes.push({ kind: 'curtainWalls', id: wall.id, points: wallOutline(centre, thickness), closed: true });
+	}
+
+	for (const ceiling of arch.ceilings) {
+		if (ceiling.story !== story) {
+			continue;
+		}
+		const type = arch.ceilingTypes.find(t => t.id === ceiling.type);
+		if (!type) {
+			problems.push(localize('arch.noCeilingType', "{0}: no ceiling type '{1}'", ceiling.id, ceiling.type));
+		}
+		const poly = ceiling.room ? rooms.get(ceiling.room)?.net : ceiling.outline;
+		if (!poly || poly.length < 3) {
+			problems.push(localize('arch.noCeilingOutline', "{0}: host room is not enclosed or outline missing", ceiling.id));
+			continue;
+		}
+		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.ceilings, points: poly, closed: true, linetypeScale: DASH_SCALE });
+		if (type?.gridX && type?.gridY) {
+			drawCeilingGrid(entities, poly, type.gridX, type.gridY, ceiling.gridRotation ?? 0, ceiling.gridOrigin);
+		}
+		for (const op of ceiling.openings ?? []) {
+			if (op.outline.length >= 3) {
+				entities.push({ kind: 'polyline', layer: ARCH_LAYERS.ceilings, points: op.outline, closed: true });
+				line(ARCH_LAYERS.ceilings, op.outline[0], op.outline[2]);
+			}
+		}
+		const [cx, cy] = poly.reduce<CadPoint>((sum, p) => [sum[0] + p[0] / poly.length, sum[1] + p[1] / poly.length], [0, 0]);
+		entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [cx, cy - ROOM_TEXT * 2.2], height: ROOM_TEXT * 0.7, text: localize('arch.ceilingLabel', "{0} {1} +{2}", ceiling.id, ceiling.type, Math.round(ceiling.height ?? 2700)) });
+		shapes.push({ kind: 'ceilings', id: ceiling.id, points: poly, closed: true });
 	}
 
 	for (const roof of arch.roofs) {
@@ -800,17 +1065,52 @@ function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyM
 		if (!type) {
 			problems.push(localize('arch.noRoofType', "{0}: no roof type '{1}'", roof.id, roof.type));
 		}
-		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.roofs, points: roof.outline, closed: true, linetypeScale: DASH_SCALE });
-		const [cx, cy] = roof.outline.reduce<CadPoint>((sum, p) => [sum[0] + p[0] / roof.outline.length, sum[1] + p[1] / roof.outline.length], [0, 0]);
-		const slope = roof.slope ?? 0;
-		entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [cx, cy - ROOM_TEXT * 1.6], height: ROOM_TEXT * 0.8, text: slope ? localize('arch.roofPitched', "{0} {1}, {2}°", roof.id, roof.type, slope) : localize('arch.roofFlat', "{0} {1}, flat", roof.id, roof.type) });
-		if (slope) {
-			// Rising towards `direction`: the arrow points uphill.
-			const angle = (roof.direction ?? 90) * Math.PI / 180;
-			const reach = 1000;
-			arrow(ARCH_LAYERS.labels, [cx - Math.cos(angle) * reach, cy - Math.sin(angle) * reach], [cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach]);
+		const outer = roofEffectiveOutline(roof);
+		entities.push({ kind: 'polyline', layer: ARCH_LAYERS.roofs, points: outer, closed: true, linetypeScale: DASH_SCALE });
+		if ((roof.overhang ?? 0) > 0 || roof.edgeOverhangs?.some(oh => oh > 0)) {
+			entities.push({ kind: 'polyline', layer: ARCH_LAYERS.roofs, points: roof.outline, closed: true, linetypeScale: DASH_SCALE * 0.5 });
 		}
-		shapes.push({ kind: 'roofs', id: roof.id, points: roof.outline, closed: true });
+		const [cx, cy] = outer.reduce<CadPoint>((sum, p) => [sum[0] + p[0] / outer.length, sum[1] + p[1] / outer.length], [0, 0]);
+		const edgeSlopes = roof.edgeSlopes;
+		if (edgeSlopes && edgeSlopes.some(s => (s ?? 0) > 0)) {
+			const ccw = signedArea(roof.outline) >= 0;
+			const n = outer.length;
+			for (let i = 0; i < n; i++) {
+				const s = edgeSlopes[ccw ? i : n - 1 - i] ?? 0;
+				const a = outer[i];
+				const b = outer[(i + 1) % n];
+				const mx = (a[0] + b[0]) / 2;
+				const my = (a[1] + b[1]) / 2;
+				if (s > 0) {
+					const len = distance(a, b) || 1;
+					const [nx, ny] = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
+					const tick = Math.min(400, len / 4);
+					line(ARCH_LAYERS.labels, [mx, my], [mx + nx * tick, my + ny * tick]);
+					entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [mx + nx * (tick + 120), my + ny * (tick + 120)], height: ROOM_TEXT * 0.65, text: `${s}°` });
+				}
+			}
+			const maxS = Math.max(...edgeSlopes.map(s => s ?? 0));
+			const label = roof.breakHeight
+				? localize('arch.roofMansard', "{0} {1}, mansard", roof.id, roof.type)
+				: localize('arch.roofFootprint', "{0} {1}, {2}° footprint", roof.id, roof.type, maxS);
+			entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [cx, cy - ROOM_TEXT * 1.6], height: ROOM_TEXT * 0.8, text: label });
+		} else {
+			const slope = roof.slope ?? 0;
+			const drainage = roof.drainageSlope ?? 0;
+			const label = slope
+				? localize('arch.roofPitched', "{0} {1}, {2}°", roof.id, roof.type, slope)
+				: drainage > 0
+					? localize('arch.roofDrainage', "{0} {1}, flat ({2}° fall)", roof.id, roof.type, drainage)
+					: localize('arch.roofFlat', "{0} {1}, flat", roof.id, roof.type);
+			entities.push({ kind: 'text', layer: ARCH_LAYERS.labels, position: [cx, cy - ROOM_TEXT * 1.6], height: ROOM_TEXT * 0.8, text: label });
+			if (slope > 0 || drainage > 0) {
+				// Rising towards `direction`: the arrow points uphill.
+				const angle = (roof.direction ?? 90) * Math.PI / 180;
+				const reach = 1000;
+				arrow(ARCH_LAYERS.labels, [cx - Math.cos(angle) * reach, cy - Math.sin(angle) * reach], [cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach]);
+			}
+		}
+		shapes.push({ kind: 'roofs', id: roof.id, points: outer, closed: true });
 	}
 
 	for (const ramp of arch.ramps) {
@@ -843,6 +1143,10 @@ function extrasDrawing(arch: IArchitecture, story: string, elevations: ReadonlyM
 		}
 		shapes.push({ kind: 'railings', id: railing.id, points: wallOutline(railing.path.map(([x, y]) => [x, y] as CadPoint), Math.max(width, 100)), closed: true });
 	}
+
+	drawComponents(arch, story, ARCH_LAYERS.components, ARCH_LAYERS.labels, entities, shapes, problems);
+	drawInPlaceElements(arch, story, ARCH_LAYERS.components, ARCH_LAYERS.labels, entities, shapes);
+	drawMasses(arch, ARCH_LAYERS.masses, ARCH_LAYERS.labels, entities, shapes);
 }
 
 function square([x, y]: CadPoint, r: number): CadPoint[] {
@@ -877,11 +1181,30 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 	line(at(-half, -t), at(-half, t));
 	line(at(half, -t), at(half, t));
 	if (kind === 'windows') {
+		const winType = arch.windowTypes.find(w => w.id === opening.type);
+		const frame = Math.min(winType?.frame ?? 50, width / 4);
+		const leaves = Math.max(1, winType?.leafCount ?? (winType?.style === 'sliding' ? 2 : 1));
 		line(at(-half, -t), at(half, -t));
 		line(at(-half, t), at(half, t));
 		line(at(-half, 0), at(half, 0));
+		if (frame > 0) {
+			line(at(-half + frame, -t), at(-half + frame, t));
+			line(at(half - frame, -t), at(half - frame, t));
+		}
+		for (let k = 1; k < leaves; k++) {
+			const u = -half + width * k / leaves;
+			line(at(u, -t * 0.6), at(u, t * 0.6));
+		}
 	} else {
-		const style = arch.doorTypes.find(d => d.id === opening.type)?.style ?? 'single';
+		const doorType = arch.doorTypes.find(d => d.id === opening.type);
+		const style = doorType?.style ?? 'single';
+		const frame = Math.min(doorType?.frame ?? 50, width / 4);
+		const leaves = Math.max(1, doorType?.leafCount ?? (style === 'double' || style === 'sliding' ? 2 : 1));
+		const swing = doorType?.swing;
+		if (frame > 0) {
+			line(at(-half + frame, -t), at(-half + frame, t));
+			line(at(half - frame, -t), at(half - frame, t));
+		}
 		const side = (opening as IDoor).flip ? -1 : 1;
 		const leaf = (hinge: number, length: number, sense: number) => {
 			// The open leaf at right angles to the wall, and its swing back to the jamb.
@@ -894,12 +1217,19 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 			}
 			entities.push({ kind: 'polyline', layer, points, closed: false });
 		};
-		if (style === 'double') {
+		if (style === 'double' || (leaves >= 2 && style !== 'sliding')) {
 			leaf(-half, half, 1);
 			leaf(half, half, -1);
 		} else if (style === 'sliding') {
-			line(at(-half, t / 3), at(half * 0.1, t / 3));
-			line(at(-half * 0.1, -t / 3), at(half, -t / 3));
+			const step = width / Math.max(2, leaves);
+			for (let k = 0; k < Math.max(2, leaves); k++) {
+				const u0 = -half + k * step * 0.9;
+				const u1 = Math.min(half, u0 + step * 1.1);
+				const v = k % 2 === 0 ? t / 3 : -t / 3;
+				line(at(u0, v), at(u1, v));
+			}
+		} else if (swing === 'right') {
+			leaf(half, width, -1);
 		} else {
 			leaf(-half, width, 1);
 		}
@@ -907,9 +1237,56 @@ function openingDrawing(kind: 'doors' | 'windows', opening: IDoor | IWindow, wid
 	return { entities, outline: [at(-half, -t), at(half, -t), at(half, t), at(-half, t)] };
 }
 
-/** The item of `shapes` at `point`: openings first, then walls, separators, rooms. */
+function drawCeilingGrid(entities: CadEntitySpec[], poly: readonly CadPoint[], gridX: number, gridY: number, rotation: number, origin?: CadPoint): void {
+	if (gridX <= 0 || gridY <= 0 || poly.length < 3) {
+		return;
+	}
+	const ox = origin ? origin[0] : Math.min(...poly.map(p => p[0]));
+	const oy = origin ? origin[1] : Math.min(...poly.map(p => p[1]));
+	const rad = rotation * Math.PI / 180;
+	const [ux, uy] = [Math.cos(rad), Math.sin(rad)];
+	const [vx, vy] = [-uy, ux];
+	const us = poly.map(p => (p[0] - ox) * ux + (p[1] - oy) * uy);
+	const vs = poly.map(p => (p[0] - ox) * vx + (p[1] - oy) * vy);
+	const [uMin, uMax] = [Math.min(...us), Math.max(...us)];
+	const [vMin, vMax] = [Math.min(...vs), Math.max(...vs)];
+	const clip = (a: CadPoint, b: CadPoint) => {
+		const ts: number[] = [];
+		for (let i = 0; i < poly.length; i++) {
+			const hit = crossing(a, b, poly[i], poly[(i + 1) % poly.length]);
+			if (hit) {
+				ts.push(hit[0]);
+			}
+		}
+		ts.sort((x, y) => x - y);
+		for (let k = 0; k + 1 < ts.length; k += 2) {
+			if (ts[k + 1] - ts[k] > 1e-6) {
+				entities.push({
+					kind: 'line',
+					layer: ARCH_LAYERS.ceilings,
+					start: [a[0] + (b[0] - a[0]) * ts[k], a[1] + (b[1] - a[1]) * ts[k]],
+					end: [a[0] + (b[0] - a[0]) * ts[k + 1], a[1] + (b[1] - a[1]) * ts[k + 1]],
+				});
+			}
+		}
+	};
+	const k0 = Math.ceil(uMin / gridX);
+	const k1 = Math.min(Math.floor(uMax / gridX), k0 + 80);
+	for (let k = k0; k <= k1; k++) {
+		const u = k * gridX;
+		clip([ox + u * ux + (vMin - 10) * vx, oy + u * uy + (vMin - 10) * vy], [ox + u * ux + (vMax + 10) * vx, oy + u * uy + (vMax + 10) * vy]);
+	}
+	const j0 = Math.ceil(vMin / gridY);
+	const j1 = Math.min(Math.floor(vMax / gridY), j0 + 80);
+	for (let j = j0; j <= j1; j++) {
+		const v = j * gridY;
+		clip([ox + (uMin - 10) * ux + v * vx, oy + (uMin - 10) * uy + v * vy], [ox + (uMax + 10) * ux + v * vx, oy + (uMax + 10) * uy + v * vy]);
+	}
+}
+
+/** The item of `shapes` at `point`: openings and components first, then walls, separators, rooms, ceilings, roofs, masses. */
 export function pickItem(shapes: readonly IArchShape[], point: CadPoint, tolerance: number): IArchShape | undefined {
-	for (const kind of ['doors', 'windows', 'railings', 'walls', 'curtainWalls', 'separators', 'ramps', 'rooms', 'roofs'] as const) {
+	for (const kind of ['doors', 'windows', 'components', 'inPlaceElements', 'railings', 'walls', 'curtainWalls', 'separators', 'ramps', 'rooms', 'ceilings', 'roofs', 'masses'] as const) {
 		const hit = shapes.find(s => s.kind === kind && (s.closed ? insidePolygon(point, s.points) || nearOutline(s.points, point, tolerance) : distanceToSegment(point, s.points[0], s.points[1]) <= tolerance));
 		if (hit) {
 			return hit;
@@ -936,11 +1313,11 @@ export function structureUnder(layout: unknown, story: string, start: CadPoint, 
 
 export type ArchEdit = { readonly ok: true; readonly value: IArchitecture; readonly id: string } | { readonly ok: false; readonly error: string };
 
-const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS', curtainWalls: 'CW', roofs: 'RF', ramps: 'RP', railings: 'RL' };
+const PREFIX: { readonly [kind in ArchKind]: string } = { walls: 'AW', doors: 'D', windows: 'W', rooms: 'R', separators: 'RS', curtainWalls: 'CW', ceilings: 'CL', roofs: 'RF', ramps: 'RP', railings: 'RL', components: 'C', masses: 'M', inPlaceElements: 'IP' };
 
 /** The next free id of `kind`: AW1, AW2, ... (unique across all the items). */
 export function nextId(arch: IArchitecture, kind: ArchKind): string {
-	const used = new Set(ARCH_KINDS.flatMap(k => (arch[k] as readonly { readonly id: string }[]).map(i => i.id)));
+	const used = new Set(ARCH_KINDS.flatMap(k => ((arch[k] ?? []) as readonly { readonly id: string }[]).map(i => i.id)));
 	let n = 1;
 	while (used.has(`${PREFIX[kind]}${n}`)) {
 		n++;
@@ -1067,6 +1444,53 @@ export function addRoof(arch: IArchitecture, type: string, story: string, outlin
 	return { ok: true, value: { ...arch, roofs: [...arch.roofs, { id, type, story, outline: points.map(roundPoint) }] }, id };
 }
 
+/** A ceiling of `type` hosted in `room` or over `outline` on `story` at `height` mm above level. */
+export function addCeiling(arch: IArchitecture, type: string, story: string, target: string | readonly CadPoint[], height = 2700): ArchEdit {
+	if (!arch.ceilingTypes.some(t => t.id === type)) {
+		return { ok: false, error: localize('arch.noCeilingTypes', "There is no ceiling type '{0}'.", type) };
+	}
+	const id = nextId(arch, 'ceilings');
+	if (typeof target === 'string') {
+		const room = arch.rooms.find(r => r.id === target);
+		if (!room) {
+			return { ok: false, error: localize('arch.noRoomForCeiling', "Room '{0}' does not exist.", target) };
+		}
+		if (arch.ceilings.some(c => c.room === target)) {
+			return { ok: false, error: localize('arch.roomHasCeiling', "Room {0} already has a ceiling.", target) };
+		}
+		return { ok: true, value: { ...arch, ceilings: [...arch.ceilings, { id, type, story: room.story, height: Math.round(height), room: target }] }, id };
+	}
+	const points = target.length > 3 && distance(target[0], target[target.length - 1]) < 1 ? target.slice(0, -1) : target;
+	if (points.length < 3 || Math.abs(signedArea(points)) <= 0) {
+		return { ok: false, error: localize('arch.ceilingTooSmall', "A ceiling needs a room or three or more corners around an area.") };
+	}
+	return { ok: true, value: { ...arch, ceilings: [...arch.ceilings, { id, type, story, height: Math.round(height), outline: points.map(roundPoint) }] }, id };
+}
+
+/** `arch` with fields of a type changed; `undefined` removes a field. */
+export function updateType(
+	arch: IArchitecture,
+	key: 'wallTypes' | 'curtainWallTypes' | 'ceilingTypes' | 'roofTypes' | 'curtainPanelTypes' | 'curtainMullionTypes',
+	id: string,
+	change: { readonly [field: string]: unknown },
+): IArchitecture {
+	const items = (arch[key] as unknown as readonly Json[]).map(item => {
+		if (item.id !== id) {
+			return item;
+		}
+		const copy: { [field: string]: unknown } = { ...item };
+		for (const [field, value] of Object.entries(change)) {
+			if (value === undefined || value === '') {
+				delete copy[field];
+			} else {
+				copy[field] = value;
+			}
+		}
+		return copy;
+	});
+	return { ...arch, [key]: items };
+}
+
 /** A ramp 1500 mm wide on `story` from `start` (low end) to `end`, level until its rise is given. */
 export function addRamp(arch: IArchitecture, story: string, start: CadPoint, end: CadPoint): ArchEdit {
 	if (distance(start, end) <= 0) {
@@ -1080,8 +1504,8 @@ const roundPoint = (p: CadPoint): CadPoint => [Math.round(p[0]), Math.round(p[1]
 
 /** `arch` without the item; a wall goes with its doors and windows. */
 export function removeItem(arch: IArchitecture, ref: IArchRef): IArchitecture {
-	const without = <T extends { readonly id: string }>(items: readonly T[]) => items.filter(i => i.id !== ref.id);
-	const next = { ...arch, [ref.kind]: without(arch[ref.kind] as readonly { readonly id: string }[]) };
+	const without = <T extends { readonly id: string }>(items: readonly T[] | undefined) => (items ?? []).filter(i => i.id !== ref.id);
+	const next = { ...arch, [ref.kind]: without(arch[ref.kind] as readonly { readonly id: string }[] | undefined) };
 	if (ref.kind === 'walls') {
 		return { ...next, doors: arch.doors.filter(d => d.wall !== ref.id), windows: arch.windows.filter(w => w.wall !== ref.id) };
 	}
@@ -1090,7 +1514,7 @@ export function removeItem(arch: IArchitecture, ref: IArchRef): IArchitecture {
 
 /** `arch` with fields of an item changed; `undefined` removes a field. */
 export function updateItem(arch: IArchitecture, ref: IArchRef, change: { readonly [field: string]: unknown }): IArchitecture {
-	const items = (arch[ref.kind] as unknown as readonly Json[]).map(item => {
+	const items = ((arch[ref.kind] ?? []) as unknown as readonly Json[]).map(item => {
 		if (item.id !== ref.id) {
 			return item;
 		}
@@ -1108,7 +1532,7 @@ export function updateItem(arch: IArchitecture, ref: IArchRef, change: { readonl
 }
 
 export function itemOf(arch: IArchitecture, ref: IArchRef): Json | undefined {
-	return (arch[ref.kind] as unknown as readonly Json[]).find(i => i.id === ref.id);
+	return ((arch[ref.kind] ?? []) as unknown as readonly Json[]).find(i => i.id === ref.id);
 }
 
 /** Counts of the story's items, for the status line. */

@@ -270,6 +270,12 @@ class PartitionAllowance(_Row):
         "in the seismic weight as the floor live load) or SD (superimposed dead). Empty: L. A "
         "project setting may choose either.",
     )
+    explicitFurnishings: bool = Field(
+        default=False,
+        description="Whether the code pack allows movable furniture/furnishing weights to be "
+        "applied explicitly as superimposed dead load (SD) in addition to occupancy live loads; "
+        "False: ordinary furnishings are covered by occupancy live loads (report-only).",
+    )
 
 
 class VehicleLoads(_Row):
