@@ -910,7 +910,8 @@ export interface ISetupRunResult {
 export type MepServiceMethod =
 	| 'mep/hvacReport' | 'mep/hvacLoads' | 'mep/hvacCancelLoads' | 'mep/hvacProposePlant' | 'mep/hvacDuctOpenings' | 'mep/hvacTables' | 'mep/hvacConstructions'
 	| 'mep/electricalReport' | 'mep/electricalProposeEquipment' | 'mep/electricalOpenings' | 'mep/electricalUses'
-	| 'mep/fireReport' | 'mep/fireProposals' | 'mep/fireOpenings';
+	| 'mep/fireReport' | 'mep/fireProposals' | 'mep/fireOpenings'
+	| 'mep/systems';
 
 /** What a {@link MepServiceMethod} is asked about (none for the tables and the cancel). */
 export interface IMepServiceParams {

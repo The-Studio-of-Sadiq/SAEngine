@@ -95,8 +95,10 @@ import { ITableColumn } from './mepResults.js';
 import { problemsOf, roofStory, storyAbove } from './mepRead.js';
 import { ensureStoryUses, fillDown, fillStoryUses, isOccupied, STORY_USE_KEYS, storyUseLabel, StoryUseKey, storyUseOf, storyUsesOf } from './storyUses.js';
 import { activeCodeName, defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { ISaengineModelSelectionService } from '../../../services/saengineProject/common/modelSelection.js';
+import { ISystemBrowserState, MEP_SYSTEMS_COMMAND, readSystemsReport, renderSystemBrowser } from './systemBrowserView.js';
 
-type View = 'plan' | 'data' | 'results';
+type View = 'plan' | 'data' | 'results' | 'systems';
 
 /** What can be dragged in the plan, the disciplines' items (drawn on top) first. */
 type DragKind = 'riser' | 'drain' | 'tank' | 'plant' | 'duct' | 'elecEquipment' | 'elecRiser' | 'tray' | 'fireRiser' | 'firePump' | 'fireTank' | 'equipment' | 'shaft';
@@ -132,6 +134,7 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 	{ view: 'plan', label: localize('mep.viewPlan', "Plan"), icon: Codicon.symbolStructure },
 	{ view: 'data', label: localize('mep.viewData', "Data"), icon: Codicon.table },
 	{ view: 'results', label: localize('mep.viewResults', "Results"), icon: Codicon.graphLine },
+	{ view: 'systems', label: localize('mep.viewSystems', "Systems"), icon: Codicon.typeHierarchy },
 ];
 
 /** The state of the report: not asked yet, being computed, computed, or no backend / failed. */
@@ -290,6 +293,9 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private fireError: string | undefined;
 	private fireVersion = 0;
 
+	private systemsState: ISystemBrowserState = { report: undefined, state: 'idle', filter: '' };
+	private systemsVersion = 0;
+
 	/** The duct or tray being drawn in the plan, and the line that follows the pointer from its last point. */
 	private drawing: IDrawing | undefined;
 	private drawRubber: SVGLineElement | undefined;
@@ -391,8 +397,14 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,
 	) {
 		super(MepEditor.ID, group, telemetryService, themeService, storageService);
+		this._register(this.modelSelectionService.onDidChangeSelection(({ selection, source }) => {
+			if (source !== 'mepEditor' && selection?.kind === 'mep' && this.document) {
+				this.selectById(selection.id, selection.story);
+			}
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(DEVELOPER_MODE_SETTING)) {
 				this.renderActions();
@@ -402,7 +414,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			// The backend registers its commands when it starts: check as soon as it can.
 			if ((id === MEP_REPORT_COMMAND && this.reportState === 'missing') || (id === PLUMBING_REPORT_COMMAND && this.plumbingState === 'missing')
 				|| (id === HVAC_REPORT_COMMAND && this.hvacState === 'missing') || (id === ELECTRICAL_REPORT_COMMAND && this.electricalState === 'missing')
-				|| (id === FIRE_REPORT_COMMAND && this.fireState === 'missing')) {
+				|| (id === FIRE_REPORT_COMMAND && this.fireState === 'missing') || (id === MEP_SYSTEMS_COMMAND && this.systemsState.state === 'missing')) {
 				this.reportScheduler.schedule(0);
 			}
 			if (id === PLUMBING_OCCUPANCIES_COMMAND) {
@@ -466,6 +478,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.electricalState = 'idle';
 		this.fireReport = undefined;
 		this.fireState = 'idle';
+		this.systemsState = { report: undefined, state: 'idle', filter: '' };
 		this.cancelDrawing(false);
 		this.selection = undefined;
 		this.selectedClash = undefined;
@@ -502,16 +515,23 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.applySection(options);
 	}
 
-	/** The discipline shown, for the sidebar's entries under MEP. */
+	/** The discipline or view shown, for the sidebar's entries under MEP. */
 	get partSection(): string | undefined {
-		return this.discipline;
+		return this.view === 'systems' ? 'systems' : this.discipline;
 	}
 
-	/** `section` (from the sidebar) shows that discipline. */
+	/** `section` (from the sidebar) shows that discipline or the System Browser. */
 	private applySection(options: IEditorOptions | undefined): void {
 		const section = sectionOption(options);
+		if (section === 'systems' && this.document) {
+			this.showView('systems');
+			return;
+		}
 		const discipline = DISCIPLINE_VIEWS.find(d => d.discipline === section)?.discipline;
 		if (discipline && this.document) {
+			if (this.view === 'systems') {
+				this.view = 'plan';
+			}
 			this.showDiscipline(discipline);
 		}
 	}
@@ -752,6 +772,35 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	// ───────────────────────────── selection ─────────────────────────────
 
+	private selectedElementId(): string | undefined {
+		const document = this.document;
+		const selection = this.selection;
+		if (!document || !selection) {
+			return undefined;
+		}
+		const plumbing = plumbingOf(document);
+		const hvac = hvacOf(document);
+		const electrical = electricalOf(document);
+		const fire = fireOf(document);
+		switch (selection.kind) {
+			case 'equipment': return document.equipment[selection.index]?.id;
+			case 'opening': return document.openings[selection.index]?.id;
+			case 'shaft': return document.shafts[selection.index]?.id;
+			case 'riser': return plumbing?.risers[selection.index]?.id;
+			case 'tank': return plumbing?.tanks[selection.index]?.id;
+			case 'drain': return plumbing?.roof.drains[selection.index]?.id;
+			case 'plant': return hvac?.plant[selection.index]?.id;
+			case 'duct': return hvac?.ducts[selection.index]?.id;
+			case 'elecEquipment': return electrical?.equipment[selection.index]?.id;
+			case 'elecRiser': return electrical?.risers[selection.index]?.id;
+			case 'tray': return electrical?.trays[selection.index]?.id;
+			case 'fireRiser': return fire?.risers[selection.index]?.id;
+			case 'firePump': return fire?.pumps[selection.index]?.id;
+			case 'fireTank': return fire?.tanks[selection.index]?.id;
+			case 'element': return selection.id;
+		}
+	}
+
 	private get selectionKey(): string {
 		const selection = this.selection;
 		return !selection ? '' : selection.kind === 'element' ? `element:${selection.id}` : `${selection.kind}:${selection.index}`;
@@ -761,6 +810,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.flush();
 		this.selection = selection;
 		this.selectedClash = undefined;
+		const id = this.selectedElementId();
+		this.modelSelectionService.setSelection(id ? { kind: 'mep', id, story: this.story } : undefined, 'mepEditor');
 		this.renderSelection();
 	}
 
@@ -1324,6 +1375,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private showView(view: View): void {
 		this.flush();
 		this.view = view;
+		this._onDidChangePartSection.fire();
 		this.render();
 	}
 
@@ -1342,7 +1394,150 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	/** Every report, after an edit (the cooling loads only on Calculate Loads). */
 	private async computeReports(): Promise<void> {
-		await Promise.all([this.computeReport(), this.computePlumbingReport(), this.computeHvacReport(), this.computeElectricalReport(), this.computeFireReport()]);
+		await Promise.all([this.computeReport(), this.computePlumbingReport(), this.computeHvacReport(), this.computeElectricalReport(), this.computeFireReport(), this.computeSystemsReport()]);
+	}
+
+	/** Asks the backend for the connector-based MEP systems and connectivity checks. */
+	async computeSystemsReport(): Promise<void> {
+		const document = this.document;
+		const version = ++this.systemsVersion;
+		const request = this.request();
+		if (!document || !request || !this.hasContent(document)) {
+			this.systemsState = { ...this.systemsState, report: undefined, state: 'idle', error: undefined };
+			if (this.view === 'systems') {
+				this.renderView();
+			}
+			return;
+		}
+		if (!CommandsRegistry.getCommand(MEP_SYSTEMS_COMMAND)) {
+			this.systemsState = { ...this.systemsState, report: undefined, state: 'missing', error: undefined };
+			if (this.view === 'systems') {
+				this.renderView();
+			}
+			return;
+		}
+		this.flush();
+		this.systemsState = { ...this.systemsState, state: this.systemsState.report ? 'ok' : 'computing', error: undefined };
+		let report: ReturnType<typeof readSystemsReport>;
+		let error: string | undefined;
+		try {
+			report = readSystemsReport(await this.commandService.executeCommand<unknown>(MEP_SYSTEMS_COMMAND, request));
+			if (!report) {
+				error = localize('mep.systemsEmpty', "The backend gave no systems report.");
+			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (version !== this.systemsVersion) {
+			return;
+		}
+		this.systemsState = {
+			...this.systemsState,
+			report,
+			state: report ? 'ok' : 'error',
+			error,
+		};
+		if (this.view === 'systems') {
+			this.renderView();
+		}
+	}
+
+	/** Selects an MEP element by id (from the System Browser) and switches to its plan view. */
+	private selectById(elementId: string, story?: string): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		const resolved = this.findSelectionById(document, elementId);
+		if (!resolved) {
+			return;
+		}
+		this.flush();
+		this.discipline = resolved.discipline;
+		this.selection = resolved.selection;
+		this.selectedClash = undefined;
+		const targetStory = story ?? this.selectionStory(resolved.selection);
+		if (targetStory && this.context.stories.some(s => s.id === targetStory)) {
+			this.story = targetStory;
+			this.updateStoryPicker();
+		}
+		this.view = 'plan';
+		this._onDidChangePartSection.fire();
+		this.frame.setPropertiesVisible(true);
+		this.modelSelectionService.setSelection({ kind: 'mep', id: elementId, story: this.story }, 'mepEditor');
+		this.render();
+	}
+
+	private findSelectionById(document: IMep, id: string): { readonly discipline: Discipline; readonly selection: MepSelection } | undefined {
+		const eqIdx = document.equipment.findIndex(e => e.id === id);
+		if (eqIdx >= 0) {
+			return { discipline: 'coordination', selection: { kind: 'equipment', index: eqIdx } };
+		}
+		const plumbing = plumbingOf(document);
+		if (plumbing) {
+			const r = plumbing.risers.findIndex(x => x.id === id);
+			if (r >= 0) { return { discipline: 'plumbing', selection: { kind: 'riser', index: r } }; }
+			const t = plumbing.tanks.findIndex(x => x.id === id);
+			if (t >= 0) { return { discipline: 'plumbing', selection: { kind: 'tank', index: t } }; }
+			const d = plumbing.roof.drains.findIndex(x => x.id === id);
+			if (d >= 0) { return { discipline: 'plumbing', selection: { kind: 'drain', index: d } }; }
+		}
+		const hvac = hvacOf(document);
+		if (hvac) {
+			const p = hvac.plant.findIndex(x => x.id === id);
+			if (p >= 0) { return { discipline: 'hvac', selection: { kind: 'plant', index: p } }; }
+			const d = hvac.ducts.findIndex(x => x.id === id);
+			if (d >= 0) { return { discipline: 'hvac', selection: { kind: 'duct', index: d } }; }
+		}
+		const electrical = electricalOf(document);
+		if (electrical) {
+			const e = electrical.equipment.findIndex(x => x.id === id);
+			if (e >= 0) { return { discipline: 'electrical', selection: { kind: 'elecEquipment', index: e } }; }
+			const r = electrical.risers.findIndex(x => x.id === id);
+			if (r >= 0) { return { discipline: 'electrical', selection: { kind: 'elecRiser', index: r } }; }
+			const t = electrical.trays.findIndex(x => x.id === id);
+			if (t >= 0) { return { discipline: 'electrical', selection: { kind: 'tray', index: t } }; }
+		}
+		const fire = fireOf(document);
+		if (fire) {
+			const r = fire.risers.findIndex(x => x.id === id);
+			if (r >= 0) { return { discipline: 'fire', selection: { kind: 'fireRiser', index: r } }; }
+			const p = fire.pumps.findIndex(x => x.id === id);
+			if (p >= 0) { return { discipline: 'fire', selection: { kind: 'firePump', index: p } }; }
+			const t = fire.tanks.findIndex(x => x.id === id);
+			if (t >= 0) { return { discipline: 'fire', selection: { kind: 'fireTank', index: t } }; }
+		}
+		return undefined;
+	}
+
+	private async exportSystemIssuesToBcf(): Promise<void> {
+		const document = this.document;
+		const report = this.systemsState.report;
+		if (!document || !report?.issues.length) {
+			return;
+		}
+		const coordination = ensureCoordination(document);
+		for (const issue of report.issues) {
+			const key = `MEP-SYS:${issue.kind}:${[...issue.elements].sort().join(':')}:${issue.id}`;
+			if (coordination.issues.some(i => i.key === key)) {
+				continue;
+			}
+			coordination.issues.push({
+				id: `S${coordination.issues.length + 1}`,
+				title: issue.message,
+				source: 'manual',
+				key,
+				test: 'MEP-SYS',
+				status: 'new',
+				priority: issue.severity === 'error' ? 'high' : 'normal',
+				description: issue.message,
+				elements: [...issue.elements],
+				point: issue.point ? [...issue.point] : undefined,
+				story: issue.story,
+			});
+		}
+		this.changed(true);
+		await this.exportBcf();
 	}
 
 	/** Asks the backend for the report (debounced after every edit). */
@@ -1567,27 +1762,12 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		const host = selection?.kind === 'element' ? findHost(this.context, selection.id) : undefined;
 		this.addSleeveAction.label = host ? localize('mep.addSleeveThrough', "Add Sleeve through {0} {1}", hostKindLabel(host.kind), host.element.id) : localize('mep.addSleeve', "Add Sleeve through the Selected Beam, Slab or Wall");
 		this.addSleeveAction.enabled = !!host || selection?.kind === 'opening';
-		const plumbing = document ? plumbingOf(document) : undefined;
-		const hvac = document ? hvacOf(document) : undefined;
-		const electrical = document ? electricalOf(document) : undefined;
-		const fire = document ? fireOf(document) : undefined;
-		const named = selection?.kind === 'equipment' ? document?.equipment[selection.index]?.id
-			: selection?.kind === 'opening' ? document?.openings[selection.index]?.id
-				: selection?.kind === 'shaft' ? document?.shafts[selection.index]?.id
-					: selection?.kind === 'riser' ? plumbing?.risers[selection.index]?.id
-						: selection?.kind === 'tank' ? plumbing?.tanks[selection.index]?.id
-							: selection?.kind === 'drain' ? plumbing?.roof.drains[selection.index]?.id
-							: selection?.kind === 'plant' ? hvac?.plant[selection.index]?.id
-								: selection?.kind === 'duct' ? hvac?.ducts[selection.index]?.id
-									: selection?.kind === 'elecEquipment' ? electrical?.equipment[selection.index]?.id
-										: selection?.kind === 'elecRiser' ? electrical?.risers[selection.index]?.id
-											: selection?.kind === 'tray' ? electrical?.trays[selection.index]?.id
-												: selection?.kind === 'fireRiser' ? fire?.risers[selection.index]?.id
-													: selection?.kind === 'firePump' ? fire?.pumps[selection.index]?.id
-														: selection?.kind === 'fireTank' ? fire?.tanks[selection.index]?.id : undefined;
+		const named = this.selectedElementId();
 		this.deleteAction.enabled = !!named;
 		this.deleteAction.label = named ? localize('mep.deleteNamed', "Delete {0}", named) : localize('mep.delete', "Delete");
 		this.recomputeAction.enabled = !!document && this.hasContent(document);
+		const plumbing = document ? plumbingOf(document) : undefined;
+		const fire = document ? fireOf(document) : undefined;
 		const plumbingView = this.discipline === 'plumbing';
 		this.recomputePlumbingAction.enabled = !!document && hasPlumbing(document);
 		this.riserSleevesAction.enabled = !!plumbing?.risers.length;
@@ -1665,7 +1845,19 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			return;
 		}
 		this.totalCells.clear();
-		if (this.discipline === 'plumbing') {
+		if (this.view === 'systems') {
+			renderSystemBrowser(
+				this.viewElement,
+				{ ...this.systemsState, selectedId: this.selectedElementId() },
+				{
+					recompute: () => void this.computeSystemsReport(),
+					exportBcf: () => void this.exportSystemIssuesToBcf(),
+					selectElement: (id, story) => this.selectById(id, story),
+					rerender: () => this.renderView(),
+				},
+				this.viewDisposables,
+			);
+		} else if (this.discipline === 'plumbing') {
 			switch (this.view) {
 				case 'plan': this.renderPlanView(document); break;
 				case 'data': this.renderPlumbingData(document); break;

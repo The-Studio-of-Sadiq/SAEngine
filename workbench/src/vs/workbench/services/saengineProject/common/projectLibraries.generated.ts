@@ -34039,6 +34039,131 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 
 export const MEP_SCHEMA: IJSONSchema = {
 	$defs: {
+		AirTerminal: {
+			additionalProperties: false,
+			description: 'A supply diffuser, return grille or exhaust grille connected to a duct run.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'supplyDiffuser',
+					enum: ['supplyDiffuser', 'returnGrille', 'exhaustGrille', 'freshAirLouvre'],
+					enumDescriptions: ['Supply diffuser', 'Return grille', 'Exhaust grille', 'Fresh air louvre'],
+					title: 'Kind',
+					type: 'string',
+				},
+				system: {
+					default: 'supply',
+					enum: ['supply', 'return', 'exhaust', 'freshAir', 'kitchenExhaust', 'smoke'],
+					enumDescriptions: ['Supply air', 'Return air', 'Exhaust air', 'Fresh air', 'Kitchen exhaust', 'Smoke extract'],
+					title: 'System',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation [mm]; empty: ceiling duct level.',
+					title: 'Z',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design airflow [l/s].',
+					title: 'Flow',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'AirTerminal',
+			type: 'object',
+		},
 		CableTray: {
 			additionalProperties: false,
 			description: 'A horizontal cable tray under a floor.',
@@ -34114,6 +34239,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Sum of the cables\' cross-sections (outside diameter) [mm²]: checks the fill.',
 					title: 'Cable area',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'path', 'width'],
 			title: 'CableTray',
@@ -34188,6 +34320,220 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'a', 'b'],
 			title: 'ClashTest',
+			type: 'object',
+		},
+		Connector: {
+			additionalProperties: false,
+			description: 'A connection port on an MEP element: domain, size, flow direction and system\nclassification. When omitted on an element, SAEngine derives connectors from its geometry\nand run endpoints.',
+			properties: {
+				id: {
+					default: '',
+					description: 'Port id within the element.',
+					title: 'ID',
+					type: 'string',
+				},
+				domain: {
+					enum: ['duct', 'pipe', 'electrical', 'cableTray'],
+					enumDescriptions: ['Duct', 'Pipe', 'Electrical', 'Cable tray'],
+					title: 'Domain',
+					type: 'string',
+				},
+				shape: {
+					default: 'round',
+					enum: ['round', 'rect', 'oval', 'point'],
+					enumDescriptions: ['Round', 'Rectangular', 'Oval', 'Point'],
+					title: 'Shape',
+					type: 'string',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				direction: {
+					default: 'bidirectional',
+					enum: ['in', 'out', 'bidirectional'],
+					enumDescriptions: ['In (supply into element)', 'Out (from element)', 'Bidirectional'],
+					title: 'Direction',
+					type: 'string',
+				},
+				classification: {
+					enum: ['supplyAir', 'returnAir', 'exhaustAir', 'freshAir', 'kitchenExhaust', 'smokeExtract', 'chilledWater', 'condenserWater', 'domesticColdWater', 'domesticHotWater', 'sanitary', 'vent', 'stormWater', 'fireProtection', 'power', 'cableTray'],
+					enumDescriptions: ['Supply air', 'Return air', 'Exhaust air', 'Fresh air', 'Kitchen exhaust', 'Smoke extract', 'Chilled water', 'Condenser water', 'Domestic cold water', 'Domestic hot water', 'Sanitary', 'Vent', 'Storm water', 'Fire protection', 'Power circuit', 'Cable tray'],
+					title: 'Classification',
+					type: 'string',
+				},
+				systemName: {
+					default: '',
+					description: 'Logical system name.',
+					title: 'System name',
+					type: 'string',
+				},
+				story: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Story id when z is omitted.',
+					title: 'Story',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan X [mm].',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan Y [mm].',
+					title: 'Y',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation [mm].',
+					title: 'Z',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flow [l/s].',
+					title: 'Flow',
+				},
+				fixtureUnits: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Fixture units',
+				},
+				load: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical load [kW].',
+					title: 'Load',
+				},
+				circuit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical circuit reference.',
+					title: 'Circuit',
+				},
+				connectedTo: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional explicit target \'<elementId>\' or \'<elementId>:<connectorId>\'.',
+					title: 'Connected to',
+				},
+			},
+			required: ['domain', 'classification'],
+			title: 'Connector',
 			type: 'object',
 		},
 		Coordination: {
@@ -34402,6 +34748,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: '[m³/s]',
 					title: 'Flow',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'story', 'path'],
@@ -34671,6 +35024,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'story', 'x', 'y'],
 			title: 'ElectricalEquipment',
@@ -34798,6 +35158,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: '[A]; empty: sized.',
 					title: 'Rating',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
@@ -35346,6 +35713,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Fundamental period of the non-building structure itself [s]; empty: the plateau of the design spectrum (on the safe side).',
 					title: 'Own period',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],
 			title: 'Equipment',
@@ -35634,6 +36008,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Pipe bottom above the story\'s floor [mm]; empty: 150 mm below the soffit of the slab above (as the cable trays).',
 					title: 'Bottom',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'path'],
 			title: 'FireMain',
@@ -35797,6 +36178,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'An equipment of 07 MEP that is this pump (loaded once).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'x', 'y'],
 			title: 'FirePump',
@@ -35907,6 +36295,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Nominal [mm]; empty: sized.',
 					title: 'Diameter',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
@@ -36242,6 +36637,20 @@ export const MEP_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/Duct',
 					},
 					title: 'Ducts',
+					type: 'array',
+				},
+				terminals: {
+					items: {
+						$ref: '#/$defs/AirTerminal',
+					},
+					title: 'Terminals',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/Pipe',
+					},
+					title: 'Pipes',
 					type: 'array',
 				},
 			},
@@ -36594,6 +37003,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'story', 'x', 'y'],
 			title: 'HvacPlant',
@@ -36734,7 +37150,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				source: {
 					default: 'clash',
-					enum: ['clash', 'ids', 'bcf', 'manual'],
+					enum: ['clash', 'ids', 'bcf', 'manual', 'systems'],
 					title: 'Source',
 					type: 'string',
 				},
@@ -37048,6 +37464,57 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'On the standby generator; empty: lifts, pumps and fire pumps are.',
 					title: 'Essential',
 				},
+				story: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional story it stands on.',
+					title: 'Story',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional plan X [mm].',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional plan Y [mm].',
+					title: 'Y',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'power'],
 			title: 'Motor',
@@ -37243,6 +37710,127 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'OtherFixture',
 			type: 'object',
 		},
+		Pipe: {
+			additionalProperties: false,
+			description: 'A horizontal pipe run on a story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				system: {
+					default: 'coldWater',
+					enum: ['coldWater', 'hotWater', 'soil', 'waste', 'soilWaste', 'vent', 'rainwater', 'pumpMain', 'chilledWater', 'condenserWater', 'fireProtection'],
+					title: 'System',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pipe bottom above the story\'s floor [mm].',
+					title: 'Bottom',
+				},
+				material: {
+					anyOf: [
+						{
+							enum: ['uPVC', 'GI', 'PPR', 'HDPE', 'CI'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Material',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [l/s].',
+					title: 'Flow',
+				},
+				fixtureUnits: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Fixture units',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'Pipe',
+			type: 'object',
+		},
 		Plinth: {
 			additionalProperties: false,
 			description: 'A concrete plinth under a piece of equipment, of the equipment\'s footprint.',
@@ -37302,6 +37890,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/Riser',
 					},
 					title: 'Risers',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/Pipe',
+					},
+					title: 'Pipes',
 					type: 'array',
 				},
 				tanks: {
@@ -37905,6 +38500,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Soak well: percolation test rate [minutes for 25 mm]; empty: estimated from 01 Soil Report.',
 					title: 'Percolation',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'x', 'y'],
 			title: 'PlumbingTank',
@@ -38016,6 +38618,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Material',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'system', 'x', 'y', 'fromStory', 'toStory'],
 			title: 'Riser',
@@ -38062,6 +38671,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Catchment [m²]; empty: its share of the roof slab.',
 					title: 'Area',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'story'],

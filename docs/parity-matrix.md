@@ -500,7 +500,7 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Slab openings near columns (punching perimeter) | – | – | – | Verified | python/src/saengine/verification/cases/mep.py DM3 | 7 | – |
 | Sleeves proposed from clashes, riser sleeves, shafts | add-on | – | add-on | Built, untested | python/src/saengine/mep/report.py mep_suggest_sleeves; python/src/saengine/plumbing/sleeves.py; python/tests/test_mep_clash.py::test_suggested_sleeves_are_checked | 7 | – |
 | MEP-against-structure clash check | ✓ | – | add-on | Built, untested | python/src/saengine/mep/clash.py; python/tests/test_mep_clash.py | 7 | Hand-placed pipe through a beam with a known overlap |
-| MEP systems and connectors (logical networks, system browser) | ✓ | – | ✓ | Partial | Run types in mep.json; no connector-based connectivity | 7 | – |
+| MEP systems and connectors (logical networks, system browser) | ✓ | – | ✓ | Verified | python/src/saengine/mep/systems.py, python/src/saengine/library/mep.py (Connector, Pipe, AirTerminal), python/src/saengine/library/ifc.py (_export_systems), workbench/src/vs/workbench/contrib/saengineMep/browser/systemBrowserView.ts; python/tests/test_mep_systems.py | 7 | AHU with trunk, branches and diffusers (total flow and disconnect check); 50 to 40 mm size mismatch; mixed classification; legacy mep.json without connectors |
 
 ### G. Quantities and BOQ
 

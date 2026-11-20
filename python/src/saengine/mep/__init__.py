@@ -29,4 +29,13 @@ def mep_import_ifc(project_root: Any, path: Any, copy: bool = False) -> dict[str
     return inspect(project_root, path, copy)
 
 
-__all__ = ["mep_import_ifc", "mep_report", "mep_suggest_sleeves"]
+def mep_systems_report(
+    project_root: Any, mep_text: str | None = None, tolerance: float = 50.0
+) -> dict[str, Any]:
+    """:func:`saengine.mep.systems.mep_systems_report`."""
+    from saengine.mep.systems import mep_systems_report as report
+
+    return report(project_root, mep_text, tolerance)
+
+
+__all__ = ["mep_import_ifc", "mep_report", "mep_suggest_sleeves", "mep_systems_report"]

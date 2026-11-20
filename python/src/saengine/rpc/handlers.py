@@ -1814,6 +1814,17 @@ def mep_check_ids(project_root: str, mep_text: str | None = None) -> dict[str, A
         return {"problems": [_first_line(error)]}
 
 
+def mep_systems(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """Connector-based MEP systems, totals, critical paths and connectivity checks
+    (``saengine.mep.systems.mep_systems_report``), or ``{"problems"}``."""
+    from saengine.mep.systems import mep_systems_report
+
+    try:
+        return mep_systems_report(project_root, mep_text)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+
+
 # ─────────────────────────────────────── plumbing (Part 7) ───────────────────────────────────────
 
 
