@@ -358,6 +358,9 @@ function at(point: { label: string; at?: [number, number] }): string {
 export function propertySheet(selection: ModelSelection, docs: IProjectDocuments): IPropertySheet | undefined {
 	const model = new Model(docs);
 	switch (selection.kind) {
+		case 'mep':
+			// MEP elements have their own properties in 7 MEP (System Browser and plans).
+			return undefined;
 		case 'member': {
 			const member = model.members(selection.group).find(m => m.id === selection.id);
 			const info = GROUPS.find(g => g.group === selection.group)!;
