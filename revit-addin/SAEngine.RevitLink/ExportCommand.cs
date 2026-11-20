@@ -194,7 +194,9 @@ public sealed class ExportCommand : IExternalCommand
                 }
                 var p0 = lc.Curve.GetEndPoint(0);
                 var p1 = lc.Curve.GetEndPoint(1);
-                var lvl = fi.ReferenceLevel ?? TryGetLevel(fi, BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM, levelById);
+                var lvl = (fi.LevelId != ElementId.InvalidElementId && levelById.TryGetValue(fi.LevelId.Value, out var byElemLevel) ? byElemLevel : null)
+                    ?? TryGetLevel(fi, BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM, levelById)
+                    ?? TryGetLevel(fi, BuiltInParameter.FAMILY_LEVEL_PARAM, levelById);
                 outElements.Add(new ExchangeElement
                 {
                     Id = saId,

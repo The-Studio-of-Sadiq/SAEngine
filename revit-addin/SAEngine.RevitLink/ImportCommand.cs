@@ -737,17 +737,19 @@ public sealed class ImportCommand : IExternalCommand
                 var normal = ComputeCurveNormal(curves);
                 try
                 {
+                    using var terminations = new BarTerminationsData(doc)
+                    {
+                        TerminationOrientationAtStart = RebarTerminationOrientation.Left,
+                        TerminationOrientationAtEnd = RebarTerminationOrientation.Left,
+                    };
                     var rebar = Rebar.CreateFromCurves(
                         doc,
                         style,
                         barType,
-                        null,
-                        null,
                         host,
                         normal,
                         curves,
-                        RebarHookOrientation.Left,
-                        RebarHookOrientation.Left,
+                        terminations,
                         true,
                         true
                     );

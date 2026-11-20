@@ -116,11 +116,11 @@ internal sealed class RevitTypeResolver
             var asset = new StructuralAsset($"{mat.Name}_Asset", assetClass);
             if (src.E is > 0)
             {
-                asset.YoungModulus = UnitUtils.ConvertToInternalUnits(src.E.Value, UnitTypeId.Megapascals);
+                asset.SetYoungModulus(UnitUtils.ConvertToInternalUnits(src.E.Value, UnitTypeId.Megapascals));
             }
             if (src.Nu is > 0)
             {
-                asset.PoissonRatio = src.Nu.Value;
+                asset.SetPoissonRatio(src.Nu.Value);
             }
             if (src.Density is > 0)
             {
