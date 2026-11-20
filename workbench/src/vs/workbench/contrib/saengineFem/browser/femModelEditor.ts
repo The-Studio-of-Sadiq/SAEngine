@@ -55,6 +55,7 @@ import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } f
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, formatPlanPath, freeTopColumns, gridLines, IFilterModel, parsePlanPath, perimeterPath, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
+import { femViewerTarget, ViewerTools } from './viewerTools.js';
 import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { memberGroupOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
@@ -710,6 +711,8 @@ export class FemModelEditor extends EditorPane {
 	private tablesVisible = false;
 	private tablesVersion = -1;
 	private viewer: FemViewer | undefined;
+	private viewTools: ViewerTools | undefined;
+	private restoredResourceKey: string | undefined;
 	private derivation: FemDerivation | undefined;
 	private results: FemResultsBar | undefined;
 	/** The result drawn over the model, kept for a viewer created later. */
@@ -833,6 +836,14 @@ export class FemModelEditor extends EditorPane {
 
 		const view = append(frame.main, $('.fem-view'));
 		this.viewport = append(view, $('.viewport', { tabIndex: 0 }));
+		this.viewTools = this._register(this.instantiationService.createInstance(ViewerTools, {
+			viewId: 'fem',
+			target: femViewerTarget(() => this.viewer, () => this.nodeCount > 0),
+			overlayParent: view,
+			keyTarget: this.viewport,
+			extraMeasureActions: [this.measureActions.angle, this.measureActions.area],
+			onDidChangeActions: () => this.updateChrome(),
+		}));
 		this.legend = append(view, $('.fem-legend'));
 		this.empty = append(view, $('.fem-empty'));
 		this.message = append(view, $('.message'));
@@ -878,6 +889,7 @@ export class FemModelEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
 		this.lastDerivation = undefined;
+		this.restoredResourceKey = undefined;
 		this.modelRead = false;
 		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
@@ -1110,7 +1122,16 @@ export class FemModelEditor extends EditorPane {
 		this.chartsAction.enabled = hasResults;
 		this.tablesAction.checked = this.tablesVisible;
 		this.exportAction.enabled = hasResults;
-		const primary: IAction[] = [...(stale ? [this.deriveAction] : []), this.runAction, this.chartsAction, this.designAction, this.reinforceAction, this.tablesAction, frame.togglePropertiesAction];
+		const primary: IAction[] = [
+			...(stale ? [this.deriveAction] : []),
+			this.runAction,
+			this.chartsAction,
+			this.designAction,
+			this.reinforceAction,
+			this.tablesAction,
+			...(this.viewTools?.primaryActions() ?? []),
+			frame.togglePropertiesAction,
+		];
 		const secondary: IAction[] = [
 			this.runSelectedAction,
 			...(state && !stale ? [this.deriveAgainAction] : []),
@@ -1121,9 +1142,11 @@ export class FemModelEditor extends EditorPane {
 			this.fitAction,
 			this.meshNodesAction,
 			new Separator(),
-			this.measureActions.distance,
-			this.measureActions.angle,
-			this.measureActions.area,
+			...(this.viewTools ? this.viewTools.secondaryActions() : [
+				this.measureActions.distance,
+				this.measureActions.angle,
+				this.measureActions.area,
+			]),
 			this.exportAnimationAction,
 		];
 		for (const [mode, action] of Object.entries(this.measureActions)) {
@@ -1492,11 +1515,18 @@ export class FemModelEditor extends EditorPane {
 			}
 			const viewer = createFemViewer(this.viewport, {
 				theme: this.computeTheme(),
-				onSelectionChanged: selection => this._onDidChangeSelection.fire(selection),
+				onSelectionChanged: selection => {
+					this._onDidChangeSelection.fire(selection);
+					this.viewTools?.onSelectionChanged();
+				},
 				onMeasure: measurement => {
 					this.measurement = measurement;
 					this.updateChrome();
 				},
+				onMeasureChanged: (entries, status) => this.viewTools?.onMeasureChanged(entries, status),
+				onSectionChanged: state => this.viewTools?.onSectionChanged(state),
+				onSectionPickModeChanged: picking => this.viewTools?.onSectionPickModeChanged(picking),
+				onVisibilityChanged: (state, summary) => this.viewTools?.onVisibilityChanged(state, summary),
 			});
 			this.viewer = viewer;
 			viewer.setMeshNodes(!!this.meshNodesAction.checked);
@@ -1554,6 +1584,13 @@ export class FemModelEditor extends EditorPane {
 		this.results?.setModel(model);
 		this.viewer?.setModel(displayModel(model as unknown as IFemModelNodes) as unknown as FemModel);
 		this.updateViews(model as unknown as IFilterModel);
+		const key = input.resource.toString();
+		if (key !== this.restoredResourceKey) {
+			this.restoredResourceKey = key;
+			void this.viewTools?.restoreForResource(key);
+		} else {
+			this.viewTools?.syncState();
+		}
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).
 			void this.viewer?.fit();

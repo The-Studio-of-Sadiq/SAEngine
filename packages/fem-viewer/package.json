@@ -13,7 +13,8 @@
   "scripts": {
     "build": "node build.mjs && tsc -p tsconfig.json --emitDeclarationOnly",
     "watch": "node build.mjs --watch",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@thatopen/components": "^3.4.9",

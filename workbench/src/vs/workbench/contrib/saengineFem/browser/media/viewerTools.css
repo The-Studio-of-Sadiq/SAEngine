@@ -1,0 +1,227 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Revit-parity 3D viewer overlays (section bounds/planes, measure panel, temporary hide/reveal banner). */
+
+.sa-3d-vis-banner {
+	position: absolute;
+	top: var(--sa-space-2, 8px);
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 4;
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-2, 8px);
+	padding: 3px 8px;
+	border-radius: var(--sa-radius, 4px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	background: color-mix(in srgb, var(--sa-surface, var(--vscode-editor-background)) 92%, transparent);
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-s, 12px);
+	white-space: nowrap;
+}
+
+.sa-3d-vis-banner.temp-active {
+	border-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.sa-3d-vis-banner.reveal-active {
+	border-color: #ff4d94;
+}
+
+.sa-3d-banner-label {
+	font-weight: 600;
+}
+
+.sa-3d-panel {
+	position: absolute;
+	right: var(--sa-space-2, 8px);
+	z-index: 3;
+	width: 248px;
+	max-width: calc(100% - 16px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: color-mix(in srgb, var(--sa-surface, var(--vscode-editor-background)) 92%, transparent);
+	color: var(--vscode-foreground);
+	font-size: var(--sa-font-s, 12px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.sa-3d-section-panel {
+	top: var(--sa-space-2, 8px);
+}
+
+.sa-3d-measure-panel {
+	bottom: var(--sa-space-2, 8px);
+	width: 268px;
+}
+
+.sa-3d-panel-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px;
+}
+
+.sa-3d-panel-head {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.sa-3d-panel-title {
+	flex: 1;
+	font-weight: 600;
+}
+
+.sa-3d-bounds-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 6px;
+}
+
+.sa-3d-bound-field {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.sa-3d-bound-label {
+	flex: none;
+	width: 38px;
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+}
+
+.sa-3d-bound-input {
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+	height: 20px;
+	padding: 0 4px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	border-radius: 2px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: inherit;
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	box-sizing: border-box;
+}
+
+.sa-3d-plane-bar,
+.sa-3d-mode-row,
+.sa-3d-panel-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.sa-3d-sublabel {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+}
+
+.sa-3d-hint {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+	line-height: 1.35;
+}
+
+.sa-3d-list {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	max-height: 160px;
+	overflow-y: auto;
+	border-top: 1px solid var(--sa-border, var(--vscode-panel-border));
+	padding-top: 4px;
+}
+
+.sa-3d-list-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.sa-3d-list-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.sa-3d-measure-info {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.sa-3d-measure-val {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.sa-3d-measure-detail {
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sa-3d-btn {
+	height: 20px;
+	padding: 0 6px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: 3px;
+	background: var(--vscode-button-secondaryBackground, transparent);
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.sa-3d-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.sa-3d-btn.active {
+	background: var(--vscode-inputOption-activeBackground, var(--vscode-button-background));
+	color: var(--vscode-inputOption-activeForeground, var(--vscode-button-foreground));
+	border-color: var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder));
+}
+
+.sa-3d-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	flex: none;
+}
+
+.sa-3d-icon-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.sa-3d-btn:focus-visible,
+.sa-3d-icon-btn:focus-visible,
+.sa-3d-bound-input:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}

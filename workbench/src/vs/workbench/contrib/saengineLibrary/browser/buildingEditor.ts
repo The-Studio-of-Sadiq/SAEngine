@@ -40,6 +40,7 @@ import { recordedStamp, upstreamCurrent, upstreamPart } from '../../../services/
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService, partById, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { loadViewerModule, viewerAssetBaseUrl } from '../../saengineFem/browser/viewerModule.js';
+import { buildingViewerTarget, ViewerTools } from '../../saengineFem/browser/viewerTools.js';
 import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
@@ -218,6 +219,10 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private ifcSkipped = 0;
 	/** The element picked in 3D, also one the floor plan does not own (an addition). */
 	private selectedElement: string | undefined;
+	/** Multi-selection ids in the 3D view (for Section Box from Selection and Hide/Isolate). */
+	private selectedElements: string[] = [];
+	private viewTools: ViewerTools | undefined;
+	private restoredResourceKey: string | undefined;
 	/** The story each architecture element (`arch:<id>`) stands on, from the last IFC. */
 	private architectureStories: { readonly [id: string]: string } = {};
 	/** The id map of the last IFC: element ids to GlobalIds. */
@@ -290,7 +295,9 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		this._register(selectionService.onDidChangeSelection(({ selection, source }) => {
 			if (source !== SELECTION_SOURCE) {
 				this.selectedElement = selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
+				this.selectedElements = this.selectedElement ? [this.selectedElement] : [];
 				void this.viewer?.setSelection(this.selectedElement);
+				this.viewTools?.onSelectionChanged();
 			}
 			this.renderProperties();
 		}));
@@ -327,8 +334,15 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 
 
 		const container = append(body, $('.building-editor.building-3d'));
-		this.viewport = append(container, $('.building-viewport'));
+		this.viewport = append(container, $('.building-viewport', { tabIndex: 0 }));
 		this.createViewTools(this.viewport);
+		this.viewTools = this._register(this.instantiation.createInstance(ViewerTools, {
+			viewId: 'bim',
+			target: buildingViewerTarget(() => this.viewer, () => !!this.document),
+			overlayParent: this.viewport,
+			keyTarget: this.viewport,
+			onDidChangeActions: () => this.updateDocumentFrameActions(),
+		}));
 		this.studies = this._register(this.instantiation.createInstance(BimStudies,
 			() => this.ensureViewer(), this.viewport,
 			() => this.document ? JSON.stringify(this.document) : undefined,
@@ -385,6 +399,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.storyFilter = undefined;
 		this.source.clear();
 		this.selectedElement = undefined;
+		this.selectedElements = [];
+		this.restoredResourceKey = undefined;
 		await super.setInput(input, options, context, token);
 		if (this.input !== input) {
 			return;
@@ -476,6 +492,13 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		this.ifcScheduler.schedule();
 		this.render();
+	}
+
+	override focus(): void {
+		super.focus();
+		if (this.view === '3d') {
+			this.viewport?.focus();
+		}
 	}
 
 	override clearInput(): void {
@@ -630,14 +653,26 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 				this.ifcIds = result.ids ?? {};
 				await viewer.load(VSBuffer.fromString(result.text).buffer, result.ids ?? {}, this.foundationLayers(result.ids ?? {}));
 				const selection = this.selectionService.selection;
-				this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
-				await viewer.setSelection(this.selectedElement);
+				if (!this.selectedElements.length) {
+					this.selectedElement ??= selection?.kind === 'member' ? this.elementOfMember(selection.id) : undefined;
+					if (this.selectedElement) {
+						this.selectedElements = [this.selectedElement];
+					}
+				}
+				await viewer.setSelection(this.selectedElements.length ? this.selectedElements : this.selectedElement);
 				for (const layer of this.hiddenLayers) {
 					await viewer.setLayerVisible(layer, false);
 				}
 				await this.applyStoryFilter();
 				await this.renderLegend();
 				await this.studies?.afterLoad();
+				const resourceKey = this.resource?.toString();
+				if (resourceKey && resourceKey !== this.restoredResourceKey) {
+					this.restoredResourceKey = resourceKey;
+					await this.viewTools?.restoreForResource(resourceKey);
+				} else {
+					this.viewTools?.syncState();
+				}
 				this.updateDocumentFrameActions();
 			} catch (error) {
 				this.setIfcNote(localize('building.viewerLoadFailed', "The 3D view could not show the building: {0}", String(error)), 1);
@@ -861,7 +896,11 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 					const viewer = this.viewer = createBuildingViewer(this.viewport, {
 						assetBaseUrl: viewerAssetBaseUrl(),
 						theme: this.viewerTheme(),
-						onSelectionChanged: elementId => this.onViewerSelection(elementId),
+						onSelectionChanged: (elementId, elementIds) => this.onViewerSelection(elementId, elementIds),
+						onSectionChanged: state => this.viewTools?.onSectionChanged(state),
+						onSectionPickModeChanged: picking => this.viewTools?.onSectionPickModeChanged(picking),
+						onMeasureChanged: (entries, status) => this.viewTools?.onMeasureChanged(entries, status),
+						onVisibilityChanged: (state, summary) => this.viewTools?.onVisibilityChanged(state, summary),
 					});
 					this.viewerDisposable.value = toDisposable(() => viewer.dispose());
 					return viewer;
@@ -886,13 +925,15 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	/** An element picked in 3D selects its floor-plan member (Properties, Model Explorer, plan). */
-	private onViewerSelection(elementId: string | undefined): void {
+	private onViewerSelection(elementId: string | undefined, elementIds?: readonly string[]): void {
 		const elements = Array.isArray(this.document?.elements) ? this.document.elements.filter(isObject) : [];
 		// A foundation of 9 Substructure is no member of the floor plan, even with a footing's id.
 		const element = elementId && this.findFoundation(elementId) ? undefined : elements.find(e => e.id === elementId);
 		const group = ELEMENT_KINDS.find(k => k.kind === element?.kind)?.group;
 		const member = typeof element?.source === 'string' ? element.source : undefined;
 		this.selectedElement = elementId;
+		this.selectedElements = elementIds ? [...elementIds] : (elementId ? [elementId] : []);
+		this.viewTools?.onSelectionChanged();
 		this.selectionService.setSelection(group && member ? { kind: 'member', group, id: member } : undefined, SELECTION_SOURCE);
 		this.renderProperties();
 	}
@@ -1008,10 +1049,21 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			return { primary: [] };
 		}
 		const prominent = this.stale || !this.document;
+		const show3d = this.view === '3d' && !!this.document;
 		return {
-			primary: [...(prominent ? [this.rebuildAction] : []), ...(this.view === '3d' && this.document ? [this.fitAction] : []), frame.togglePropertiesAction],
-			secondary: [...(prominent ? [] : [this.rebuildAction]), this.openSourceAction, new Separator(), this.exportAction,
-				...(this.view === '3d' && this.document && this.studies ? [new Separator(), ...this.studies.actions()] : [])],
+			primary: [
+				...(prominent ? [this.rebuildAction] : []),
+				...(show3d ? [this.fitAction, ...(this.viewTools?.primaryActions() ?? [])] : []),
+				frame.togglePropertiesAction,
+			],
+			secondary: [
+				...(prominent ? [] : [this.rebuildAction]),
+				this.openSourceAction,
+				new Separator(),
+				this.exportAction,
+				...(show3d && this.viewTools ? [new Separator(), ...this.viewTools.secondaryActions()] : []),
+				...(show3d && this.studies ? [new Separator(), ...this.studies.actions()] : []),
+			],
 		};
 	}
 
@@ -1233,6 +1285,19 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const document = this.document;
 		if (!document) {
 			appendPropertyNote(panel, localize('building.propertiesEmpty', "Build the building model to see its elements here."));
+			return;
+		}
+		if (this.selectedElements.length > 1) {
+			appendPropertyHeading(panel, localize('building.multiHeading', "{0} elements selected", this.selectedElements.length));
+			for (const id of this.selectedElements.slice(0, 15)) {
+				const foundEl = this.findElement(id);
+				const kind = foundEl ? (typeof foundEl.item.kind === 'string' ? humanize(foundEl.item.kind) : humanize(foundEl.list)) : '';
+				appendPropertyRow(panel, id, kind);
+			}
+			if (this.selectedElements.length > 15) {
+				appendPropertyNote(panel, localize('building.multiMore', "…and {0} more.", this.selectedElements.length - 15));
+			}
+			appendPropertyNote(panel, localize('building.multiHint', "Use HH / HI / HC / IC to hide or isolate, or Section Box from Selection in the toolbar menu."));
 			return;
 		}
 		if (this.selectedElement?.startsWith(ARCHITECTURE_ID)) {
