@@ -55,12 +55,22 @@ def export_rebar(
             product.CrossSectionArea = math.pi * dia * dia / 4
             if bar.get("length"):
                 product.BarLength = float(bar["length"])
+            if w.is_ifc2x3:
+                product.BarRole = predefined
             product.BarSurface = "TEXTURED"
             items = []
             for line in lines:
                 points = [f.createIfcCartesianPoint([float(v) for v in p]) for p in line]
-                items.append(f.createIfcSweptDiskSolid(f.createIfcPolyline(points), dia / 2))
-            shape = f.createIfcShapeRepresentation(w.body, "Body", "AdvancedSweptSolid", items)
+                if w.is_ifc2x3:
+                    items.append(
+                        f.createIfcSweptDiskSolid(
+                            f.createIfcPolyline(points), dia / 2, None, 0.0, 1.0
+                        )
+                    )
+                else:
+                    items.append(f.createIfcSweptDiskSolid(f.createIfcPolyline(points), dia / 2))
+            rep_type = "SweptSolid" if w.is_ifc2x3 else "AdvancedSweptSolid"
+            shape = f.createIfcShapeRepresentation(w.body, "Body", rep_type, items)
             product.Representation = f.createIfcProductDefinitionShape(None, None, [shape])
             w.place(product, _placement((0.0, 0.0, 0.0), (1, 0, 0), (0, 0, 1)))
             lowest = min(float(p[2]) for line in lines for p in line)

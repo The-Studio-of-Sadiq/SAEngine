@@ -138,6 +138,7 @@ class Hole:
     group: str = ""
     from_end: bool = False
     on_axis: bool = False
+    bolt_dia: float = 0.0
 
 
 @dataclass
@@ -320,6 +321,7 @@ class Attached:
     angle: float = 0.0  # a gusset's brace angle to the main part [°] (drawing)
     on_axis: bool = False  # x is a position along the member's axis until finished
     anchor: float = 0.0  # the part's own x at ``x`` (a gusset: its weld's centre) (drawing)
+    direction: Point3 | None = None  # outward unit vector of the supported member from the support
 
     @property
     def loose(self) -> bool:
@@ -340,6 +342,7 @@ class Assembly:
     start: Point3 = (0.0, 0.0, 0.0)  # the piece's axis in the model (the marking plan)
     end: Point3 = (0.0, 0.0, 0.0)
     section: str = ""
+    cut0: float = 0.0
 
     @property
     def quantity(self) -> int:
@@ -946,6 +949,7 @@ class _Builder:
         dt: float = 0.0,
         level: float | None = None,
         anchor: float = 0.0,
+        direction: Point3 | None = None,
     ) -> None:
         """A part welded to the support's assembly, else a loose part of ``own``'s. ``dt``: the
         part's level below the support point (``level``, the supported end's set-out level): on
@@ -961,13 +965,26 @@ class _Builder:
             if target is not None and target.assembly is not None:
                 target.assembly.parts.append(
                     Attached(
-                        part, t, sup.face, weld, what, offset, angle, on_axis=True, anchor=anchor
+                        part,
+                        t,
+                        sup.face,
+                        weld,
+                        what,
+                        offset,
+                        angle,
+                        on_axis=True,
+                        anchor=anchor,
+                        direction=direction,
                     )
                 )
                 return
         asm = own.assembly
         assert asm is not None
-        asm.parts.append(Attached(part, 0.0, "", None, f"{what} (loose: weld on site)", offset))
+        asm.parts.append(
+            Attached(
+                part, 0.0, "", None, f"{what} (loose: weld on site)", offset, direction=direction
+            )
+        )
         asm.notes.append(
             f"{part.role.capitalize()} {what}: no steel member to weld it to in the shop; "
             "shipped loose."
@@ -1057,6 +1074,7 @@ class _Builder:
                 f"the end distance {c.endDistance:g} mm."
             )
         self._bolt_line(main, which, x, ys, hp, dia, f"{which} fin plate")
+        inward = me.u if which == "start" else (-me.u[0], -me.u[1], -me.u[2])
         plate = _plate(
             "fin plate",
             hp,
@@ -1064,12 +1082,19 @@ class _Builder:
             c.plateThickness,
             self._plate_grade(c, me),
             me.density,
-            [Hole("v", y, a, dia) for y in ys],
+            [Hole("v", y, a, dia, bolt_dia=c.boltDiameter) for y in ys],
         )
         h = me.s.h if me.s is not None else me.m.depth
         level = (me.start if which == "start" else me.end)[2]
         self._attach(
-            sup, piece, plate, Weld(c.weldSize, hp), f"for {me.m.id}", dt=-h / 2, level=level
+            sup,
+            piece,
+            plate,
+            Weld(c.weldSize, hp),
+            f"for {me.m.id}",
+            dt=-h / 2,
+            level=level,
+            direction=inward,
         )
 
     def _endPlate(
@@ -1080,7 +1105,7 @@ class _Builder:
         hp, ys = _bolt_rows(c.rows, c.pitch, c.endDistance)
         bp = c.gauge + 2 * c.edgeDistance
         xs = (c.edgeDistance, c.edgeDistance + c.gauge)
-        holes = [Hole("v", y, x, dia) for y in ys for x in xs]
+        holes = [Hole("v", y, x, dia, bolt_dia=c.boltDiameter) for y in ys for x in xs]
         grade = self._plate_grade(c, me)
         plate = _plate("end plate", hp, bp, c.plateThickness, grade, me.density, holes)
         asm = piece.assembly
@@ -1119,7 +1144,13 @@ class _Builder:
         length = c.setback + 2 * c.endDistance + (c.rows - 1) * c.pitch
         width = 2 * spread + 2 * c.edgeDistance
         holes = [
-            Hole("v", c.setback + c.endDistance + i * c.pitch, c.edgeDistance + j * c.gauge, dia)
+            Hole(
+                "v",
+                c.setback + c.endDistance + i * c.pitch,
+                c.edgeDistance + j * c.gauge,
+                dia,
+                bolt_dia=c.boltDiameter,
+            )
             for i in range(c.rows)
             for j in range(c.lines)
         ]
@@ -1129,12 +1160,21 @@ class _Builder:
             weld = Weld(c.weldSize, width)
         h = me.s.h if me.s is not None else me.m.depth
         level = (me.start if which == "start" else me.end)[2]
+        inward = me.u if which == "start" else (-me.u[0], -me.u[1], -me.u[2])
         for name, dz in (("top", 0.0), ("bottom", -h)):
             plate = _plate(
                 "flange plate", length, width, c.plateThickness, grade, me.density, holes
             )
             self._attach(
-                sup, piece, plate, weld, f"{name} for {me.m.id}", offset=dz, dt=dz, level=level
+                sup,
+                piece,
+                plate,
+                weld,
+                f"{name} for {me.m.id}",
+                offset=dz,
+                dt=dz,
+                level=level,
+                direction=inward,
             )
         fin = _plate(
             "fin plate",
@@ -1143,10 +1183,17 @@ class _Builder:
             c.webPlateThickness,
             grade,
             me.density,
-            [Hole("v", y, c.webBoltLineOffset, dia) for y in ys],
+            [Hole("v", y, c.webBoltLineOffset, dia, bolt_dia=c.boltDiameter) for y in ys],
         )
         self._attach(
-            sup, piece, fin, Weld(c.weldSize, hp), f"web for {me.m.id}", dt=-h / 2, level=level
+            sup,
+            piece,
+            fin,
+            Weld(c.weldSize, hp),
+            f"web for {me.m.id}",
+            dt=-h / 2,
+            level=level,
+            direction=inward,
         )
         self._stiffeners(me, sup, c, grade)
 
@@ -1249,7 +1296,13 @@ class _Builder:
             self._cut(piece, which, reach + g.brace_end)
             tab_t = c.tabThickness or c.plateThickness
             holes = [
-                Hole("v", g.first - g.tab_end + i * g.pitch, g.half_tab - spread + j * g.gauge, dia)
+                Hole(
+                    "v",
+                    g.first - g.tab_end + i * g.pitch,
+                    g.half_tab - spread + j * g.gauge,
+                    dia,
+                    bolt_dia=c.boltDiameter,
+                )
                 for i in range(g.rows)
                 for j in range(g.lines)
             ]
@@ -1270,7 +1323,7 @@ class _Builder:
         holes = []
         for st, tt in g.bolts:
             px, py = g.at(st, tt)
-            holes.append(Hole("v", px - x0, py - y0, dia))
+            holes.append(Hole("v", px - x0, py - y0, dia, bolt_dia=c.boltDiameter))
         plate = _plate(
             "gusset",
             max(xs) - x0,
@@ -1282,7 +1335,10 @@ class _Builder:
             contour,
         )
         weld = Weld(c.weldSize, c.gussetWeldLength)
-        self._attach(sup, piece, plate, weld, f"for {me.m.id}", angle=angle, anchor=-x0)
+        inward = me.u if which == "start" else (-me.u[0], -me.u[1], -me.u[2])
+        self._attach(
+            sup, piece, plate, weld, f"for {me.m.id}", angle=angle, anchor=-x0, direction=inward
+        )
 
     def _hssJoint(
         self, me: _Member, piece: _Piece, which: str, sup: _Support | None, c: Any
@@ -1341,10 +1397,15 @@ class _Builder:
         holes = []
         for i in range(c.rows):
             for x in (c.endDistance + i * c.pitch, flange_l - c.endDistance - i * c.pitch):
-                holes += [Hole("v", x, c.edgeDistance + j * c.gauge, dia) for j in range(c.lines)]
+                holes += [
+                    Hole("v", x, c.edgeDistance + j * c.gauge, dia, bolt_dia=c.boltDiameter)
+                    for j in range(c.lines)
+                ]
         web_l = 4 * c.webEndDistance + c.gap
         web_holes = [
-            Hole("v", x, y, dia) for y in wys for x in (c.webEndDistance, web_l - c.webEndDistance)
+            Hole("v", x, y, dia, bolt_dia=c.boltDiameter)
+            for y in wys
+            for x in (c.webEndDistance, web_l - c.webEndDistance)
         ]
         asm = first.assembly
         assert asm is not None
@@ -1390,7 +1451,13 @@ class _Builder:
             self._cut(piece, which, base.thickness)
             dia = base.anchorDiameter + self.opts.anchor_clearance
             holes = [
-                Hole("v", base.length / 2 + px, base.width / 2 + py, dia)
+                Hole(
+                    "v",
+                    base.length / 2 + px,
+                    base.width / 2 + py,
+                    dia,
+                    bolt_dia=base.anchorDiameter,
+                )
                 for px, py in anchor_points(base)
             ]
             grade = self._plate_grade(base, me)
@@ -1421,6 +1488,7 @@ class _Builder:
         asm = piece.assembly
         assert asm is not None
         main = asm.main
+        asm.cut0 = round(piece.cut0, 1)
         main.length = round(piece.length, 1)
         if main.length <= 0:
             asm.notes.append("The member is shorter than its end cuts: check the model.")

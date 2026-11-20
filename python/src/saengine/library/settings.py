@@ -3307,6 +3307,48 @@ class Report(_Model):
     )
 
 
+class IfcExportSettings(_Model):
+    """IFC export options (11 Exports and 6 BIM)."""
+
+    schema_: Literal["IFC4", "IFC2X3"] = Field(
+        default="IFC4",
+        alias="schema",
+        title="IFC schema",
+        description="IFC4 (default) or IFC2X3 Coordination View.",
+        json_schema_extra=_labels(["IFC4", "IFC2X3"]),
+    )
+    includeStructuralAnalysis: bool = Field(
+        default=False,
+        title="Include structural analysis view",
+        description="Add IfcStructuralAnalysisModel (members, supports, load groups and actions).",
+    )
+    includeGeoreferencing: bool = Field(
+        default=True,
+        title="Include georeferencing",
+        description="Write IfcMapConversion / IfcProjectedCRS (or ePSet_MapConversion in IFC2X3) "
+        "when the site is located.",
+    )
+    includeSteelConnections: bool = Field(
+        default=True,
+        title="Include steel connections",
+        description="Write fabricated steel connection plates, bolts and bolt holes.",
+    )
+    crs: str = Field(
+        default="BTM",
+        title="Coordinate reference system",
+        description="CRS for IFC georeferencing: BTM (EPSG:9678), UTM, or EPSG:<code>.",
+    )
+
+    def is_default(self) -> bool:
+        return (
+            self.schema_ == "IFC4"
+            and not self.includeStructuralAnalysis
+            and self.includeGeoreferencing
+            and self.includeSteelConnections
+            and self.crs == "BTM"
+        )
+
+
 # ── C13: display units (saengine.units); stored values stay SI ──
 def _unit_choice(kind: str, title: str) -> Any:
     """A per-quantity unit choice: one of the kind's US customary units, or None (its first)."""
@@ -3426,6 +3468,12 @@ class ProjectSettings(_Model):
         default_factory=Report,
         title="Design report",
         description="The printed design report (11 Exports).",
+    )
+    ifc: IfcExportSettings = Field(
+        default_factory=IfcExportSettings,
+        exclude_if=lambda value: value.is_default(),
+        title="IFC export",
+        description="Schema (IFC4 or IFC2X3), structural analysis view, georeferencing and steel connections.",
     )
     units: DisplayUnits = Field(
         default_factory=DisplayUnits,

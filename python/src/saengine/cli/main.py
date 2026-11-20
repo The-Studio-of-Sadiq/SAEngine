@@ -348,7 +348,16 @@ def cmd_export(args: argparse.Namespace, out: Output) -> int:
     from saengine.pipeline.exports import ExportError, export
 
     try:
-        written = export(project, args.format, out_path, size=args.size, template=args.template)
+        written = export(
+            project,
+            args.format,
+            out_path,
+            size=args.size,
+            template=args.template,
+            schema=getattr(args, "schema", None),
+            structural_analysis=True if getattr(args, "analysis", False) else None,
+            crs=getattr(args, "crs", None),
+        )
     except ExportError as error:
         raise CommandError(str(error)) from error
     for path in written:
@@ -741,6 +750,12 @@ def build_parser() -> argparse.ArgumentParser:
                      "user coefficient (default: %(default)s)")  # fmt: skip
     sub.add_argument("--size", choices=["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"],
                      help="drawings: the sheet size (default: Project Settings' drawings)")  # fmt: skip
+    sub.add_argument("--schema", choices=["IFC4", "IFC2X3"],
+                     help="ifc: the IFC schema (default: Project Settings, else IFC4)")  # fmt: skip
+    sub.add_argument("--analysis", action="store_true",
+                     help="ifc: include IfcStructuralAnalysisModel (structural analysis view)")  # fmt: skip
+    sub.add_argument("--crs",
+                     help="ifc: georeferencing CRS (BTM, UTM, or EPSG:<code>)")  # fmt: skip
     sub.add_argument("--template",
                      help="pdf, docx: the report template's id (11 Exports/report-templates; "
                      "built-in: default, summary); default: Project Settings' design report")  # fmt: skip

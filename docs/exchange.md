@@ -102,6 +102,58 @@ Automation** work on the generated sheets of `11 Exports/Drawings`; the AI assis
 its `annotate_drawings` tool while AI edits are allowed. Regenerating the drawings draws the
 sheets again without these changes.
 
+## IFC export options, mappings and model diff
+
+`saengine.library.ifc.export_ifc` defaults to `schema="IFC4"` and supports `schema="IFC2X3"` (also
+configurable via Project Settings `ifc`, the `export.ifc` action, and `saengine export --format ifc --schema`).
+
+### IFC4 to IFC2X3 entity and PredefinedType mappings
+
+| IFC4 entity / feature | IFC2X3 equivalent | Notes |
+| --- | --- | --- |
+| `IfcTank`, `IfcPump`, `IfcFan` | `IfcFlowStorageDevice`, `IfcFlowMovingDevice` | `IfcTankType`, `IfcPumpType`, `IfcFanType` preserved |
+| `IfcChiller`, `IfcCoolingTower`, `IfcUnitaryEquipment`, `IfcTransformer`, `IfcElectricGenerator`, `IfcElectricFlowStorageDevice` | `IfcEnergyConversionDevice` | IFC2X3 type objects kept (`IfcChillerType`, etc.) |
+| `IfcSolarDevice` | `IfcBuildingElementProxy` | No native IFC2X3 solar device |
+| `IfcElectricDistributionBoard` | `IfcElectricDistributionPoint` | Equivalent panel entity |
+| `IfcPipeSegment`, `IfcDuctSegment`, `IfcCableSegment`, `IfcCableCarrierSegment` | `IfcFlowSegment` | Segments and types mapped consistently |
+| `IfcAirTerminal`, `IfcLightFixture`, `IfcFireSuppressionTerminal`, `IfcSanitaryTerminal` | `IfcFlowTerminal` | Type objects preserved |
+| `IfcAlarm`, `IfcSensor` | `IfcDistributionControlElement` | Control element types preserved |
+| `IfcDistributionSystem` / `IfcDistributionPort` | `IfcSystem` / `IfcDistributionPort` | `PredefinedType` and `SystemType` omitted on IFC2X3 `IfcDistributionPort` |
+| `IfcFurniture` / `IfcFurnitureType` | `IfcFurnishingElement` / `IfcFurnishingElementType` | Architectural furnishings |
+| `IfcDoorType` / `IfcWindowType` | `IfcDoorStyle` / `IfcWindowStyle` | Opening style entities |
+| `IfcMechanicalFastener` | `IfcFastener` | Steel connection bolts in IFC2X3 |
+| `IfcFooting.CAISSON_FOUNDATION`, `IfcPile.(BORED\|DRIVEN\|JETGROUTING)`, `IfcCovering.(MOLDING\|SKIRTINGBOARD)`, `IfcBuildingElementProxyType.(COMPLEX\|ELEMENT\|PARTIAL\|PROVISIONFORVOID\|PROVISIONFORSPACE)` | `USERDEFINED` | Unsupported IFC4 predefined enums |
+| `IfcWallType.(MOVABLE\|PARAPET\|PARTITIONING\|SOLIDWALL)` | `STANDARD` | Architectural/structural wall types |
+| `IfcMapConversion` + `IfcProjectedCRS` | `ePSet_MapConversion` + `ePSet_ProjectedCRS` on `IfcSite` | IFC2X3 property-set convention (millimetre-to-metre scale `0.001`) |
+| `IfcBoundaryNodeCondition.TranslationalStiffness*` (boolean) | `IfcBoundaryNodeCondition.LinearStiffness*` (`-1.0` rigid, `0.0` free) | Structural support fixities |
+
+### Structural analysis view, georeferencing and steel connections
+
+- **Structural analysis view** (`includeStructuralAnalysis` / `--analysis`): exports
+  `IfcStructuralAnalysisModel` with `IfcStructuralCurveMember` (axes, profiles, materials),
+  `IfcStructuralSurfaceMember` (thickness), `IfcStructuralPointConnection` +
+  `IfcBoundaryNodeCondition` supports, `IfcStructuralLoadGroup` (`LOAD_CASE` / `LOAD_COMBINATION`),
+  point/linear actions, and `IfcRelAssignsToProduct` links to physical members.
+- **Georeferencing** (`includeGeoreferencing`, `crs="BTM"\|"UTM"\|"EPSG:<code>"` / `--crs`): writes
+  `IfcMapConversion` + `IfcProjectedCRS` (or `ePSet_*` in IFC2X3) from `saengine.gis.crs.ifc_map_conversion`
+  when `settings.site` is located, including eastings, northings, orthogonal height, and grid-north rotation.
+- **Steel connections** (`includeSteelConnections`): exports connection assemblies from
+  `saengine.fabrication.model` grouped as `IfcElementAssembly` with plates (`IfcPlate`), bolts
+  (`IfcMechanicalFastener` in IFC4, `IfcFastener` in IFC2X3), bolt holes (`IfcOpeningElement` voids),
+  and part/assembly marks in `SAEngine_Fabrication`.
+
+### IFC model diff (`saengine.library.ifc_diff`)
+
+`diff_ifc(before, after, *, file=None)` accepts two IFC file paths, STEP texts, or `ifcopenshell.file`
+instances and matches `IfcElement` and `IfcBuildingStorey` entities by `GlobalId` (ignoring transient STEP
+`#id` numbers and `OwnerHistory`):
+
+- `added` / `deleted` (alias `removed`) / `changed` lists and `counts`
+- Per-change diffs across `type`, `placement` (4x4 local-to-world matrix in mm), `shapeHash`,
+  `material`, `name`, `tag`, `storey`, and `properties` (`psets`)
+- `colourSummary` (`green` added, `red` deleted, `amber` changed) and `terminalSummary`
+- Integrated into `saengine.project.diff.diff_file` for `.ifc` files across project revisions.
+
 ## Office server
 
 See [office-server.md](office-server.md).

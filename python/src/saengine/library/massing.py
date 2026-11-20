@@ -544,9 +544,7 @@ def _assign_solid_geometry(
         w.place(product, _placement((ox, oy, base_elevation), _rotation(rotation), (0.0, 0.0, 1.0)))
         return
     if kind == "cylinder":
-        profile = w.run(
-            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-        )
+        profile = w.param_profile("IfcCircleProfileDef")
         profile.Radius = float(radius or 0.0)
         w.extrusion(product, profile, height, None)
         cx, cy = (float(center[0]), float(center[1])) if center else (0.0, 0.0)

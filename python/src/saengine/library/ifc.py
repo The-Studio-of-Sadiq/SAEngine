@@ -162,17 +162,130 @@ def _rotation(degrees: float) -> tuple[float, float, float]:
     return (math.cos(angle), math.sin(angle), 0.0)
 
 
+# Opening cuts a little beyond their host's faces, so the boolean leaves no skin.
+_IFC2X3_CLASSES: dict[str, tuple[str, str | None]] = {
+    "IfcTank": ("IfcFlowStorageDevice", "IfcTankType"),
+    "IfcPump": ("IfcFlowMovingDevice", "IfcPumpType"),
+    "IfcFan": ("IfcFlowMovingDevice", "IfcFanType"),
+    "IfcChiller": ("IfcEnergyConversionDevice", "IfcChillerType"),
+    "IfcCoolingTower": ("IfcEnergyConversionDevice", "IfcCoolingTowerType"),
+    "IfcUnitaryEquipment": ("IfcEnergyConversionDevice", "IfcUnitaryEquipmentType"),
+    "IfcTransformer": ("IfcEnergyConversionDevice", "IfcTransformerType"),
+    "IfcElectricGenerator": ("IfcEnergyConversionDevice", "IfcElectricGeneratorType"),
+    "IfcElectricFlowStorageDevice": (
+        "IfcEnergyConversionDevice",
+        "IfcElectricFlowStorageDeviceType",
+    ),
+    "IfcSolarDevice": ("IfcBuildingElementProxy", None),
+    "IfcElectricDistributionBoard": ("IfcElectricDistributionPoint", None),
+    "IfcPipeSegment": ("IfcFlowSegment", "IfcPipeSegmentType"),
+    "IfcDuctSegment": ("IfcFlowSegment", "IfcDuctSegmentType"),
+    "IfcCableSegment": ("IfcFlowSegment", "IfcCableSegmentType"),
+    "IfcCableCarrierSegment": ("IfcFlowSegment", "IfcCableCarrierSegmentType"),
+    "IfcAirTerminal": ("IfcFlowTerminal", "IfcAirTerminalType"),
+    "IfcLightFixture": ("IfcFlowTerminal", "IfcLightFixtureType"),
+    "IfcFireSuppressionTerminal": ("IfcFlowTerminal", "IfcFireSuppressionTerminalType"),
+    "IfcSanitaryTerminal": ("IfcFlowTerminal", "IfcSanitaryTerminalType"),
+    "IfcAlarm": ("IfcDistributionControlElement", "IfcAlarmType"),
+    "IfcSensor": ("IfcDistributionControlElement", "IfcSensorType"),
+    "IfcFurniture": ("IfcFurnishingElement", "IfcFurnishingElementType"),
+    "IfcFurnitureType": ("IfcFurnishingElementType", None),
+    "IfcMechanicalFastener": ("IfcFastener", None),
+    "IfcDistributionSystem": ("IfcSystem", None),
+    "IfcDoorType": ("IfcDoorStyle", None),
+    "IfcWindowType": ("IfcWindowStyle", None),
+}
+
+_IFC2X3_PREDEFINED: dict[tuple[str, str], str] = {
+    ("IfcFooting", "CAISSON_FOUNDATION"): "USERDEFINED",
+    ("IfcPile", "BORED"): "USERDEFINED",
+    ("IfcPile", "DRIVEN"): "USERDEFINED",
+    ("IfcPile", "JETGROUTING"): "USERDEFINED",
+    ("IfcCovering", "MOLDING"): "USERDEFINED",
+    ("IfcCovering", "SKIRTINGBOARD"): "USERDEFINED",
+    ("IfcWallType", "MOVABLE"): "STANDARD",
+    ("IfcWallType", "PARAPET"): "STANDARD",
+    ("IfcWallType", "PARTITIONING"): "STANDARD",
+    ("IfcWallType", "SOLIDWALL"): "STANDARD",
+    ("IfcBuildingElementProxyType", "COMPLEX"): "USERDEFINED",
+    ("IfcBuildingElementProxyType", "ELEMENT"): "USERDEFINED",
+    ("IfcBuildingElementProxyType", "PARTIAL"): "USERDEFINED",
+    ("IfcBuildingElementProxyType", "PROVISIONFORVOID"): "USERDEFINED",
+    ("IfcBuildingElementProxyType", "PROVISIONFORSPACE"): "USERDEFINED",
+}
+
+_IFC2X3_HAS_PREDEFINED = frozenset(
+    {
+        "IfcSlab",
+        "IfcFooting",
+        "IfcPile",
+        "IfcRailing",
+        "IfcCovering",
+        "IfcWallType",
+        "IfcBuildingElementProxyType",
+        "IfcFurnishingElementType",
+        "IfcSanitaryTerminalType",
+        "IfcElementAssembly",
+        "IfcStructuralAnalysisModel",
+        "IfcStructuralCurveMember",
+        "IfcStructuralSurfaceMember",
+        "IfcStructuralLoadGroup",
+        "IfcTankType",
+        "IfcPumpType",
+        "IfcFanType",
+        "IfcChillerType",
+        "IfcCoolingTowerType",
+        "IfcUnitaryEquipmentType",
+        "IfcTransformerType",
+        "IfcElectricGeneratorType",
+        "IfcElectricFlowStorageDeviceType",
+        "IfcPipeSegmentType",
+        "IfcDuctSegmentType",
+        "IfcCableSegmentType",
+        "IfcCableCarrierSegmentType",
+        "IfcAirTerminalType",
+        "IfcLightFixtureType",
+        "IfcFireSuppressionTerminalType",
+        "IfcAlarmType",
+        "IfcSensorType",
+    }
+)
+
+
 class _Writer:
     def __init__(
-        self, name: str, objects: ObjectLibrary, materials: MaterialLibrary | None
+        self,
+        name: str,
+        objects: ObjectLibrary,
+        materials: MaterialLibrary | None,
+        schema: str = "IFC4",
     ) -> None:
+        normalized = (schema or "IFC4").strip().upper()
+        if normalized not in ("IFC4", "IFC2X3"):
+            raise ValueError(f"unsupported IFC schema {schema!r}: expected 'IFC4' or 'IFC2X3'")
+        self.schema = normalized
+        self.is_ifc2x3 = normalized == "IFC2X3"
         self.run = ifcopenshell.api.run
-        self.file = ifcopenshell.api.run("project.create_file", version="IFC4")
+        self.file = ifcopenshell.api.run("project.create_file", version=self.schema)
+        self.owner_history: Any = None
+        if self.is_ifc2x3:
+            person = self.run(
+                "owner.add_person", self.file, identification="SAEngine", family_name="SAEngine"
+            )
+            org = self.run(
+                "owner.add_organisation", self.file, identification="SAEngine", name="SAEngine"
+            )
+            self.run(
+                "owner.add_person_and_organisation", self.file, person=person, organisation=org
+            )
+            self.run("owner.add_application", self.file, application_full_name="SAEngine")
+            self.owner_history = self.run("owner.create_owner_history", self.file)
         self.types = {o.id: o for o in objects.objects}
         self.material_names = {m.id: m.name for m in (materials.materials if materials else [])}
         self.materials: dict[str, Any] = {}
         self.profiles: dict[str, Any] = {}
         self.mep_products: dict[str, list[Any]] = {}
+        self._ifc2x3_types: dict[tuple[str, str], Any] = {}
 
         self.project = self.entity("IfcProject", name, "project")
         self.run("unit.assign_unit", self.file, length={"is_metric": True, "raw": "MILLIMETERS"})
@@ -199,15 +312,81 @@ class _Writer:
         for spatial in (self.site, self.building):
             self.run("geometry.edit_object_placement", self.file, product=spatial)
 
+    def _fix_profile_position(self, profile: Any) -> Any:
+        if self.is_ifc2x3 and hasattr(profile, "Position") and profile.Position is None:
+            profile.Position = self.file.createIfcAxis2Placement2D(
+                self.file.createIfcCartesianPoint((0.0, 0.0)),
+                self.file.createIfcDirection((1.0, 0.0)),
+            )
+        return profile
+
+    def param_profile(self, ifc_class: str) -> Any:
+        profile = self.run("profile.add_parameterized_profile", self.file, ifc_class=ifc_class)
+        return self._fix_profile_position(profile)
+
     def entity(self, ifc_class: str, name: str, key: str, predefined: str | None = None) -> Any:
+        target_class = ifc_class
+        type_class: str | None = None
+        target_predefined = predefined
+        if self.is_ifc2x3:
+            if ifc_class in _IFC2X3_CLASSES:
+                target_class, type_class = _IFC2X3_CLASSES[ifc_class]
+            if target_predefined is not None:
+                target_predefined = _IFC2X3_PREDEFINED.get(
+                    (target_class, target_predefined), target_predefined
+                )
+            api_predefined = target_predefined if target_class in _IFC2X3_HAS_PREDEFINED else None
+        else:
+            api_predefined = target_predefined
+
         entity = self.run(
             "root.create_entity",
             self.file,
-            ifc_class=ifc_class,
+            ifc_class=target_class,
             name=name,
-            predefined_type=predefined,
+            predefined_type=api_predefined,
         )
         entity.GlobalId = global_id(key)
+        if self.is_ifc2x3:
+            if target_class == "IfcElectricDistributionPoint":
+                entity.DistributionPointFunction = (
+                    "SWITCHBOARD"
+                    if predefined == "SWITCHBOARD"
+                    else "DISTRIBUTIONBOARD"
+                    if predefined == "DISTRIBUTIONBOARD"
+                    else "OTHER"
+                )
+            if (
+                predefined
+                and api_predefined is None
+                and hasattr(entity, "ObjectType")
+                and entity.ObjectType is None
+            ):
+                entity.ObjectType = predefined
+            if type_class is not None:
+                t_predef = (
+                    "USERDEFINED"
+                    if type_class == "IfcFurnishingElementType"
+                    else (predefined or "NOTDEFINED")
+                )
+                t_key = (type_class, t_predef)
+                if t_key not in self._ifc2x3_types:
+                    t_ent = self.run(
+                        "root.create_entity",
+                        self.file,
+                        ifc_class=type_class,
+                        name=f"{type_class}:{t_predef}",
+                        predefined_type=t_predef if type_class in _IFC2X3_HAS_PREDEFINED else None,
+                    )
+                    t_ent.GlobalId = global_id(f"ifc2x3type:{type_class}:{t_predef}")
+                    self._ifc2x3_types[t_key] = t_ent
+                self.run(
+                    "type.assign_type",
+                    self.file,
+                    related_objects=[entity],
+                    relating_type=self._ifc2x3_types[t_key],
+                    should_map_representations=False,
+                )
         return entity
 
     def place(self, product: Any, matrix: np.ndarray) -> None:
@@ -225,9 +404,7 @@ class _Writer:
             )
         if type_id not in self.profiles:
             ifc_class, attributes = _PROFILES[profile.shape]
-            ifc_profile = self.run(
-                "profile.add_parameterized_profile", self.file, ifc_class=ifc_class
-            )
+            ifc_profile = self.param_profile(ifc_class)
             ifc_profile.ProfileName = type_id
             for source, target in attributes.items():
                 value = getattr(profile, source)
@@ -239,9 +416,7 @@ class _Writer:
         return self.profiles[type_id]
 
     def rectangle(self, x: float, y: float) -> Any:
-        ifc_profile = self.run(
-            "profile.add_parameterized_profile", self.file, ifc_class="IfcRectangleProfileDef"
-        )
+        ifc_profile = self.param_profile("IfcRectangleProfileDef")
         ifc_profile.XDim, ifc_profile.YDim = float(x), float(y)
         return ifc_profile
 
@@ -278,6 +453,52 @@ class _Writer:
         )
 
 
+def _apply_georeferencing(
+    w: _Writer,
+    soil: Any,
+    crs: str = "BTM",
+    ground_level: float = 0.0,
+) -> None:
+    """Write ``IfcMapConversion`` + ``IfcProjectedCRS`` (or ``ePSet_MapConversion`` in IFC2X3)."""
+    site_obj = getattr(soil, "site", None) if soil is not None else None
+    if site_obj is None or not getattr(site_obj, "georeferenced", False):
+        return
+    import ifcopenshell.util.geolocation as gl
+
+    from saengine.gis.crs import ifc_map_conversion
+
+    g_level = float(getattr(soil, "groundLevel", None) or ground_level or 0.0)
+    conv = ifc_map_conversion(site_obj, crs=crs, ground_level_mm=g_level)
+    w.site.RefLatitude = gl.dd2dms(float(site_obj.lat), use_us=True)
+    w.site.RefLongitude = gl.dd2dms(float(site_obj.lon), use_us=True)
+    w.site.RefElevation = conv["orthogonal_height"]
+
+    w.run("georeference.add_georeferencing", w.file, name=conv["name"])
+    map_unit = "METRE" if w.is_ifc2x3 else w.file.createIfcSIUnit(None, "LENGTHUNIT", None, "METRE")
+    projected_crs: dict[str, Any] = {
+        "Name": conv["name"],
+        "Description": conv["description"],
+        "GeodeticDatum": conv["datum"],
+        "MapProjection": conv["projection"],
+        "MapUnit": map_unit,
+    }
+    if conv["zone"]:
+        projected_crs["MapZone"] = conv["zone"]
+    w.run(
+        "georeference.edit_georeferencing",
+        w.file,
+        projected_crs=projected_crs,
+        coordinate_operation={
+            "Eastings": conv["eastings"],
+            "Northings": conv["northings"],
+            "OrthogonalHeight": conv["orthogonal_height"],
+            "XAxisAbscissa": conv["x_axis_abscissa"],
+            "XAxisOrdinate": conv["x_axis_ordinate"],
+            "Scale": conv["scale"],
+        },
+    )
+
+
 def export_ifc(
     building: BuildingModel,
     objects: ObjectLibrary,
@@ -288,8 +509,23 @@ def export_ifc(
     mep: Any = None,
     architecture: Any = None,
     rebar: dict[str, Any] | None = None,
+    schema: str = "IFC4",
+    analytical: Any = None,
+    soil: Any = None,
+    include_connections: bool = True,
+    fabrication: Any = None,
+    crs: str = "BTM",
+    include_georeferencing: bool = True,
 ) -> tuple[ifcopenshell.file, dict[str, str], list[str]]:
     """The IFC file of ``building``, its element id -> GlobalId map, and elements left out (why).
+
+    ``schema`` selects ``"IFC4"`` (default) or ``"IFC2X3"``. With ``analytical`` (an
+    :class:`saengine.exporters.analytical.AnalyticalModel`), writes the structural analysis view
+    (``IfcStructuralAnalysisModel``). With ``soil`` (whose ``site`` is georeferenced) and
+    ``include_georeferencing``, writes ``IfcMapConversion`` + ``IfcProjectedCRS`` (or
+    ``ePSet_MapConversion`` in IFC2X3) in ``crs`` (``"BTM"`` or ``"UTM"``). With
+    ``include_connections`` (default True), writes fabricated steel connection plates, bolts,
+    bolt-hole voids and assemblies from :mod:`saengine.fabrication.model`.
 
     With ``substructure`` (the project's ``substructure.json`` once it is no longer the
     placeholder, see :func:`saengine.substructure.handover.authoritative_substructure`) the
@@ -307,7 +543,9 @@ def export_ifc(
         from saengine.mep.loads import with_mep_openings
 
         building, _ = with_mep_openings(building, mep)  # shafts and slab and wall openings
-    w = _Writer(name, objects, materials)
+    w = _Writer(name, objects, materials, schema=schema)
+    if include_georeferencing and soil is not None:
+        _apply_georeferencing(w, soil, crs=crs, ground_level=ground_level)
     storeys: list[tuple[float, Any]] = []
     storey_ids: dict[str, Any] = {}
     for story in sorted(building.stories, key=lambda s: s.elevation):
@@ -344,10 +582,11 @@ def export_ifc(
                 storey_at,
                 ids,
                 skipped,
+                products,
             )
             continue
         if isinstance(element, AreaElement):
-            _area(w, element, storey_at, ids, skipped)
+            _area(w, element, storey_at, ids, skipped, products)
             continue
         if isinstance(element, BlockElement):
             _block(w, element, storey_at, ids, skipped)
@@ -483,6 +722,16 @@ def export_ifc(
         from saengine.library.ifc_rebar import export_rebar
 
         export_rebar(w, rebar, storey_at, ids, skipped)
+    if include_connections:
+        from saengine.library.ifc_fabrication import export_steel_connections
+
+        export_steel_connections(
+            w, building, objects, materials, products, storey_at, ids, skipped, fabrication
+        )
+    if analytical is not None:
+        from saengine.library.ifc_structural import export_structural_analysis
+
+        export_structural_analysis(w, analytical, products, ids, skipped)
     return w.file, ids, skipped
 
 
@@ -552,9 +801,7 @@ def _export_plumbing(
             if tank.diameter is None:
                 skipped.append(f"{tank.id}: no diameter")
                 continue
-            profile = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            profile = w.param_profile("IfcCircleProfileDef")
             profile.Radius = tank.diameter / 2 + wall
         elif tank.length is None or tank.width is None:
             skipped.append(f"{tank.id}: no length or width")
@@ -602,9 +849,7 @@ def _export_plumbing(
             skipped.append(f"{riser.id}: its top story is not above the story it starts at")
             continue
         diameter = riser.diameter or sized.get(riser.id) or _RISER_DIAMETER
-        profile = w.run(
-            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-        )
+        profile = w.param_profile("IfcCircleProfileDef")
         profile.Radius = float(diameter) / 2
         product = w.entity("IfcPipeSegment", riser.id, f"plumbing:{riser.id}", "RIGIDSEGMENT")
         product.ObjectType = riser.system
@@ -627,9 +872,7 @@ def _export_plumbing(
             skipped.append(f"{pipe.id}: no story '{pipe.story}'")
             continue
         diameter = float(pipe.diameter or _RISER_DIAMETER)
-        profile = w.run(
-            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-        )
+        profile = w.param_profile("IfcCircleProfileDef")
         profile.Radius = diameter / 2
         floor = levels[pipe.story]
         centre = (
@@ -825,9 +1068,7 @@ def _export_services(
                 skipped.append(f"{duct.id}: no story '{duct.story}'")
                 continue
             if duct.shape == "round" and duct.diameter:
-                profile = w.run(
-                    "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-                )
+                profile = w.param_profile("IfcCircleProfileDef")
                 profile.Radius = float(duct.diameter) / 2
                 height = float(duct.diameter)
             elif duct.width and duct.height:
@@ -895,9 +1136,7 @@ def _export_services(
                 skipped.append(f"{pipe.id}: no story '{pipe.story}'")
                 continue
             diameter = float(pipe.diameter or _RISER_DIAMETER)
-            profile = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            profile = w.param_profile("IfcCircleProfileDef")
             profile.Radius = diameter / 2
             floor = levels[pipe.story]
             top = soffit(pipe.story)
@@ -1020,9 +1259,7 @@ def _export_services(
             if low is None or high is None or high <= low:
                 continue
             diam = float(riser.diameter or _RISER_DIAMETER)
-            profile = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            profile = w.param_profile("IfcCircleProfileDef")
             profile.Radius = diam / 2
             product = w.entity("IfcPipeSegment", riser.id, f"fireRiser:{riser.id}", "RIGIDSEGMENT")
             product.Tag = riser.id
@@ -1038,9 +1275,7 @@ def _export_services(
             if main.story not in levels:
                 continue
             diam = float(main.diameter or _RISER_DIAMETER)
-            profile = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            profile = w.param_profile("IfcCircleProfileDef")
             profile.Radius = diam / 2
             floor = levels[main.story]
             top = soffit(main.story)
@@ -1075,9 +1310,7 @@ def _export_services(
             if sp.story not in levels or not sp.diameter:
                 continue
             floor = levels[sp.story]
-            prof = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            prof = w.param_profile("IfcCircleProfileDef")
             prof.Radius = float(sp.diameter) / 2
             z_pt = floor + (sp.bottom if sp.bottom is not None else 2750.0)
             _run_segments(
@@ -1121,9 +1354,7 @@ def _export_services(
             if gp.story not in levels or not gp.diameter:
                 continue
             floor = levels[gp.story]
-            prof = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            prof = w.param_profile("IfcCircleProfileDef")
             prof.Radius = float(gp.diameter) / 2
             _run_segments(
                 w,
@@ -1143,9 +1374,7 @@ def _export_services(
             if mp_pipe.story not in levels or not mp_pipe.diameter:
                 continue
             floor = levels[mp_pipe.story]
-            prof = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            prof = w.param_profile("IfcCircleProfileDef")
             prof.Radius = float(mp_pipe.diameter) / 2
             _run_segments(
                 w,
@@ -1214,10 +1443,15 @@ def _export_systems(
         products = [p for eid in sys.get("elements", []) for p in w.mep_products.get(eid, [])]
         if not products:
             continue
-        ifc_sys = w.run("system.add_system", w.file, ifc_class="IfcDistributionSystem")
+        sys_cls = "IfcSystem" if w.is_ifc2x3 else "IfcDistributionSystem"
+        ifc_sys = w.run("system.add_system", w.file, ifc_class=sys_cls)
         ifc_sys.GlobalId = global_id(f"system:{sys['id']}")
         ifc_sys.Name = sys["name"]
-        ifc_sys.PredefinedType = _IFC_SYSTEM_TYPES.get(sys["classification"], "NOTDEFINED")
+        sys_type = _IFC_SYSTEM_TYPES.get(sys["classification"], "NOTDEFINED")
+        if w.is_ifc2x3:
+            ifc_sys.ObjectType = sys_type
+        else:
+            ifc_sys.PredefinedType = sys_type
         w.run("system.assign_system", w.file, products=products, system=ifc_sys)
 
     # Connect consecutive segments of multi-leg runs so every leg is part of the port chain.
@@ -1252,12 +1486,13 @@ def _export_systems(
         pb = w.run("system.add_port", w.file, element=pb_elem)
         pa.Name = conn["from"]
         pb.Name = conn["to"]
-        pa.PredefinedType = _IFC_PORT_TYPES.get(ca["domain"], "NOTDEFINED")
-        pb.PredefinedType = _IFC_PORT_TYPES.get(cb["domain"], "NOTDEFINED")
         pa.FlowDirection = _IFC_FLOW_DIR.get(ca["direction"], "NOTDEFINED")
         pb.FlowDirection = _IFC_FLOW_DIR.get(cb["direction"], "NOTDEFINED")
-        pa.SystemType = _IFC_SYSTEM_TYPES.get(ca["classification"], "NOTDEFINED")
-        pb.SystemType = _IFC_SYSTEM_TYPES.get(cb["classification"], "NOTDEFINED")
+        if not w.is_ifc2x3:
+            pa.PredefinedType = _IFC_PORT_TYPES.get(ca["domain"], "NOTDEFINED")
+            pb.PredefinedType = _IFC_PORT_TYPES.get(cb["domain"], "NOTDEFINED")
+            pa.SystemType = _IFC_SYSTEM_TYPES.get(ca["classification"], "NOTDEFINED")
+            pb.SystemType = _IFC_SYSTEM_TYPES.get(cb["classification"], "NOTDEFINED")
         direction = (
             "SOURCE"
             if ca["direction"] == "out" or cb["direction"] == "in"
@@ -1353,9 +1588,7 @@ def _export_mep(
             continue  # cut with the building model's additions above
         width, height = opening.size
         if opening.shape == "circle":
-            profile = w.run(
-                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-            )
+            profile = w.param_profile("IfcCircleProfileDef")
             profile.Radius = width / 2
         else:
             profile = w.rectangle(width, height)
@@ -1532,6 +1765,7 @@ def _export_additions(
             storey_at,
             ids,
             skipped,
+            products,
         )
 
 
@@ -1545,6 +1779,7 @@ def _member(
     storey_at: Any,
     ids: dict[str, str],
     skipped: list[str],
+    products: dict[str, Any] | None = None,
 ) -> None:
     """A straight member between two points, its profile extruded along it."""
     object_type = w.types.get(type_id)
@@ -1575,6 +1810,8 @@ def _member(
     )
     w.material(product, object_type.material)
     ids[member_id] = product.GlobalId
+    if products is not None:
+        products[member_id] = product
 
 
 _AREA_CLASSES = {"slab": ("IfcSlab", "FLOOR"), "wall": ("IfcWall", "STANDARD")}
@@ -1655,9 +1892,7 @@ def _export_foundations(
             profile = w.rectangle(pile.diameter, pile.diameter)
         else:
             if pile.diameter not in circles:
-                circle = w.run(
-                    "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-                )
+                circle = w.param_profile("IfcCircleProfileDef")
                 circle.Radius = float(pile.diameter) / 2
                 circles[pile.diameter] = circle
             profile = circles[pile.diameter]
@@ -1732,7 +1967,12 @@ def _block(
 
 
 def _area(
-    w: _Writer, area: AreaElement, storey_at: Any, ids: dict[str, str], skipped: list[str]
+    w: _Writer,
+    area: AreaElement,
+    storey_at: Any,
+    ids: dict[str, str],
+    skipped: list[str],
+    products: dict[str, Any] | None = None,
 ) -> None:
     """A planar slab or wall panel: its outline (with openings) extruded through its thickness,
     centred on the outline's plane."""
@@ -1784,3 +2024,5 @@ def _area(
     )
     w.material(product, object_type.material)
     ids[area.id] = product.GlobalId
+    if products is not None:
+        products[area.id] = product

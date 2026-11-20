@@ -1199,6 +1199,9 @@ Kind: **run**. Writes: yes. Parts: `exports`.
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `out` | string or null | null | Where to write (a file or folder); default: 11 Exports. |
+| `schema` | "IFC4" or "IFC2X3" or null | null | IFC schema (IFC4 or IFC2X3); default: Project Settings' ifc.schema. |
+| `structuralAnalysis` | boolean or null | null | Include IfcStructuralAnalysisModel; default: Project Settings' ifc.includeStructuralAnalysis. |
+| `crs` | string or null | null | CRS for georeferencing (BTM, UTM, or EPSG:<code>); default: Project Settings. |
 
 ```json
 {"action": "export.ifc", "params": {}}

@@ -69,7 +69,14 @@ def export_docx(
 # ─────────────────────────────── IFC ───────────────────────────────
 
 
-def export_ifc(project: Project, out: Path | None = None) -> list[Path]:
+def export_ifc(
+    project: Project,
+    out: Path | None = None,
+    *,
+    schema: str | None = None,
+    structural_analysis: bool | None = None,
+    crs: str | None = None,
+) -> list[Path]:
     from saengine.rpc.handlers import building_ifc
 
     bim, objects = project.text("bim"), project.text("objects")
@@ -87,6 +94,11 @@ def export_ifc(project: Project, out: Path | None = None) -> list[Path]:
         settings_text=project.text("settings"),
         mep_text=project.text("mep"),
         architecture_text=project.text("architecture"),
+        schema=schema,
+        include_structural_analysis=structural_analysis,
+        soil_text=project.text("soil"),
+        crs=crs,
+        project_root=str(project.root),
     )
     if not result.get("text"):
         raise ExportError(
@@ -586,8 +598,15 @@ def export(project: Project, fmt: str, out: Path | None = None, **options: Any) 
         return export_pdf(project, out, fmt, options.get("template"))
     if fmt in ("shop", "nc", "bvbs"):
         return export_fabrication(project, fmt, out)
-    writers = {"ifc": export_ifc, "csv": export_csv, "xlsx": export_xlsx,
-               "dxf": export_dxf}  # fmt: skip
+    if fmt == "ifc":
+        return export_ifc(
+            project,
+            out,
+            schema=options.get("schema"),
+            structural_analysis=options.get("structural_analysis"),
+            crs=options.get("crs"),
+        )
+    writers = {"csv": export_csv, "xlsx": export_xlsx, "dxf": export_dxf}  # fmt: skip
     if fmt not in writers:
         raise ValueError(f"unknown export format: {fmt}")
     return writers[fmt](project, out)

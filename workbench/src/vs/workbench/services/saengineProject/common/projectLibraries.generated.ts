@@ -13750,6 +13750,46 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'Helipad',
 			type: 'object',
 		},
+		IfcExportSettings: {
+			additionalProperties: false,
+			description: 'IFC export options (11 Exports and 6 BIM).',
+			properties: {
+				schema: {
+					default: 'IFC4',
+					description: 'IFC4 (default) or IFC2X3 Coordination View.',
+					enum: ['IFC4', 'IFC2X3'],
+					enumDescriptions: ['IFC4', 'IFC2X3'],
+					title: 'IFC schema',
+					type: 'string',
+				},
+				includeStructuralAnalysis: {
+					default: false,
+					description: 'Add IfcStructuralAnalysisModel (members, supports, load groups and actions).',
+					title: 'Include structural analysis view',
+					type: 'boolean',
+				},
+				includeGeoreferencing: {
+					default: true,
+					description: 'Write IfcMapConversion / IfcProjectedCRS (or ePSet_MapConversion in IFC2X3) when the site is located.',
+					title: 'Include georeferencing',
+					type: 'boolean',
+				},
+				includeSteelConnections: {
+					default: true,
+					description: 'Write fabricated steel connection plates, bolts and bolt holes.',
+					title: 'Include steel connections',
+					type: 'boolean',
+				},
+				crs: {
+					default: 'BTM',
+					description: 'CRS for IFC georeferencing: BTM (EPSG:9678), UTM, or EPSG:<code>.',
+					title: 'Coordinate reference system',
+					type: 'string',
+				},
+			},
+			title: 'IfcExportSettings',
+			type: 'object',
+		},
 		LatticeTower: {
 			additionalProperties: false,
 			description: 'A self-supporting lattice tower: legs at the corners, bracing in every face.',
@@ -16723,6 +16763,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Report',
 			description: 'The printed design report (11 Exports).',
 			title: 'Design report',
+		},
+		ifc: {
+			$ref: '#/$defs/IfcExportSettings',
+			description: 'Schema (IFC4 or IFC2X3), structural analysis view, georeferencing and steel connections.',
+			title: 'IFC export',
 		},
 		units: {
 			$ref: '#/$defs/DisplayUnits',

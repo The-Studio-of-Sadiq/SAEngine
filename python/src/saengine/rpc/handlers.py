@@ -5,6 +5,7 @@ Every handler takes and returns plain JSON-compatible values.
 
 from __future__ import annotations
 
+import json
 import math
 import platform
 import threading
@@ -328,6 +329,14 @@ def building_ifc(
     mep_text: str | None = None,
     architecture_text: str | None = None,
     rebar_root: str | None = None,
+    schema: str | None = None,
+    include_structural_analysis: bool | None = None,
+    soil_text: str | None = None,
+    analytical: Any = None,
+    include_connections: bool | None = None,
+    include_georeferencing: bool | None = None,
+    crs: str | None = None,
+    project_root: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
 
@@ -397,17 +406,102 @@ def building_ifc(
             rebar = rebar_cages(rebar_root, check=False)
         except (DrawingsError, ValueError, OSError) as exc:
             rebar_notes.append(f"Reinforcement: {_first_line(exc)}")
-    ifc, ids, skipped = export_ifc(
-        building,
-        objects,
-        materials,
-        name,
-        substructure,
-        ground,
-        mep if has_mep else None,
-        architecture if architecture.instances() else None,
-        rebar,
+    ifc_cfg: dict[str, Any] = {}
+    settings_obj: Any = None
+    if settings_text:
+        try:
+            raw_settings = json.loads(settings_text)
+            if isinstance(raw_settings, dict) and isinstance(raw_settings.get("ifc"), dict):
+                ifc_cfg = raw_settings["ifc"]
+        except ValueError:
+            pass
+    eff_schema = schema or str(ifc_cfg.get("schema") or "IFC4")
+    eff_analysis = (
+        include_structural_analysis
+        if include_structural_analysis is not None
+        else bool(ifc_cfg.get("includeStructuralAnalysis", False))
     )
+    eff_geo = (
+        include_georeferencing
+        if include_georeferencing is not None
+        else bool(ifc_cfg.get("includeGeoreferencing", True))
+    )
+    eff_conn = (
+        include_connections
+        if include_connections is not None
+        else bool(ifc_cfg.get("includeSteelConnections", True))
+    )
+    eff_crs = crs or str(ifc_cfg.get("crs") or "BTM")
+    soil = None
+    if soil_text:
+        from saengine.library.soil import SoilReport
+
+        try:
+            soil = SoilReport.model_validate_json(soil_text)
+        except ValidationError:
+            soil = None
+    if eff_analysis and analytical is None and settings_text:
+        from saengine.exporters.analytical import from_osmodel
+        from saengine.library.settings import ProjectSettings
+
+        try:
+            settings_obj = ProjectSettings.model_validate_json(settings_text)
+        except ValidationError:
+            settings_obj = None
+        root_dir = project_root or rebar_root
+        osmodel_data: dict[str, Any] | None = None
+        if root_dir:
+            osmodel_path = Path(root_dir) / "08 FEM" / "model.osmodel"
+            if osmodel_path.is_file():
+                try:
+                    osmodel_data = json.loads(osmodel_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    osmodel_data = None
+        if osmodel_data is None:
+            fem = derive_fem(
+                bim_text,
+                objects_text,
+                materials_text or "{}",
+                settings_text,
+                str(Path(root_dir) / "08 FEM") if root_dir else None,
+                soil_text=soil_text,
+                mep_text=mep_text,
+                substructure_text=substructure_text,
+                architecture_text=architecture_text,
+            )
+            if fem.get("text"):
+                try:
+                    osmodel_data = json.loads(fem["text"])
+                except ValueError:
+                    osmodel_data = None
+        if osmodel_data is not None:
+            analytical = from_osmodel(
+                osmodel_data,
+                objects,
+                materials or MaterialLibrary(),
+                settings_obj,
+                name=name,
+            )
+    try:
+        ifc, ids, skipped = export_ifc(
+            building,
+            objects,
+            materials,
+            name,
+            substructure,
+            ground,
+            mep if has_mep else None,
+            architecture if architecture.instances() else None,
+            rebar,
+            schema=eff_schema,
+            analytical=analytical,
+            soil=soil,
+            include_connections=eff_conn,
+            crs=eff_crs,
+            include_georeferencing=eff_geo,
+        )
+    except ValueError as exc:
+        return {"problems": [str(exc)]}
     skipped = [*skipped, *rebar_notes]
     hosts = {w.id: w.base for w in architecture.walls}
     stories = {
