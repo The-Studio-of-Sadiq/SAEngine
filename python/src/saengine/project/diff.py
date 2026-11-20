@@ -912,6 +912,24 @@ def diff_file(
         ]
     if before == after:
         return []
+    if lower.endswith(".ifc"):
+        try:
+            from saengine.library.ifc_diff import diff_ifc
+
+            report = diff_ifc(before, after, file=file)
+            if report["changes"]:
+                return report["changes"]
+            return [
+                {
+                    **ctx_none,
+                    "kind": "changed",
+                    "what": f"{name}: metadata only",
+                    "before": None,
+                    "after": None,
+                }
+            ]
+        except Exception:  # noqa: BLE001, S110 - fall back to text summary for invalid IFC
+            pass
     is_json = lower.endswith(_JSON_SUFFIXES)
     tb, ta = _decode(before), _decode(after)
     if is_json and tb is not None and ta is not None:

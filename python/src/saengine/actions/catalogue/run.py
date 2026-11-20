@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from saengine.actions.catalogue._util import Params
 from saengine.actions.errors import refuse
@@ -282,16 +282,41 @@ def export_report(view: ProjectView, p: ReportParams) -> ActionResult:
     return _export(view, p.format, p.out, template=p.template)
 
 
+class IfcParams(ExportParams):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    schema_: Literal["IFC4", "IFC2X3"] | None = Field(
+        default=None,
+        alias="schema",
+        description="IFC schema (IFC4 or IFC2X3); default: Project Settings' ifc.schema.",
+    )
+    structuralAnalysis: bool | None = Field(
+        default=None,
+        description="Include IfcStructuralAnalysisModel; default: Project Settings' ifc.includeStructuralAnalysis.",
+    )
+    crs: str | None = Field(
+        default=None,
+        description="CRS for georeferencing (BTM, UTM, or EPSG:<code>); default: Project Settings.",
+    )
+
+
 @action(
     "export.ifc",
     summary="Write the building model as IFC into 11 Exports.",
-    params=ExportParams,
+    params=IfcParams,
     parts=("exports",),
     kind="run",
     example={},
 )
-def export_ifc(view: ProjectView, p: ExportParams) -> ActionResult:
-    return _export(view, "ifc", p.out)
+def export_ifc(view: ProjectView, p: IfcParams) -> ActionResult:
+    return _export(
+        view,
+        "ifc",
+        p.out,
+        schema=p.schema_,
+        structural_analysis=p.structuralAnalysis,
+        crs=p.crs,
+    )
 
 
 class BoqParams(ExportParams):

@@ -266,7 +266,11 @@ length (rounded up to 25 mm), total length and mass, with totals per bar size.
 
 - **Export DXF Floor Plans** writes one DXF per storey with layers S-GRID, S-COLS, S-BEAM and
   others (also **Export DXF** in the floor plan).
-- **Export IFC** writes the building model (elements, storeys, materials) as IFC.
+- **Export IFC** writes the building model (elements, storeys, materials, optional structural
+  analysis view, CRS georeferencing, and steel connection assemblies/plates/bolts) as IFC4
+  (default) or IFC2x3 (`schema="IFC2X3"`). Use `saengine.library.ifc_diff.diff_ifc` (also
+  integrated into `saengine.project.diff.diff_file` for `.ifc` files) to compare revisions by
+  `GlobalId`.
 
 ## Revit link
 

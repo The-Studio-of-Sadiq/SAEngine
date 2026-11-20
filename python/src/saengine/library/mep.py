@@ -972,6 +972,16 @@ class HvacDesign(_Model):
         title="Infiltration rate",
         description="Envelope infiltration [ACH] for heating; empty: default from code/practice table.",
     )
+    annual: bool = Field(
+        default=False,
+        title="Annual simulation",
+        description="Run a full-year EnergyPlus simulation (Jan 1 - Dec 31) using weatherFile.",
+    )
+    weatherFile: str | None = Field(
+        default=None,
+        title="Weather file (EPW)",
+        description="Path to an EnergyPlus .epw weather file for annual simulation (none bundled).",
+    )
 
 
 class HvacEnvelope(_Model):

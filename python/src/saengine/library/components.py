@@ -958,9 +958,7 @@ def _build_component_profile(w: Any, ctype: ComponentType, mirrored: bool, name:
     from saengine.library.ifc import _SI
 
     if ctype.representation3d == "cylinder":
-        profile = w.run(
-            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
-        )
+        profile = w.param_profile("IfcCircleProfileDef")
         profile.Radius = float(min(ctype.width, ctype.depth) / 2.0)
         return profile
     if ctype.representation3d == "extrusion" and ctype.extrusionOutline:

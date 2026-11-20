@@ -624,6 +624,11 @@ def create_server() -> JsonRPCServer:
             args.get("settingsText"),
             args.get("mepText"),
             args.get("architectureText"),
+            schema=args.get("schema"),
+            include_structural_analysis=args.get("includeStructuralAnalysis"),
+            soil_text=args.get("soilText"),
+            crs=args.get("crs"),
+            project_root=args.get("projectRoot"),
         )
 
     # With the reinforcement: the detailing of every beam and column first (seconds to tens of
@@ -642,6 +647,10 @@ def create_server() -> JsonRPCServer:
             args.get("mepText"),
             args.get("architectureText"),
             rebar_root=args.get("projectRoot"),
+            schema=args.get("schema"),
+            include_structural_analysis=args.get("includeStructuralAnalysis"),
+            soil_text=args.get("soilText"),
+            crs=args.get("crs"),
         )
 
     @server.feature("architecture/importIfc")

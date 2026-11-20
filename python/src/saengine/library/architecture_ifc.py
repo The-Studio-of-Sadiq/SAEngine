@@ -250,14 +250,25 @@ def export_architecture(
             door_type: DoorType = next(t for t in arch.doorTypes if t.id == opening.type)
             product = w.entity("IfcDoor", opening.id, f"arch:{opening.id}", "DOOR")
             op_type = _door_operation(door_type)
-            product.OperationType = op_type
+            if not w.is_ifc2x3:
+                product.OperationType = op_type
             leaf = _DOOR_LEAF
+            door_type_attrs: dict[str, Any] = {"OperationType": op_type}
+            if w.is_ifc2x3:
+                door_type_attrs.update(
+                    {
+                        "ConstructionType": "NOTDEFINED",
+                        "ParameterTakesPrecedence": False,
+                        "Sizeable": False,
+                    }
+                )
+            else:
+                door_type_attrs["PredefinedType"] = "DOOR"
             relating = element_type(
                 "IfcDoorType",
                 door_type.id,
                 door_type.name,
-                PredefinedType="DOOR",
-                OperationType=op_type,
+                **door_type_attrs,
             )
             type_props = w.run(
                 "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
@@ -278,14 +289,26 @@ def export_architecture(
             window_type: WindowType = next(t for t in arch.windowTypes if t.id == opening.type)
             product = w.entity("IfcWindow", opening.id, f"arch:{opening.id}", "WINDOW")
             part_type = _window_partitioning(window_type)
-            product.PartitioningType = part_type
+            if not w.is_ifc2x3:
+                product.PartitioningType = part_type
             leaf = _WINDOW_FRAME
+            win_type_attrs: dict[str, Any] = {}
+            if w.is_ifc2x3:
+                win_type_attrs.update(
+                    {
+                        "ConstructionType": "NOTDEFINED",
+                        "OperationType": "NOTDEFINED",
+                        "ParameterTakesPrecedence": False,
+                        "Sizeable": False,
+                    }
+                )
+            else:
+                win_type_attrs.update({"PredefinedType": "WINDOW", "PartitioningType": part_type})
             relating = element_type(
                 "IfcWindowType",
                 window_type.id,
                 window_type.name,
-                PredefinedType="WINDOW",
-                PartitioningType=part_type,
+                **win_type_attrs,
             )
             type_props = w.run(
                 "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
@@ -325,7 +348,9 @@ def export_architecture(
             relating_type=relating,
             should_map_representations=False,
         )
-        w.run("feature.add_filling", w.file, opening=void, element=product)
+        rel_fill = w.run("feature.add_filling", w.file, opening=void, element=product)
+        if w.is_ifc2x3 and rel_fill is not None and rel_fill.OwnerHistory is None:
+            rel_fill.OwnerHistory = w.owner_history
         values: dict[str, Any] = {"Id": opening.id, "Offset": float(opening.offset)}
         if is_door:
             values["Flip"] = bool(opening.flip)
@@ -404,12 +429,14 @@ def export_architecture(
             coverings.append(covering)
             ids[key] = covering.GlobalId
         if coverings:
-            w.file.create_entity(
+            rel = w.file.create_entity(
                 "IfcRelCoversSpaces",
                 GlobalId=_guid(f"covers:{room.id}"),
                 RelatingSpace=space,
                 RelatedCoverings=coverings,
             )
+            if w.is_ifc2x3:
+                rel.OwnerHistory = w.owner_history
 
     _export_extras(w, arch, elevations, storeys, storey_at, ids, skipped, pset, spaces)
     from saengine.library.components import export_components_ifc
@@ -615,12 +642,14 @@ def _export_extras(
         w.place(covering, _placement((0, 0, level + ceiling.height), (1, 0, 0), (0, 0, 1)))
         contain(covering, ceiling.story, level)
         if ceiling.room and spaces and ceiling.room in spaces:
-            w.file.create_entity(
+            rel = w.file.create_entity(
                 "IfcRelCoversSpaces",
                 GlobalId=_guid(f"covers:ceiling:{ceiling.id}"),
                 RelatingSpace=spaces[ceiling.room],
                 RelatedCoverings=[covering],
             )
+            if w.is_ifc2x3:
+                rel.OwnerHistory = w.owner_history
         pset(
             covering,
             {

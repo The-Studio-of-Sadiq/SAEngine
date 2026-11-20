@@ -101,7 +101,11 @@ def test_exports(capsys: pytest.CaptureFixture[str], sample: Path):
     # elements (the shaft's slab opening, the DN100 drain opening) are in the IFC too.
     assert "IFCFOOTING('" in ifc and "'Isolated footing'" in ifc
     assert "'SH1.S2'" in ifc and "'DN100 drain'" in ifc
-    assert ifc.count("IFCOPENINGELEMENT(") == 6
+    # Six openings of the model, plus one bolt-hole void per bolt of the steel connections (Revit
+    # parity R9: plates, bolts and holes are exported).
+    bolts = ifc.count("IFCMECHANICALFASTENER(")
+    assert bolts == 24 and ifc.count("'Bolt hole D22'") == bolts
+    assert ifc.count("IFCOPENINGELEMENT(") == 6 + bolts
     code, document = run(capsys, "export", str(sample), "--format", "dxf")
     assert code == EXIT_OK and len(document["files"]) == 4
     import ezdxf

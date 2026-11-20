@@ -21,7 +21,7 @@ How to read it:
   repository on 12 November 2026; the verification pack was not re-run for this document (its last
   recorded run is in [verification/README.md](verification/README.md)).
 
-Overall: **348 features**: 153 verified, 155 built but untested, 24 partial, 10 missing, 6 out of
+Overall: **348 features**: 154 verified, 160 built but untested, 20 partial, 8 missing, 6 out of
 scope by decision. The gaps and the first verifications to do are tracked on the
 [project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8).
 
@@ -251,7 +251,7 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 | Excel model edit, in and out | ✓ | ✓ | ? | ✓ | ✓ | Built, untested | python/src/saengine/library/workbook.py | 5 | – |
 | SAF | ? | ? | ? | ? | ? | Built, untested | python/src/saengine/exporters/saf.py | 11 | – |
 | CIS/2, SDNF | ? | ? | ? | – | ? | Built, untested | python/src/saengine/exporters/cis2.py, python/src/saengine/exporters/sdnf.py; python/tests/test_exchange_exports.py | 11 | – |
-| Revit link | add-on | add-on | add-on | add-on | ✓ | Partial. Writes and reads the exchange file; needs a separate add-in | python/src/saengine/exporters/revit_link.py; docs/revit-link.md | 11 | – |
+| Revit link | add-on | add-on | add-on | add-on | ✓ | Partial. Writes and reads the exchange file; MIT Revit 2027 add-in (`revit-addin/`) built without live Revit run | python/src/saengine/exporters/revit_link.py; python/tests/test_revit_link.py; revit-addin/; docs/revit-link.md | 11 | Round trip through the add-in in Revit |
 | Point-cloud underlay | – | – | – | – | – | Built, untested | python/src/saengine/library/point_cloud.py | 5 | – |
 | Web viewer | – | – | add-on | – | – | Built, untested | python/src/saengine/exporters/web_viewer.py | 11 | – |
 | API / SDK / CLI | ✓ | ✓ | ✓ | ✓ | ✓ | Built, untested | python/src/saengine/api.py, python/src/saengine/rpc/, python/src/saengine/cli/, docs/sdk/; python/tests/test_sdk.py, python/tests/test_cli.py | Shell | – |
@@ -381,7 +381,7 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Bar bending schedule | ✓ (rebar schedules) | – | – | Verified | python/src/saengine/drawings/bbs.py; python/tests/test_drawings_bbs.py (expected values worked by hand), python/tests/test_bbs_standards.py | 11 | BS 8666-type worked shape-code lengths |
 | Bar congestion and clashes at joints | add-on | – | – | Built, untested | cages.py congestion check; python/tests/test_joint_bottom_layers.py | 11 | Hand clear-spacing check of one joint |
 | Steel connection design (fin plate, block shear, welds, base plates) | add-on | – | – | Verified | python/src/saengine/design/steel_connections.py; python/tests/test_design_steel_connections.py (against hand calculations), python/tests/test_design_steel_connections2.py | 8 | Published connection design-guide example |
-| Steel connections modelled in 3D and IFC (plates, bolts) | ✓ | – | – | Partial | python/src/saengine/fabrication/model.py has plates, bolts and holes; not written to IFC (searched IfcPlate and IfcFastener in python/src/saengine/library/ifc.py) | 11 | – |
+| Steel connections modelled in 3D and IFC (plates, bolts) | ✓ | – | – | Built, untested | python/src/saengine/fabrication/model.py; exported via python/src/saengine/library/ifc_fabrication.py (IfcElementAssembly, IfcPlate, IfcMechanicalFastener/IfcFastener, IfcOpeningElement voids, marks); python/tests/test_ifc_r9.py::test_fin_plate_connection_exports_plate_bolts_and_openings | 11 | Fabrication drawings / shop review |
 | NC files (DSTV) and rebar BVBS | add-on | – | – | Verified | python/src/saengine/fabrication/dstv.py, bvbs.py; python/tests/test_fabrication_l10.py::test_checksum_of_the_guideline_examples | 11 | BVBS guideline checksum examples (already present) |
 | Steel shop drawings, assembly and part marks | add-on | – | – | Built, untested | python/src/saengine/drawings/sheets/shop.py; python/tests/test_walk4_fabrication.py | 11 | – |
 | Precast piece and post-tensioning sheets | add-on | – | – | Built, untested | python/src/saengine/drawings/sheets/precast.py, pt.py; python/tests/test_precast.py, python/tests/test_drawings_pt.py | 11 | Hand tendon elongation for one tendon |
@@ -447,16 +447,16 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | IFC export of MEP (IfcTank, IfcPipeSegment, IfcDuctSegment, IfcCableCarrierSegment) | ✓ | – | ✓ | Built, untested | python/src/saengine/library/ifc.py (around lines 496–729); used in python/tests/test_mep_clash.py and python/tests/test_services_integration.py | 7 | – |
 | IFC import of an architect's model (adopted into architecture.json) | ✓ | – | – | Verified (synthetic round trip) | python/tests/test_architecture.py::test_import_of_an_architects_ifc | 5 | A public Revit- or ArchiCAD-exported IFC sample |
 | Import of MEP consultants' IFC models (discipline detected) | ✓ | – | ✓ | Built, untested | python/src/saengine/mep/ifc_import.py; python/tests/test_mep_clash.py::test_import_ifc_guesses_the_discipline | 7 | – |
-| IFC structural analysis view | ✓ | – | – | Missing | Searched IfcStructuralAnalysisModel and IfcStructuralCurveMember; SAF and CIS/2 are used instead | 11 | – |
-| IFC2x3 export | ✓ | – | – | Partial | Export is IFC4 only; IFC2X3 is read in python/src/saengine/mep/ifc_import.py | 6 | – |
+| IFC structural analysis view | ✓ | – | – | Built, untested | python/src/saengine/library/ifc_structural.py (IfcStructuralAnalysisModel, curve/surface members, point supports with IfcBoundaryNodeCondition, load groups/actions, IfcRelAssignsToProduct); python/tests/test_ifc_r9.py::test_structural_analysis_view_two_bay_frame | 11 | Round-trip in structural viewer |
+| IFC2x3 export | ✓ | – | – | Built, untested | python/src/saengine/library/ifc.py (`schema="IFC2X3"` with entity/PredefinedType mappings, ProjectSettings.ifc, export.ifc, CLI `--schema`); python/tests/test_ifc_r9.py::test_ifc2x3_two_bay_frame_counts_and_validates | 6 | Third-party IFC2x3 reader |
 | IDS checks | add-on | – | – | Built, untested | python/src/saengine/mep/ids.py; only python/tests/test_mep_coordination.py::test_ids_without_ifctester_says_so | 7 | buildingSMART IDS sample, pass and fail cases |
-| Model diff between revisions | add-on | ✓ (DWG compare) | – | Partial | python/src/saengine/project/diff.py (semantic diff of part files); no IFC diff (searched ifcdiff) | Shell | – |
+| Model diff between revisions | add-on | ✓ (DWG compare) | – | Built, untested | python/src/saengine/library/ifc_diff.py (`diff_ifc`) + python/src/saengine/project/diff.py (`.ifc` revision diff JSON & colour-coded summary); python/tests/test_ifc_r9.py::test_ifc_diff_self_is_empty_and_moved_beam_reported | Shell | – |
 | BCF 3.0 and 2.1 export and import | add-on | – | add-on | Verified (round trip) | python/src/saengine/mep/bcf.py; python/tests/test_mep_coordination.py::test_bcf_round_trip, ::test_bcf_import_updates_and_adds, ::test_bcf_statuses_of_other_tools | 7 | A BCF file from another tool |
 | Multi-model clash detection (hard and clearance) and issue workflow | ✓ (interference check); add-on (Navisworks) | – | add-on | Built, untested | python/src/saengine/mep/coordination.py, python/src/saengine/mep/clash.py; python/tests/test_mep_coordination.py (unit tests on synthetic geometry) | 7 | Boxes with known overlap and clearance, worked by hand |
-| Revit link (structural exchange file, preview, apply) | ✓ | – | – | Partial | python/src/saengine/exporters/revit_link.py; python/tests/test_revit_link.py; the Revit add-in is not in the repo (docs/revit-link.md: separate project) | 11 | Round trip through the add-in in Revit |
+| Revit link (structural exchange file, preview, apply) | ✓ | – | – | Partial | python/src/saengine/exporters/revit_link.py; python/tests/test_revit_link.py; revit-addin/ (MIT Revit 2027 add-in, `SAEngine.RevitLink.Core` builds on .NET 8; `SAEngine.RevitLink` untested in live Revit) | 11 | Round trip through the add-in in Revit |
 | Native RVT or RFA read and write | ✓ | – | ? | Out of scope (decision) | Owner decision: AGPL must not link RevitAPI.dll; add-in later (architecture layer plan) | 11 | – |
 | Analysis exchange (SAF, CIS/2, SDNF, .s2k, .std, .e2k) | add-on | – | – | Partial | python/src/saengine/exporters/*; python/tests/test_exchange_exports.py (SAEngine reads back its own files only); docs/exchange.md "Not verified" | 11 | Open in the target program or a format validator |
-| Georeferencing (BTM), GeoJSON, GeoPackage, shared coordinates | ✓ | ✓ | – | Partial | python/src/saengine/gis/crs.py, geojson.py, gpkg.py; python/tests/test_gis_exchange.py; no IfcMapConversion written to IFC | 1 | Published BTM control-point transform |
+| Georeferencing (BTM), GeoJSON, GeoPackage, shared coordinates | ✓ | ✓ | – | Built, untested | python/src/saengine/gis/crs.py (`ifc_map_conversion`), python/src/saengine/library/ifc.py (`IfcMapConversion`/`IfcProjectedCRS` in IFC4, `ePSet_MapConversion`/`ePSet_ProjectedCRS` in IFC2X3), geojson.py, gpkg.py; python/tests/test_ifc_r9.py::test_georeferencing_map_conversion_against_crs | 1 | Published BTM control-point transform |
 | Web viewer for reviewers (no licence needed) | add-on | add-on | – | Built, untested | python/src/saengine/exporters/web_viewer.py | 11 | – |
 
 ### F. MEP
@@ -472,7 +472,7 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Fittings and LOD 400 fabrication (elbows, spools, hangers) | ✓ | add-on | add-on | Built, untested | python/src/saengine/mep/fabrication.py; python/tests/test_l11_office_tools.py::test_fabrication_pieces_fittings_hangers | 7 | Hand cut lengths for one run |
 | HVAC plant sizing and weights (chiller, AHU, cooling tower, VRF) | ✓ | – | ✓ | Verified | python/src/saengine/hvac/plant.py; python/src/saengine/verification/cases/hvac_air.py DA2; python/tests/test_hvac_plant.py | 7 | – |
 | Chilled and condenser water pipe sizing | ✓ | – | ✓ | Built, untested | plant.py (velocity at most 3 m/s, friction at most 400 Pa/m); python/tests/test_hvac_plant.py::test_riser_pipe_and_sleeve | 7 | Hand Darcy friction for one pipe size |
-| Annual energy simulation and envelope compliance | add-on | – | ✓ | Missing | EnergyPlus runs the sizing days only (python/src/saengine/hvac/energyplus.py) | 7 | – |
+| Annual energy simulation and envelope compliance | add-on | – | ✓ | Verified (epJSON, WWR, envelope check & EUI by hand; EnergyPlus annual run unverified without EPW/EnergyPlus) | Full-year `RunPeriod` (Jan 1–Dec 31), hourly occupancy/lighting/equipment schedules by room use, `Output:Meter` end uses, EUI (kWh/m²·yr), unmet hours, and envelope compliance pass/fail table (wall/roof/glazing U-values, WWR, SHGC) in python/src/saengine/hvac/energyplus.py, compliance.py, report.py, bnbc2020/data/hvac.json (limits/schedules marked "to be checked"); python/tests/test_hvac_annual.py | 7 | Full-year EnergyPlus run with a real EPW file |
 | Water demand and storage | – | – | ✓ | Verified | python/src/saengine/plumbing/demand.py, storage.py; python/src/saengine/verification/cases/plumbing.py DB1 | 7 | – |
 | Fixture units to probable flow, riser sizing | ✓ | – | ✓ | Verified | demand.py hunter_flow, supply.py; python/src/saengine/verification/cases/plumbing.py DB2 | 7 | – |
 | Network hydraulics (residual head, pump head, pressure zones) | ? | – | ✓ | Verified | python/src/saengine/plumbing/hydraulics.py (WNTR running EPANET 2.2); python/src/saengine/verification/cases/hydraulics.py DW1–DW3 | 7 | – |
@@ -547,10 +547,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 | Status | Rows |
 |---|---|
-| Verified | 77 |
-| Built, untested | 63 |
-| Partial | 10 |
-| Missing | 2 |
+| Verified | 78 |
+| Built, untested | 68 |
+| Partial | 6 |
+| Missing | 0 |
 | Out of scope (decision) | 6 |
 
 "Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.
@@ -565,7 +565,7 @@ Verification is concentrated where the structure meets MEP (equipment loads, sle
 **12 most important gaps for a Bangladeshi structural engineer coordinating architecture and MEP:**
 1. **Electrical circuits (now built and unit-verified in R5, pack tables to be checked).** Distribution-board schedules, circuiting, cable sizing with derating, voltage drop and short-circuit checks are implemented in `saengine/electrical/` with IEC 60364 / IEC 60909 data in `bnbc2020/data/electrical.json` (marked "to be checked" against printed editions); workbench UI controls for editing circuits are not yet added.
 2. **Revit round trip.** The Revit link has no add-in in the repo, so it cannot work end to end.
-3. **No third-party IFC tested.** IFC is tested only on SAEngine's own synthetic files, and there is no IFC2x3 export or IfcMapConversion.
+3. **No third-party IFC tested.** IFC4 and IFC2x3 outputs validate with `ifcopenshell.validate`, though they are tested only on SAEngine's own synthetic files rather than third-party viewers.
 4. **3D view app walks.** Section box, single section planes, 3D measure with snapping, and temporary/permanent hide/isolate were added in `@saengine/fem-viewer` and the workbench 3D viewers (R3 parity, November 2026, math unit-tested), but have not yet been walked end-to-end in the desktop app.
 5. **Ceiling void.** There are no ceiling elements, so duct and tray clearance under false ceilings cannot be checked.
 6. **Cooling loads per storey only.** The zone-per-storey model makes duct sizes, and so the beam openings, coarse.
