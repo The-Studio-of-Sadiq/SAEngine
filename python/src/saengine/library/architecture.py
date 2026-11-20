@@ -1,5 +1,5 @@
 """The architecture (``05 Floor Plan/architecture.json``): walls, doors, windows and rooms,
-curtain walls, roofs, ramps and railings.
+curtain walls, roofs, ceilings, ramps and railings.
 
 The architect's layer of the building, drawn on the floor plan's grids and stories: masonry and
 partition walls of layered wall types, doors and windows hosted in them, and rooms found from
@@ -7,17 +7,19 @@ the walls around a picked point (with room separators where there is no wall). I
 only: it never adds stiffness to the analysis. Its loads (the walls' weight, the rooms'
 finishes and occupancy live loads) are derived from it when the analysis model is derived
 (:mod:`saengine.fem.architecture_loads`), and the bill of quantities measures its brickwork,
-plaster, finishes, doors and windows (:mod:`saengine.boq.architecture`).
+plaster, finishes, doors, windows, roofs, ceilings and curtain walls
+(:mod:`saengine.boq.architecture`).
 
-The extras (track T46) follow the same rules: a curtain wall is a wall of glazing on a mullion
-grid (its weight per m² as a type, no panel families); a roof is a covering of layers over a plan
-outline, flat or of one pitch (a gable is two roofs); a ramp is a straight built-up ramp on a
-floor (a turning ramp is several, with landings); a railing is a guard or handrail along a path,
-of a weight per metre. They are physical only too: their weights load what carries them.
+Curtain walls carry grid layout rules (fixed distance, fixed number, max spacing), panel types
+(glazed, solid, door) with per-panel overrides, and mullion types; footprint roofs support
+per-edge slopes (hip, gable, shed, mansard, flat with drainage slope) via a straight skeleton
+with overhangs; ceilings track type, height above level, grid patterns, openings and the
+ceiling void depth under the structure above. They are physical only too: their weights load
+what carries them.
 
 Kept simple on purpose (no Revit clone): door and window types are fixed parametric styles (no
-family editor), a wall is one type over its height (no stacked walls), and there are no phases,
-design options or worksets.
+family editor), a wall is one type over its height (no stacked walls), and there are no
+worksets.
 
 Units: mm for coordinates, lengths and levels; kN/m³ for unit weights. Plan coordinates are
 global (the floor plan's); a story is a floor-plan story id. A wall's ``path`` is its location
@@ -30,12 +32,16 @@ from __future__ import annotations
 import itertools
 import json
 import math
-from typing import Annotated, Any, Literal
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
+
+if TYPE_CHECKING:
+    from saengine.library.roof_geometry import RoofGeometry
 
 SCHEMA_ID = "saengine.architecture/1"
 ARCHITECTURE_FILE = "05 Floor Plan/architecture.json"
@@ -143,13 +149,106 @@ class FinishType(_Model):
     )
 
 
-class CurtainWallType(_Model):
-    """Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².
+GridLayout = Literal["fixedDistance", "fixedNumber", "maxSpacing", "none"]
+PanelKind = Literal["glazed", "solid", "door"]
+CeilingKind = Literal["gypsum", "grid", "plaster", "timber", "metal", "other"]
 
-    The weight is the glass's (thickness × unit weight) plus the frame's, per m² of wall; the
-    frame's 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the
-    supplier's). The default pack's Part 6 Sec 2.2 takes dead loads as the actual weights of the
-    materials; glass's 25 kN/m³ is its usual density (2,500 kg/m³)."""
+
+class CurtainGridRule(_Model):
+    """Rule dividing a curtain wall along its length or height."""
+
+    layout: GridLayout = Field(
+        default="fixedDistance",
+        description="How grid divisions are placed: fixedDistance, fixedNumber, maxSpacing, or none.",
+    )
+    spacing: Length | None = Field(
+        default=None,
+        description="Target or maximum spacing [mm] (for fixedDistance and maxSpacing).",
+    )
+    count: int | None = Field(
+        default=None,
+        ge=0,
+        description="Number of interior grid lines (for fixedNumber; 2 lines give 3 divisions).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_rule(self) -> CurtainGridRule:
+        if self.layout in ("fixedDistance", "maxSpacing") and self.spacing is None:
+            raise ValueError(f"curtain grid layout '{self.layout}' requires spacing")
+        if self.layout == "fixedNumber" and self.count is None:
+            raise ValueError("curtain grid layout 'fixedNumber' requires count")
+        return self
+
+
+class CurtainPanelType(_Model):
+    """A curtain wall infill panel type (glazed, solid spandrel/cladding, or door panel)."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    kind: PanelKind = Field(default="glazed")
+    material: str = Field(default="Glass", min_length=1)
+    thickness: Length = Field(default=12, description="Panel thickness [mm].")
+    unitWeight: UnitWeight | None = Field(
+        default=None,
+        title="Unit weight",
+        description="Material unit weight [kN/m³] (used when weight is not given).",
+    )
+    weight: float | None = Field(
+        default=None,
+        ge=0,
+        description="Explicit panel weight per m² [kN/m²] (overrides thickness × unitWeight).",
+    )
+
+    @property
+    def area_weight(self) -> float:
+        """Weight per m² of panel [kN/m²]."""
+        if self.weight is not None:
+            return self.weight
+        density = self.unitWeight if self.unitWeight is not None else (25.0 if self.kind == "glazed" else 20.0)
+        return self.thickness / 1000 * density
+
+
+class CurtainMullionType(_Model):
+    """A curtain wall vertical mullion or horizontal transom profile."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    width: Length = Field(default=50, description="Face width along the wall [mm].")
+    depth: Length = Field(default=150, description="Profile depth across the wall [mm].")
+    wallThickness: Length | None = Field(
+        default=None,
+        title="Wall thickness",
+        description="Hollow extrusion wall thickness [mm] (omit for solid or explicit weight).",
+    )
+    material: str = Field(default="Aluminium", min_length=1)
+    unitWeight: UnitWeight = Field(default=27.0, title="Unit weight")
+    weightPerMetre: float | None = Field(
+        default=None,
+        ge=0,
+        title="Weight per metre",
+        description="Explicit weight per metre run [kN/m] (overrides profile section × unit weight).",
+    )
+
+    @property
+    def linear_weight(self) -> float:
+        """Weight per metre run [kN/m]."""
+        if self.weightPerMetre is not None:
+            return self.weightPerMetre
+        if self.wallThickness is not None and 2 * self.wallThickness < min(self.width, self.depth):
+            area_mm2 = self.width * self.depth - (self.width - 2 * self.wallThickness) * (
+                self.depth - 2 * self.wallThickness
+            )
+        else:
+            area_mm2 = self.width * self.depth
+        return area_mm2 / 1e6 * self.unitWeight
+
+
+class CurtainWallType(_Model):
+    """Glazing on a grid of mullions (vertical) and transoms (horizontal).
+
+    Supports either a simple weight per m² (``glassThickness × glassUnitWeight + frameWeight``)
+    or explicit grid rules, panel types and mullion profile types (panels + mullions weights).
+    """
 
     id: Id
     name: str = Field(min_length=1)
@@ -170,6 +269,36 @@ class CurtainWallType(_Model):
     transomSpacing: Length = Field(
         default=1500, title="Transom spacing", description="Between horizontal transoms [mm]."
     )
+    verticalGrid: CurtainGridRule | None = Field(
+        default=None,
+        title="Vertical grid",
+        description="Rule dividing the curtain wall along its length into panel columns.",
+    )
+    horizontalGrid: CurtainGridRule | None = Field(
+        default=None,
+        title="Horizontal grid",
+        description="Rule dividing the curtain wall up its height into panel rows.",
+    )
+    panelType: Id | None = Field(
+        default=None,
+        title="Default panel type",
+        description="Default curtain panel type id from curtainPanelTypes.",
+    )
+    verticalMullion: Id | None = Field(
+        default=None,
+        title="Vertical mullion type",
+        description="Mullion type id for vertical grid mullions.",
+    )
+    horizontalMullion: Id | None = Field(
+        default=None,
+        title="Horizontal mullion type",
+        description="Mullion type id for horizontal transoms.",
+    )
+    borderMullion: Id | None = Field(
+        default=None,
+        title="Border mullion type",
+        description="Optional mullion type id for perimeter mullions.",
+    )
 
     @property
     def thickness(self) -> float:
@@ -183,8 +312,24 @@ class CurtainWallType(_Model):
 
     @property
     def weight(self) -> float:
-        """Weight per wall area [kN/m²]."""
+        """Nominal weight per wall area [kN/m²] when panel/mullion types are not set."""
         return self.glassThickness / 1000 * self.glassUnitWeight + self.frameWeight
+
+
+class CeilingType(_Model):
+    """A false/suspended or applied ceiling type (gypsum board, grid tiles, plaster, etc.)."""
+
+    id: Id
+    name: str = Field(min_length=1)
+    kind: CeilingKind = Field(default="gypsum")
+    thickness: Length = Field(default=12.5, description="Ceiling board or tile thickness [mm].")
+    weight: float = Field(default=0.15, ge=0, description="Weight per m² [kN/m²].")
+    gridX: Length | None = Field(
+        default=None, title="Grid X", description="Tile grid module along X [mm] (e.g. 600)."
+    )
+    gridY: Length | None = Field(
+        default=None, title="Grid Y", description="Tile grid module along Y [mm] (e.g. 600)."
+    )
 
 
 class RoofType(_Model):
@@ -296,16 +441,30 @@ class Room(_Model):
     wet: bool = Field(default=False, description="Toilet, kitchen or other wet area.")
 
 
+class CurtainPanelOverride(_Model):
+    """Override the infill panel type at a specific grid cell of a curtain wall."""
+
+    segment: int = Field(default=0, ge=0, description="0-based path segment index.")
+    column: int = Field(ge=0, description="0-based column index along the segment.")
+    row: int = Field(ge=0, description="0-based row index from the bottom up.")
+    panelType: Id = Field(title="Panel type")
+
+
 class CurtainWall(ArchWall):
     """A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type
     (``type``); doors and windows are not hosted in it (its glazing is its own)."""
 
     type: Id = Field(title="Curtain wall type")
+    panelOverrides: list[CurtainPanelOverride] = Field(
+        default_factory=list,
+        title="Panel overrides",
+        description="Per-panel overrides by (segment, column, row).",
+    )
 
 
 class Roof(_Model):
-    """A roof covering over a plan outline on a story (the roof slab's level): flat, or of one
-    pitch rising ``slope`` degrees towards ``direction``."""
+    """A roof over a plan outline on a story: flat, drainage-sloped, single-pitch, or a
+    footprint roof with per-edge slopes (hip, gable, shed, mansard) and overhangs."""
 
     id: Id
     type: Id = Field(title="Roof type")
@@ -321,6 +480,106 @@ class Roof(_Model):
         default=None,
         description="Area use from the code pack for its live load (e.g. the default pack's roof uses).",
     )
+    edgeSlopes: list[float | None] | None = Field(
+        default=None,
+        title="Edge slopes",
+        description="Slope [°] per outline edge (0 or null: non-sloping gable edge).",
+    )
+    overhang: Mm = Field(
+        default=0,
+        ge=0,
+        description="Uniform horizontal eaves overhang outside the outline [mm].",
+    )
+    edgeOverhangs: list[Mm] | None = Field(
+        default=None,
+        title="Edge overhangs",
+        description="Per-edge horizontal eaves overhang [mm] (overrides overhang).",
+    )
+    upperSlope: float | None = Field(
+        default=None,
+        ge=0,
+        lt=90,
+        title="Upper slope",
+        description="Second (upper) slope [°] above breakHeight for a mansard roof.",
+    )
+    breakHeight: Length | None = Field(
+        default=None,
+        title="Break height",
+        description="Height above eaves [mm] where a mansard roof changes to upperSlope.",
+    )
+    drainageSlope: float = Field(
+        default=0,
+        ge=0,
+        lt=45,
+        title="Drainage slope",
+        description="Small fall [°] on a flat roof towards direction.",
+    )
+    thickness: Length | None = Field(
+        default=None,
+        description="Optional thickness override [mm] (defaults to the roof type's thickness).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_roof(self) -> Roof:
+        n = (
+            len(self.outline) - 1
+            if len(self.outline) > 3 and math.dist(self.outline[0], self.outline[-1]) < 1e-6
+            else len(self.outline)
+        )
+        if self.edgeSlopes is not None:
+            if len(self.edgeSlopes) != n:
+                raise ValueError(
+                    f"{self.id}: edgeSlopes length ({len(self.edgeSlopes)}) must match outline edges ({n})"
+                )
+            for s in self.edgeSlopes:
+                if s is not None and not (0.0 <= s < 90.0):
+                    raise ValueError(f"{self.id}: edge slope {s} must be in [0, 90)")
+        if self.edgeOverhangs is not None:
+            if len(self.edgeOverhangs) != n:
+                raise ValueError(
+                    f"{self.id}: edgeOverhangs length ({len(self.edgeOverhangs)}) must match outline edges ({n})"
+                )
+            for oh in self.edgeOverhangs:
+                if oh < 0:
+                    raise ValueError(f"{self.id}: edge overhang {oh} must be >= 0")
+        if self.upperSlope is not None and self.breakHeight is None:
+            raise ValueError(f"{self.id}: upperSlope requires breakHeight")
+        return self
+
+
+class CeilingOpening(_Model):
+    """An opening cut into a ceiling (e.g. for an access hatch, atrium or shaft)."""
+
+    id: Id | None = None
+    outline: list[Point2] = Field(min_length=3, description="Opening boundary [mm].")
+
+
+class Ceiling(_Model):
+    """A ceiling element hosted in a room or drawn by a closed plan outline at ``height`` above
+    its story's level."""
+
+    id: Id
+    type: Id = Field(title="Ceiling type")
+    story: Id = Field(description="Story the ceiling belongs to.")
+    height: Length = Field(
+        default=2700,
+        description="Clear height of the ceiling soffit above the story level [mm].",
+    )
+    room: Id | None = Field(default=None, description="Host room id (instead of outline).")
+    outline: list[Point2] | None = Field(
+        default=None, min_length=3, description="Plan outline [mm] (instead of room)."
+    )
+    gridRotation: float = Field(default=0, title="Grid rotation", description="Tile grid angle [°].")
+    gridOrigin: Point2 | None = Field(
+        default=None, title="Grid origin", description="Optional origin point for tile grid [mm]."
+    )
+    openings: list[CeilingOpening] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_boundary(self) -> Ceiling:
+        if (self.room is None) == (self.outline is None):
+            raise ValueError(f"{self.id}: give either a room or an outline, not both")
+        return self
 
 
 class Ramp(_Model):
@@ -408,6 +667,13 @@ class Architecture(_Model):
     curtainWallTypes: list[CurtainWallType] = Field(
         default_factory=list, title="Curtain wall types"
     )
+    curtainPanelTypes: list[CurtainPanelType] = Field(
+        default_factory=list, title="Curtain panel types"
+    )
+    curtainMullionTypes: list[CurtainMullionType] = Field(
+        default_factory=list, title="Curtain mullion types"
+    )
+    ceilingTypes: list[CeilingType] = Field(default_factory=list, title="Ceiling types")
     roofTypes: list[RoofType] = Field(default_factory=list, title="Roof types")
     railingTypes: list[RailingType] = Field(default_factory=list, title="Railing types")
     walls: list[ArchWall] = Field(default_factory=list)
@@ -416,6 +682,7 @@ class Architecture(_Model):
     rooms: list[Room] = Field(default_factory=list)
     separators: list[RoomSeparator] = Field(default_factory=list, title="Room separators")
     curtainWalls: list[CurtainWall] = Field(default_factory=list, title="Curtain walls")
+    ceilings: list[Ceiling] = Field(default_factory=list)
     roofs: list[Roof] = Field(default_factory=list)
     ramps: list[Ramp] = Field(default_factory=list)
     railings: list[Railing] = Field(default_factory=list)
@@ -433,6 +700,7 @@ class Architecture(_Model):
             *self.rooms,
             *self.separators,
             *self.curtainWalls,
+            *self.ceilings,
             *self.roofs,
             *self.ramps,
             *self.railings,
@@ -446,6 +714,9 @@ class Architecture(_Model):
             ("window type", self.windowTypes),
             ("finish type", self.finishTypes),
             ("curtain wall type", self.curtainWallTypes),
+            ("curtain panel type", self.curtainPanelTypes),
+            ("curtain mullion type", self.curtainMullionTypes),
+            ("ceiling type", self.ceilingTypes),
             ("roof type", self.roofTypes),
             ("railing type", self.railingTypes),
         ):
@@ -467,6 +738,15 @@ class Architecture(_Model):
                 raise ValueError(f"{wall.id}: give a top story or a height, not both")
             if _length(wall.path) <= 0:
                 raise ValueError(f"{wall.id}: its path has no length")
+        panel_types = {t.id for t in self.curtainPanelTypes}
+        mullion_types = {t.id for t in self.curtainMullionTypes}
+        for cw_type in self.curtainWallTypes:
+            if cw_type.panelType is not None and cw_type.panelType not in panel_types:
+                raise ValueError(f"{cw_type.id}: no curtain panel type '{cw_type.panelType}'")
+            for m_field in ("verticalMullion", "horizontalMullion", "borderMullion"):
+                m_id = getattr(cw_type, m_field)
+                if m_id is not None and m_id not in mullion_types:
+                    raise ValueError(f"{cw_type.id}: no curtain mullion type '{m_id}'")
         curtain_types = {t.id for t in self.curtainWallTypes}
         for curtain in self.curtainWalls:
             if curtain.type not in curtain_types:
@@ -475,6 +755,16 @@ class Architecture(_Model):
                 raise ValueError(f"{curtain.id}: give a top story or a height, not both")
             if _length(curtain.path) <= 0:
                 raise ValueError(f"{curtain.id}: its path has no length")
+            for ov in curtain.panelOverrides:
+                if ov.panelType not in panel_types:
+                    raise ValueError(f"{curtain.id}: no curtain panel type '{ov.panelType}'")
+        ceiling_types = {t.id for t in self.ceilingTypes}
+        room_ids = {r.id for r in self.rooms}
+        for ceiling in self.ceilings:
+            if ceiling.type not in ceiling_types:
+                raise ValueError(f"{ceiling.id}: no ceiling type '{ceiling.type}'")
+            if ceiling.room is not None and ceiling.room not in room_ids:
+                raise ValueError(f"{ceiling.id}: no room '{ceiling.room}'")
         roof_types = {t.id for t in self.roofTypes}
         for roof in self.roofs:
             if roof.type not in roof_types:
@@ -606,6 +896,79 @@ def default_architecture() -> Architecture:
             "curtainWallTypes": [
                 {"id": "CW1", "name": "Aluminium curtain wall, double glazed"},
             ],
+            "curtainPanelTypes": [
+                {
+                    "id": "CP-GLZ",
+                    "name": "Double glazed unit 24 mm",
+                    "kind": "glazed",
+                    "material": "Glass",
+                    "thickness": 12,
+                    "unitWeight": 25.0,
+                },
+                {
+                    "id": "CP-SOL",
+                    "name": "Insulated aluminium spandrel panel",
+                    "kind": "solid",
+                    "material": "Spandrel",
+                    "thickness": 25,
+                    "unitWeight": 20.0,
+                },
+                {
+                    "id": "CP-DOOR",
+                    "name": "Curtain wall glazed door leaf",
+                    "kind": "door",
+                    "material": "Glass + Aluminium",
+                    "thickness": 45,
+                    "weight": 0.45,
+                },
+            ],
+            "curtainMullionTypes": [
+                {
+                    "id": "CM-50x150",
+                    "name": "Aluminium mullion 50x150 mm",
+                    "width": 50,
+                    "depth": 150,
+                    "wallThickness": 3,
+                    "material": "Aluminium",
+                    "unitWeight": 27.0,
+                },
+                {
+                    "id": "CM-50x100",
+                    "name": "Aluminium transom 50x100 mm",
+                    "width": 50,
+                    "depth": 100,
+                    "wallThickness": 3,
+                    "material": "Aluminium",
+                    "unitWeight": 27.0,
+                },
+            ],
+            "ceilingTypes": [
+                {
+                    "id": "CL1",
+                    "name": "Gypsum board ceiling 12.5 mm",
+                    "kind": "gypsum",
+                    "thickness": 12.5,
+                    "weight": 0.15,
+                },
+                {
+                    "id": "CL2",
+                    "name": "Acoustic grid ceiling 600x600 mm",
+                    "kind": "grid",
+                    "thickness": 15,
+                    "weight": 0.12,
+                    "gridX": 600,
+                    "gridY": 600,
+                },
+                {
+                    "id": "CL3",
+                    "name": "Acoustic grid ceiling 600x1200 mm",
+                    "kind": "grid",
+                    "thickness": 15,
+                    "weight": 0.12,
+                    "gridX": 600,
+                    "gridY": 1200,
+                },
+            ],
             "roofTypes": [
                 {
                     "id": "RF1",
@@ -720,18 +1083,606 @@ def railing_as_wall(railing: Railing, railing_type: RailingType) -> ArchWall:
     )
 
 
+def roof_geometry(roof: Roof) -> RoofGeometry:
+    """The roof's 3D faces, ridge/hip/valley/eaves lines, and plan/sloped areas."""
+    from saengine.library.roof_geometry import compute_roof_geometry
+
+    return compute_roof_geometry(roof)
+
+
 def roof_polygon(roof: Roof) -> Any:
-    """The roof's plan outline (shapely, mm), made valid."""
+    """The roof's outer plan outline including overhangs (shapely, mm), made valid."""
     from shapely.geometry import Polygon
 
-    polygon = Polygon(roof.outline)
+    from saengine.library.roof_geometry import effective_outline
+
+    polygon = Polygon(effective_outline(roof))
     return polygon if polygon.is_valid else polygon.buffer(0)
 
 
 def roof_area(roof: Roof) -> tuple[float, float]:
-    """The roof's plan area and its surface along the slope [mm²]."""
-    plan = roof_polygon(roof).area
-    return plan, plan / math.cos(math.radians(roof.slope))
+    """The roof's plan area and its surface area along the slope [mm²]."""
+    geom = roof_geometry(roof)
+    return geom.plan_area, geom.sloped_area
+
+
+# ───────────────────────────── ceilings & void ─────────────────────────────
+
+
+def ceiling_polygon(arch: Architecture, ceiling: Ceiling, elevations: dict[str, float]) -> Any | None:
+    """The ceiling's net horizontal polygon [mm] (room net floor or outline, less openings)."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+
+    base: Any = None
+    if ceiling.room is not None:
+        room = next((r for r in arch.rooms if r.id == ceiling.room), None)
+        if room is None:
+            return None
+        found = room_boundary(arch, room, elevations)
+        if found is None:
+            return None
+        base = found[1]
+    elif ceiling.outline is not None:
+        poly = Polygon(ceiling.outline)
+        base = poly if poly.is_valid else poly.buffer(0)
+    if base is None or base.is_empty or base.area <= 0:
+        return None
+    if ceiling.openings:
+        cuts = []
+        for op in ceiling.openings:
+            op_poly = Polygon(op.outline)
+            if not op_poly.is_valid:
+                op_poly = op_poly.buffer(0)
+            if not op_poly.is_empty and op_poly.area > 0:
+                cuts.append(op_poly)
+        if cuts:
+            base = base.difference(unary_union(cuts))
+    return None if base.is_empty or base.area <= 0 else base
+
+
+def ceiling_area(arch: Architecture, ceiling: Ceiling, elevations: dict[str, float]) -> float:
+    """The ceiling's net plan area [mm²]."""
+    poly = ceiling_polygon(arch, ceiling, elevations)
+    return float(poly.area) if poly is not None else 0.0
+
+
+def ceiling_grid_lines(
+    polygon: Any,
+    grid_x: float,
+    grid_y: float,
+    rotation: float = 0.0,
+    origin: tuple[float, float] | None = None,
+) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    """Clipped ceiling grid lines inside ``polygon`` at spacing ``(grid_x, grid_y)`` [mm]."""
+    from shapely.geometry import LineString
+
+    if polygon is None or polygon.is_empty or grid_x <= 0 or grid_y <= 0:
+        return []
+    ox, oy = origin if origin is not None else (polygon.bounds[0], polygon.bounds[1])
+    rad = math.radians(rotation)
+    ux, uy = math.cos(rad), math.sin(rad)
+    vx, vy = -uy, ux
+    minx, miny, maxx, maxy = polygon.bounds
+    corners = [(minx - ox, miny - oy), (maxx - ox, miny - oy), (maxx - ox, maxy - oy), (minx - ox, maxy - oy)]
+    u_vals = [dx * ux + dy * uy for dx, dy in corners]
+    v_vals = [dx * vx + dy * vy for dx, dy in corners]
+    u_min, u_max = min(u_vals), max(u_vals)
+    v_min, v_max = min(v_vals), max(v_vals)
+
+    segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+
+    def add_clipped(geom: Any) -> None:
+        if geom.is_empty:
+            return
+        if geom.geom_type == "LineString":
+            coords = list(geom.coords)
+            if len(coords) >= 2 and math.dist(coords[0], coords[-1]) > 1e-3:
+                segments.append(((float(coords[0][0]), float(coords[0][1])), (float(coords[-1][0]), float(coords[-1][1]))))
+        elif hasattr(geom, "geoms"):
+            for part in geom.geoms:
+                add_clipped(part)
+
+    k0 = math.ceil(u_min / grid_x - 1e-9)
+    k1 = math.floor(u_max / grid_x + 1e-9)
+    for k in range(k0, min(k1 + 1, k0 + 500)):
+        u = k * grid_x
+        p0 = (ox + u * ux + (v_min - 10) * vx, oy + u * uy + (v_min - 10) * vy)
+        p1 = (ox + u * ux + (v_max + 10) * vx, oy + u * uy + (v_max + 10) * vy)
+        add_clipped(polygon.intersection(LineString([p0, p1])))
+
+    j0 = math.ceil(v_min / grid_y - 1e-9)
+    j1 = math.floor(v_max / grid_y + 1e-9)
+    for j in range(j0, min(j1 + 1, j0 + 500)):
+        v = j * grid_y
+        p0 = (ox + (u_min - 10) * ux + v * vx, oy + (u_min - 10) * uy + v * vy)
+        p1 = (ox + (u_max + 10) * ux + v * vx, oy + (u_max + 10) * uy + v * vy)
+        add_clipped(polygon.intersection(LineString([p0, p1])))
+
+    return segments
+
+
+@dataclass(frozen=True)
+class CeilingVoidCheck:
+    """Clearance above a ceiling to the structural soffit (slab and beams) above [mm]."""
+
+    ceiling_id: str
+    story: str
+    room_id: str | None
+    ceiling_height: float
+    structure_soffit: float
+    void_depth: float
+    beam_soffit: float | None = None
+    void_under_beams: float | None = None
+
+    def fits(self, service_depth: float, clearance: float = 0.0, under_beams: bool = False) -> bool:
+        """Whether a duct or tray of ``service_depth`` (+ ``clearance``) fits in the void."""
+        available = (
+            self.void_under_beams
+            if under_beams and self.void_under_beams is not None
+            else self.void_depth
+        )
+        return available >= service_depth + clearance - 1e-6
+
+    def margin(self, service_depth: float, clearance: float = 0.0, under_beams: bool = False) -> float:
+        """Remaining headroom [mm] (negative when the service clashes with the ceiling)."""
+        available = (
+            self.void_under_beams
+            if under_beams and self.void_under_beams is not None
+            else self.void_depth
+        )
+        return available - (service_depth + clearance)
+
+    def check_service(
+        self,
+        service_depth: float,
+        clearance: float = 0.0,
+        name: str = "service",
+        under_beams: bool = False,
+    ) -> dict[str, Any]:
+        """Structured void check result for MEP coordination."""
+        avail = (
+            self.void_under_beams
+            if under_beams and self.void_under_beams is not None
+            else self.void_depth
+        )
+        gap = self.margin(service_depth, clearance, under_beams=under_beams)
+        return {
+            "ceiling": self.ceiling_id,
+            "story": self.story,
+            "room": self.room_id,
+            "service": name,
+            "serviceDepth": round(service_depth, 1),
+            "clearance": round(clearance, 1),
+            "voidDepth": round(avail, 1),
+            "slabVoidDepth": round(self.void_depth, 1),
+            "beamVoidDepth": round(self.void_under_beams, 1)
+            if self.void_under_beams is not None
+            else None,
+            "margin": round(gap, 1),
+            "ok": gap >= -1e-6,
+        }
+
+
+def _element_depth(profile: Any) -> float:
+    for attr in ("yDim", "overallDepth", "depth"):
+        val = getattr(profile, attr, None)
+        if val:
+            return float(val)
+    rad = getattr(profile, "radius", None)
+    return 2.0 * float(rad) if rad else 0.0
+
+
+def _element_width(profile: Any) -> float:
+    for attr in ("xDim", "overallWidth", "width"):
+        val = getattr(profile, attr, None)
+        if val:
+            return float(val)
+    rad = getattr(profile, "radius", None)
+    return 2.0 * float(rad) if rad else 0.0
+
+
+def ceiling_void_check(
+    arch: Architecture,
+    building: Any,
+    objects: Any,
+    target: Room | str | tuple[float, float] | list[float],
+    story: str | None = None,
+) -> CeilingVoidCheck | None:
+    """Compute the ceiling void check object for ``target`` (a Room, room/ceiling id, or [x, y] point).
+
+    ``void_depth = (next_story_elevation - slab_thickness - story_elevation) - ceiling.height``.
+    Returns ``None`` when there is no ceiling or no structural floor level above.
+    """
+    from shapely.geometry import LineString, Point, Polygon
+
+    from saengine.library.bim import BeamElement, SlabElement
+
+    elevations = {s.id: float(s.elevation) for s in building.stories}
+    types = {t.id: t for t in getattr(objects, "objects", [])}
+
+    room_obj: Room | None = None
+    ceiling: Ceiling | None = None
+    query_pt: Point | None = None
+
+    if isinstance(target, Room):
+        room_obj = target
+        story = room_obj.story
+        query_pt = Point(room_obj.point)
+    elif isinstance(target, str):
+        room_obj = next((r for r in arch.rooms if r.id == target), None)
+        if room_obj is not None:
+            story = room_obj.story
+            query_pt = Point(room_obj.point)
+        else:
+            ceiling = next((c for c in arch.ceilings if c.id == target), None)
+            if ceiling is not None:
+                story = ceiling.story
+                if ceiling.room:
+                    room_obj = next((r for r in arch.rooms if r.id == ceiling.room), None)
+                    if room_obj is not None:
+                        query_pt = Point(room_obj.point)
+    else:
+        query_pt = Point(float(target[0]), float(target[1]))
+
+    if ceiling is None and room_obj is not None:
+        ceiling = next((c for c in arch.ceilings if c.room == room_obj.id), None)
+    if ceiling is None and query_pt is not None:
+        for cand in arch.ceilings:
+            if story is not None and cand.story != story:
+                continue
+            poly = ceiling_polygon(arch, cand, elevations)
+            if poly is not None and poly.buffer(1.0).covers(query_pt):
+                ceiling = cand
+                story = cand.story
+                if cand.room and room_obj is None:
+                    room_obj = next((r for r in arch.rooms if r.id == cand.room), None)
+                break
+    if ceiling is None or ceiling.story not in elevations:
+        return None
+
+    poly = ceiling_polygon(arch, ceiling, elevations)
+    if query_pt is None:
+        if poly is None:
+            return None
+        query_pt = poly.representative_point()
+
+    z_floor = elevations[ceiling.story]
+    above = sorted(z for z in elevations.values() if z > z_floor + 1.0)
+    if not above:
+        return None
+    z_above = above[0]
+
+    slab_thickness = 0.0
+    for el in building.elements:
+        if isinstance(el, SlabElement) and abs(float(el.elevation) - z_above) < 1.0:
+            slab_poly = Polygon(el.boundary)
+            if slab_poly.buffer(1.0).covers(query_pt):
+                t = float(getattr(types.get(el.type), "thickness", 0.0) or 0.0)
+                slab_thickness = max(slab_thickness, t)
+
+    structure_soffit = (z_above - slab_thickness) - z_floor
+    void_depth = structure_soffit - float(ceiling.height)
+
+    beam_depths: list[float] = []
+    inner_zone = poly.buffer(-1.0) if poly is not None and poly.area > 100.0 else None
+    for el in building.elements:
+        if isinstance(el, BeamElement) and abs(float(el.elevation) - z_above) < 1.0:
+            prof = getattr(types.get(el.type), "profile", None)
+            depth = _element_depth(prof)
+            if depth <= 0:
+                continue
+            width = _element_width(prof)
+            line = LineString([el.start, el.end])
+            if isinstance(target, (tuple, list)):
+                if line.buffer(max(width / 2, 1.0)).covers(query_pt):
+                    beam_depths.append(depth)
+            elif inner_zone is not None and not inner_zone.is_empty:
+                if line.intersection(inner_zone).length > 1.0:
+                    beam_depths.append(depth)
+            elif line.buffer(max(width / 2, 1.0)).covers(query_pt):
+                beam_depths.append(depth)
+
+    beam_soffit = (z_above - max(beam_depths) - z_floor) if beam_depths else None
+    void_under_beams = (beam_soffit - float(ceiling.height)) if beam_soffit is not None else None
+    return CeilingVoidCheck(
+        ceiling_id=ceiling.id,
+        story=ceiling.story,
+        room_id=room_obj.id if room_obj is not None else ceiling.room,
+        ceiling_height=float(ceiling.height),
+        structure_soffit=structure_soffit,
+        void_depth=void_depth,
+        beam_soffit=beam_soffit,
+        void_under_beams=void_under_beams,
+    )
+
+
+def ceiling_void(
+    arch: Architecture,
+    building: Any,
+    objects: Any,
+    target: Room | str | tuple[float, float] | list[float],
+    story: str | None = None,
+) -> float | None:
+    """Clear ceiling void depth [mm] (structure soffit above minus ceiling height) for a room,
+    ceiling id, or plan point ``[x, y]``."""
+    check_obj = ceiling_void_check(arch, building, objects, target, story=story)
+    return check_obj.void_depth if check_obj is not None else None
+
+
+# ───────────────────────────── curtain wall grid ─────────────────────────────
+
+
+def grid_divisions(
+    length: float, rule: CurtainGridRule | None, fallback_spacing: float = 1500.0
+) -> list[float]:
+    """Grid division coordinates along ``[0, length]`` [mm] for a curtain grid rule."""
+    if length <= 0:
+        return [0.0]
+    if rule is None:
+        layout: GridLayout = "fixedDistance"
+        spacing: float | None = fallback_spacing
+        count: int | None = None
+    else:
+        layout, spacing, count = rule.layout, rule.spacing, rule.count
+
+    if layout == "none":
+        return [0.0, float(length)]
+    if layout == "fixedNumber":
+        n_divs = max(1, (count or 0) + 1)
+        return [float(length) * k / n_divs for k in range(n_divs + 1)]
+    if layout == "maxSpacing":
+        step = spacing or fallback_spacing
+        n_divs = max(1, math.ceil((length - 1e-6) / step))
+        return [float(length) * k / n_divs for k in range(n_divs + 1)]
+    # fixedDistance
+    step = spacing or fallback_spacing
+    pts = [0.0]
+    pos = step
+    while pos < length - 1e-6:
+        pts.append(float(pos))
+        pos += step
+    pts.append(float(length))
+    return pts
+
+
+@dataclass(frozen=True)
+class CurtainPanel:
+    """One rectangular panel cell of a curtain wall."""
+
+    segment: int
+    column: int
+    row: int
+    panel_type_id: str
+    kind: PanelKind
+    material: str
+    thickness: float
+    area_weight: float
+    start: tuple[float, float, float]
+    end: tuple[float, float, float]
+    width: float
+    height: float
+    direction: tuple[float, float]
+
+    @property
+    def weight(self) -> float:
+        """Total panel weight [kN]."""
+        return (self.width / 1000.0) * (self.height / 1000.0) * self.area_weight
+
+
+@dataclass(frozen=True)
+class CurtainMullion:
+    """One vertical mullion or horizontal transom member of a curtain wall."""
+
+    orientation: Literal["vertical", "horizontal"]
+    segment: int
+    index: int
+    mullion_type_id: str
+    material: str
+    width: float
+    depth: float
+    linear_weight: float
+    start: tuple[float, float, float]
+    end: tuple[float, float, float]
+    direction: tuple[float, float]
+    length: float
+
+    @property
+    def weight(self) -> float:
+        """Total mullion weight [kN]."""
+        return (self.length / 1000.0) * self.linear_weight
+
+
+@dataclass(frozen=True)
+class CurtainWallLayout:
+    """Resolved grid, panels, mullions, weights and line load of a curtain wall."""
+
+    panels: tuple[CurtainPanel, ...]
+    mullions: tuple[CurtainMullion, ...]
+    columns: int
+    rows: int
+    length: float
+    height: float
+    area_m2: float
+    panels_weight: float
+    mullions_weight: float
+    total_weight: float
+    weight_per_m2: float
+    line_load: float
+    depth: float
+    detailed: bool
+
+
+def curtain_wall_layout(
+    arch: Architecture,
+    curtain: CurtainWall,
+    elevations: dict[str, float] | None = None,
+) -> CurtainWallLayout | None:
+    """Resolve grid divisions, panels, mullions, and detailed weight for ``curtain``."""
+    cw_type = next((t for t in arch.curtainWallTypes if t.id == curtain.type), None)
+    if cw_type is None:
+        return None
+    if elevations is not None:
+        levels = wall_levels(curtain, elevations)
+        if levels is None:
+            return None
+        bottom, top = levels
+    elif curtain.height is not None:
+        bottom = float(curtain.baseOffset)
+        top = bottom + float(curtain.height)
+    else:
+        return None
+
+    height = top - bottom
+    if height <= 0:
+        return None
+
+    panel_types = {t.id: t for t in arch.curtainPanelTypes}
+    mullion_types = {t.id: t for t in arch.curtainMullionTypes}
+    default_panel = panel_types.get(cw_type.panelType) if cw_type.panelType else None
+    v_mullion = mullion_types.get(cw_type.verticalMullion) if cw_type.verticalMullion else None
+    h_mullion = (
+        mullion_types.get(cw_type.horizontalMullion) if cw_type.horizontalMullion else None
+    )
+    b_mullion = mullion_types.get(cw_type.borderMullion) if cw_type.borderMullion else None
+    overrides = {(ov.segment, ov.column, ov.row): ov.panelType for ov in curtain.panelOverrides}
+
+    has_panel_types = default_panel is not None or bool(overrides)
+    has_mullion_types = any(m is not None for m in (v_mullion, h_mullion, b_mullion))
+    detailed = has_panel_types or has_mullion_types
+
+    fallback_panel_weight = cw_type.glassThickness / 1000.0 * cw_type.glassUnitWeight
+    z_divs = grid_divisions(height, cw_type.horizontalGrid, cw_type.transomSpacing)
+    rows = len(z_divs) - 1
+
+    panels: list[CurtainPanel] = []
+    mullions: list[CurtainMullion] = []
+    total_length = 0.0
+    total_cols = 0
+
+    segments = [
+        (a, b) for a, b in itertools.pairwise(curtain.path) if math.dist(a, b) > 1e-6
+    ]
+    for seg_idx, (a, b) in enumerate(segments):
+        seg_len = math.dist(a, b)
+        total_length += seg_len
+        dx, dy = (b[0] - a[0]) / seg_len, (b[1] - a[1]) / seg_len
+        u_divs = grid_divisions(seg_len, cw_type.verticalGrid, cw_type.mullionSpacing)
+        cols = len(u_divs) - 1
+        total_cols += cols
+
+        for r in range(rows):
+            z0, z1 = bottom + z_divs[r], bottom + z_divs[r + 1]
+            cell_h = z1 - z0
+            for c in range(cols):
+                u0, u1 = u_divs[c], u_divs[c + 1]
+                cell_w = u1 - u0
+                ov_id = overrides.get((seg_idx, c, r))
+                ptype = panel_types.get(ov_id) if ov_id else default_panel
+                p_start = (a[0] + dx * u0, a[1] + dy * u0, z0)
+                p_end = (a[0] + dx * u1, a[1] + dy * u1, z0)
+                panels.append(
+                    CurtainPanel(
+                        segment=seg_idx,
+                        column=c,
+                        row=r,
+                        panel_type_id=ptype.id if ptype else cw_type.id,
+                        kind=ptype.kind if ptype else "glazed",
+                        material=ptype.material if ptype else "Glass",
+                        thickness=float(ptype.thickness if ptype else cw_type.glassThickness),
+                        area_weight=ptype.area_weight if ptype else fallback_panel_weight,
+                        start=p_start,
+                        end=p_end,
+                        width=cell_w,
+                        height=cell_h,
+                        direction=(dx, dy),
+                    )
+                )
+
+        # Vertical mullions (skip shared start post on subsequent segments)
+        start_col = 0 if seg_idx == 0 else 1
+        for k in range(start_col, len(u_divs)):
+            u = u_divs[k]
+            is_border = (seg_idx == 0 and k == 0) or (
+                seg_idx == len(segments) - 1 and k == len(u_divs) - 1
+            )
+            mtype = (b_mullion if is_border and b_mullion is not None else v_mullion)
+            px, py = a[0] + dx * u, a[1] + dy * u
+            mullions.append(
+                CurtainMullion(
+                    orientation="vertical",
+                    segment=seg_idx,
+                    index=k,
+                    mullion_type_id=mtype.id if mtype else cw_type.id,
+                    material=mtype.material if mtype else "Aluminium",
+                    width=float(mtype.width if mtype else 50.0),
+                    depth=float(mtype.depth if mtype else cw_type.depth),
+                    linear_weight=mtype.linear_weight if mtype else 0.0,
+                    start=(px, py, bottom),
+                    end=(px, py, top),
+                    direction=(dx, dy),
+                    length=height,
+                )
+            )
+
+        # Horizontal transoms
+        for r_idx, z_rel in enumerate(z_divs):
+            is_border = r_idx == 0 or r_idx == len(z_divs) - 1
+            mtype = (b_mullion if is_border and b_mullion is not None else h_mullion)
+            z_abs = bottom + z_rel
+            mullions.append(
+                CurtainMullion(
+                    orientation="horizontal",
+                    segment=seg_idx,
+                    index=r_idx,
+                    mullion_type_id=mtype.id if mtype else cw_type.id,
+                    material=mtype.material if mtype else "Aluminium",
+                    width=float(mtype.width if mtype else 50.0),
+                    depth=float(mtype.depth if mtype else cw_type.depth),
+                    linear_weight=mtype.linear_weight if mtype else 0.0,
+                    start=(float(a[0]), float(a[1]), z_abs),
+                    end=(float(b[0]), float(b[1]), z_abs),
+                    direction=(dx, dy),
+                    length=seg_len,
+                )
+            )
+
+    if total_length <= 0:
+        return None
+
+    area_m2 = (total_length / 1000.0) * (height / 1000.0)
+    panels_weight = sum(p.weight for p in panels)
+    if has_mullion_types:
+        mullions_weight = sum(m.weight for m in mullions)
+    else:
+        mullions_weight = cw_type.frameWeight * area_m2
+
+    if detailed:
+        total_weight = panels_weight + mullions_weight
+    else:
+        total_weight = cw_type.weight * area_m2
+        panels_weight = fallback_panel_weight * area_m2
+        mullions_weight = cw_type.frameWeight * area_m2
+
+    weight_per_m2 = total_weight / area_m2 if area_m2 > 0 else cw_type.weight
+    line_load = total_weight / (total_length / 1000.0)
+    depths = [cw_type.depth, *(m.depth for m in mullions if has_mullion_types)]
+    return CurtainWallLayout(
+        panels=tuple(panels),
+        mullions=tuple(mullions),
+        columns=total_cols,
+        rows=rows,
+        length=total_length,
+        height=height,
+        area_m2=area_m2,
+        panels_weight=panels_weight,
+        mullions_weight=mullions_weight,
+        total_weight=total_weight,
+        weight_per_m2=weight_per_m2,
+        line_load=line_load,
+        depth=max(depths),
+        detailed=detailed,
+    )
 
 
 def ramp_length(ramp: Ramp) -> float:
@@ -881,9 +1832,12 @@ def check(arch: Architecture, floor_plan: Any = None) -> list[str]:
                     problems.append(f"{curtain.id}: no story '{story}'")
             if wall_levels(curtain, elevations) is None and curtain.base in elevations:
                 problems.append(f"{curtain.id}: no story above to rise to; give its height")
-        for item in [*arch.roofs, *arch.ramps]:
+        for item in [*arch.roofs, *arch.ramps, *arch.ceilings]:
             if item.story not in elevations:
                 problems.append(f"{item.id}: no story '{item.story}'")
+        for ceiling in arch.ceilings:
+            if ceiling.story in elevations and ceiling_polygon(arch, ceiling, elevations) is None:
+                problems.append(f"{ceiling.id}: its room or outline has no area")
         for railing in arch.railings:
             if railing.base not in elevations:
                 problems.append(f"{railing.id}: no story '{railing.base}'")

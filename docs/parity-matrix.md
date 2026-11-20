@@ -21,7 +21,7 @@ How to read it:
   repository on 12 November 2026; the verification pack was not re-run for this document (its last
   recorded run is in [verification/README.md](verification/README.md)).
 
-Overall: **341 features**: 119 verified, 152 built but untested, 41 partial, 22 missing, 7 out of
+Overall: **341 features**: 122 verified, 152 built but untested, 38 partial, 22 missing, 7 out of
 scope by decision. The gaps and the first verifications to do are tracked on the
 [project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8).
 
@@ -347,10 +347,10 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Architectural walls, layered types, location line | ✓ | add-on | – | Verified | python/src/saengine/library/architecture.py (WallType); python/tests/test_architecture_extras.py::test_type_weights_by_hand; python/tests/test_architecture_loads.py::test_wall_on_a_6_m_beam_with_a_door_by_hand | 5 | Hand calculation of wall weight per m and the load on the beam |
 | Stacked walls, sweeps and reveals, wall-join editing | ✓ | add-on | – | Out of scope (decision) | architecture.py docstring ("no stacked walls"); owner decision (architecture layer plan, avoid list) | 5 | – |
 | Doors and windows hosted in walls | ✓ | add-on | – | Verified (quantities) | architecture.py Door/Window; python/tests/test_architecture_loads.py::test_boq_brickwork_plaster_finishes_and_doors_by_hand; python/tests/test_architecture.py::test_ifc_export_has_walls_openings_spaces_and_coverings | 5 | Hand deduction of openings from brickwork; IFC opening/void check |
-| Curtain walls | ✓ | add-on | – | Partial | Mullion grid plus weight per m² only; no panel types or families. python/tests/test_architecture_extras.py::test_curtain_wall_and_railing_on_a_beam_by_hand | 5 | Hand calculation of the line load on the supporting beam |
+| Curtain walls | ✓ | add-on | – | Verified | Grid rules (fixed distance/number, max spacing), panel types with per-panel overrides, mullion types, beam line loads and IFC (`IfcCurtainWall`, `IfcPlate`, `IfcMember`). python/src/saengine/library/architecture.py; python/src/saengine/library/architecture_ifc.py; python/tests/test_architecture_extras.py::test_curtain_wall_and_railing_on_a_beam_by_hand, ::test_curtain_wall_grid_panels_mullions_and_beam_load_by_hand, ::test_ifc_export_r1_roof_ceiling_curtain_wall | 5 | Hand calculation of the line load on the supporting beam |
 | Floors and slabs (polygon slabs, openings) | ✓ | add-on | – | Built, untested | floorPlanEdits.ts (polygonSlab); bim additions slabOpenings; python/tests/test_ifc.py::test_additions_cut_hosts_and_add_stairs_and_inclined_members | 5 | Hand slab area and volume less openings |
-| Roofs | ✓ | add-on | – | Partial | Flat or one pitch only (a gable is two roofs); no hip or footprint roofs. python/tests/test_architecture_extras.py::test_roof_covering_and_live_load_by_hand | 5 | Hand load of the roof covering per m² |
-| Ceilings | ✓ | add-on | – | Partial | Only a ceiling finish on a room (Room.ceilingFinish); no ceiling element, grid or height for checking the ceiling void | 5 | – |
+| Roofs | ✓ | add-on | – | Verified | Footprint roofs with per-edge slopes (hip, gable, shed, mansard, flat with drainage slope, overhangs) via straight skeleton, loads, BOQ and `IfcRoof`/`IfcSlab` ROOF parts. python/src/saengine/library/roof_geometry.py; python/tests/test_architecture_extras.py::test_hip_roof_10x6_at_30_deg_by_hand, ::test_gable_roof_10x6_at_30_deg_by_hand, ::test_l_and_t_shaped_hip_roofs_by_hand, ::test_shed_mansard_drainage_and_overhang_roofs_by_hand | 5 | Hand load of the roof covering per m² |
+| Ceilings | ✓ | add-on | – | Verified | Ceiling elements per room or outline (gypsum, grid tiles, height above level, openings), `ceiling_void` and MEP void checks, BOQ and `IfcCovering` CEILING. python/src/saengine/library/architecture.py; python/src/saengine/mep/rooms.py (`check_ceiling_voids`); python/tests/test_architecture_extras.py::test_ceiling_void_and_boq_by_hand, ::test_ifc_export_r1_roof_ceiling_curtain_wall | 5 | Hand ceiling void and net area less openings |
 | Stairs | ✓ | add-on | – | Built, untested | bim additions stairs (IfcStair, waist slab); python/tests/test_design_stairs.py; python/src/saengine/drawings/sheets/details.py | 6 | Published worked example of waist-slab stair design |
 | Ramps and railings | ✓ | add-on | – | Verified | Straight ramps only. python/tests/test_architecture_extras.py::test_ramp_fill_finish_and_rooms_by_hand, ::test_curtain_wall_and_railing_on_a_beam_by_hand | 5 | Hand calculation of ramp fill and railing loads |
 | Rooms and spaces (area, finishes, occupancy), room separators | ✓ | add-on | – | Verified | Rooms by polygonize; gross and net areas asserted by hand in python/tests/test_architecture_extras.py; python/tests/test_architecture.py::test_separator_closes_an_open_plan | 5 | Hand room areas net of wall thickness |
@@ -547,9 +547,9 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 | Status | Rows |
 |---|---|
-| Verified | 54 |
+| Verified | 57 |
 | Built, untested | 62 |
-| Partial | 23 |
+| Partial | 20 |
 | Missing | 13 |
 | Out of scope (decision) | 6 |
 

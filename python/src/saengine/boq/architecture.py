@@ -306,7 +306,9 @@ def _extras(measure: Any, arch: arch_lib.Architecture, building: Any) -> None:
         if roof.story not in elevations:
             continue
         kind = roof_types[roof.type]
-        _, surface = arch_lib.roof_area(roof)
+        plan_area, surface = arch_lib.roof_area(roof)
+        geom = arch_lib.roof_geometry(roof)
+        detail = f"{geom.kind}, plan {plan_area * MM2:.2f} m²"
         for layer in kind.layers:
             bill.add(
                 "finishes",
@@ -317,9 +319,29 @@ def _extras(measure: Any, arch: arch_lib.Architecture, building: Any) -> None:
                 roof.id,
                 surface * MM2,
                 story=roof.story,
-                detail=f"{roof.slope:g}° pitch" if roof.slope else "flat",
+                detail=detail,
                 kind="roof",
             )
+    ceiling_types = {t.id: t for t in arch.ceilingTypes}
+    for ceiling in arch.ceilings:
+        if ceiling.story not in elevations:
+            continue
+        kind = ceiling_types[ceiling.type]
+        area = arch_lib.ceiling_area(arch, ceiling, elevations) * MM2
+        if area <= 0:
+            continue
+        grid_desc = f", {kind.gridX:g}×{kind.gridY:g} mm grid" if kind.gridX and kind.gridY else ""
+        bill.add(
+            "finishes",
+            (2.35, kind.id),
+            f"Ceiling {kind.id}: {kind.name}, {kind.thickness:g} mm{grid_desc}",
+            "m2",
+            ceiling.id,
+            area,
+            story=ceiling.story,
+            detail=f"height {ceiling.height:g} mm" + (f", room {ceiling.room}" if ceiling.room else ""),
+            kind="ceiling",
+        )
     finishes = {t.id: t for t in arch.finishTypes}
     for ramp in arch.ramps:
         if ramp.story not in elevations:
@@ -397,6 +419,7 @@ def has_content(arch: arch_lib.Architecture | None) -> bool:
         or arch.doors
         or arch.windows
         or arch.curtainWalls
+        or arch.ceilings
         or arch.roofs
         or arch.ramps
         or arch.railings

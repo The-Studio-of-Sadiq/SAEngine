@@ -38463,6 +38463,450 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'ArchWall',
 			type: 'object',
 		},
+		Ceiling: {
+			additionalProperties: false,
+			description: 'A ceiling element hosted in a room or drawn by a closed plan outline at ``height`` above\nits story\'s level.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Ceiling type',
+					type: 'string',
+				},
+				story: {
+					description: 'Story the ceiling belongs to.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				height: {
+					default: 2700,
+					description: 'Clear height of the ceiling soffit above the story level [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Host room id (instead of outline).',
+					title: 'Room',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							minItems: 3,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline [mm] (instead of room).',
+					title: 'Outline',
+				},
+				gridRotation: {
+					default: 0,
+					description: 'Tile grid angle [°].',
+					title: 'Grid rotation',
+					type: 'number',
+				},
+				gridOrigin: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional origin point for tile grid [mm].',
+					title: 'Grid origin',
+				},
+				openings: {
+					items: {
+						$ref: '#/$defs/CeilingOpening',
+					},
+					title: 'Openings',
+					type: 'array',
+				},
+			},
+			required: ['id', 'type', 'story'],
+			title: 'Ceiling',
+			type: 'object',
+		},
+		CeilingOpening: {
+			additionalProperties: false,
+			description: 'An opening cut into a ceiling (e.g. for an access hatch, atrium or shaft).',
+			properties: {
+				id: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'ID',
+				},
+				outline: {
+					description: 'Opening boundary [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+			},
+			required: ['outline'],
+			title: 'CeilingOpening',
+			type: 'object',
+		},
+		CeilingType: {
+			additionalProperties: false,
+			description: 'A false/suspended or applied ceiling type (gypsum board, grid tiles, plaster, etc.).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'gypsum',
+					enum: ['gypsum', 'grid', 'plaster', 'timber', 'metal', 'other'],
+					title: 'Kind',
+					type: 'string',
+				},
+				thickness: {
+					default: 12.5,
+					description: 'Ceiling board or tile thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				weight: {
+					default: 0.15,
+					description: 'Weight per m² [kN/m²].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				gridX: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Tile grid module along X [mm] (e.g. 600).',
+					title: 'Grid X',
+				},
+				gridY: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Tile grid module along Y [mm] (e.g. 600).',
+					title: 'Grid Y',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CeilingType',
+			type: 'object',
+		},
+		CurtainGridRule: {
+			additionalProperties: false,
+			description: 'Rule dividing a curtain wall along its length or height.',
+			properties: {
+				layout: {
+					default: 'fixedDistance',
+					description: 'How grid divisions are placed: fixedDistance, fixedNumber, maxSpacing, or none.',
+					enum: ['fixedDistance', 'fixedNumber', 'maxSpacing', 'none'],
+					title: 'Layout',
+					type: 'string',
+				},
+				spacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Target or maximum spacing [mm] (for fixedDistance and maxSpacing).',
+					title: 'Spacing',
+				},
+				count: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of interior grid lines (for fixedNumber; 2 lines give 3 divisions).',
+					title: 'Number of bars',
+				},
+			},
+			title: 'CurtainGridRule',
+			type: 'object',
+		},
+		CurtainMullionType: {
+			additionalProperties: false,
+			description: 'A curtain wall vertical mullion or horizontal transom profile.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				width: {
+					default: 50,
+					description: 'Face width along the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					default: 150,
+					description: 'Profile depth across the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				wallThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hollow extrusion wall thickness [mm] (omit for solid or explicit weight).',
+					title: 'Wall thickness',
+				},
+				material: {
+					default: 'Aluminium',
+					minLength: 1,
+					title: 'Material',
+					type: 'string',
+				},
+				unitWeight: {
+					default: 27.0,
+					description: '[kN/m³]',
+					minimum: 0,
+					title: 'Unit weight',
+					type: 'number',
+				},
+				weightPerMetre: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Explicit weight per metre run [kN/m] (overrides profile section × unit weight).',
+					title: 'Weight per metre',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CurtainMullionType',
+			type: 'object',
+		},
+		CurtainPanelOverride: {
+			additionalProperties: false,
+			description: 'Override the infill panel type at a specific grid cell of a curtain wall.',
+			properties: {
+				segment: {
+					default: 0,
+					description: '0-based path segment index.',
+					minimum: 0,
+					title: 'Segment',
+					type: 'integer',
+				},
+				column: {
+					description: '0-based column index along the segment.',
+					minimum: 0,
+					title: 'Column',
+					type: 'integer',
+				},
+				row: {
+					description: '0-based row index from the bottom up.',
+					minimum: 0,
+					title: 'Row',
+					type: 'integer',
+				},
+				panelType: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Panel type',
+					type: 'string',
+				},
+			},
+			required: ['column', 'row', 'panelType'],
+			title: 'CurtainPanelOverride',
+			type: 'object',
+		},
+		CurtainPanelType: {
+			additionalProperties: false,
+			description: 'A curtain wall infill panel type (glazed, solid spandrel/cladding, or door panel).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'glazed',
+					enum: ['glazed', 'solid', 'door'],
+					title: 'Kind',
+					type: 'string',
+				},
+				material: {
+					default: 'Glass',
+					minLength: 1,
+					title: 'Material',
+					type: 'string',
+				},
+				thickness: {
+					default: 12,
+					description: 'Panel thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							description: '[kN/m³]',
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Material unit weight [kN/m³] (used when weight is not given).',
+					title: 'Unit weight',
+				},
+				weight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Explicit panel weight per m² [kN/m²] (overrides thickness × unitWeight).',
+					title: 'Weight',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CurtainPanelType',
+			type: 'object',
+		},
 		CurtainWall: {
 			additionalProperties: false,
 			description: 'A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type\n(``type``); doors and windows are not hosted in it (its glazing is its own).',
@@ -38576,6 +39020,14 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Essential',
 					type: 'boolean',
 				},
+				panelOverrides: {
+					description: 'Per-panel overrides by (segment, column, row).',
+					items: {
+						$ref: '#/$defs/CurtainPanelOverride',
+					},
+					title: 'Panel overrides',
+					type: 'array',
+				},
 			},
 			required: ['id', 'type', 'base', 'path'],
 			title: 'CurtainWall',
@@ -38583,7 +39035,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 		},
 		CurtainWallType: {
 			additionalProperties: false,
-			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².\n\nThe weight is the glass\'s (thickness × unit weight) plus the frame\'s, per m² of wall; the\nframe\'s 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the\nsupplier\'s). The default pack\'s Part 6 Sec 2.2 takes dead loads as the actual weights of the\nmaterials; glass\'s 25 kN/m³ is its usual density (2,500 kg/m³).',
+			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal).\n\nSupports either a simple weight per m² (``glassThickness × glassUnitWeight + frameWeight``)\nor explicit grid rules, panel types and mullion profile types (panels + mullions weights).',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -38638,6 +39090,96 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					exclusiveMinimum: 0,
 					title: 'Transom spacing',
 					type: 'number',
+				},
+				verticalGrid: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CurtainGridRule',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rule dividing the curtain wall along its length into panel columns.',
+					title: 'Vertical grid',
+				},
+				horizontalGrid: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CurtainGridRule',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rule dividing the curtain wall up its height into panel rows.',
+					title: 'Horizontal grid',
+				},
+				panelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Default curtain panel type id from curtainPanelTypes.',
+					title: 'Default panel type',
+				},
+				verticalMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mullion type id for vertical grid mullions.',
+					title: 'Vertical mullion type',
+				},
+				horizontalMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mullion type id for horizontal transoms.',
+					title: 'Horizontal mullion type',
+				},
+				borderMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional mullion type id for perimeter mullions.',
+					title: 'Border mullion type',
 				},
 			},
 			required: ['id', 'name'],
@@ -39083,7 +39625,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 		},
 		Roof: {
 			additionalProperties: false,
-			description: 'A roof covering over a plan outline on a story (the roof slab\'s level): flat, or of one\npitch rising ``slope`` degrees towards ``direction``.',
+			description: 'A roof over a plan outline on a story: flat, drainage-sloped, single-pitch, or a\nfootprint roof with per-edge slopes (hip, gable, shed, mansard) and overhangs.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -39154,6 +39696,106 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Area use from the code pack for its live load (e.g. the default pack\'s roof uses).',
 					title: 'Occupancy',
+				},
+				edgeSlopes: {
+					anyOf: [
+						{
+							items: {
+								anyOf: [
+									{
+										type: 'number',
+									},
+									{
+										type: 'null',
+									},
+								],
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slope [°] per outline edge (0 or null: non-sloping gable edge).',
+					title: 'Edge slopes',
+				},
+				overhang: {
+					default: 0,
+					description: 'Uniform horizontal eaves overhang outside the outline [mm].',
+					minimum: 0,
+					title: 'Overhang',
+					type: 'number',
+				},
+				edgeOverhangs: {
+					anyOf: [
+						{
+							items: {
+								description: '[mm]',
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Per-edge horizontal eaves overhang [mm] (overrides overhang).',
+					title: 'Edge overhangs',
+				},
+				upperSlope: {
+					anyOf: [
+						{
+							exclusiveMaximum: 90,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Second (upper) slope [°] above breakHeight for a mansard roof.',
+					title: 'Upper slope',
+				},
+				breakHeight: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height above eaves [mm] where a mansard roof changes to upperSlope.',
+					title: 'Break height',
+				},
+				drainageSlope: {
+					default: 0,
+					description: 'Small fall [°] on a flat roof towards direction.',
+					exclusiveMaximum: 45,
+					minimum: 0,
+					title: 'Drainage slope',
+					type: 'number',
+				},
+				thickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional thickness override [mm] (defaults to the roof type\'s thickness).',
+					title: 'Thickness',
 				},
 			},
 			required: ['id', 'type', 'story', 'outline'],
@@ -39550,6 +40192,27 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Curtain wall types',
 			type: 'array',
 		},
+		curtainPanelTypes: {
+			items: {
+				$ref: '#/$defs/CurtainPanelType',
+			},
+			title: 'Curtain panel types',
+			type: 'array',
+		},
+		curtainMullionTypes: {
+			items: {
+				$ref: '#/$defs/CurtainMullionType',
+			},
+			title: 'Curtain mullion types',
+			type: 'array',
+		},
+		ceilingTypes: {
+			items: {
+				$ref: '#/$defs/CeilingType',
+			},
+			title: 'Ceiling types',
+			type: 'array',
+		},
 		roofTypes: {
 			items: {
 				$ref: '#/$defs/RoofType',
@@ -39604,6 +40267,13 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 				$ref: '#/$defs/CurtainWall',
 			},
 			title: 'Curtain walls',
+			type: 'array',
+		},
+		ceilings: {
+			items: {
+				$ref: '#/$defs/Ceiling',
+			},
+			title: 'Ceilings',
 			type: 'array',
 		},
 		roofs: {
@@ -39789,6 +40459,79 @@ export const DEFAULT_ARCHITECTURE: object = {
 			transomSpacing: 1500.0,
 		},
 	],
+	curtainPanelTypes: [
+		{
+			id: 'CP-GLZ',
+			name: 'Double glazed unit 24 mm',
+			kind: 'glazed',
+			material: 'Glass',
+			thickness: 12.0,
+			unitWeight: 25.0,
+		},
+		{
+			id: 'CP-SOL',
+			name: 'Insulated aluminium spandrel panel',
+			kind: 'solid',
+			material: 'Spandrel',
+			thickness: 25.0,
+			unitWeight: 20.0,
+		},
+		{
+			id: 'CP-DOOR',
+			name: 'Curtain wall glazed door leaf',
+			kind: 'door',
+			material: 'Glass + Aluminium',
+			thickness: 45.0,
+			weight: 0.45,
+		},
+	],
+	curtainMullionTypes: [
+		{
+			id: 'CM-50x150',
+			name: 'Aluminium mullion 50x150 mm',
+			width: 50.0,
+			depth: 150.0,
+			wallThickness: 3.0,
+			material: 'Aluminium',
+			unitWeight: 27.0,
+		},
+		{
+			id: 'CM-50x100',
+			name: 'Aluminium transom 50x100 mm',
+			width: 50.0,
+			depth: 100.0,
+			wallThickness: 3.0,
+			material: 'Aluminium',
+			unitWeight: 27.0,
+		},
+	],
+	ceilingTypes: [
+		{
+			id: 'CL1',
+			name: 'Gypsum board ceiling 12.5 mm',
+			kind: 'gypsum',
+			thickness: 12.5,
+			weight: 0.15,
+		},
+		{
+			id: 'CL2',
+			name: 'Acoustic grid ceiling 600x600 mm',
+			kind: 'grid',
+			thickness: 15.0,
+			weight: 0.12,
+			gridX: 600.0,
+			gridY: 600.0,
+		},
+		{
+			id: 'CL3',
+			name: 'Acoustic grid ceiling 600x1200 mm',
+			kind: 'grid',
+			thickness: 15.0,
+			weight: 0.12,
+			gridX: 600.0,
+			gridY: 1200.0,
+		},
+	],
 	roofTypes: [
 		{
 			id: 'RF1',
@@ -39847,6 +40590,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 	rooms: [],
 	separators: [],
 	curtainWalls: [],
+	ceilings: [],
 	roofs: [],
 	ramps: [],
 	railings: [],
