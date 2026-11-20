@@ -6365,6 +6365,47 @@ class HvacDuctDesign(_Group):
     )
 
 
+ScheduleFrac = Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class HvacScheduleProfile(_Row):
+    """24-hour fractional weekday and weekend schedules (0-1) for annual energy simulation
+    (ASHRAE 90.1 Appendix G / BNBC Part 8 practice, to be checked)."""
+
+    occupancyWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    occupancyWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    lightingWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    lightingWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    equipmentWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    equipmentWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+
+
+class HvacSchedules(_Group):
+    """Hourly operating schedules by room use / ventilation group for annual EnergyPlus runs."""
+
+    defaultProfile: str = Field(default="office")
+    groupSchedule: dict[str, str] = Field(default_factory=dict)
+    profiles: dict[str, HvacScheduleProfile] = Field(default_factory=dict)
+
+
+class HvacEnvelopeCompliance(_Group):
+    """Prescriptive envelope compliance limits (U-values [W/m²K], max WWR, SHGC fallback;
+    ASHRAE 90.1 Table 5.5-1 / ECBC Table 4-1..4-6 / BNBC Part 3 Ch 4, to be checked)."""
+
+    uWallMax: PosNum = Field(default=0.6, description="Maximum opaque wall U-value [W/m²K].")
+    uRoofMax: PosNum = Field(default=0.35, description="Maximum roof U-value [W/m²K].")
+    uGlazingMax: PosNum = Field(default=3.3, description="Maximum glazing U-value [W/m²K].")
+    wwrMax: Share = Field(default=0.4, description="Maximum window-to-wall ratio (0-1).")
+    shgcMaxDefault: Share = Field(
+        default=0.25,
+        description="Fallback maximum SHGC when shgcByWwr is absent (0-1).",
+    )
+    reference: str = Field(
+        default="ASHRAE 90.1 Table 5.5-1 / ECBC / BNBC Part 3 Ch 4 (to be checked)",
+        description="Standard or table citation.",
+    )
+
+
 class HvacTable(_Services):
     """The default pack's Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
     stated assumptions where the code is silent (marked in ``sources``, listed in
@@ -6403,6 +6444,9 @@ class HvacTable(_Services):
     # R6: winter heating defaults and duct pressure/sizing data (optional for custom packs)
     heating: HvacHeating | None = None
     ductDesign: HvacDuctDesign | None = None
+    # R10: annual energy schedules and envelope compliance limits (optional for custom packs)
+    schedules: HvacSchedules | None = None
+    envelopeCompliance: HvacEnvelopeCompliance | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> HvacTable:

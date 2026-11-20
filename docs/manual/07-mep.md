@@ -96,6 +96,19 @@ critical path to report **fan static pressure**, and flags ducts exceeding noise
 `auto_route_ducts` (`saengine.hvac.routing`) lays out supply/return duct trees from an AHU or FCU
 to room diffusers along corridors using `RoomGraph` with penalties for crossing structural beams.
 
+### Annual Energy Simulation and Envelope Compliance
+
+Set `hvac.design.annual: true` and `hvac.design.weatherFile` to an EnergyPlus `.epw` weather file
+path (no weather file is bundled; a missing path is reported cleanly) to build a full-year
+EnergyPlus simulation (`RunPeriod` Jan 1–Dec 31) with hourly weekday/weekend occupancy, lighting,
+and equipment schedules by room use (`hvac.json` `schedules`, ASHRAE 90.1 Appendix G / BNBC Part 8
+practice, marked to be checked) and `Output:Meter` end-use reporting. Annual outputs report
+heating, cooling, lighting, and equipment energy (kWh), whole-building **EUI** (kWh/m²·yr) using
+ideal loads or the selected `hvac.system` COP, and setpoint unmet hours. Every HVAC report also
+includes an **envelope compliance** pass/fail table checking exterior wall U-value, roof U-value,
+glazing U-value, window-to-wall ratio (WWR), and SHGC against the code pack's limits (`hvac.json`
+`envelopeCompliance` and `shgcByWwr`).
+
 ## Electrical
 
 Toolbar: **Add Equipment** (transformer, HT switchgear, LT panel, generator, fuel tank, UPS,

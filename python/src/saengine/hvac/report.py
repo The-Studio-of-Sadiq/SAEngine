@@ -30,6 +30,7 @@ from typing import Any
 from saengine.hvac import energyplus as EP
 from saengine.hvac import fallback as F
 from saengine.hvac import tables as T
+from saengine.hvac.compliance import check_envelope_compliance
 from saengine.hvac.constructions import envelope as envelope_choice
 from saengine.hvac.gains import design_conditions, room_gains, single_room_gains, zone_gains
 from saengine.hvac.geometry import zones as make_zones
@@ -155,6 +156,8 @@ def hvac_results(
     rooms: Any = None,
     zoning: str | None = None,
     arch: Any = None,
+    annual: bool | None = None,
+    epw: str | Path | None = None,
 ) -> dict[str, Any]:
     """The cooling and heating loads of parsed models (``bim``: a BuildingModel; ``location``:
     the Project Settings site location). ``zoning``: ``"room"`` (default when architecture rooms
@@ -241,6 +244,7 @@ def hvac_results(
                 f"{zone.story}: outdoor and indoor dry bulbs differ by more than 11 °C: an "
                 f"ante-room is needed ({T.PAGES['2.7.2.1b']})"
             )
+    env_compliance = check_envelope_compliance(env, zoning_res.zones)
     base = {
         "method": method(),
         "zoning": mode,
@@ -255,16 +259,38 @@ def hvac_results(
             "uWall": round(env.uWall, 3), "uRoof": round(env.uRoof, 3),
             "uGlazing": env.uGlazing, "shgc": env.shgc, "shading": env.shading,
         },
+        "envelopeCompliance": env_compliance,
         "assumptions": list(T.ASSUMPTIONS),
     }  # fmt: skip
     if not conditioned:
         return {**base, "engine": None, "zones": [], "stories": [], "total": 0.0,
                 "heatingTotal": 0.0, "notes": notes,
                 "problems": [*problems, "no conditioned story to work out"]}  # fmt: skip
-    model = EP.build(zoning_res.zones, gains, env, design)
+    is_annual = bool(annual if annual is not None else getattr(hvac.design, "annual", False))
+    epw_raw = epw if epw is not None else getattr(hvac.design, "weatherFile", None)
+    epw_path: Path | None = Path(epw_raw) if epw_raw else None
+    epw_missing = is_annual and (epw_path is None or not epw_path.is_file())
+    if epw_missing:
+        msg = (
+            "Annual energy simulation requires an EPW weather file (no weather file is bundled): "
+            + (
+                "no weatherFile / epw path was provided"
+                if epw_path is None
+                else f"file not found: {epw_path}"
+            )
+        )
+        problems.append(msg)
+    conditioned_area = sum(z.area for z in conditioned)
+    model = EP.build(zoning_res.zones, gains, env, design, annual=is_annual, system=hvac.system)
     exe = EP.find_energyplus(energyplus) if use_energyplus else None
     stamp = _stamp(
-        {"version": CACHE_VERSION, "model": model.epjson, "engine": str(exe) if exe else None}
+        {
+            "version": CACHE_VERSION,
+            "model": model.epjson,
+            "engine": str(exe) if exe else None,
+            "annual": is_annual,
+            "epw": str(epw_path) if epw_path else None,
+        }
     )
     run = None
     cached = False
@@ -280,9 +306,9 @@ def hvac_results(
             "loads not calculated with EnergyPlus for this input: the estimate is shown; run "
             "Calculate Loads"
         )
-    elif exe is not None:
+    elif exe is not None and not epw_missing:
         try:
-            run = EP.run(model, exe, folder)
+            run = EP.run(model, exe, folder, epw=epw_path, floor_area_m2=conditioned_area)
         except (EP.EnergyPlusError, OSError) as error:
             problems.append(f"{error}; the estimate is given instead")
     if run is not None:
@@ -398,6 +424,8 @@ def hvac_results(
         result["energyplus"] = {
             "seconds": run["seconds"], "warnings": run["warnings"], "envelope": run["envelope"],
         }  # fmt: skip
+        if "annual" in run:
+            result["annual"] = run["annual"]
         notes.append(
             "total: the sum of the zones' peaks (each sized for its own); building: the "
             "coincident peak of all zones (for central plant)"
@@ -474,6 +502,8 @@ def hvac_loads(
     cache: bool = True,
     run_energyplus: bool = True,
     zoning: str | None = None,
+    annual: bool | None = None,
+    epw: str | Path | None = None,
 ) -> dict[str, Any]:
     """The cooling and heating loads of a project (``mep_text``: unsaved ``07 MEP/mep.json``):
     ``{engine: "EnergyPlus version 26.2.0" | "estimate", zones: [{story, room, area, sensible,
@@ -507,7 +537,7 @@ def hvac_loads(
         result = hvac_results(
             mep, bim, location, ground, energyplus=energyplus,
             use_energyplus=use_energyplus, cache=old, run_energyplus=run_energyplus,
-            rooms=rooms, zoning=zoning, arch=arch,
+            rooms=rooms, zoning=zoning, arch=arch, annual=annual, epw=epw,
         )  # fmt: skip
     except Exception as error:  # noqa: BLE001 - a partly entered model must not fail the RPC
         return {"engine": None, "zones": [], "stories": [], "total": 0.0, "heatingTotal": 0.0,

@@ -469,6 +469,81 @@
       "title": "HvacDuctDesign",
       "type": "object"
     },
+    "HvacEnvelopeCompliance": {
+      "additionalProperties": false,
+      "description": "Prescriptive envelope compliance limits (U-values [W/m²K], max WWR, SHGC fallback;\nASHRAE 90.1 Table 5.5-1 / ECBC Table 4-1..4-6 / BNBC Part 3 Ch 4, to be checked).",
+      "properties": {
+        "uWallMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "default": 0.6,
+          "description": "Maximum opaque wall U-value [W/m²K].",
+          "title": "Uwallmax"
+        },
+        "uRoofMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "default": 0.35,
+          "description": "Maximum roof U-value [W/m²K].",
+          "title": "Uroofmax"
+        },
+        "uGlazingMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "default": 3.3,
+          "description": "Maximum glazing U-value [W/m²K].",
+          "title": "Uglazingmax"
+        },
+        "wwrMax": {
+          "default": 0.4,
+          "description": "Maximum window-to-wall ratio (0-1).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Wwrmax",
+          "type": "number"
+        },
+        "shgcMaxDefault": {
+          "default": 0.25,
+          "description": "Fallback maximum SHGC when shgcByWwr is absent (0-1).",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Shgcmaxdefault",
+          "type": "number"
+        },
+        "reference": {
+          "default": "ASHRAE 90.1 Table 5.5-1 / ECBC / BNBC Part 3 Ch 4 (to be checked)",
+          "description": "Standard or table citation.",
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "title": "HvacEnvelopeCompliance",
+      "type": "object"
+    },
     "HvacHeating": {
       "additionalProperties": false,
       "description": "Winter heating design conditions and infiltration defaults (ASHRAE Fundamentals Ch 16-18).",
@@ -601,6 +676,128 @@
         "headroom"
       ],
       "title": "HvacPlant",
+      "type": "object"
+    },
+    "HvacScheduleProfile": {
+      "additionalProperties": false,
+      "description": "24-hour fractional weekday and weekend schedules (0-1) for annual energy simulation\n(ASHRAE 90.1 Appendix G / BNBC Part 8 practice, to be checked).",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "occupancyWeekday": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Occupancyweekday",
+          "type": "array"
+        },
+        "occupancyWeekend": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Occupancyweekend",
+          "type": "array"
+        },
+        "lightingWeekday": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Lightingweekday",
+          "type": "array"
+        },
+        "lightingWeekend": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Lightingweekend",
+          "type": "array"
+        },
+        "equipmentWeekday": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Equipmentweekday",
+          "type": "array"
+        },
+        "equipmentWeekend": {
+          "items": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "maxItems": 24,
+          "minItems": 24,
+          "title": "Equipmentweekend",
+          "type": "array"
+        }
+      },
+      "required": [
+        "occupancyWeekday",
+        "occupancyWeekend",
+        "lightingWeekday",
+        "lightingWeekend",
+        "equipmentWeekday",
+        "equipmentWeekend"
+      ],
+      "title": "HvacScheduleProfile",
+      "type": "object"
+    },
+    "HvacSchedules": {
+      "additionalProperties": false,
+      "description": "Hourly operating schedules by room use / ventilation group for annual EnergyPlus runs.",
+      "properties": {
+        "defaultProfile": {
+          "default": "office",
+          "title": "Defaultprofile",
+          "type": "string"
+        },
+        "groupSchedule": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Groupschedule",
+          "type": "object"
+        },
+        "profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HvacScheduleProfile"
+          },
+          "title": "Profiles",
+          "type": "object"
+        }
+      },
+      "title": "HvacSchedules",
       "type": "object"
     },
     "InsideRow": {
@@ -1402,6 +1599,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/HvacDuctDesign"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schedules": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacSchedules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "envelopeCompliance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HvacEnvelopeCompliance"
         },
         {
           "type": "null"

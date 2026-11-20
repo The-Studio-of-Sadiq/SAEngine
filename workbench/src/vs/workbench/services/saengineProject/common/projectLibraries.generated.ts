@@ -38280,6 +38280,25 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Envelope infiltration [ACH] for heating; empty: default from code/practice table.',
 					title: 'Infiltration rate',
 				},
+				annual: {
+					default: false,
+					description: 'Run a full-year EnergyPlus simulation (Jan 1 - Dec 31) using weatherFile.',
+					title: 'Annual simulation',
+					type: 'boolean',
+				},
+				weatherFile: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Path to an EnergyPlus .epw weather file for annual simulation (none bundled).',
+					title: 'Weather file (EPW)',
+				},
 			},
 			title: 'HvacDesign',
 			type: 'object',
