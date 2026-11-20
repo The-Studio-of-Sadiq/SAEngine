@@ -92,6 +92,7 @@ def _window_partitioning(window_type: WindowType) -> str:
         return "DOUBLE_PANEL_VERTICAL"
     return _WINDOW_PARTITIONING.get(window_type.style, "SINGLE_PANEL")
 
+
 #: Unit weights [kN/m³] guessed from a material's name, for imported wall layers.
 _UNIT_WEIGHTS = (
     (re.compile(r"brick|masonry|clay", re.IGNORECASE), 18.85),
@@ -547,9 +548,7 @@ def _export_extras(
                     max(mullion.length, 1.0),
                     5,
                 )
-                w.run(
-                    "aggregate.assign_object", w.file, products=[member], relating_object=product
-                )
+                w.run("aggregate.assign_object", w.file, products=[member], relating_object=product)
                 w.place(member, _placement(mullion.start, (dx, dy, 0.0), (0, 0, 1)))
             else:
                 w.extrusion(
@@ -558,9 +557,7 @@ def _export_extras(
                     max(mullion.length, 1.0),
                     5,
                 )
-                w.run(
-                    "aggregate.assign_object", w.file, products=[member], relating_object=product
-                )
+                w.run("aggregate.assign_object", w.file, products=[member], relating_object=product)
                 w.place(member, _placement(mullion.start, (-dy, dx, 0.0), (dx, dy, 0.0)))
             pset(
                 member,
@@ -683,9 +680,7 @@ def _export_extras(
                 u = u - np.dot(u, n) * n
             u /= np.linalg.norm(u)
             v = np.cross(n, u)
-            flat = [
-                (float((p - origin) @ u) * _SI, float((p - origin) @ v) * _SI) for p in pts3
-            ]
+            flat = [(float((p - origin) @ u) * _SI, float((p - origin) @ v) * _SI) for p in pts3]
             slab = w.entity(
                 "IfcSlab", f"{roof.id} face {idx}", f"arch:{roof.id}:face:{idx}", "ROOF"
             )

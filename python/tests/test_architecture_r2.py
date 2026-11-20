@@ -17,7 +17,6 @@ from saengine.fem.derive import derive_fem
 from saengine.library import default_material_library
 from saengine.library.architecture import Architecture, default_architecture
 from saengine.library.bim import generate
-from saengine.library.ifc import export_ifc
 from saengine.library.components import (
     _G_KN_PER_KG,
     array_component,
@@ -28,6 +27,7 @@ from saengine.library.components import (
     starter_component_types,
 )
 from saengine.library.export import library_json
+from saengine.library.ifc import export_ifc
 from saengine.library.massing import (
     ConceptualMass,
     InPlaceElement,
@@ -167,9 +167,7 @@ def test_mirror_and_array_components() -> None:
     arch = _two_room_arch()
     arch, c1 = place_component(arch, "DESK", "L1", [1000, 2500], ELEVATIONS, rotation=30.0)
     # Mirror copy across x = 4000 moves point x = 1000 -> x = 7000 (outside R2) or across x = 3000 -> 5000 (into R2)
-    arch, c2 = mirror_component(
-        arch, c1.id, [3000, 0], [3000, 5000], ELEVATIONS, copy=True
-    )
+    arch, c2 = mirror_component(arch, c1.id, [3000, 0], [3000, 5000], ELEVATIONS, copy=True)
     assert c2.point == pytest.approx([5000, 2500])
     assert c2.mirrored is True
     assert c2.rotation == pytest.approx(150.0)
@@ -177,9 +175,7 @@ def test_mirror_and_array_components() -> None:
 
     # Linear array of 3 chairs inside R1 (x = 1000, 2000, 3000)
     arch, ch1 = place_component(arch, "CHAIR", "L1", [1000, 1000], ELEVATIONS)
-    arch, copies = array_component(
-        arch, ch1.id, count=3, dx=1000.0, dy=0.0, elevations=ELEVATIONS
-    )
+    arch, copies = array_component(arch, ch1.id, count=3, dx=1000.0, dy=0.0, elevations=ELEVATIONS)
     assert len(copies) == 2
     assert [c.point for c in copies] == [[2000.0, 1000.0], [3000.0, 1000.0]]
     assert all(c.hostRoom == "R1" for c in copies)
@@ -278,7 +274,9 @@ def test_mass_extrusion_floors_gfa_far_and_create_floors() -> None:
     assert report["totalVolume_m3"] == pytest.approx(9000.0)
     assert report["far"] == pytest.approx(3.0)
     assert report["groundCoveragePercent"] == pytest.approx(30.0)
-    assert any(c["label"] == "FAR" and c["provided"] == pytest.approx(3.0) for c in report["checks"])
+    assert any(
+        c["label"] == "FAR" and c["provided"] == pytest.approx(3.0) for c in report["checks"]
+    )
 
     generated = create_floors_from_mass(mass)
     assert len(generated["stories"]) == 11  # 10 floors + top roof level at +30 m
@@ -357,7 +355,16 @@ def test_types_library_crud_rename_delete_refusal_and_round_trip() -> None:
     # All categories listed
     all_rows = list_types(arch)
     categories_present = {r["category"] for r in all_rows}
-    assert {"wall", "door", "window", "finish", "roof", "railing", "curtainWall", "component"} <= categories_present
+    assert {
+        "wall",
+        "door",
+        "window",
+        "finish",
+        "roof",
+        "railing",
+        "curtainWall",
+        "component",
+    } <= categories_present
 
     # Used type cannot be deleted
     assert type_usages(arch, "component", "BED-DBL") == ["C1"]
@@ -415,9 +422,7 @@ def test_ifc_export_contains_furniture_terminal_mass_proxy_and_opening_params() 
     arch = Architecture.model_validate(
         {
             **library_json(arch),
-            "walls": [
-                {"id": "AW1", "type": "BW250", "base": "L1", "path": [[0, 0], [4000, 0]]}
-            ],
+            "walls": [{"id": "AW1", "type": "BW250", "base": "L1", "path": [[0, 0], [4000, 0]]}],
             "doorTypes": [
                 {
                     "id": "D-R",
@@ -450,7 +455,12 @@ def test_ifc_export_contains_furniture_terminal_mass_proxy_and_opening_params() 
                     "baseElevation": 0.0,
                     "height": 30_000.0,
                     "baseOutline": [[0, 0], [20_000, 0], [20_000, 15_000], [0, 15_000]],
-                    "topOutline": [[5_000, 2_500], [15_000, 2_500], [15_000, 12_500], [5_000, 12_500]],
+                    "topOutline": [
+                        [5_000, 2_500],
+                        [15_000, 2_500],
+                        [15_000, 12_500],
+                        [5_000, 12_500],
+                    ],
                 },
             ],
         }

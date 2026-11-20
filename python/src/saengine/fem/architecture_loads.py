@@ -263,6 +263,7 @@ def architecture_loads(
             cw_type = curtain_types[curtain.type]
             layout = arch_lib.curtain_wall_layout(arch, curtain, context.elevations)
             if layout is not None and layout.detailed:
+
                 class _CurtainAdapter:
                     id = cw_type.id
                     thickness = layout.depth

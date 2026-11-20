@@ -253,7 +253,11 @@ class CurtainPanelType(_Model):
         """Weight per m² of panel [kN/m²]."""
         if self.weight is not None:
             return self.weight
-        density = self.unitWeight if self.unitWeight is not None else (25.0 if self.kind == "glazed" else 20.0)
+        density = (
+            self.unitWeight
+            if self.unitWeight is not None
+            else (25.0 if self.kind == "glazed" else 20.0)
+        )
         return self.thickness / 1000 * density
 
 
@@ -618,7 +622,9 @@ class Ceiling(_Model):
     outline: list[Point2] | None = Field(
         default=None, min_length=3, description="Plan outline [mm] (instead of room)."
     )
-    gridRotation: float = Field(default=0, title="Grid rotation", description="Tile grid angle [°].")
+    gridRotation: float = Field(
+        default=0, title="Grid rotation", description="Tile grid angle [°]."
+    )
     gridOrigin: Point2 | None = Field(
         default=None, title="Grid origin", description="Optional origin point for tile grid [mm]."
     )
@@ -725,9 +731,7 @@ class Architecture(_Model):
     ceilingTypes: list[CeilingType] = Field(default_factory=list, title="Ceiling types")
     roofTypes: list[RoofType] = Field(default_factory=list, title="Roof types")
     railingTypes: list[RailingType] = Field(default_factory=list, title="Railing types")
-    componentTypes: list[ComponentType] = Field(
-        default_factory=list, title="Component types"
-    )
+    componentTypes: list[ComponentType] = Field(default_factory=list, title="Component types")
     walls: list[ArchWall] = Field(default_factory=list)
     doors: list[Door] = Field(default_factory=list)
     windows: list[Window] = Field(default_factory=list)
@@ -740,9 +744,7 @@ class Architecture(_Model):
     railings: list[Railing] = Field(default_factory=list)
     components: list[ComponentInstance] = Field(default_factory=list)
     masses: list[ConceptualMass] = Field(default_factory=list)
-    inPlaceElements: list[InPlaceElement] = Field(
-        default_factory=list, title="In-place elements"
-    )
+    inPlaceElements: list[InPlaceElement] = Field(default_factory=list, title="In-place elements")
     imports: list[DrawingImport] = Field(
         default_factory=list,
         title="Drawing imports",
@@ -1183,7 +1185,9 @@ def roof_area(roof: Roof) -> tuple[float, float]:
 # ───────────────────────────── ceilings & void ─────────────────────────────
 
 
-def ceiling_polygon(arch: Architecture, ceiling: Ceiling, elevations: dict[str, float]) -> Any | None:
+def ceiling_polygon(
+    arch: Architecture, ceiling: Ceiling, elevations: dict[str, float]
+) -> Any | None:
     """The ceiling's net horizontal polygon [mm] (room net floor or outline, less openings)."""
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
@@ -1238,7 +1242,12 @@ def ceiling_grid_lines(
     ux, uy = math.cos(rad), math.sin(rad)
     vx, vy = -uy, ux
     minx, miny, maxx, maxy = polygon.bounds
-    corners = [(minx - ox, miny - oy), (maxx - ox, miny - oy), (maxx - ox, maxy - oy), (minx - ox, maxy - oy)]
+    corners = [
+        (minx - ox, miny - oy),
+        (maxx - ox, miny - oy),
+        (maxx - ox, maxy - oy),
+        (minx - ox, maxy - oy),
+    ]
     u_vals = [dx * ux + dy * uy for dx, dy in corners]
     v_vals = [dx * vx + dy * vy for dx, dy in corners]
     u_min, u_max = min(u_vals), max(u_vals)
@@ -1252,7 +1261,12 @@ def ceiling_grid_lines(
         if geom.geom_type == "LineString":
             coords = list(geom.coords)
             if len(coords) >= 2 and math.dist(coords[0], coords[-1]) > 1e-3:
-                segments.append(((float(coords[0][0]), float(coords[0][1])), (float(coords[-1][0]), float(coords[-1][1]))))
+                segments.append(
+                    (
+                        (float(coords[0][0]), float(coords[0][1])),
+                        (float(coords[-1][0]), float(coords[-1][1])),
+                    )
+                )
         elif hasattr(geom, "geoms"):
             for part in geom.geoms:
                 add_clipped(part)
@@ -1298,7 +1312,9 @@ class CeilingVoidCheck:
         )
         return available >= service_depth + clearance - 1e-6
 
-    def margin(self, service_depth: float, clearance: float = 0.0, under_beams: bool = False) -> float:
+    def margin(
+        self, service_depth: float, clearance: float = 0.0, under_beams: bool = False
+    ) -> float:
         """Remaining headroom [mm] (negative when the service clashes with the ceiling)."""
         available = (
             self.void_under_beams
@@ -1615,9 +1631,7 @@ def curtain_wall_layout(
     mullion_types = {t.id: t for t in arch.curtainMullionTypes}
     default_panel = panel_types.get(cw_type.panelType) if cw_type.panelType else None
     v_mullion = mullion_types.get(cw_type.verticalMullion) if cw_type.verticalMullion else None
-    h_mullion = (
-        mullion_types.get(cw_type.horizontalMullion) if cw_type.horizontalMullion else None
-    )
+    h_mullion = mullion_types.get(cw_type.horizontalMullion) if cw_type.horizontalMullion else None
     b_mullion = mullion_types.get(cw_type.borderMullion) if cw_type.borderMullion else None
     overrides = {(ov.segment, ov.column, ov.row): ov.panelType for ov in curtain.panelOverrides}
 
@@ -1634,9 +1648,7 @@ def curtain_wall_layout(
     total_length = 0.0
     total_cols = 0
 
-    segments = [
-        (a, b) for a, b in itertools.pairwise(curtain.path) if math.dist(a, b) > 1e-6
-    ]
+    segments = [(a, b) for a, b in itertools.pairwise(curtain.path) if math.dist(a, b) > 1e-6]
     for seg_idx, (a, b) in enumerate(segments):
         seg_len = math.dist(a, b)
         total_length += seg_len
@@ -1680,7 +1692,7 @@ def curtain_wall_layout(
             is_border = (seg_idx == 0 and k == 0) or (
                 seg_idx == len(segments) - 1 and k == len(u_divs) - 1
             )
-            mtype = (b_mullion if is_border and b_mullion is not None else v_mullion)
+            mtype = b_mullion if is_border and b_mullion is not None else v_mullion
             px, py = a[0] + dx * u, a[1] + dy * u
             mullions.append(
                 CurtainMullion(
@@ -1702,7 +1714,7 @@ def curtain_wall_layout(
         # Horizontal transoms
         for r_idx, z_rel in enumerate(z_divs):
             is_border = r_idx == 0 or r_idx == len(z_divs) - 1
-            mtype = (b_mullion if is_border and b_mullion is not None else h_mullion)
+            mtype = b_mullion if is_border and b_mullion is not None else h_mullion
             z_abs = bottom + z_rel
             mullions.append(
                 CurtainMullion(
@@ -1906,7 +1918,13 @@ def check(arch: Architecture, floor_plan: Any = None) -> list[str]:
                     problems.append(f"{curtain.id}: no story '{story}'")
             if wall_levels(curtain, elevations) is None and curtain.base in elevations:
                 problems.append(f"{curtain.id}: no story above to rise to; give its height")
-        for item in [*arch.roofs, *arch.ramps, *arch.ceilings, *arch.components, *arch.inPlaceElements]:
+        for item in [
+            *arch.roofs,
+            *arch.ramps,
+            *arch.ceilings,
+            *arch.components,
+            *arch.inPlaceElements,
+        ]:
             if item.story not in elevations:
                 problems.append(f"{item.id}: no story '{item.story}'")
         for ceiling in arch.ceilings:

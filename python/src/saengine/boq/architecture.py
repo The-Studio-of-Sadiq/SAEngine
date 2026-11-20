@@ -342,7 +342,8 @@ def _extras(measure: Any, arch: arch_lib.Architecture, building: Any) -> None:
             ceiling.id,
             area,
             story=ceiling.story,
-            detail=f"height {ceiling.height:g} mm" + (f", room {ceiling.room}" if ceiling.room else ""),
+            detail=f"height {ceiling.height:g} mm"
+            + (f", room {ceiling.room}" if ceiling.room else ""),
             kind="ceiling",
         )
     finishes = {t.id: t for t in arch.finishTypes}

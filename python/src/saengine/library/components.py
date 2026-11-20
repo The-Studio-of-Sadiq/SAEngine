@@ -167,7 +167,9 @@ class ComponentInstance(_Model):
     story: Id
     point: Point2 = Field(description="Insertion centre [x, y] in mm.")
     rotation: float = Field(default=0.0, description="Plan rotation CCW [°].")
-    mirrored: bool = Field(default=False, description="Mirrored across local Y axis before rotation.")
+    mirrored: bool = Field(
+        default=False, description="Mirrored across local Y axis before rotation."
+    )
     elevation: Mm = Field(default=0.0, description="Offset above the story level [mm].")
     hostRoom: Id | None = Field(
         default=None,
@@ -836,7 +838,9 @@ def explicit_furnishings_allowed() -> bool:
     return bool(getattr(rule, "explicitFurnishings", False)) if rule is not None else False
 
 
-def component_loads(arch: Architecture, building: Any, out: Any, mode: str = "architecture") -> None:
+def component_loads(
+    arch: Architecture, building: Any, out: Any, mode: str = "architecture"
+) -> None:
     """Record component weights on ``out.component_rows``; apply as SD loads on slabs only when
     the active code pack sets ``areaLoads.partitions.explicitFurnishings`` to True."""
     if not arch.components and not arch.inPlaceElements:
@@ -922,9 +926,7 @@ def component_loads(arch: Architecture, building: Any, out: Any, mode: str = "ar
 
         anchor = in_place_anchor(elem)
         room_id = elem.hostRoom or detect_host_room(arch, elem.story, anchor, elevations)
-        handle_item(
-            elem.id, "inPlace", elem.category, elem.story, anchor, elem.weight, room_id
-        )
+        handle_item(elem.id, "inPlace", elem.category, elem.story, anchor, elem.weight, room_id)
 
     if reported_only and not applied_any:
         out.notes.append(
@@ -935,9 +937,7 @@ def component_loads(arch: Architecture, building: Any, out: Any, mode: str = "ar
 # ───────────────────────────── IFC export ─────────────────────────────
 
 
-def _component_pset_props(
-    ctype: ComponentType, comp: ComponentInstance
-) -> dict[str, Any]:
+def _component_pset_props(ctype: ComponentType, comp: ComponentInstance) -> dict[str, Any]:
     merged: dict[str, Any] = {
         "TypeId": ctype.id,
         "TypeName": ctype.name,
@@ -958,7 +958,9 @@ def _build_component_profile(w: Any, ctype: ComponentType, mirrored: bool, name:
     from saengine.library.ifc import _SI
 
     if ctype.representation3d == "cylinder":
-        profile = w.run("profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef")
+        profile = w.run(
+            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+        )
         profile.Radius = float(min(ctype.width, ctype.depth) / 2.0)
         return profile
     if ctype.representation3d == "extrusion" and ctype.extrusionOutline:
@@ -1003,9 +1005,7 @@ def export_components_ifc(
         ctype = types[comp.type]
         ifc_class = ctype.resolved_ifc_class()
         predefined = (
-            None
-            if ifc_class == "IfcFlowTerminal"
-            else (ctype.ifcPredefinedType or "USERDEFINED")
+            None if ifc_class == "IfcFlowTerminal" else (ctype.ifcPredefinedType or "USERDEFINED")
         )
         product = w.entity(ifc_class, comp.id, f"arch:{comp.id}", predefined)
         product.Tag = comp.id
@@ -1063,7 +1063,9 @@ def export_components_ifc(
             )
 
         comp_props = w.run("pset.add_pset", w.file, product=product, name="SAEngine_Component")
-        w.run("pset.edit_pset", w.file, pset=comp_props, properties=_component_pset_props(ctype, comp))
+        w.run(
+            "pset.edit_pset", w.file, pset=comp_props, properties=_component_pset_props(ctype, comp)
+        )
         pset(
             product,
             {

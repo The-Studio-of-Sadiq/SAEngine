@@ -9,7 +9,6 @@ per-edge slopes (``0`` for non-sloping gable ends).
 
 from __future__ import annotations
 
-import itertools
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
@@ -80,7 +79,9 @@ def _signed_area_2d(pts: list[tuple[float, float]]) -> float:
     return 0.5 * area
 
 
-def _strip_closing(outline: list[list[float]] | list[tuple[float, float]]) -> list[tuple[float, float]]:
+def _strip_closing(
+    outline: list[list[float]] | list[tuple[float, float]],
+) -> list[tuple[float, float]]:
     pts = [(float(p[0]), float(p[1])) for p in outline]
     if len(pts) > 3 and math.dist(pts[0], pts[-1]) < 1e-6:
         pts = pts[:-1]
@@ -261,7 +262,11 @@ def _assemble_face_loops(
                 p_prev, p_curr = canon[prev_k], canon[curr_k]
                 in_ang = math.atan2(p_curr[1] - p_prev[1], p_curr[0] - p_prev[0])
 
-                def turn_key(candidate: tuple[int, int, int]) -> float:
+                def turn_key(
+                    candidate: tuple[int, int, int],
+                    p_curr: tuple[float, ...] = p_curr,
+                    in_ang: float = in_ang,
+                ) -> float:
                     pc = canon[candidate]
                     out_ang = math.atan2(pc[1] - p_curr[1], pc[0] - p_curr[0])
                     # Back direction is in_ang + pi; sweep clockwise from back = left turn first
@@ -341,7 +346,9 @@ def _solve_wavefront(
     half_edges: dict[int, list[tuple[tuple[float, float, float], tuple[float, float, float]]]] = {
         i: [] for i in range(n)
     }
-    raw_lines: list[tuple[RoofLineKind, tuple[float, float, float], tuple[float, float, float]]] = []
+    raw_lines: list[
+        tuple[RoofLineKind, tuple[float, float, float], tuple[float, float, float]]
+    ] = []
     # Recorded as (p1, p2, edge_a, edge_b) for interior skeleton lines before classification
     skeleton_segs: list[
         tuple[tuple[float, float, float], tuple[float, float, float], _EdgeInfo, _EdgeInfo]
@@ -473,7 +480,9 @@ def _solve_wavefront(
                         if e is u.in_edge or e is u.out_edge:
                             continue
                         # Note: if u touches a or b while being 2 hops away, skip if same orig edge
-                        dist0 = e.normal[0] * u.pos[0] + e.normal[1] * u.pos[1] - (e.c + e.speed * z)
+                        dist0 = (
+                            e.normal[0] * u.pos[0] + e.normal[1] * u.pos[1] - (e.c + e.speed * z)
+                        )
                         denom = e.normal[0] * u.vel[0] + e.normal[1] * u.vel[1] - e.speed
                         if dist0 < -1e-4 or denom >= -1e-9:
                             continue
@@ -579,10 +588,14 @@ def _solve_wavefront(
             collapse_zero_edges()
         else:
             li, i, lj, j, q = payload
-            if li < len(active_loops) and lj < len(active_loops):
-                if i < len(active_loops[li]) and j < len(active_loops[lj]):
-                    apply_split(li, i, lj, j, q)
-                    collapse_zero_edges()
+            if (
+                li < len(active_loops)
+                and lj < len(active_loops)
+                and i < len(active_loops[li])
+                and j < len(active_loops[lj])
+            ):
+                apply_split(li, i, lj, j, q)
+                collapse_zero_edges()
 
     # If max_height stopped the wavefront early, record surviving loops & break lines
     if active_loops:
@@ -663,71 +676,8 @@ def _solve_wavefront(
             # Vertical step (should not occur for continuous slopes)
             raw_lines.append(("hip", p1, p2))
             continue
-        px, py = -dy / seg_len, dx / seg_len  # perpendicular to segment in plan
-        mx, my = 0.5 * (p1[0] + p2[0]), 0.5 * (p1[1] + p2[1])
-        # Step 10 mm along (px, py) and compare z of face ea vs face eb
-        # For a convex hip, at a point on face ea's side of the ridge/hip, z_a < z_b (face ea is the
-        # lower envelope there); wait: if (px, py) points into ea (dot with n_a > dot with n_b),
-        # Wait: let's evaluate which face is higher on the side where it actually lies!
-        # Let's check using gradient vectors in XY: g_a = tan(alpha_a) * n_a, g_b = tan(alpha_b) * n_b.
-        # Along direction (dx, dy) uphill (if p2.z > p1.z, (dx, dy) goes uphill; else reverse):
-        ux, uy = (dx / seg_len, dy / seg_len) if p2[2] >= p1[2] else (-dx / seg_len, -dy / seg_len)
-        # Cross product of inward normal n_a and n_b? Better: test point m + 10*(px,py).
-        # Which edge is on the (px, py) side? Inward normal of ea makes angle with (px, py).
-        # Specifically, along a ridge/hip/valley line between half-planes z_a(x,y) and z_b(x,y):
-        # At a convex hip, the roof surface is the LOWER envelope min(z_a, z_b) near the line?
-        # Wait: for a pyramid/hip corner (x=0, y=0), z_a = x*tan, z_b = y*tan.
-        # Near the hip x = y, on the x > y side (face b, near y=0): z_b = y*tan < x*tan = z_a!
-        # So for a HIP (convex ridge), face b lies where z_b < z_a (lower envelope)!
-        # For a VALLEY (concave, inner corner of L-shape), face b lies where z_b > z_a (upper envelope)!
-        # How do we know which side of the line belongs to face a vs face b?
-        # Left of (p1->p2) or right: face a is on the side towards which ea's normal points AWAY from?
-        # Even simpler: dot of (px, py) with n_a vs n_b! Wait: along a hip moving away from corner:
-        # At (0,0) corner: ea is left edge (n_a=(1,0)), eb is bottom edge (n_b=(0,1)).
-        # Hip goes from (0,0) to (1,1). Left of hip is (px,py)=(-1/rt2, 1/rt2).
-        # Left of hip is face ea (where x < y, so z_a = x*tan < y*tan = z_b)!
-        # Notice (px,py) · n_a = -1/rt2 < 0 while (px,py) · n_b = +1/rt2 > 0! Wait: moving into face ea
-        # from the corner goes towards edge ea (against n_a)!
-        # Let's check valley at (4,4) going to (2,2): ea=top (n_a=(0,-1)), eb=right (n_b=(-1,0)).
-        # Vector uphill is (-1/rt2, -1/rt2). Left of uphill is (1/rt2, -1/rt2) -> goes towards (4,4)'s
-        # bottom side (x > y? Wait: from (3,3), +x,-y is (4,2) which is in face eb!).
-        # General algebraic invariant (NO guessing):
-        # At the corner (or along the bisector), edge ea is to the LEFT of (p1->p2) iff
-        # ea.tangent × eb.tangent > 0 at a convex corner (WAIT: ea and eb might not be adjacent).
-        # Better: the roof face of ea lies in the region where z_a(x,y) <= z_b(x,y) for a hip,
-        # OR check which of the two test points m ± 10*(px,py) is closer to ea's polygon / inside ea!
-        # Actually, we ALREADY assembled `faces`! We can just check if `eb` and `ea` share a convex or
-        # concave angle using `ea.normal × eb.normal`? Wait: for adjacent edges at a corner, if
-        # `p2` is higher than `p1` and the valley goes INWARD from a reflex corner, `(p2 - p1)` points
-        # into the roof while `(n_a + n_b)`? Let's test!
-        # Hip: at (0,0), ea=(0,10)->(0,0) n_a=(1,0), eb=(0,0)->(10,0) n_b=(0,1).
-        #   Uphill u = (1/rt2, 1/rt2). Notice g_a = tan(a)*n_a = (t,0), g_b = (0,t).
-        #   At a hip, the two slopes point TOWARDS each other? Wait: at (0,0) n_a=(1,0) and n_b=(0,1)
-        #   both point inward (+x, +y), and u = (+1, +1) has u · n_a > 0 AND u · n_b > 0.
-        #   What about the gradient difference (g_a - g_b)? Look at u × (n_a or n_b):
-        #   Wait: in `skeleton_segs`, EVERY trail segment comes from node `u` where `u.in_edge = ea`
-        #   and `u.out_edge = eb`! In CCW order around the polygon, `ea` ALWAYS precedes `eb` at `u`!
-        #   Wait: is `ea` ALWAYS the incoming edge and `eb` ALWAYS the outgoing edge at `u`?
-        #   Look at `advance_all`: `skeleton_segs.append((old_p, new_p, u.in_edge, u.out_edge))`!
-        #   YES! At node `u`, `ea = u.in_edge` and `eb = u.out_edge`!
-        #   At a CONVEX corner (`ea.tangent × eb.tangent > 0`), the corner turns LEFT -> HIP!
-        #   At a REFLEX corner (`ea.tangent × eb.tangent < 0`), the corner turns RIGHT -> VALLEY!
-        #   CHECK THAT!
-        #   - Rectangular corner: `ea` = left `(0,-1)`? Wait: `ea` = bottom `(1,0)`, `eb` = right `(0,1)`.
-        #     `ea.t × eb.t = 1*1 - 0 = +1 > 0` -> HIP!
-        #   - L-shape reflex corner: `ea` = `(-1, 0)`, `eb` = `(0, +1)`.
-        #     `ea.t × eb.t = (-1)*1 - 0 = -1 < 0` -> VALLEY!
-        #   - T-shape reflex corner: `ea` = `(0, +1)`, `eb` = `(+1, 0)`.
-        #     `ea.t × eb.t = 0 - 1*1 = -1 < 0` -> VALLEY!
-        #   - Split vertex `w1(e, u.out)`: `e` hits `u.out`, wait: at `w1` in Loop 1, `e` is `in_edge` and
-        #     `u.out` is `out_edge`. Since `u` hit `e` from the inside, what is `e.t × u_out.t`?
-        #     In unequal L-shape: `e = e5` has `t = (0, -1)`, `u.out = e3` has `t = (0, +1)` (anti-parallel -> ridge);
-        #     if `e5` was tilted, `w1` is convex (`> 0` -> hip) or reflex? A split always creates two convex corners!
-        #   Wait: what if `ea` and `eb` have VERY different slopes at a convex corner where `u` moves uphill
-        #   faster than... wait: at any vertex where `p2.z > p1.z`, `ea` (incoming) is ALWAYS to the RIGHT
-        #   of `(p1->p2)` and `eb` (outgoing) is ALWAYS to the LEFT of `(p1->p2)`? Wait: let's check `(0,0)->(2,2)`:
-        #   `ea = e3` (left edge `(0,10)->(0,0)`, on the LEFT of `(0,0)->(2,2)`!), `eb = e0` (bottom edge `(0,0)->(10,0)`, on the RIGHT!).
-        #   Yes! `ea.t × eb.t > 0` iff the vertex angle is convex (< 180°) -> HIP; `< 0` iff reflex (> 180°) -> VALLEY!
+        # The line between faces ea and eb is a hip where the edges turn convexly (left turn from
+        # ea's tangent to eb's) and a valley where they turn concavely (reflex corner of the outline).
         cross_t = ea.tangent[0] * eb.tangent[1] - ea.tangent[1] * eb.tangent[0]
         raw_lines.append(("valley" if cross_t < -1e-9 else "hip", p1, p2))
 
@@ -799,8 +749,13 @@ def _single_plane_roof(
         normal=normal,
     )
     lines = tuple(
-        RoofLine("eaves" if abs(verts[i][2] - verts[(i + 1) % len(verts)][2]) < 1.0 and verts[i][2] < 1.0 else "rake",
-                 verts[i], verts[(i + 1) % len(verts)])
+        RoofLine(
+            "eaves"
+            if abs(verts[i][2] - verts[(i + 1) % len(verts)][2]) < 1.0 and verts[i][2] < 1.0
+            else "rake",
+            verts[i],
+            verts[(i + 1) % len(verts)],
+        )
         for i in range(len(verts))
     )
     return RoofGeometry(
@@ -826,17 +781,23 @@ def compute_roof_geometry(roof: Roof) -> RoofGeometry:
         elif roof.slope > 0:
             return _single_plane_roof(outer, float(roof.slope), float(roof.direction), "shed")
         elif roof.drainageSlope > 0:
-            return _single_plane_roof(outer, float(roof.drainageSlope), float(roof.direction), "flat")
+            return _single_plane_roof(
+                outer, float(roof.drainageSlope), float(roof.direction), "flat"
+            )
         else:
             return _single_plane_roof(outer, 0.0, float(roof.direction), "flat")
 
     if not any(s > 0 for s in edge_slopes):
         if roof.drainageSlope > 0:
-            return _single_plane_roof(outer, float(roof.drainageSlope), float(roof.direction), "flat")
+            return _single_plane_roof(
+                outer, float(roof.drainageSlope), float(roof.direction), "flat"
+            )
         return _single_plane_roof(outer, 0.0, float(roof.direction), "flat")
 
     break_h = roof.breakHeight
-    faces, raw_lines, surviving = _solve_wavefront(outer, edge_slopes, z_offset=0.0, max_height=break_h)
+    faces, raw_lines, surviving = _solve_wavefront(
+        outer, edge_slopes, z_offset=0.0, max_height=break_h
+    )
 
     if break_h is not None and surviving:
         u_slope = float(roof.upperSlope or 0.0)
@@ -858,9 +819,7 @@ def compute_roof_geometry(roof: Roof) -> RoofGeometry:
                 upper_slopes = [u_slope if s > 0 else 0.0 for s in loop_slopes]
                 u_faces, u_lines, _ = _solve_wavefront(loop_pts, upper_slopes, z_offset=break_h)
                 faces.extend(u_faces)
-                raw_lines.extend(
-                    (kind, p1, p2) for kind, p1, p2 in u_lines if kind != "eaves"
-                )
+                raw_lines.extend((kind, p1, p2) for kind, p1, p2 in u_lines if kind != "eaves")
 
     lines = _dedup_lines(raw_lines)
     plan_area = sum(f.plan_area for f in faces)
@@ -875,9 +834,11 @@ def compute_roof_geometry(roof: Roof) -> RoofGeometry:
         kind = "shed"
     elif non_sloping_count == 0:
         kind = "hip"
-    elif sloping_count == 2 and not any(ln.kind == "hip" for ln in lines):
-        kind = "gable"
-    elif not any(ln.kind == "hip" for ln in lines):
+    elif (
+        sloping_count == 2
+        and not any(ln.kind == "hip" for ln in lines)
+        or not any(ln.kind == "hip" for ln in lines)
+    ):
         kind = "gable"
     else:
         kind = "complex"

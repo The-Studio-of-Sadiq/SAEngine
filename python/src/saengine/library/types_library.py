@@ -157,9 +157,7 @@ def type_usages(arch: Architecture, category: TypeCategory, type_id: str) -> lis
         return [w.id for w in arch.windows if w.type == type_id]
     if category == "finish":
         used = [
-            r.id
-            for r in arch.rooms
-            if type_id in (r.floorFinish, r.wallFinish, r.ceilingFinish)
+            r.id for r in arch.rooms if type_id in (r.floorFinish, r.wallFinish, r.ceilingFinish)
         ]
         used.extend(rp.id for rp in arch.ramps if rp.finish == type_id)
         return used
@@ -176,9 +174,7 @@ def type_usages(arch: Architecture, category: TypeCategory, type_id: str) -> lis
     return []
 
 
-def list_types(
-    arch: Architecture, category: TypeCategory | None = None
-) -> list[dict[str, Any]]:
+def list_types(arch: Architecture, category: TypeCategory | None = None) -> list[dict[str, Any]]:
     """Unified list of architectural types across ``category`` (or all categories)."""
     cats = (category,) if category is not None else TYPE_CATEGORIES
     rows: list[dict[str, Any]] = []
@@ -329,9 +325,7 @@ def delete_type(arch: Architecture, category: TypeCategory, type_id: str) -> Arc
         raise ValueError(f"no {category} type '{type_id}'")
     used = type_usages(arch, category, type_id)
     if used:
-        raise ValueError(
-            f"cannot delete {category} type '{type_id}': in use by {', '.join(used)}"
-        )
+        raise ValueError(f"cannot delete {category} type '{type_id}': in use by {', '.join(used)}")
     return _set_list(arch, category, [t for t in items if t.id != type_id])
 
 
@@ -402,8 +396,7 @@ def import_types_library(
         current_list = list(data.get(sub_field, []))
         by_id = {entry["id"]: i for i, entry in enumerate(current_list)}
         incoming_dicts = [
-            item.model_dump(mode="json", by_alias=True, exclude_none=True)
-            for item in incoming_sub
+            item.model_dump(mode="json", by_alias=True, exclude_none=True) for item in incoming_sub
         ]
         for d in incoming_dicts:
             if d["id"] in by_id:
@@ -425,8 +418,7 @@ def import_types_library(
         current_list = list(data.get(field, []))
         by_id = {entry["id"]: i for i, entry in enumerate(current_list)}
         incoming_dicts = [
-            item.model_dump(mode="json", by_alias=True, exclude_none=True)
-            for item in incoming
+            item.model_dump(mode="json", by_alias=True, exclude_none=True) for item in incoming
         ]
         if mode == "replace":
             incoming_ids = {d["id"] for d in incoming_dicts}

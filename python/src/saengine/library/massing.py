@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from saengine.library.components import ComponentCategory, ParameterValue, _DEFAULT_IFC_CLASS
+from saengine.library.components import _DEFAULT_IFC_CLASS, ComponentCategory, ParameterValue
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
 
@@ -58,7 +58,7 @@ def _validate_mass_geometry(
     elif kind == "cylinder":
         if not radius or radius <= 0:
             raise ValueError(f"{item_id}: cylinder mass requires positive radius")
-    elif kind == "loft":
+    elif kind == "loft":  # noqa: SIM102 - one branch per kind
         if not base_outline or len(base_outline) < 3 or not top_outline or len(top_outline) < 3:
             raise ValueError(
                 f"{item_id}: loft mass requires baseOutline and topOutline with at least 3 points each"
@@ -85,9 +85,7 @@ class ConceptualMass(_Model):
     baseOutline: list[Point2] | None = Field(
         default=None, description="Bottom polygon [mm] for loft."
     )
-    topOutline: list[Point2] | None = Field(
-        default=None, description="Top polygon [mm] for loft."
-    )
+    topOutline: list[Point2] | None = Field(default=None, description="Top polygon [mm] for loft.")
     floorHeight: float | None = Field(
         default=None,
         gt=0,
@@ -417,8 +415,10 @@ def mass_floor_area_report(
     checks: list[dict[str, Any]] = []
     permitted_info: dict[str, Any] | None = None
     plan = getattr(getattr(site, "plot", None), "planning", None) if site is not None else None
-    effective_use = use or (plan.use if plan is not None else None) or next(
-        (m.use for m in masses if m.use), None
+    effective_use = (
+        use
+        or (plan.use if plan is not None else None)
+        or next((m.use for m in masses if m.use), None)
     )
     effective_road = road_width_m or (
         plan.roadWidth / 1000.0 if plan is not None and plan.roadWidth else None
@@ -544,7 +544,9 @@ def _assign_solid_geometry(
         w.place(product, _placement((ox, oy, base_elevation), _rotation(rotation), (0.0, 0.0, 1.0)))
         return
     if kind == "cylinder":
-        profile = w.run("profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef")
+        profile = w.run(
+            "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+        )
         profile.Radius = float(radius or 0.0)
         w.extrusion(product, profile, height, None)
         cx, cy = (float(center[0]), float(center[1])) if center else (0.0, 0.0)

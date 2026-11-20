@@ -223,7 +223,13 @@ def test_hip_roof_10x6_at_30_deg_by_hand() -> None:
 
     rect = [[0, 0], [10000, 0], [10000, 6000], [0, 6000]]
     roof = arch_lib.Roof.model_validate(
-        {"id": "RF_HIP", "type": "RF2", "story": "L2", "outline": rect, "edgeSlopes": [30, 30, 30, 30]}
+        {
+            "id": "RF_HIP",
+            "type": "RF2",
+            "story": "L2",
+            "outline": rect,
+            "edgeSlopes": [30, 30, 30, 30],
+        }
     )
     geom = arch_lib.roof_geometry(roof)
     assert geom.kind == "hip"
@@ -240,11 +246,19 @@ def test_hip_roof_10x6_at_30_deg_by_hand() -> None:
 
     # Same 10 x 6 m roof in loads and BOQ over a 10 x 6 m plan? Check on the 6 x 5 m bay with RF2:
     # Over the 6 x 5 m bay, 30° hip has plan area 30 m², sloped area 30 / cos 30° = 34.641 m².
-    bay_hip = {"id": "RF", "type": "RF2", "story": "L2", "outline": BAY, "edgeSlopes": [30, 30, 30, 30]}
+    bay_hip = {
+        "id": "RF",
+        "type": "RF2",
+        "story": "L2",
+        "outline": BAY,
+        "edgeSlopes": [30, 30, 30, 30],
+    }
     arch = extras(roofs=[bay_hip])
     loads = al.architecture_loads(arch, generate(plan(2), "s"), OBJECTS)
     assert loads.rooms[0].finish == pytest.approx(0.876 / math.cos(math.radians(30)))
-    bill = bill_of_quantities(generate(plan(2), "s"), OBJECTS, default_material_library(), architecture=arch)
+    bill = bill_of_quantities(
+        generate(plan(2), "s"), OBJECTS, default_material_library(), architecture=arch
+    )
     screed = next(i for i in bill.items if i.description.startswith("Roof covering: Cement screed"))
     assert screed.quantity == pytest.approx(30.0 / math.cos(math.radians(30)), abs=1e-3)
 
@@ -255,7 +269,13 @@ def test_gable_roof_10x6_at_30_deg_by_hand() -> None:
     # - Plan area = 60 m²; sloped area = 60 / cos 30° = 69.28203 m² (two 10 x 3 m plan rectangles).
     rect = [[0, 0], [10000, 0], [10000, 6000], [0, 6000]]
     roof = arch_lib.Roof.model_validate(
-        {"id": "RF_GAB", "type": "RF2", "story": "L2", "outline": rect, "edgeSlopes": [30, 0, 30, 0]}
+        {
+            "id": "RF_GAB",
+            "type": "RF2",
+            "story": "L2",
+            "outline": rect,
+            "edgeSlopes": [30, 0, 30, 0],
+        }
     )
     geom = arch_lib.roof_geometry(roof)
     assert geom.kind == "gable"
@@ -270,9 +290,13 @@ def test_gable_roof_10x6_at_30_deg_by_hand() -> None:
     assert len(rakes) == 4
 
 
-def _assert_faces_planar_and_sloped(geom: arch_lib.roof_geometry.RoofGeometry, expected_plan: float, slope_deg: float) -> None:
+def _assert_faces_planar_and_sloped(
+    geom: arch_lib.roof_geometry.RoofGeometry, expected_plan: float, slope_deg: float
+) -> None:
     assert geom.plan_area == pytest.approx(expected_plan, rel=1e-4)
-    assert geom.sloped_area == pytest.approx(expected_plan / math.cos(math.radians(slope_deg)), rel=1e-4)
+    assert geom.sloped_area == pytest.approx(
+        expected_plan / math.cos(math.radians(slope_deg)), rel=1e-4
+    )
     for face in geom.faces:
         assert face.slope == pytest.approx(slope_deg)
         nx, ny, nz = face.normal
@@ -304,8 +328,14 @@ def test_l_and_t_shaped_hip_roofs_by_hand() -> None:
 
     # 3) T-shape (equal wings 4 m wide: 4 x 6 stem + 10 x 4 bar = 64 m²), all edges 30°.
     t_equal = [
-        [3000, 0], [7000, 0], [7000, 6000], [10000, 6000],
-        [10000, 10000], [0, 10000], [0, 6000], [3000, 6000],
+        [3000, 0],
+        [7000, 0],
+        [7000, 6000],
+        [10000, 6000],
+        [10000, 10000],
+        [0, 10000],
+        [0, 6000],
+        [3000, 6000],
     ]
     g3 = arch_lib.roof_geometry(
         arch_lib.Roof.model_validate(
@@ -317,8 +347,14 @@ def test_l_and_t_shaped_hip_roofs_by_hand() -> None:
 
     # 4) Unequal T-shape (4 x 6 stem + 10 x 6 bar = 84 m²), all edges 30°.
     t_unequal = [
-        [3000, 0], [7000, 0], [7000, 6000], [10000, 6000],
-        [10000, 12000], [0, 12000], [0, 6000], [3000, 6000],
+        [3000, 0],
+        [7000, 0],
+        [7000, 6000],
+        [10000, 6000],
+        [10000, 12000],
+        [0, 12000],
+        [0, 6000],
+        [3000, 6000],
     ]
     g4 = arch_lib.roof_geometry(
         arch_lib.Roof.model_validate(
@@ -404,7 +440,9 @@ def test_ceiling_void_and_boq_by_hand() -> None:
 
     arch = arch_lib.Architecture.model_validate(
         {
-            **arch_lib.default_architecture().model_dump(mode="json", by_alias=True, exclude_none=True),
+            **arch_lib.default_architecture().model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
             "walls": [
                 {
                     "id": "AW1",
@@ -421,7 +459,12 @@ def test_ceiling_void_and_boq_by_hand() -> None:
                     "story": "BASE",
                     "height": 2700,
                     "room": "R1",
-                    "openings": [{"id": "OP1", "outline": [[4000, 3000], [5000, 3000], [5000, 4000], [4000, 4000]]}],
+                    "openings": [
+                        {
+                            "id": "OP1",
+                            "outline": [[4000, 3000], [5000, 3000], [5000, 4000], [4000, 4000]],
+                        }
+                    ],
                 }
             ],
         }
@@ -429,7 +472,9 @@ def test_ceiling_void_and_boq_by_hand() -> None:
 
     assert arch_lib.ceiling_void(arch, building, OBJECTS, "R1") == pytest.approx(750.0)
     assert arch_lib.ceiling_void(arch, building, OBJECTS, arch.rooms[0]) == pytest.approx(750.0)
-    assert arch_lib.ceiling_void(arch, building, OBJECTS, [3000, 2500], story="BASE") == pytest.approx(750.0)
+    assert arch_lib.ceiling_void(
+        arch, building, OBJECTS, [3000, 2500], story="BASE"
+    ) == pytest.approx(750.0)
 
     void = arch_lib.ceiling_void_check(arch, building, OBJECTS, "R1")
     assert void is not None
@@ -443,8 +488,20 @@ def test_ceiling_void_and_boq_by_hand() -> None:
         {
             "hvac": {
                 "ducts": [
-                    {"id": "DT1", "story": "BASE", "path": [[1000, 2500], [5000, 2500]], "width": 500, "height": 400},
-                    {"id": "DT2", "story": "BASE", "path": [[1000, 2500], [5000, 2500]], "width": 500, "height": 800},
+                    {
+                        "id": "DT1",
+                        "story": "BASE",
+                        "path": [[1000, 2500], [5000, 2500]],
+                        "width": 500,
+                        "height": 400,
+                    },
+                    {
+                        "id": "DT2",
+                        "story": "BASE",
+                        "path": [[1000, 2500], [5000, 2500]],
+                        "width": 500,
+                        "height": 800,
+                    },
                 ]
             }
         }
@@ -474,11 +531,29 @@ def test_curtain_wall_grid_panels_mullions_and_beam_load_by_hand() -> None:
         {
             "curtainPanelTypes": [
                 {"id": "PG", "name": "Glazed", "kind": "glazed", "thickness": 12, "weight": 0.30},
-                {"id": "PS", "name": "Solid spandrel", "kind": "solid", "thickness": 25, "weight": 0.50},
+                {
+                    "id": "PS",
+                    "name": "Solid spandrel",
+                    "kind": "solid",
+                    "thickness": 25,
+                    "weight": 0.50,
+                },
             ],
             "curtainMullionTypes": [
-                {"id": "MV", "name": "Vertical mullion", "width": 50, "depth": 150, "weightPerMetre": 0.05},
-                {"id": "MH", "name": "Horizontal transom", "width": 50, "depth": 120, "weightPerMetre": 0.04},
+                {
+                    "id": "MV",
+                    "name": "Vertical mullion",
+                    "width": 50,
+                    "depth": 150,
+                    "weightPerMetre": 0.05,
+                },
+                {
+                    "id": "MH",
+                    "name": "Horizontal transom",
+                    "width": 50,
+                    "depth": 120,
+                    "weightPerMetre": 0.04,
+                },
             ],
             "curtainWallTypes": [
                 {
@@ -492,7 +567,13 @@ def test_curtain_wall_grid_panels_mullions_and_beam_load_by_hand() -> None:
                 }
             ],
             "curtainWalls": [
-                {"id": "CW", "type": "CWG", "base": "L1", "height": 3600, "path": [[0, 0], [6000, 0]]}
+                {
+                    "id": "CW",
+                    "type": "CWG",
+                    "base": "L1",
+                    "height": 3600,
+                    "path": [[0, 0], [6000, 0]],
+                }
             ],
         }
     )
@@ -516,7 +597,13 @@ def test_curtain_wall_grid_panels_mullions_and_beam_load_by_hand() -> None:
         update={
             "curtainWalls": [
                 arch.curtainWalls[0].model_copy(
-                    update={"panelOverrides": [arch_lib.CurtainPanelOverride(segment=0, column=1, row=1, panelType="PS")]}
+                    update={
+                        "panelOverrides": [
+                            arch_lib.CurtainPanelOverride(
+                                segment=0, column=1, row=1, panelType="PS"
+                            )
+                        ]
+                    }
                 )
             ]
         }
@@ -552,9 +639,7 @@ def test_ifc_export_r1_roof_ceiling_curtain_wall() -> None:
     data["curtainWalls"] = [
         {"id": "CW", "type": "CWG", "base": "L1", "height": 3600, "path": [[0, -500], [6000, -500]]}
     ]
-    data["ceilings"] = [
-        {"id": "CL_R2", "type": "CL2", "story": "L1", "height": 2700, "room": "R2"}
-    ]
+    data["ceilings"] = [{"id": "CL_R2", "type": "CL2", "story": "L1", "height": 2700, "room": "R2"}]
     data["roofs"] = [
         {
             "id": "RF_HIP",
