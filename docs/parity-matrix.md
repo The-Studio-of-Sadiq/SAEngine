@@ -21,7 +21,7 @@ How to read it:
   repository on 12 November 2026; the verification pack was not re-run for this document (its last
   recorded run is in [verification/README.md](verification/README.md)).
 
-Overall: **343 features**: 154 verified, 155 built but untested, 20 partial, 8 missing, 6 out of
+Overall: **348 features**: 154 verified, 160 built but untested, 20 partial, 8 missing, 6 out of
 scope by decision. The gaps and the first verifications to do are tracked on the
 [project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8).
 
@@ -381,7 +381,7 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Bar bending schedule | ✓ (rebar schedules) | – | – | Verified | python/src/saengine/drawings/bbs.py; python/tests/test_drawings_bbs.py (expected values worked by hand), python/tests/test_bbs_standards.py | 11 | BS 8666-type worked shape-code lengths |
 | Bar congestion and clashes at joints | add-on | – | – | Built, untested | cages.py congestion check; python/tests/test_joint_bottom_layers.py | 11 | Hand clear-spacing check of one joint |
 | Steel connection design (fin plate, block shear, welds, base plates) | add-on | – | – | Verified | python/src/saengine/design/steel_connections.py; python/tests/test_design_steel_connections.py (against hand calculations), python/tests/test_design_steel_connections2.py | 8 | Published connection design-guide example |
-| Steel connections modelled in 3D and IFC (plates, bolts) | ✓ | – | – | Built | python/src/saengine/fabrication/model.py; exported via python/src/saengine/library/ifc_fabrication.py (IfcElementAssembly, IfcPlate, IfcMechanicalFastener/IfcFastener, IfcOpeningElement voids, marks); python/tests/test_ifc_r9.py::test_fin_plate_connection_exports_plate_bolts_and_openings | 11 | Fabrication drawings / shop review |
+| Steel connections modelled in 3D and IFC (plates, bolts) | ✓ | – | – | Built, untested | python/src/saengine/fabrication/model.py; exported via python/src/saengine/library/ifc_fabrication.py (IfcElementAssembly, IfcPlate, IfcMechanicalFastener/IfcFastener, IfcOpeningElement voids, marks); python/tests/test_ifc_r9.py::test_fin_plate_connection_exports_plate_bolts_and_openings | 11 | Fabrication drawings / shop review |
 | NC files (DSTV) and rebar BVBS | add-on | – | – | Verified | python/src/saengine/fabrication/dstv.py, bvbs.py; python/tests/test_fabrication_l10.py::test_checksum_of_the_guideline_examples | 11 | BVBS guideline checksum examples (already present) |
 | Steel shop drawings, assembly and part marks | add-on | – | – | Built, untested | python/src/saengine/drawings/sheets/shop.py; python/tests/test_walk4_fabrication.py | 11 | – |
 | Precast piece and post-tensioning sheets | add-on | – | – | Built, untested | python/src/saengine/drawings/sheets/precast.py, pt.py; python/tests/test_precast.py, python/tests/test_drawings_pt.py | 11 | Hand tendon elongation for one tendon |
@@ -447,16 +447,16 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | IFC export of MEP (IfcTank, IfcPipeSegment, IfcDuctSegment, IfcCableCarrierSegment) | ✓ | – | ✓ | Built, untested | python/src/saengine/library/ifc.py (around lines 496–729); used in python/tests/test_mep_clash.py and python/tests/test_services_integration.py | 7 | – |
 | IFC import of an architect's model (adopted into architecture.json) | ✓ | – | – | Verified (synthetic round trip) | python/tests/test_architecture.py::test_import_of_an_architects_ifc | 5 | A public Revit- or ArchiCAD-exported IFC sample |
 | Import of MEP consultants' IFC models (discipline detected) | ✓ | – | ✓ | Built, untested | python/src/saengine/mep/ifc_import.py; python/tests/test_mep_clash.py::test_import_ifc_guesses_the_discipline | 7 | – |
-| IFC structural analysis view | ✓ | – | – | Built | python/src/saengine/library/ifc_structural.py (IfcStructuralAnalysisModel, curve/surface members, point supports with IfcBoundaryNodeCondition, load groups/actions, IfcRelAssignsToProduct); python/tests/test_ifc_r9.py::test_structural_analysis_view_two_bay_frame | 11 | Round-trip in structural viewer |
-| IFC2x3 export | ✓ | – | – | Built | python/src/saengine/library/ifc.py (`schema="IFC2X3"` with entity/PredefinedType mappings, ProjectSettings.ifc, export.ifc, CLI `--schema`); python/tests/test_ifc_r9.py::test_ifc2x3_two_bay_frame_counts_and_validates | 6 | Third-party IFC2x3 reader |
+| IFC structural analysis view | ✓ | – | – | Built, untested | python/src/saengine/library/ifc_structural.py (IfcStructuralAnalysisModel, curve/surface members, point supports with IfcBoundaryNodeCondition, load groups/actions, IfcRelAssignsToProduct); python/tests/test_ifc_r9.py::test_structural_analysis_view_two_bay_frame | 11 | Round-trip in structural viewer |
+| IFC2x3 export | ✓ | – | – | Built, untested | python/src/saengine/library/ifc.py (`schema="IFC2X3"` with entity/PredefinedType mappings, ProjectSettings.ifc, export.ifc, CLI `--schema`); python/tests/test_ifc_r9.py::test_ifc2x3_two_bay_frame_counts_and_validates | 6 | Third-party IFC2x3 reader |
 | IDS checks | add-on | – | – | Built, untested | python/src/saengine/mep/ids.py; only python/tests/test_mep_coordination.py::test_ids_without_ifctester_says_so | 7 | buildingSMART IDS sample, pass and fail cases |
-| Model diff between revisions | add-on | ✓ (DWG compare) | – | Built | python/src/saengine/library/ifc_diff.py (`diff_ifc`) + python/src/saengine/project/diff.py (`.ifc` revision diff JSON & colour-coded summary); python/tests/test_ifc_r9.py::test_ifc_diff_self_is_empty_and_moved_beam_reported | Shell | – |
+| Model diff between revisions | add-on | ✓ (DWG compare) | – | Built, untested | python/src/saengine/library/ifc_diff.py (`diff_ifc`) + python/src/saengine/project/diff.py (`.ifc` revision diff JSON & colour-coded summary); python/tests/test_ifc_r9.py::test_ifc_diff_self_is_empty_and_moved_beam_reported | Shell | – |
 | BCF 3.0 and 2.1 export and import | add-on | – | add-on | Verified (round trip) | python/src/saengine/mep/bcf.py; python/tests/test_mep_coordination.py::test_bcf_round_trip, ::test_bcf_import_updates_and_adds, ::test_bcf_statuses_of_other_tools | 7 | A BCF file from another tool |
 | Multi-model clash detection (hard and clearance) and issue workflow | ✓ (interference check); add-on (Navisworks) | – | add-on | Built, untested | python/src/saengine/mep/coordination.py, python/src/saengine/mep/clash.py; python/tests/test_mep_coordination.py (unit tests on synthetic geometry) | 7 | Boxes with known overlap and clearance, worked by hand |
 | Revit link (structural exchange file, preview, apply) | ✓ | – | – | Partial | python/src/saengine/exporters/revit_link.py; python/tests/test_revit_link.py; revit-addin/ (MIT Revit 2027 add-in, `SAEngine.RevitLink.Core` builds on .NET 8; `SAEngine.RevitLink` untested in live Revit) | 11 | Round trip through the add-in in Revit |
 | Native RVT or RFA read and write | ✓ | – | ? | Out of scope (decision) | Owner decision: AGPL must not link RevitAPI.dll; add-in later (architecture layer plan) | 11 | – |
 | Analysis exchange (SAF, CIS/2, SDNF, .s2k, .std, .e2k) | add-on | – | – | Partial | python/src/saengine/exporters/*; python/tests/test_exchange_exports.py (SAEngine reads back its own files only); docs/exchange.md "Not verified" | 11 | Open in the target program or a format validator |
-| Georeferencing (BTM), GeoJSON, GeoPackage, shared coordinates | ✓ | ✓ | – | Built | python/src/saengine/gis/crs.py (`ifc_map_conversion`), python/src/saengine/library/ifc.py (`IfcMapConversion`/`IfcProjectedCRS` in IFC4, `ePSet_MapConversion`/`ePSet_ProjectedCRS` in IFC2X3), geojson.py, gpkg.py; python/tests/test_ifc_r9.py::test_georeferencing_map_conversion_against_crs | 1 | Published BTM control-point transform |
+| Georeferencing (BTM), GeoJSON, GeoPackage, shared coordinates | ✓ | ✓ | – | Built, untested | python/src/saengine/gis/crs.py (`ifc_map_conversion`), python/src/saengine/library/ifc.py (`IfcMapConversion`/`IfcProjectedCRS` in IFC4, `ePSet_MapConversion`/`ePSet_ProjectedCRS` in IFC2X3), geojson.py, gpkg.py; python/tests/test_ifc_r9.py::test_georeferencing_map_conversion_against_crs | 1 | Published BTM control-point transform |
 | Web viewer for reviewers (no licence needed) | add-on | add-on | – | Built, untested | python/src/saengine/exporters/web_viewer.py | 11 | – |
 
 ### F. MEP
@@ -543,12 +543,12 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 
 ### Summary
 
-**Counts (153 rows; CAD drafting rows updated 19 November 2026 after the CAD parity and AutoCAD-gaps rounds):**
+**Counts (158 rows; CAD drafting rows updated 19 November 2026 after the CAD parity and AutoCAD-gaps rounds):**
 
 | Status | Rows |
 |---|---|
 | Verified | 78 |
-| Built, untested | 63 |
+| Built, untested | 68 |
 | Partial | 6 |
 | Missing | 0 |
 | Out of scope (decision) | 6 |
