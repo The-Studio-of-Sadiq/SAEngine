@@ -21,7 +21,7 @@ How to read it:
   repository on 12 November 2026; the verification pack was not re-run for this document (its last
   recorded run is in [verification/README.md](verification/README.md)).
 
-Overall: **341 features**: 119 verified, 152 built but untested, 41 partial, 22 missing, 7 out of
+Overall: **341 features**: 119 verified, 153 built but untested, 41 partial, 21 missing, 7 out of
 scope by decision. The gaps and the first verifications to do are tracked on the
 [project board](https://github.com/orgs/The-Studio-of-Sadiq/projects/8).
 
@@ -365,7 +365,7 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Worksets | ✓ | – | – | Out of scope (decision) | architecture.py docstring; part locks replace them (docs/collaboration.md) | Shell | – |
 | Groups and typical floors (copy to storeys) | ✓ | ✓ (blocks) | – | Built, untested | workbench/src/vs/workbench/contrib/saengineCad/browser/floorPlanTypical.ts (+ workbench/src/vs/workbench/contrib/saengineCad/test/browser/floorPlanTypical.test.ts) | 5 | – |
 | Point clouds (LAS, LAZ, E57, XYZ, PTS), snap and trace | ✓ | ✓ | – | Verified (round trip) | python/src/saengine/library/point_cloud.py; python/tests/test_point_cloud.py::test_las_round_trip | 5 | Public LAS sample: point count and bounds match the header |
-| 3D view: section box, measure, hide or isolate | ✓ | ✓ | – | Missing | docs/manual/06-bim.md says the 3D view has no section, measure or hide tools | 6 | – |
+| 3D view: section box, measure, hide or isolate | ✓ | ✓ | – | Built, untested | packages/fem-viewer/src/section.ts, sectionMath.ts, measure.ts, measureMath.ts, visibilityMath.ts, building.ts, index.ts (+ test/*.test.mjs); workbench/src/vs/workbench/contrib/saengineFem/browser/viewerTools.ts, femModelEditor.ts; workbench/src/vs/workbench/contrib/saengineLibrary/browser/buildingEditor.ts | 6 | – |
 | Rendering and walkthrough | ✓ | ✓ | – | Built, untested | docs/manual/06-bim.md (Studies); packages/fem-viewer | 6 | – |
 | Sun and shadow study | ✓ | ✓ | – | Verified | python/src/saengine/environment/solar.py; python/tests/test_l11_office_tools.py::test_sun_at_equinox_noon | 6 | Published solar position (NOAA) for a date and site |
 | Daylight factor | add-on | – | ✓ | Verified (formula) | python/src/saengine/environment/daylight.py; python/tests/test_l11_office_tools.py::test_daylight_factor_formula | 6 | Hand average daylight factor (BR 209 form) for one room |
@@ -548,9 +548,9 @@ Verification case IDs (such as DM1) are in the `Case(...)` entries of the files 
 | Status | Rows |
 |---|---|
 | Verified | 54 |
-| Built, untested | 62 |
+| Built, untested | 63 |
 | Partial | 23 |
-| Missing | 13 |
+| Missing | 12 |
 | Out of scope (decision) | 6 |
 
 "Verified (geometry)" in the CAD drafting rows means the package tests check the geometry against hand-computed values; the commands themselves are walked in the app only where the row says so.
@@ -566,7 +566,7 @@ Verification is concentrated where the structure meets MEP (equipment loads, sle
 1. **Electrical circuits.** There are no distribution-board schedules, cable sizing with derating, voltage drop or short-circuit checks. Utility and approval submissions (e.g. DESCO/DPDC/RAJUK) typically need them.
 2. **Revit round trip.** The Revit link has no add-in in the repo, so it cannot work end to end.
 3. **No third-party IFC tested.** IFC is tested only on SAEngine's own synthetic files, and there is no IFC2x3 export or IfcMapConversion.
-4. **3D view.** It has no section box, measure or hide/isolate, which are the basic coordination-review tools.
+4. **3D view app walks.** Section box, single section planes, 3D measure with snapping, and temporary/permanent hide/isolate were added in `@saengine/fem-viewer` and the workbench 3D viewers (R3 parity, November 2026, math unit-tested), but have not yet been walked end-to-end in the desktop app.
 5. **Ceiling void.** There are no ceiling elements, so duct and tray clearance under false ceilings cannot be checked.
 6. **Cooling loads per storey only.** The zone-per-storey model makes duct sizes, and so the beam openings, coarse.
 7. **Clash detection has no benchmark** against hand-placed cases.
