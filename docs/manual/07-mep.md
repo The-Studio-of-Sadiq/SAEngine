@@ -66,8 +66,10 @@ Risers** adds slab sleeves where a riser is not in a shaft.
 
 Results (*Plumbing coordination*): daily demand and storage, the **RC tank design** (walls, base
 and roof analysed as shells, with reinforcement and quantities), riser and rainwater leader sizes
-(Table 8.7.2), septic tank and soak well (Appendix S), and the **hydraulics**: residual head at
-every floor against the required head, solved with the EPANET 2.2 engine (WNTR).
+(Table 8.7.2), septic tank and soak well (Appendix S), the **hydraulics** (residual head at
+every floor against the required head, solved with the EPANET 2.2 engine (WNTR)), **hot water**
+heater sizing (storage + recovery) and recirculation loop flow, and **fuel gas / medical gas**
+demand, diversity, meter checks and pipe sizes.
 
 ## HVAC
 
@@ -91,10 +93,19 @@ battery bank, PFI capacitor bank, distribution board, solar PV array), **Add Ris
 trunking, cable tray, cable ladder, conduit bank), **Draw Tray**, **Propose Equipment**, **Add
 Openings**.
 
-Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers and trays.
-Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, risers, trays and the
-lightning protection risk with the down-conductor columns needed. Equipment weights are typical
-catalogue values: replace them with the supplier's data.
+Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays and
+room lighting design (lumen method with luminaire grid layout; its W/m² feeds back into HVAC
+gains and electrical demand).
+Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, lighting circuits,
+risers, trays and the lightning protection risk with the down-conductor columns needed. Equipment
+weights are typical catalogue values: replace them with the supplier's data.
+
+## Fire Protection
+
+Automatic and manual fire requirements (Part 4 Chapter 5), **sprinklers** (individual head grid
+placement per room, branch lines and cross main routed via RoomGraph, pipe schedule sizing and
+EPANET hydraulic calculation), standpipes, fire pumps, fire reservoir and **fire alarm** device
+layout (smoke/heat detectors, exit call points, sounders, panel and standby battery Ah sizing).
 
 ## Files
 

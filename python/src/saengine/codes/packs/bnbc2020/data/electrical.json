@@ -867,6 +867,82 @@
   "upsAutonomyMin": 15.0,
   "tankPlate": 5.0,
   "steelWeight": 78.5,
+  "lighting": {
+    "targets": {
+      "office": 500.0,
+      "conference": 500.0,
+      "classroom": 300.0,
+      "corridor": 100.0,
+      "lobby": 200.0,
+      "living": 150.0,
+      "bedroom": 150.0,
+      "kitchen": 300.0,
+      "toilet": 150.0,
+      "retail": 500.0,
+      "hospitalWard": 300.0,
+      "operatingRoom": 1000.0,
+      "warehouse": 200.0,
+      "parking": 75.0,
+      "industrial": 300.0,
+      "stairs": 150.0,
+      "other": 300.0
+    },
+    "maintenanceFactor": 0.8,
+    "defaultWorkPlane": 0.85,
+    "defaultReflectance": "70/50/20",
+    "roomIndexSteps": [0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0],
+    "ufTable": {
+      "70/50/20": [0.47, 0.54, 0.60, 0.65, 0.71, 0.75, 0.78, 0.82, 0.84],
+      "70/30/20": [0.41, 0.48, 0.54, 0.59, 0.66, 0.71, 0.74, 0.79, 0.82],
+      "50/50/20": [0.45, 0.52, 0.57, 0.62, 0.67, 0.71, 0.74, 0.77, 0.79],
+      "50/30/20": [0.40, 0.46, 0.52, 0.57, 0.63, 0.67, 0.70, 0.75, 0.77],
+      "30/30/20": [0.39, 0.44, 0.50, 0.54, 0.60, 0.64, 0.67, 0.71, 0.73]
+    },
+    "luminaires": {
+      "ledPanel600": {
+        "label": "LED panel 600x600 mm",
+        "lumens": 3600.0,
+        "watts": 36.0,
+        "shrMax": 1.25,
+        "mounting": "recessed",
+        "length": 600.0,
+        "width": 600.0,
+        "height": 40.0
+      },
+      "downlight": {
+        "label": "LED recessed downlight",
+        "lumens": 1200.0,
+        "watts": 12.0,
+        "shrMax": 1.2,
+        "mounting": "recessed",
+        "length": 175.0,
+        "width": 175.0,
+        "height": 80.0
+      },
+      "batten": {
+        "label": "LED linear batten 1200 mm",
+        "lumens": 4000.0,
+        "watts": 36.0,
+        "shrMax": 1.5,
+        "mounting": "surface",
+        "length": 1200.0,
+        "width": 75.0,
+        "height": 60.0
+      },
+      "highBay": {
+        "label": "LED high-bay luminaire",
+        "lumens": 18000.0,
+        "watts": 150.0,
+        "shrMax": 1.4,
+        "mounting": "suspended",
+        "length": 400.0,
+        "width": 400.0,
+        "height": 200.0
+      }
+    },
+    "circuitVoltage": 230.0,
+    "circuitMaxWatts": 1800.0
+  },
   "sources": {
     "uses": "BNBC 2020 Part 8 Table 8.1.17, Sec 1.3.2.5 (p765-767); lightningA, lightningC: Table 8.1.27(a)-(b) index of the row's kind of building (SAEngine's default for the risk assessment)",
     "loadFactor": "BNBC 2020 Part 8 Sec 1.3.18.1 (p796)",
@@ -940,6 +1016,7 @@
     "batteryKgPerKwh": "typical",
     "upsAutonomyMin": "typical",
     "tankPlate": "typical",
-    "steelWeight": "unit weight of steel"
+    "steelWeight": "unit weight of steel",
+    "lighting": "EN 12464-1 / IES Lighting Handbook targets; CIBSE / SLL typical recessed LED UF table, MF 0.80 and luminaire library (to be checked against adopted standard and manufacturer photometry)"
   }
 }

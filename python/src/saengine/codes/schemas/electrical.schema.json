@@ -443,6 +443,125 @@
       "title": "IndexStep",
       "type": "object"
     },
+    "LightingTable": {
+      "additionalProperties": false,
+      "description": "R7: lumen-method lighting design data (EN 12464-1 / IES).",
+      "properties": {
+        "targets": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Targets",
+          "type": "object"
+        },
+        "maintenanceFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maintenancefactor",
+          "type": "number"
+        },
+        "defaultWorkPlane": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Defaultworkplane"
+        },
+        "defaultReflectance": {
+          "title": "Defaultreflectance",
+          "type": "string"
+        },
+        "roomIndexSteps": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Roomindexsteps",
+          "type": "array"
+        },
+        "ufTable": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Uftable",
+          "type": "object"
+        },
+        "luminaires": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LuminaireSpec"
+          },
+          "title": "Luminaires",
+          "type": "object"
+        },
+        "circuitVoltage": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circuitvoltage"
+        },
+        "circuitMaxWatts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circuitmaxwatts"
+        }
+      },
+      "required": [
+        "targets",
+        "maintenanceFactor",
+        "defaultWorkPlane",
+        "defaultReflectance",
+        "roomIndexSteps",
+        "ufTable",
+        "luminaires",
+        "circuitVoltage",
+        "circuitMaxWatts"
+      ],
+      "title": "LightingTable",
+      "type": "object"
+    },
     "LtPanel": {
       "additionalProperties": false,
       "properties": {
@@ -523,6 +642,127 @@
         "ampsPerSection"
       ],
       "title": "LtPanel",
+      "type": "object"
+    },
+    "LuminaireSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lumens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lumens"
+        },
+        "watts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Watts"
+        },
+        "shrMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shrmax"
+        },
+        "mounting": {
+          "default": "recessed",
+          "enum": [
+            "recessed",
+            "surface",
+            "suspended"
+          ],
+          "title": "Mounting",
+          "type": "string"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Length"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        }
+      },
+      "required": [
+        "label",
+        "lumens",
+        "watts",
+        "shrMax",
+        "length",
+        "width",
+        "height"
+      ],
+      "title": "LuminaireSpec",
       "type": "object"
     },
     "Panel": {
@@ -1755,6 +1995,17 @@
         }
       ],
       "title": "Steelweight"
+    },
+    "lighting": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LightingTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

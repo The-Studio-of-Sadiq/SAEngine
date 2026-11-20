@@ -30,6 +30,7 @@ Units: inside m, m³/s; the results l/min, m, kPa, m/s.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -279,3 +280,86 @@ def design_area(
             prev = node
             placed += 1
     return heads
+
+
+def placed_sprinkler_network(
+    net: Net,
+    takeoff: str,
+    riser_xy_m: tuple[float, float],
+    head_z: float,
+    heads: list[dict[str, Any]],
+    pipes: list[dict[str, Any]],
+    design_heads: int,
+    fallback_size: float = 50.0,
+) -> list[str]:
+    """Build EPANET pipes and junctions from placed sprinkler heads and pipes, marking the
+    most remote ``design_heads`` heads as K-factor emitters. Returns the emitter node ids."""
+    if not heads or not pipes:
+        return []
+    valve = net.node(f"{takeoff}:FCV", head_z)
+    net.pipe(
+        f"{takeoff}:F",
+        takeoff,
+        valve,
+        max(head_z - net.nodes[takeoff], 0.1),
+        fallback_size,
+        FLOOR_FITTINGS,
+        "floor valve",
+    )
+
+    def _pt_key(pt: tuple[float, float]) -> str:
+        return f"{takeoff}:N:{round(pt[0] * 1000)}:{round(pt[1] * 1000)}"
+
+    # Ensure every pipe endpoint is a node
+    created: dict[tuple[int, int], str] = {}
+
+    def node_for(x_m: float, y_m: float) -> str:
+        key = (round(x_m * 100), round(y_m * 100))
+        if key not in created:
+            name = _pt_key((x_m, y_m))
+            created[key] = net.node(name, head_z)
+        return created[key]
+
+    riser_node = node_for(riser_xy_m[0], riser_xy_m[1])
+    if riser_node != valve:
+        net.pipe(
+            f"{takeoff}:TIE", valve, riser_node, 0.5, fallback_size, {"elbow": 1}, "cross main"
+        )
+
+    seen_edges: set[tuple[str, str]] = set()
+    for i, p in enumerate(pipes):
+        pts = [(pt[0] / 1000.0, pt[1] / 1000.0) for pt in p["path"]]
+        nominal = float(p.get("diameter") or fallback_size)
+        role = "cross main" if p.get("kind") == "crossMain" else "branch line"
+        for k, (a, b) in enumerate(itertools.pairwise(pts)):
+            na, nb = node_for(*a), node_for(*b)
+            if na == nb:
+                continue
+            edge = (min(na, nb), max(na, nb))
+            if edge in seen_edges:
+                continue
+            seen_edges.add(edge)
+            dist = math.hypot(b[0] - a[0], b[1] - a[1])
+            net.pipe(
+                f"{takeoff}:P{i}_{k}",
+                na,
+                nb,
+                max(dist, 0.1),
+                nominal,
+                BRANCH_FITTINGS if role == "branch line" and k == 0 else {"teeRun": 1},
+                role,
+            )
+
+    head_nodes: list[tuple[float, str]] = []
+    for h in heads:
+        hx, hy = h["x"] / 1000.0, h["y"] / 1000.0
+        hn = node_for(hx, hy)
+        dist = _manhattan(riser_xy_m, (hx, hy))
+        head_nodes.append((dist, hn))
+    # Most remote heads operate in the design area
+    head_nodes.sort(key=lambda item: -item[0])
+    remote = [n for _, n in head_nodes[: max(1, design_heads)]]
+    k_val = float(heads[0].get("kFactor") or T.K_FACTOR)
+    for n in remote:
+        net.emitters[n] = k_val
+    return remote

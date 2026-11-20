@@ -34492,6 +34492,25 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Lightning',
 				},
+				lighting: {
+					anyOf: [
+						{
+							$ref: '#/$defs/LightingSettings',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Lighting',
+				},
+				luminaires: {
+					items: {
+						$ref: '#/$defs/Luminaire',
+					},
+					title: 'Luminaires',
+					type: 'array',
+				},
 			},
 			title: 'Electrical',
 			type: 'object',
@@ -35501,8 +35520,201 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Pump room',
 				},
+				sprinklerHeads: {
+					items: {
+						$ref: '#/$defs/SprinklerHead',
+					},
+					title: 'Sprinkler heads',
+					type: 'array',
+				},
+				sprinklerPipes: {
+					items: {
+						$ref: '#/$defs/SprinklerPipe',
+					},
+					title: 'Sprinkler pipes',
+					type: 'array',
+				},
+				alarm: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FireAlarmSettings',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Alarm',
+				},
+				alarmDevices: {
+					items: {
+						$ref: '#/$defs/FireAlarmDevice',
+					},
+					title: 'Alarm devices',
+					type: 'array',
+				},
 			},
 			title: 'Fire',
+			type: 'object',
+		},
+		FireAlarmDevice: {
+			additionalProperties: false,
+			description: 'A fire alarm device (detector, manual call point, sounder, or panel).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['smokeDetector', 'heatDetector', 'callPoint', 'sounder', 'panel'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mounting height above the floor [mm].',
+					title: 'Z',
+				},
+				zone: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Zone',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'kind', 'story', 'x', 'y'],
+			title: 'FireAlarmDevice',
+			type: 'object',
+		},
+		FireAlarmSettings: {
+			additionalProperties: false,
+			description: 'Fire alarm battery and device sizing parameters.',
+			properties: {
+				standbyHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Standby hours',
+				},
+				alarmMinutes: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Alarm minutes',
+				},
+				ageingFactor: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ageing factor',
+				},
+				panelStandbyA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Panel standby a',
+				},
+				panelAlarmA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Panel alarm a',
+				},
+			},
+			title: 'FireAlarmSettings',
 			type: 'object',
 		},
 		FireBuilding: {
@@ -36146,6 +36358,269 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Fixtures',
 			type: 'object',
 		},
+		GasAppliance: {
+			additionalProperties: false,
+			description: 'A fuel gas appliance (cooker, boiler, water heater, lab burner).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'domesticCooker',
+					description: 'Appliance key in the code pack.',
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Room',
+				},
+				x: {
+					default: 0.0,
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0.0,
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				ratingKw: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thermal input [kW].',
+					title: 'Rating kw',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+			},
+			required: ['id', 'story'],
+			title: 'GasAppliance',
+			type: 'object',
+		},
+		GasMeter: {
+			additionalProperties: false,
+			description: 'Gas meter and pressure regulator location.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				ventilated: {
+					default: true,
+					description: 'Located in a ventilated enclosure or outdoors.',
+					title: 'Ventilated',
+					type: 'boolean',
+				},
+				outdoor: {
+					default: false,
+					description: 'Located outdoors / on building exterior.',
+					title: 'Outdoor',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'GasMeter',
+			type: 'object',
+		},
+		GasPipe: {
+			additionalProperties: false,
+			description: 'A fuel gas pipe run (horizontal or riser).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				flowM3h: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [m³/h].',
+					title: 'Flow m3h',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'GasPipe',
+			type: 'object',
+		},
+		GasSystem: {
+			additionalProperties: false,
+			description: 'LPG or natural gas piping system.',
+			properties: {
+				fuel: {
+					default: 'naturalGas',
+					enum: ['naturalGas', 'lpg'],
+					title: 'Fuel',
+					type: 'string',
+				},
+				supplyPressureKpa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Supply pressure kpa',
+				},
+				maxDropKpa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Max drop kpa',
+				},
+				meter: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GasMeter',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Meter',
+				},
+				appliances: {
+					items: {
+						$ref: '#/$defs/GasAppliance',
+					},
+					title: 'Appliances',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/GasPipe',
+					},
+					title: 'Pipes',
+					type: 'array',
+				},
+			},
+			title: 'GasSystem',
+			type: 'object',
+		},
 		Harvest: {
 			additionalProperties: false,
 			description: 'Rainwater harvesting storage (the default pack\'s Part 8 Sec 7.8.9).',
@@ -36202,6 +36677,324 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['demand'],
 			title: 'Harvest',
+			type: 'object',
+		},
+		HotWaterHeater: {
+			additionalProperties: false,
+			description: 'A domestic hot water heater or calorifier (its operating weight loads the floor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				volumeL: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Storage capacity [litres].',
+					title: 'Volume l',
+				},
+				powerKw: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Recovery heating power [kW].',
+					title: 'Power kw',
+				},
+				operatingWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN]',
+					title: 'Operating weight',
+				},
+				emptyWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN]',
+					title: 'Empty weight',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '07 MEP equipment that already carries its weight.',
+					title: 'Equipment',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'HotWaterHeater',
+			type: 'object',
+		},
+		HotWaterSystem: {
+			additionalProperties: false,
+			description: 'Domestic hot water generation and recirculation loop.',
+			properties: {
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+				coldTempC: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cold inlet temperature [°C].',
+					title: 'Cold temp c',
+				},
+				storageTempC: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Storage temperature [°C].',
+					title: 'Storage temp c',
+				},
+				returnDropC: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Allowable recirculation loop temperature drop [K].',
+					title: 'Return drop c',
+				},
+				peakHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Peak draw duration [h].',
+					title: 'Peak hours',
+				},
+				usableFraction: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Usable storage tank fraction.',
+					title: 'Usable fraction',
+				},
+				storageVolumeL: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override storage [l].',
+					title: 'Storage volume l',
+				},
+				recoveryRateLph: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override recovery [l/h].',
+					title: 'Recovery rate lph',
+				},
+				heatLossWPerM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Loop heat loss [W/m].',
+					title: 'Heat loss w per m',
+				},
+				loopLengthM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Recirculation loop length [m].',
+					title: 'Loop length m',
+				},
+				material: {
+					anyOf: [
+						{
+							enum: ['uPVC', 'GI', 'PPR', 'HDPE', 'CI'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Material',
+				},
+				heater: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HotWaterHeater',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Heater',
+				},
+			},
+			title: 'HotWaterSystem',
 			type: 'object',
 		},
 		Hvac: {
@@ -36870,6 +37663,215 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'IssueComment',
 			type: 'object',
 		},
+		LightingRoomOverride: {
+			additionalProperties: false,
+			description: 'Room-specific lighting design inputs.',
+			properties: {
+				room: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Room',
+					type: 'string',
+				},
+				use: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Use',
+				},
+				targetLux: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Target lux',
+				},
+				luminaireType: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Luminaire type',
+				},
+				lumens: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Lumens',
+				},
+				watts: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Watts',
+				},
+				uf: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Uf',
+				},
+				mf: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mf',
+				},
+				reflectance: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reflectance',
+				},
+				workPlaneM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Work plane m',
+				},
+				ceilingHeightM: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ceiling height m',
+				},
+			},
+			required: ['room'],
+			title: 'LightingRoomOverride',
+			type: 'object',
+		},
+		LightingSettings: {
+			additionalProperties: false,
+			description: 'Project-level lighting design settings (lumen method).',
+			properties: {
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+				luminaireType: {
+					default: 'ledPanel600',
+					title: 'Luminaire type',
+					type: 'string',
+				},
+				maintenanceFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Maintenance factor',
+				},
+				reflectance: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reflectance',
+				},
+				workPlaneM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Work plane m',
+				},
+				rooms: {
+					items: {
+						$ref: '#/$defs/LightingRoomOverride',
+					},
+					title: 'Rooms',
+					type: 'array',
+				},
+			},
+			title: 'LightingSettings',
+			type: 'object',
+		},
 		Lightning: {
 			additionalProperties: false,
 			description: 'Lightning protection and earthing (the default pack\'s Part 8 Sec 1.3.33).',
@@ -37003,6 +38005,319 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Lightning',
+			type: 'object',
+		},
+		Luminaire: {
+			additionalProperties: false,
+			description: 'A luminaire placed in a room (generated by lighting design or entered manually).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					default: 'ledPanel600',
+					description: 'Luminaire type key in the code pack.',
+					title: 'Type',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mounting height above the floor [mm].',
+					title: 'Z',
+				},
+				watts: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical power [W].',
+					title: 'Watts',
+				},
+				lumens: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Initial luminous flux [lm].',
+					title: 'Lumens',
+				},
+				circuit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Lighting circuit reference.',
+					title: 'Circuit',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'Luminaire',
+			type: 'object',
+		},
+		MedicalGasOutlet: {
+			additionalProperties: false,
+			description: 'A medical gas terminal unit (outlet) in a clinical room.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				gas: {
+					enum: ['O2', 'N2O', 'MA4', 'MA7', 'VAC', 'AGSS'],
+					title: 'Gas',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Room',
+				},
+				x: {
+					description: '[mm]',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				sized: {
+					default: false,
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'gas', 'story', 'x', 'y'],
+			title: 'MedicalGasOutlet',
+			type: 'object',
+		},
+		MedicalGasPipe: {
+			additionalProperties: false,
+			description: 'A medical gas copper pipe run.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				gas: {
+					enum: ['O2', 'N2O', 'MA4', 'MA7', 'VAC', 'AGSS'],
+					title: 'Gas',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				flowLpm: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [l/min].',
+					title: 'Flow lpm',
+				},
+				sized: {
+					default: false,
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'gas', 'story', 'path'],
+			title: 'MedicalGasPipe',
+			type: 'object',
+		},
+		MedicalGasRoom: {
+			additionalProperties: false,
+			description: 'A clinical room\'s type and bed/station count for medical gas outlet generation.',
+			properties: {
+				room: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Room',
+					type: 'string',
+				},
+				kind: {
+					title: 'Kind',
+					type: 'string',
+				},
+				beds: {
+					default: 1,
+					minimum: 1,
+					title: 'Beds',
+					type: 'integer',
+				},
+			},
+			required: ['room', 'kind'],
+			title: 'MedicalGasRoom',
+			type: 'object',
+		},
+		MedicalGasSystem: {
+			additionalProperties: false,
+			description: 'Medical gas piping system (O2, N2O, MA4, MA7, VAC, AGSS).',
+			properties: {
+				outlets: {
+					items: {
+						$ref: '#/$defs/MedicalGasOutlet',
+					},
+					title: 'Outlets',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/MedicalGasPipe',
+					},
+					title: 'Pipes',
+					type: 'array',
+				},
+				rooms: {
+					items: {
+						$ref: '#/$defs/MedicalGasRoom',
+					},
+					title: 'Rooms',
+					type: 'array',
+				},
+			},
+			title: 'MedicalGasSystem',
 			type: 'object',
 		},
 		Motor: {
@@ -37322,6 +38637,18 @@ export const MEP_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Roof',
+				},
+				hotWater: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HotWaterSystem',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Hot water',
 				},
 				disposal: {
 					default: 'septic',
@@ -38138,6 +39465,197 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Shaft',
 			type: 'object',
 		},
+		SprinklerHead: {
+			additionalProperties: false,
+			description: 'An individual sprinkler head placed on a grid inside a room or story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Deflector elevation above the floor [mm].',
+					title: 'Z',
+				},
+				kFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[l/min/bar^0.5]',
+					title: 'K factor',
+				},
+				hazard: {
+					anyOf: [
+						{
+							enum: ['lightI', 'lightII', 'ordinaryI', 'ordinaryII', 'ordinaryIII', 'extra'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Hazard',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'SprinklerHead',
+			type: 'object',
+		},
+		SprinklerPipe: {
+			additionalProperties: false,
+			description: 'A sprinkler branch line or cross main segment routed from a riser.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				kind: {
+					default: 'branch',
+					enum: ['crossMain', 'branch', 'armover'],
+					title: 'Kind',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				heads: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sprinkler heads supplied.',
+					title: 'Heads',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pipe bottom above story floor [mm].',
+					title: 'Bottom',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'SprinklerPipe',
+			type: 'object',
+		},
 		StoryUseEntry: {
 			additionalProperties: false,
 			description: 'A storey\'s use, entered once for the plumbing, HVAC and electrical services\n(:mod:`saengine.mep.uses`).',
@@ -38325,6 +39843,32 @@ export const MEP_SCHEMA: IJSONSchema = {
 			default: null,
 			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to the default pack\'s Part 4.',
 			title: 'Fire',
+		},
+		gas: {
+			anyOf: [
+				{
+					$ref: '#/$defs/GasSystem',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Fuel gas piping (natural gas or LPG): appliances, meter/regulator and pipes.',
+			title: 'Gas',
+		},
+		medicalGas: {
+			anyOf: [
+				{
+					$ref: '#/$defs/MedicalGasSystem',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Medical gas piping (O2, N2O, MA4, MA7, VAC, AGSS): outlets and pipes.',
+			title: 'Medical gas',
 		},
 		coordination: {
 			anyOf: [

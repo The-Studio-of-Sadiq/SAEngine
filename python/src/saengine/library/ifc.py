@@ -900,6 +900,129 @@ def _export_services(
             w, "IfcCableCarrierSegment", "CABLETRAYSEGMENT", tray.id, f"tray:{tray.id}",
             tray.path, w.rectangle(tray.width, tray.height), centre, storey_at(floor), ids,
         )  # fmt: skip
+    for lum in electrical.luminaires:
+        if lum.story not in levels:
+            continue
+        floor = levels[lum.story]
+        z_pt = floor + (lum.z if lum.z is not None else 2800.0)
+        product = _box_product(
+            w,
+            "IfcLightFixture",
+            "POINTSOURCE",
+            f"luminaire:{lum.id}",
+            f"{lum.type} {lum.id}",
+            lum.id,
+            (600.0, 600.0, 50.0),
+            (lum.x, lum.y, z_pt),
+            storey_at(floor),
+        )
+        ids[lum.id] = product.GlobalId
+    fire = getattr(mep, "fire", None)
+    if fire is not None:
+        for sh in fire.sprinklerHeads:
+            if sh.story not in levels:
+                continue
+            floor = levels[sh.story]
+            z_pt = floor + (sh.z if sh.z is not None else 2700.0)
+            product = _box_product(
+                w,
+                "IfcFireSuppressionTerminal",
+                "SPRINKLER",
+                f"sprinkler:{sh.id}",
+                sh.id,
+                sh.id,
+                (80.0, 80.0, 80.0),
+                (sh.x, sh.y, z_pt),
+                storey_at(floor),
+            )
+            ids[sh.id] = product.GlobalId
+        for sp in fire.sprinklerPipes:
+            if sp.story not in levels or not sp.diameter:
+                continue
+            floor = levels[sp.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(sp.diameter) / 2
+            z_pt = floor + (sp.bottom if sp.bottom is not None else 2750.0)
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                sp.id,
+                f"firepipe:{sp.id}",
+                sp.path,
+                prof,
+                z_pt,
+                storey_at(floor),
+                ids,
+            )
+        for dev in fire.alarmDevices:
+            if dev.story not in levels:
+                continue
+            floor = levels[dev.story]
+            ifc_cls, predef = (
+                ("IfcAlarm", "BELL")
+                if dev.kind in ("callPoint", "sounder", "panel")
+                else ("IfcSensor", "SMOKESENSOR" if dev.kind == "smokeDetector" else "HEATSENSOR")
+            )
+            z_pt = floor + (1400.0 if dev.kind in ("callPoint", "panel") else 2800.0)
+            product = _box_product(
+                w,
+                ifc_cls,
+                predef,
+                f"alarm:{dev.id}",
+                dev.id,
+                dev.id,
+                (120.0, 120.0, 60.0),
+                (dev.x, dev.y, z_pt),
+                storey_at(floor),
+            )
+            ids[dev.id] = product.GlobalId
+    gas = getattr(mep, "gas", None)
+    if gas is not None:
+        for gp in gas.pipes:
+            if gp.story not in levels or not gp.diameter:
+                continue
+            floor = levels[gp.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(gp.diameter) / 2
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                gp.id,
+                f"gas:{gp.id}",
+                gp.path,
+                prof,
+                floor + 2600.0,
+                storey_at(floor),
+                ids,
+            )
+    med = getattr(mep, "medicalGas", None)
+    if med is not None:
+        for mp_pipe in med.pipes:
+            if mp_pipe.story not in levels or not mp_pipe.diameter:
+                continue
+            floor = levels[mp_pipe.story]
+            prof = w.run(
+                "profile.add_parameterized_profile", w.file, ifc_class="IfcCircleProfileDef"
+            )
+            prof.Radius = float(mp_pipe.diameter) / 2
+            _run_segments(
+                w,
+                "IfcPipeSegment",
+                "RIGIDSEGMENT",
+                mp_pipe.id,
+                f"medgas:{mp_pipe.id}",
+                mp_pipe.path,
+                prof,
+                floor + 2650.0,
+                storey_at(floor),
+                ids,
+            )
 
 
 #: IFC4 classes of the equipment kinds of 7 MEP (class, predefined type).

@@ -181,6 +181,9 @@ def hvac_results(
     design = design_conditions(hvac, location)
     env = envelope_choice(hvac.envelope)
     populations = _populations(mep, building)
+    from saengine.electrical.lighting import story_lighting_loads
+
+    lighting_loads = story_lighting_loads(mep, building, rooms)
     gains = {}
     for zone in zoning.zones:
         if zone.conditioned or zone.entry is not None:
@@ -191,7 +194,8 @@ def hvac_results(
                     f"{zone.story}: gains from the rooms asked for, but the architecture has no "
                     "rooms with a use on this story: the typed use is taken"
                 )
-            g = room_gains(zone, hvac, groups, populations.get(zone.story))
+            story_lpd = (lighting_loads.get(zone.story) or {}).get("lpd")
+            g = room_gains(zone, hvac, groups, populations.get(zone.story), lighting_lpd=story_lpd)
             gains[zone.name] = g
             problems.extend(g.problems if zone.conditioned else [])
     conditioned = [z for z in zoning.zones if z.conditioned]

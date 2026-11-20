@@ -557,6 +557,48 @@
   "pumpClearance": 1.0,
   "controllerStrip": 1.2,
   "pumpCentre": 0.5,
+  "sprinklerLayout": {
+    "wallDistanceFactor": 0.5,
+    "minWallDistance": 0.1,
+    "minHeadSpacing": 1.8
+  },
+  "alarm": {
+    "detectors": {
+      "smoke": {
+        "maxArea": 80.0,
+        "maxSpacing": 9.1,
+        "radius": 6.4,
+        "standbyMa": 0.05,
+        "alarmMa": 2.0
+      },
+      "heat": {
+        "maxArea": 50.0,
+        "maxSpacing": 7.0,
+        "radius": 5.3,
+        "standbyMa": 0.05,
+        "alarmMa": 2.0
+      }
+    },
+    "heatRoomUses": ["kitchen", "laundry", "parking", "plant", "boiler", "generator"],
+    "callPoint": {
+      "standbyMa": 0.0,
+      "alarmMa": 5.0,
+      "maxTravelM": 30.0
+    },
+    "sounder": {
+      "standbyMa": 0.0,
+      "alarmMa": 20.0,
+      "maxArea": 200.0
+    },
+    "panel": {
+      "standbyA": 0.1,
+      "alarmA": 0.5
+    },
+    "standbyHours": 24.0,
+    "alarmMinutes": 30.0,
+    "ageingFactor": 1.25,
+    "batterySizesAh": [7.0, 12.0, 17.0, 24.0, 38.0, 65.0, 100.0]
+  },
   "sources": {
     "highRiseHeight": "BNBC 2020 Part 1 Chapter 2 definitions and Part 3 Sec 2.4.4 (p6) and p94",
     "highRiseStoreys": "BNBC 2020 Part 1 Chapter 2 definitions and Part 3 Sec 2.4.4 (p6) and p94",
@@ -613,6 +655,8 @@
     "motorSizes": "IEC motor sizes",
     "pumpClearance": "SAEngine practice",
     "controllerStrip": "SAEngine practice",
-    "pumpCentre": "SAEngine"
+    "pumpCentre": "SAEngine",
+    "sprinklerLayout": "NFPA 13 Sec 8.6.3.2 / EN 12845 wall distance and minimum head spacing (to be confirmed against adopted edition)",
+    "alarm": "NFPA 72 / BS 5839-1 detector coverage, spacing, call point travel, 24 h standby + 30 min alarm and 1.25 ageing factor; typical device currents (to be checked against adopted standard and datasheets)"
   }
 }

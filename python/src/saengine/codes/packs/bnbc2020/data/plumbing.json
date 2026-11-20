@@ -2524,6 +2524,167 @@
       }
     ]
   },
+  "hotWater": {
+    "fixtureDemandLph": {
+      "basin": 8.0,
+      "shower": 150.0,
+      "bathtub": 150.0,
+      "kitchenSink": 40.0,
+      "washingMachine": 60.0,
+      "bidet": 4.0
+    },
+    "demandFactor": {
+      "residential": 0.3,
+      "hotel": 0.25,
+      "hospital": 0.25,
+      "office": 0.3,
+      "school": 0.4,
+      "default": 0.3
+    },
+    "storageFactor": {
+      "residential": 1.25,
+      "hotel": 0.8,
+      "hospital": 0.6,
+      "office": 2.0,
+      "school": 1.0,
+      "default": 1.25
+    },
+    "usableFraction": 0.7,
+    "peakHours": 1.0,
+    "coldTempC": 15.0,
+    "storageTempC": 60.0,
+    "returnDropC": 5.0,
+    "heatLossWPerM": 15.0,
+    "specificHeatKjKgK": 4.186,
+    "recircVelocityMaxMs": 1.0
+  },
+  "gas": {
+    "fuels": {
+      "naturalGas": {
+        "label": "Natural gas",
+        "cvMjPerM3": 38.0,
+        "sg": 0.6,
+        "supplyPressureKpa": 2.0,
+        "maxDropKpa": 0.1
+      },
+      "lpg": {
+        "label": "LPG (propane/butane)",
+        "cvMjPerM3": 93.2,
+        "sg": 1.52,
+        "supplyPressureKpa": 2.8,
+        "maxDropKpa": 0.15
+      }
+    },
+    "poleConstant": 0.0071,
+    "maxVelocityMs": 20.0,
+    "fittingFactor": 1.2,
+    "appliances": {
+      "domesticCooker": 10.0,
+      "domesticHob": 7.0,
+      "commercialRange": 30.0,
+      "waterHeater": 24.0,
+      "boiler": 50.0,
+      "dryer": 6.0,
+      "labBurner": 1.5
+    },
+    "diversity": [
+      {"upTo": 1, "factor": 1.0},
+      {"upTo": 3, "factor": 0.85},
+      {"upTo": 10, "factor": 0.7},
+      {"upTo": 25, "factor": 0.55},
+      {"upTo": null, "factor": 0.45}
+    ],
+    "pipes": [
+      {"nominal": 15, "bore": 15.8},
+      {"nominal": 20, "bore": 21.6},
+      {"nominal": 25, "bore": 27.2},
+      {"nominal": 32, "bore": 35.9},
+      {"nominal": 40, "bore": 41.8},
+      {"nominal": 50, "bore": 53.0},
+      {"nominal": 65, "bore": 68.8},
+      {"nominal": 80, "bore": 80.7},
+      {"nominal": 100, "bore": 105.3}
+    ]
+  },
+  "medicalGas": {
+    "gases": {
+      "O2": {
+        "label": "Medical Oxygen (O2)",
+        "firstLpm": 10.0,
+        "additionalLpm": 6.0,
+        "maxVelocityMs": 10.0,
+        "supplyPressureKpa": 400.0,
+        "maxDropKpa": 20.0
+      },
+      "N2O": {
+        "label": "Nitrous Oxide (N2O)",
+        "firstLpm": 10.0,
+        "additionalLpm": 4.0,
+        "maxVelocityMs": 10.0,
+        "supplyPressureKpa": 400.0,
+        "maxDropKpa": 20.0
+      },
+      "MA4": {
+        "label": "Medical Air 4 bar (MA4)",
+        "firstLpm": 20.0,
+        "additionalLpm": 10.0,
+        "maxVelocityMs": 15.0,
+        "supplyPressureKpa": 400.0,
+        "maxDropKpa": 20.0
+      },
+      "MA7": {
+        "label": "Surgical Air 7 bar (MA7)",
+        "firstLpm": 350.0,
+        "additionalLpm": 175.0,
+        "maxVelocityMs": 15.0,
+        "supplyPressureKpa": 700.0,
+        "maxDropKpa": 35.0
+      },
+      "VAC": {
+        "label": "Medical Vacuum (VAC)",
+        "firstLpm": 40.0,
+        "additionalLpm": 20.0,
+        "maxVelocityMs": 15.0,
+        "supplyPressureKpa": -53.0,
+        "maxDropKpa": 5.0
+      },
+      "AGSS": {
+        "label": "Anaesthetic Gas Scavenging (AGSS)",
+        "firstLpm": 80.0,
+        "additionalLpm": 80.0,
+        "maxVelocityMs": 15.0,
+        "supplyPressureKpa": 0.0,
+        "maxDropKpa": 2.0
+      }
+    },
+    "roomOutlets": {
+      "operatingRoom": {"O2": 2, "N2O": 1, "MA4": 1, "MA7": 1, "VAC": 2, "AGSS": 1},
+      "icu": {"O2": 2, "MA4": 1, "VAC": 2},
+      "recovery": {"O2": 1, "MA4": 1, "VAC": 1},
+      "emergency": {"O2": 2, "MA4": 1, "VAC": 2},
+      "hospitalWard": {"O2": 1, "VAC": 1},
+      "patientRoom": {"O2": 1, "VAC": 1},
+      "delivery": {"O2": 2, "N2O": 1, "MA4": 1, "VAC": 2},
+      "laboratory": {"MA4": 1, "VAC": 1}
+    },
+    "diversity": [
+      {"upTo": 2, "factor": 1.0},
+      {"upTo": 6, "factor": 0.75},
+      {"upTo": 15, "factor": 0.5},
+      {"upTo": null, "factor": 0.35}
+    ],
+    "pipes": [
+      {"nominal": 12, "bore": 10.8},
+      {"nominal": 15, "bore": 13.6},
+      {"nominal": 22, "bore": 20.2},
+      {"nominal": 28, "bore": 26.2},
+      {"nominal": 35, "bore": 32.6},
+      {"nominal": 42, "bore": 39.6},
+      {"nominal": 54, "bore": 51.6},
+      {"nominal": 76, "bore": 72.1},
+      {"nominal": 108, "bore": 103.1}
+    ]
+  },
   "sources": {
     "occupancies": "BNBC 2020 Part 8 Tables 8.5.1(a)-(d) (p1034-1037); residential rows take the Part 3 group of the building type; Table 8.5.1(c) ranges: the upper value",
     "familySize": "BNBC 2020 Part 8 Sec 5.6.3-5.6.4 (p1039)",
@@ -2586,6 +2747,9 @@
     "tanks.maxSpacing": "BNBC 2020 Part 6 Sec 6.6.3.5 (p969): wall bars at most 3h apart (450 mm: concrete.walls.spacingMax); SAEngine applies it to the slabs too, as ACI 318-19 7.7.2.3",
     "tanks.maxWaterCement": "BNBC 2020 Part 6 Sec 5.5.1.1 (p844): w/c at most 0.50 for concrete of low permeability",
     "tanks.combinations": "BNBC 2020 Part 6 Sec 2.7.3.1 (strength) and 2.7.2.1 (service) (p684-685), the cases a tank has: (2) also with H = 0 (tested full before backfilling) and F = 0 (empty, backfilled), as the effects of loads not acting shall be investigated; W = 0",
-    "tanks.uplift": "BNBC 2020 Part 6 Sec 2.6.5.2 (p680): uplift, the full hydrostatic pressure on the underside of the base"
+    "tanks.uplift": "BNBC 2020 Part 6 Sec 2.6.5.2 (p680): uplift, the full hydrostatic pressure on the underside of the base",
+    "hotWater": "ASHRAE HVAC Applications Ch. 50 / CIBSE Guide G domestic hot water demand, storage factors, 60 C storage and 5 K recirculation loop drop (to be checked against project design basis)",
+    "gas": "NFPA 54 / BS 6891 / CIBSE Guide C low-pressure Pole's formula, typical appliance ratings and diversity factors (to be checked against local gas utility and adopted standard)",
+    "medicalGas": "HTM 02-01 / NFPA 99 medical gas outlet counts per room type, diversified flows, velocity limits and copper pipe sizes (to be checked against clinical brief and adopted standard)"
   }
 }
