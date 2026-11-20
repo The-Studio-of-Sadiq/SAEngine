@@ -6070,6 +6070,70 @@ class TankRules(_Group):
         return self
 
 
+class HotWaterTable(_Group):
+    """R7: domestic hot water heater sizing and recirculation loop data (ASHRAE / CIBSE)."""
+
+    fixtureDemandLph: dict[str, NonNegNum]
+    demandFactor: dict[str, Share]
+    storageFactor: dict[str, PosNum]
+    usableFraction: Share
+    peakHours: PosNum
+    coldTempC: Num
+    storageTempC: Num
+    returnDropC: PosNum
+    heatLossWPerM: NonNegNum
+    specificHeatKjKgK: PosNum
+    recircVelocityMaxMs: PosNum
+
+
+class GasFuel(_Row):
+    label: str
+    cvMjPerM3: PosNum
+    sg: PosNum
+    supplyPressureKpa: PosNum
+    maxDropKpa: PosNum
+
+
+class DiversityStep(_Row):
+    upTo: Annotated[int, Field(gt=0)] | None = None
+    factor: Share
+
+
+class PipeBoreRow(_Row):
+    nominal: PosNum
+    bore: PosNum
+
+
+class GasTable(_Group):
+    """R7: fuel gas (natural gas / LPG) demand, diversity and Pole's formula sizing data."""
+
+    fuels: dict[str, GasFuel]
+    poleConstant: PosNum
+    maxVelocityMs: PosNum
+    fittingFactor: PosNum
+    appliances: dict[str, PosNum]
+    diversity: list[DiversityStep]
+    pipes: list[PipeBoreRow]
+
+
+class MedicalGasSpec(_Row):
+    label: str
+    firstLpm: PosNum
+    additionalLpm: PosNum
+    maxVelocityMs: PosNum
+    supplyPressureKpa: Num
+    maxDropKpa: PosNum
+
+
+class MedicalGasTable(_Group):
+    """R7: medical gas outlets per room type, diversified flows and copper pipe sizing (HTM 02-01 / NFPA 99)."""
+
+    gases: dict[str, MedicalGasSpec]
+    roomOutlets: dict[str, dict[str, Annotated[int, Field(gt=0)]]]
+    diversity: list[DiversityStep]
+    pipes: list[PipeBoreRow]
+
+
 class PlumbingTable(_Services):
     """The default pack's Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
     data where the code is silent (marked in ``sources``)."""
@@ -6138,6 +6202,10 @@ class PlumbingTable(_Services):
     )
     fittings: PipeFittings | None = None
     tanks: TankRules | None = None
+    # R7: hot water, fuel gas and medical gas (None: not covered by the pack)
+    hotWater: HotWaterTable | None = None
+    gas: GasTable | None = None
+    medicalGas: MedicalGasTable | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> PlumbingTable:
@@ -6529,6 +6597,31 @@ class ShortCircuitGroup(_Group):
     )
 
 
+class LuminaireSpec(_Row):
+    label: str
+    lumens: PosNum
+    watts: PosNum
+    shrMax: PosNum
+    mounting: Literal["recessed", "surface", "suspended"] = "recessed"
+    length: PosNum
+    width: PosNum
+    height: PosNum
+
+
+class LightingTable(_Group):
+    """R7: lumen-method lighting design data (EN 12464-1 / IES)."""
+
+    targets: dict[str, PosNum]
+    maintenanceFactor: Share
+    defaultWorkPlane: NonNegNum
+    defaultReflectance: str
+    roomIndexSteps: list[PosNum]
+    ufTable: dict[str, list[Share]]
+    luminaires: dict[str, LuminaireSpec]
+    circuitVoltage: PosNum
+    circuitMaxWatts: PosNum
+
+
 class ElectricalTable(_Services):
     """The default pack's Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
     data for the first layout and SAEngine practice where the code is silent (marked in
@@ -6618,6 +6711,7 @@ class ElectricalTable(_Services):
     circuitRules: CircuitRulesGroup | None = None
     cables: CablesGroup | None = None
     shortCircuit: ShortCircuitGroup | None = None
+    lighting: LightingTable | None = None
 
 
 class FireFlow(_Row):
@@ -6641,6 +6735,46 @@ class Extinguisher(_Group):
     perUnit: PosNum = Field(description="Area per unit of A rating [m²].")
     rating: PosNum = Field(description="The smallest rating.")
     max: PosNum = Field(description="The largest area per extinguisher [m²].")
+
+
+class SprinklerLayoutRules(_Group):
+    wallDistanceFactor: Share
+    minWallDistance: NonNegNum
+    minHeadSpacing: PosNum
+
+
+class DetectorSpec(_Row):
+    maxArea: PosNum
+    maxSpacing: PosNum
+    radius: PosNum
+    standbyMa: NonNegNum
+    alarmMa: NonNegNum
+
+
+class AlarmDeviceSpec(_Row):
+    standbyMa: NonNegNum
+    alarmMa: NonNegNum
+    maxTravelM: PosNum | None = None
+    maxArea: PosNum | None = None
+
+
+class AlarmPanelSpec(_Group):
+    standbyA: NonNegNum
+    alarmA: NonNegNum
+
+
+class FireAlarmTable(_Group):
+    """R7: fire alarm device layout and battery sizing data (NFPA 72 / BS 5839-1)."""
+
+    detectors: dict[str, DetectorSpec]
+    heatRoomUses: list[str]
+    callPoint: AlarmDeviceSpec
+    sounder: AlarmDeviceSpec
+    panel: AlarmPanelSpec
+    standbyHours: PosNum
+    alarmMinutes: PosNum
+    ageingFactor: PosNum
+    batterySizesAh: list[PosNum]
 
 
 class FireTable(_Services):
@@ -6711,6 +6845,8 @@ class FireTable(_Services):
     pumpClearance: NonNegNum = Field(description="[m]")
     controllerStrip: NonNegNum = Field(description="[m]")
     pumpCentre: NonNegNum = Field(description="[m]")
+    sprinklerLayout: SprinklerLayoutRules | None = None
+    alarm: FireAlarmTable | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> FireTable:

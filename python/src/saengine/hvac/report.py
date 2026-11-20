@@ -182,16 +182,32 @@ def hvac_results(
     room_by_id = (
         {r.id: r for s in rooms.stories.values() for r in s.rooms} if rooms is not None else {}
     )
+    from saengine.electrical.lighting import story_lighting_loads
+
+    lighting_loads = story_lighting_loads(mep, building, rooms)
     gains = {}
     for zone in zoning_res.zones:
         if zone.conditioned or zone.entry is not None:
             story_rooms = rooms.story(zone.story) if rooms is not None else None
+            story_light = lighting_loads.get(zone.story) or {}
+            story_lpd = story_light.get("lpd")
             if zone.room is not None and zone.room in room_by_id:
+                room_lpd = (story_light.get("rooms") or {}).get(zone.room)
                 g = single_room_gains(
-                    zone, room_by_id[zone.room], hvac, story_rooms, populations.get(zone.story)
+                    zone,
+                    room_by_id[zone.room],
+                    hvac,
+                    story_rooms,
+                    populations.get(zone.story),
+                    lighting_lpd=room_lpd if room_lpd is not None else story_lpd,
                 )
             elif zone.roomLabel == "Unallocated":
-                g = zone_gains(zone, hvac, populations.get(zone.story))
+                g = zone_gains(
+                    zone,
+                    hvac,
+                    populations.get(zone.story),
+                    lighting_lpd=story_lpd,
+                )
             else:
                 groups = story_rooms.hvac_groups() if story_rooms is not None else []
                 if zone.entry is not None and zone.entry.gainsFrom == "rooms" and not groups:
@@ -199,7 +215,13 @@ def hvac_results(
                         f"{zone.story}: gains from the rooms asked for, but the architecture has no "
                         "rooms with a use on this story: the typed use is taken"
                     )
-                g = room_gains(zone, hvac, groups, populations.get(zone.story))
+                g = room_gains(
+                    zone,
+                    hvac,
+                    groups,
+                    populations.get(zone.story),
+                    lighting_lpd=story_lpd,
+                )
             gains[zone.name] = g
             problems.extend(g.problems if zone.conditioned else [])
     conditioned = [z for z in zoning_res.zones if z.conditioned]

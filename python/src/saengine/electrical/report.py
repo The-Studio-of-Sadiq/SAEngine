@@ -437,9 +437,13 @@ def electrical_results(
     frame = Frame.of(bim, objects)
 
     # Demand.
+    from saengine.electrical.rooms import lighting_room_loads
+
+    lighting_loads = lighting_room_loads(mep, building, slab_thickness=frame.slab_thickness)
     dem = compute_demand(
         electrical, building, mep, hvac=hvac, extra=extra,
         default_use=SETTINGS_USE.get(building_use or ""),
+        lighting_loads=lighting_loads,
     )  # fmt: skip
     notes.extend(dem["notes"])
     for s in dem["stories"]:
@@ -601,6 +605,7 @@ def electrical_results(
     ]
     return {
         "demand": dem,
+        "lighting": lighting_loads or None,
         "supply": supply_result,
         "rooms": room_out["checks"],
         "risers": risers,

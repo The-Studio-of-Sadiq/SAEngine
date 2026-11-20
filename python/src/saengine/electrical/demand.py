@@ -166,6 +166,7 @@ def demand(
     hvac: list[dict[str, Any]] | None = None,
     extra: list[dict[str, Any]] | None = None,
     default_use: str | None = None,
+    lighting_loads: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The connected load and maximum demand.
 
@@ -195,10 +196,24 @@ def demand(
         ordered = [s for s in order if s in by_id or s in below_roof] + [
             s for s in by_id if s not in order
         ]
+    if lighting_loads is None and mep is not None:
+        from saengine.electrical.rooms import lighting_room_loads
+
+        lighting_loads = lighting_room_loads(mep, building)
+    lighting_loads = lighting_loads or {}
     for sid in ordered:
         stories.append(
             _story_load(
-                sid, by_id.get(sid), fallback, building, order, conditioned, cooled, factor, pf
+                sid,
+                by_id.get(sid),
+                fallback,
+                building,
+                order,
+                conditioned,
+                cooled,
+                factor,
+                pf,
+                lighting_loads.get(sid),
             )
         )
     missing = [s for s in below_roof if s not in by_id]
@@ -268,6 +283,7 @@ def _story_load(
     cooled: set[str] | None,
     factor: float,
     pf: float,
+    lighting_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One story's connected load and its breakdown: lighting, power and socket outlets, the
     air-conditioning share of Table 8.1.17 and the other loads, each with where it comes from.
@@ -303,14 +319,20 @@ def _story_load(
     else:
         minimum, column = use.non_ac, "non-A/C"
     lighting = entry.lighting if entry is not None else None
+    lighting_from_design = False
+    if lighting is None and lighting_info and lighting_info.get("lpd"):
+        lighting = float(lighting_info["lpd"])
+        lighting_from_design = True
     power = entry.power if entry is not None else None
     entered = None if lighting is None and power is None else (lighting or 0.0) + (power or 0.0)
     base = use.non_ac
     rest = f"the rest of the {base:g} W/m² of {table}"
+    design_label = "lighting design"
     if lighting is None and power is None:
         light_used = power_used = None
     elif power is None:
-        light_used, light_source = float(lighting), "entered"
+        light_used = float(lighting)
+        light_source = design_label if lighting_from_design else "entered"
         power_used, power_source = max(base - light_used, 0.0), rest
         if light_used >= base:
             notes.append(
@@ -321,7 +343,8 @@ def _story_load(
         power_used, power_source = float(power), "entered"
         light_used, light_source = max(base - power_used, 0.0), rest
     else:
-        light_used, light_source = float(lighting), "entered"
+        light_used = float(lighting)
+        light_source = design_label if lighting_from_design else "entered"
         power_used, power_source = float(power), "entered"
     general = base if light_used is None else max(light_used + power_used, base)
     unit = max(general + ac_share, minimum)

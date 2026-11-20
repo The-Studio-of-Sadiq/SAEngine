@@ -66,8 +66,10 @@ Risers** adds slab sleeves where a riser is not in a shaft.
 
 Results (*Plumbing coordination*): daily demand and storage, the **RC tank design** (walls, base
 and roof analysed as shells, with reinforcement and quantities), riser and rainwater leader sizes
-(Table 8.7.2), septic tank and soak well (Appendix S), and the **hydraulics**: residual head at
-every floor against the required head, solved with the EPANET 2.2 engine (WNTR).
+(Table 8.7.2), septic tank and soak well (Appendix S), the **hydraulics** (residual head at
+every floor against the required head, solved with the EPANET 2.2 engine (WNTR)), **hot water**
+heater sizing (storage + recovery) and recirculation loop flow, and **fuel gas / medical gas**
+demand, diversity, meter checks and pipe sizes.
 
 ## HVAC
 
@@ -102,16 +104,26 @@ trunking, cable tray, cable ladder, conduit bank), **Draw Tray**, **Propose Equi
 Openings**.
 
 Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays and
-distribution boards/circuits.
-Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, risers, trays,
-distribution-board schedules (generated from room loads or entered in `electrical.boards`, with
-greedy phase balancing across L1/L2/L3), cable sizing (`Ib <= In <= Iz` with `Ca`, `Cg`, `Ci`
-derating and adiabatic fault withstand `k²S² >= I²t`), cumulative voltage drop (`mV/A/m` and `R/X`
-against the code pack's 3 % lighting / 5 % other limits), IEC 60909 simplified short-circuit fault
-levels (`Ik3 max`, `Ik1 min`, device breaking capacity `Icu`, earth-fault loop `Zs` disconnection),
-and the lightning protection risk with the down-conductor columns needed. DB schedules are included
-in the MEP drawing schedules (`db_schedule_tables`) and can be exported to Excel (`export_db_schedules_xlsx`).
+Data: supply, loads by storey (Table 8.1.17), lightning protection, equipment, risers, trays,
+distribution boards/circuits, and room lighting design (lumen method with luminaire grid layout;
+its W/m² feeds back into HVAC gains and electrical demand).
+Results: maximum demand (kVA), transformer, generator and UPS sizes, rooms, lighting circuits,
+risers, trays, distribution-board schedules (generated from room loads or entered in
+`electrical.boards`, with greedy phase balancing across L1/L2/L3), cable sizing (`Ib <= In <= Iz`
+with `Ca`, `Cg`, `Ci` derating and adiabatic fault withstand `k²S² >= I²t`), cumulative voltage drop
+(`mV/A/m` and `R/X` against the code pack's 3 % lighting / 5 % other limits), IEC 60909 simplified
+short-circuit fault levels (`Ik3 max`, `Ik1 min`, device breaking capacity `Icu`, earth-fault loop
+`Zs` disconnection), and the lightning protection risk with the down-conductor columns needed. DB
+schedules are included in the MEP drawing schedules (`db_schedule_tables`) and can be exported to
+Excel (`export_db_schedules_xlsx`).
 Equipment weights are typical catalogue values: replace them with the supplier's data.
+
+## Fire Protection
+
+Automatic and manual fire requirements (Part 4 Chapter 5), **sprinklers** (individual head grid
+placement per room, branch lines and cross main routed via RoomGraph, pipe schedule sizing and
+EPANET hydraulic calculation), standpipes, fire pumps, fire reservoir and **fire alarm** device
+layout (smoke/heat detectors, exit call points, sounders, panel and standby battery Ah sizing).
 
 ## Files
 

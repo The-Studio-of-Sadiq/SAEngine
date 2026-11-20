@@ -196,6 +196,48 @@
       "title": "BuildingDrainRow",
       "type": "object"
     },
+    "DiversityStep": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "upTo": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upto"
+        },
+        "factor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Factor",
+          "type": "number"
+        }
+      },
+      "required": [
+        "factor"
+      ],
+      "title": "DiversityStep",
+      "type": "object"
+    },
     "DrainageUnitsRow": {
       "additionalProperties": false,
       "properties": {
@@ -243,6 +285,337 @@
         "soil"
       ],
       "title": "DrainageUnitsRow",
+      "type": "object"
+    },
+    "GasFuel": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "cvMjPerM3": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Cvmjperm3"
+        },
+        "sg": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Sg"
+        },
+        "supplyPressureKpa": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Supplypressurekpa"
+        },
+        "maxDropKpa": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxdropkpa"
+        }
+      },
+      "required": [
+        "label",
+        "cvMjPerM3",
+        "sg",
+        "supplyPressureKpa",
+        "maxDropKpa"
+      ],
+      "title": "GasFuel",
+      "type": "object"
+    },
+    "GasTable": {
+      "additionalProperties": false,
+      "description": "R7: fuel gas (natural gas / LPG) demand, diversity and Pole's formula sizing data.",
+      "properties": {
+        "fuels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GasFuel"
+          },
+          "title": "Fuels",
+          "type": "object"
+        },
+        "poleConstant": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Poleconstant"
+        },
+        "maxVelocityMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxvelocityms"
+        },
+        "fittingFactor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Fittingfactor"
+        },
+        "appliances": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Appliances",
+          "type": "object"
+        },
+        "diversity": {
+          "items": {
+            "$ref": "#/$defs/DiversityStep"
+          },
+          "title": "Diversity",
+          "type": "array"
+        },
+        "pipes": {
+          "items": {
+            "$ref": "#/$defs/PipeBoreRow"
+          },
+          "title": "Pipes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fuels",
+        "poleConstant",
+        "maxVelocityMs",
+        "fittingFactor",
+        "appliances",
+        "diversity",
+        "pipes"
+      ],
+      "title": "GasTable",
+      "type": "object"
+    },
+    "HotWaterTable": {
+      "additionalProperties": false,
+      "description": "R7: domestic hot water heater sizing and recirculation loop data (ASHRAE / CIBSE).",
+      "properties": {
+        "fixtureDemandLph": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "minimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Fixturedemandlph",
+          "type": "object"
+        },
+        "demandFactor": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "title": "Demandfactor",
+          "type": "object"
+        },
+        "storageFactor": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Storagefactor",
+          "type": "object"
+        },
+        "usableFraction": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Usablefraction",
+          "type": "number"
+        },
+        "peakHours": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Peakhours"
+        },
+        "coldTempC": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Coldtempc"
+        },
+        "storageTempC": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Storagetempc"
+        },
+        "returnDropC": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Returndropc"
+        },
+        "heatLossWPerM": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Heatlosswperm"
+        },
+        "specificHeatKjKgK": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Specificheatkjkgk"
+        },
+        "recircVelocityMaxMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Recircvelocitymaxms"
+        }
+      },
+      "required": [
+        "fixtureDemandLph",
+        "demandFactor",
+        "storageFactor",
+        "usableFraction",
+        "peakHours",
+        "coldTempC",
+        "storageTempC",
+        "returnDropC",
+        "heatLossWPerM",
+        "specificHeatKjKgK",
+        "recircVelocityMaxMs"
+      ],
+      "title": "HotWaterTable",
       "type": "object"
     },
     "HunterRow": {
@@ -376,6 +749,197 @@
         "flow"
       ],
       "title": "LeaderRow",
+      "type": "object"
+    },
+    "MedicalGasSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "firstLpm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Firstlpm"
+        },
+        "additionalLpm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Additionallpm"
+        },
+        "maxVelocityMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxvelocityms"
+        },
+        "supplyPressureKpa": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Supplypressurekpa"
+        },
+        "maxDropKpa": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Maxdropkpa"
+        }
+      },
+      "required": [
+        "label",
+        "firstLpm",
+        "additionalLpm",
+        "maxVelocityMs",
+        "supplyPressureKpa",
+        "maxDropKpa"
+      ],
+      "title": "MedicalGasSpec",
+      "type": "object"
+    },
+    "MedicalGasTable": {
+      "additionalProperties": false,
+      "description": "R7: medical gas outlets per room type, diversified flows and copper pipe sizing (HTM 02-01 / NFPA 99).",
+      "properties": {
+        "gases": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MedicalGasSpec"
+          },
+          "title": "Gases",
+          "type": "object"
+        },
+        "roomOutlets": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "title": "Roomoutlets",
+          "type": "object"
+        },
+        "diversity": {
+          "items": {
+            "$ref": "#/$defs/DiversityStep"
+          },
+          "title": "Diversity",
+          "type": "array"
+        },
+        "pipes": {
+          "items": {
+            "$ref": "#/$defs/PipeBoreRow"
+          },
+          "title": "Pipes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "gases",
+        "roomOutlets",
+        "diversity",
+        "pipes"
+      ],
+      "title": "MedicalGasTable",
+      "type": "object"
+    },
+    "PipeBoreRow": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "nominal": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Nominal"
+        },
+        "bore": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Bore"
+        }
+      },
+      "required": [
+        "nominal",
+        "bore"
+      ],
+      "title": "PipeBoreRow",
       "type": "object"
     },
     "PipeFittings": {
@@ -2319,6 +2883,39 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TankRules"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "hotWater": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HotWaterTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "gas": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GasTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "medicalGas": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MedicalGasTable"
         },
         {
           "type": "null"

@@ -148,6 +148,7 @@ def _build(t: Any) -> dict[str, Any]:
         "UPS_AUTONOMY_MIN": t.upsAutonomyMin,
         "TANK_PLATE": t.tankPlate,
         "STEEL_WEIGHT": t.steelWeight,
+        "LIGHTING": t.lighting,
     }
 
 

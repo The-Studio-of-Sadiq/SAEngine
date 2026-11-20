@@ -136,7 +136,12 @@ def _heating_inside(hvac: Any) -> tuple[float, str]:
 
 
 def _room_use_loads(
-    use: str, area: float, height: float, population: float | None = None, shared_area: float = 0.0
+    use: str,
+    area: float,
+    height: float,
+    population: float | None = None,
+    shared_area: float = 0.0,
+    lighting_lpd: float | None = None,
 ) -> tuple[Any, float, float, float, float]:
     """(Table 8.2.3 row, persons, lpd [W/m²], plug [W/m²], outdoor air [m³/s]) for one room
     or use group of ``area`` m² and ``height`` m."""
@@ -147,7 +152,11 @@ def _room_use_loads(
         persons = population * area / shared_area
     else:
         persons = 0.0
-    lpd = T.LPD[T.GROUP_LPD.get(row.group) or "offices"]
+    lpd = (
+        float(lighting_lpd)
+        if lighting_lpd is not None
+        else T.LPD[T.GROUP_LPD.get(row.group) or "offices"]
+    )
     plug = T.EQUIPMENT.get(row.group, T.EQUIPMENT_DEFAULT)
     by_people = (row.perPerson or 0.0) * persons / 1000.0
     if row.ach is not None:
@@ -167,6 +176,7 @@ def room_gains(
     hvac: Any,
     groups: list[dict[str, Any]] | None,
     population: float | None = None,
+    lighting_lpd: float | None = None,
 ) -> ZoneGains:
     """The gains of a zone from its story's rooms (``groups``: the rooms by Table 8.2.3 use,
     :meth:`saengine.mep.rooms.StoryRooms.hvac_groups`), each group with its own use's density,
@@ -174,7 +184,7 @@ def room_gains(
     living areas), added up over the story. Persons of a use without a density (dwellings)
     are the story's plumbing ``population`` shared by area. Occupants, lighting and equipment
     typed in 07 MEP override; ``gainsFrom`` "typed" (or no rooms) gives :func:`zone_gains`."""
-    base = zone_gains(zone, hvac, population)
+    base = zone_gains(zone, hvac, population, lighting_lpd=lighting_lpd)
     entry = zone.entry
     if not groups or (entry is not None and entry.gainsFrom == "typed"):
         return base
@@ -192,7 +202,9 @@ def room_gains(
     people = lighting = equipment = air = 0.0
     for g in groups:
         a = g["area"]
-        row, persons, lpd, plug, flow = _room_use_loads(g["use"], a, height, population, shared)
+        row, persons, lpd, plug, flow = _room_use_loads(
+            g["use"], a, height, population, shared, lighting_lpd=lighting_lpd
+        )
         people += persons
         lighting += lpd * a
         equipment += plug * a
@@ -203,9 +215,10 @@ def room_gains(
                 "outdoorAir": flow, "rooms": list(g["rooms"]),
             }
         )  # fmt: skip
+        light_source = "from lighting design" if lighting_lpd is not None else "Part 3 Table 3.4.5"
         sources.append(
             f"{row.label}: {a:.1f} m², {persons:.1f} persons, {lpd:g} W/m² lighting, "
-            f"{flow * 1000:.0f} l/s outdoor air (Table 8.2.3; Part 3 Table 3.4.5)"
+            f"{flow * 1000:.0f} l/s outdoor air (Table 8.2.3; {light_source})"
         )
     if rest > 0:
         share = rest / area
@@ -249,6 +262,7 @@ def single_room_gains(
     hvac: Any,
     story_rooms: Any = None,
     population: float | None = None,
+    lighting_lpd: float | None = None,
 ) -> ZoneGains:
     """The gains of a single-room :class:`~saengine.hvac.geometry.ThermalZone`, reusing the
     Table 8.2.3 / Table 3.4.5 rules of :func:`room_gains` and sharing dwelling ``population``
@@ -270,11 +284,18 @@ def single_room_gains(
             and T.VENTILATION[r.hvacUse].density is None
             and T.VENTILATION[r.hvacUse].perPerson
         )
-    row, persons, lpd, plug, flow = _room_use_loads(use, area, height, population, shared)
+    row, persons, lpd, plug, flow = _room_use_loads(
+        use, area, height, population, shared, lighting_lpd=lighting_lpd
+    )
     if entry is not None and entry.occupants is not None and total_story_area > 0:
         persons = float(entry.occupants) * area / total_story_area
     if entry is not None and entry.lighting is not None:
         lpd = float(entry.lighting)
+        light_source = "entered"
+    elif lighting_lpd is not None:
+        light_source = "from lighting design"
+    else:
+        light_source = "Part 3 Table 3.4.5"
     if entry is not None and entry.equipment is not None:
         plug = float(entry.equipment)
     db, rh, inside = _inside(use, hvac)
@@ -283,7 +304,7 @@ def single_room_gains(
     sources = [
         (
             f"{zone.story} / {label}: {row.label} ({area:.1f} m², {persons:.1f} persons, "
-            f"{lpd:g} W/m² lighting, {flow * 1000:.0f} l/s outdoor air, Table 8.2.3; Part 3 Table 3.4.5)"
+            f"{lpd:g} W/m² lighting, {flow * 1000:.0f} l/s outdoor air, Table 8.2.3; {light_source})"
         ),
         f"inside {inside}; heating {heat_src}",
     ]
@@ -316,7 +337,12 @@ def single_room_gains(
     )
 
 
-def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGains:
+def zone_gains(
+    zone: Any,
+    hvac: Any,
+    population: float | None = None,
+    lighting_lpd: float | None = None,
+) -> ZoneGains:
     """The gains of a :class:`~saengine.hvac.geometry.ThermalZone` (``population``: the
     persons the plumbing of 07 MEP gives the story, when Table 8.2.3 gives no density)."""
     entry = zone.entry
@@ -342,6 +368,9 @@ def zone_gains(zone: Any, hvac: Any, population: float | None = None) -> ZoneGai
             problems.append(f"{zone.story}: give its occupants (Table 8.2.3 gives no density)")
     if entry is not None and entry.lighting is not None:
         lighting = float(entry.lighting)
+    elif lighting_lpd is not None:
+        lighting = float(lighting_lpd)
+        sources.append(f"lighting {lighting:g} W/m²: from lighting design")
     else:
         key = T.GROUP_LPD.get(row.group)
         lighting = T.LPD[key or "offices"]

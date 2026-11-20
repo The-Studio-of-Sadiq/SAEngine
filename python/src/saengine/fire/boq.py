@@ -109,6 +109,8 @@ def measure_fire(measure: Any, designs: dict[str, Any] | None = None) -> bool:
         (87, "extinguisher", "Portable fire extinguishers", q.get("extinguishers", 0)),
         (88, "callPoint", "Manual fire alarm call points", q.get("callPoints", 0)),
         (89, "detector", "Automatic fire detectors", q.get("detectors", 0)),
+        (90, "sounder", "Fire alarm sounders", q.get("sounders", 0)),
+        (91, "panel", "Fire alarm control panel", q.get("panels", 0)),
     ]  # fmt: skip
     for order, key, label, n in counts:
         measure.bill.add("mep", (order, key), label, "nr", "fire", float(n), kind="fire")

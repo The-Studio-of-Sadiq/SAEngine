@@ -268,6 +268,55 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
         if plumbing.roof is not None:
             for d in plumbing.roof.drains:
                 add(d.story, Item("plumbing", "point", "P-STRM", f"{d.id} RD", [(d.x, d.y)], 150.0))
+        if plumbing.hotWater is not None and plumbing.hotWater.heater is not None:
+            h = plumbing.hotWater.heater
+            cap = f" {h.volumeL:g} l" if h.volumeL else ""
+            add(h.story, _box_item("plumbing", "P-EQPM", h, f"{h.id} WATER HEATER{cap}", 600))
+    if mep.gas is not None:
+        if mep.gas.meter is not None:
+            gm = mep.gas.meter
+            add(
+                gm.story,
+                Item(
+                    "plumbing",
+                    "point",
+                    "P-EQPM",
+                    f"{gm.id} GAS METER",
+                    [(gm.x, gm.y)],
+                    300.0,
+                    cross=True,
+                ),
+            )
+        for gp in mep.gas.pipes:
+            size = f" Ø{_mm(gp.diameter)}" if gp.diameter else ""
+            add(
+                gp.story,
+                Item(
+                    "plumbing",
+                    "path",
+                    "P-DOMW",
+                    f"{gp.id} GAS{size}",
+                    [(float(x), float(y)) for x, y in gp.path],
+                ),
+            )
+    if mep.medicalGas is not None:
+        for mo in mep.medicalGas.outlets:
+            add(
+                mo.story,
+                Item("plumbing", "point", "P-EQPM", f"{mo.id} {mo.gas}", [(mo.x, mo.y)], 120.0),
+            )
+        for mp_pipe in mep.medicalGas.pipes:
+            size = f" Ø{_mm(mp_pipe.diameter)}" if mp_pipe.diameter else ""
+            add(
+                mp_pipe.story,
+                Item(
+                    "plumbing",
+                    "path",
+                    "P-DOMW",
+                    f"{mp_pipe.id} {mp_pipe.gas}{size}",
+                    [(float(x), float(y)) for x, y in mp_pipe.path],
+                ),
+            )
     rooms = drawing.rooms
     if rooms is not None:
         for story in rooms.stories.values():
@@ -344,6 +393,13 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
             for i, (x, y, _z) in enumerate(lightning.airTerminals, 1):
                 add(levels[-1].id, Item("electrical", "point", "E-EQPM", f"AT{i}",
                                         [(float(x), float(y))], 150.0, cross=True))  # fmt: skip
+        for lum in electrical.luminaires:
+            add(
+                lum.story,
+                Item(
+                    "electrical", "point", "E-EQPM", f"{lum.id} {lum.type}", [(lum.x, lum.y)], 300.0
+                ),
+            )
     # fire protection
     fire = mep.fire
     if fire is not None:
@@ -357,6 +413,26 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
             size = f" Ø{_mm(m.diameter)}" if m.diameter else ""
             path = [(float(x), float(y)) for x, y in m.path]
             add(m.story, Item("fire", "path", "F-PROT", f"{m.id} MAIN{size}", path))
+        for sp in fire.sprinklerPipes:
+            size = f" Ø{_mm(sp.diameter)}" if sp.diameter else ""
+            path = [(float(x), float(y)) for x, y in sp.path]
+            add(sp.story, Item("fire", "path", "F-PROT", f"{sp.id}{size}", path))
+        for sh in fire.sprinklerHeads:
+            add(sh.story, Item("fire", "point", "F-PROT", f"{sh.id} SPR", [(sh.x, sh.y)], 150.0))
+        for dev in fire.alarmDevices:
+            layer = "F-EQPM" if dev.kind == "panel" else "F-PROT"
+            add(
+                dev.story,
+                Item(
+                    "fire",
+                    "point",
+                    layer,
+                    f"{dev.id} {dev.kind}",
+                    [(dev.x, dev.y)],
+                    180.0,
+                    cross=dev.kind == "callPoint",
+                ),
+            )
         for p in fire.pumps:
             if p.equipment:
                 linked.add(p.equipment)
