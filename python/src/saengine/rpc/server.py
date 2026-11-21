@@ -1916,6 +1916,222 @@ def _register_l12(server: JsonRPCServer) -> None:
 
         return rpc_automate(_plain(params))
 
+    # U3: domain engine RPC endpoints exposed through ribbon panels.
+    @server.feature("mep/electricalCableSize")
+    @_in_worker
+    def _mep_electrical_cable_size(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.electrical_cable_size(
+            args.get("projectRoot"),
+            mode=str(args.get("mode") or "project"),
+            design_current_a=float(args.get("designCurrentA") or 32.0),
+            length_m=float(args.get("lengthM") or 30.0),
+            phases=int(args.get("phases") or 1),
+            installation_method=str(args.get("installationMethod") or "C"),
+            insulation=str(args.get("insulation") or "PVC"),
+            conductor=str(args.get("conductor") or "Cu"),
+            ambient_c=float(args.get("ambientC") or 35.0),
+            grouped_circuits=int(args.get("groupedCircuits") or 1),
+            vd_limit_pct=float(args.get("vdLimitPct") or 4.0),
+            nominal_voltage=args.get("nominalVoltage"),
+        )
+
+    @server.feature("mep/electricalLighting")
+    @_in_worker
+    def _mep_electrical_lighting(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.electrical_lighting(
+            args["projectRoot"],
+            luminaire_type=args.get("luminaireType"),
+            maintenance_factor=args.get("maintenanceFactor"),
+            work_plane_m=args.get("workPlaneM"),
+            reflectance=args.get("reflectance"),
+        )
+
+    @server.feature("mep/hvacLoadsDetailed")
+    @_in_worker
+    def _mep_hvac_loads_detailed(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_loads_detailed(
+            args["projectRoot"],
+            zoning=args.get("zoning"),
+            use_energyplus=bool(args.get("useEnergyPlus")),
+            annual=bool(args.get("annual")),
+            epw=args.get("epw"),
+        )
+
+    @server.feature("mep/hvacDuctPressure")
+    @_in_worker
+    def _mep_hvac_duct_pressure(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_duct_pressure(
+            args["projectRoot"],
+            friction_rate=float(args.get("frictionRate") or 1.0),
+            method=str(args.get("method") or "equalFriction"),
+            material=args.get("material"),
+            supply_delta_t=args.get("supplyDeltaT"),
+        )
+
+    @server.feature("mep/hvacRouteDucts")
+    @_in_worker
+    def _mep_hvac_route_ducts(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.hvac_route_ducts(
+            args["projectRoot"],
+            story=args.get("story"),
+            system=str(args.get("system") or "supply"),
+            shape=str(args.get("shape") or "rect"),
+            method=str(args.get("method") or "equalFriction"),
+            friction_rate=float(args.get("frictionRate") or 1.0),
+            beam_penalty=float(args.get("beamPenalty") or 5000.0),
+            material=args.get("material"),
+            apply_to_mep=bool(args.get("applyToMep")),
+        )
+
+    @server.feature("mep/fireSprinklers")
+    @_in_worker
+    def _mep_fire_sprinklers(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fire_sprinklers(
+            args["projectRoot"],
+            hazard=args.get("hazard"),
+            material=str(args.get("material") or "steel"),
+            ceiling=str(args.get("ceiling") or "beams"),
+        )
+
+    @server.feature("mep/fireAlarm")
+    @_in_worker
+    def _mep_fire_alarm(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fire_alarm(
+            args["projectRoot"],
+            standby_hours=args.get("standbyHours"),
+            alarm_minutes=args.get("alarmMinutes"),
+            ageing_factor=args.get("ageingFactor"),
+        )
+
+    @server.feature("mep/plumbingHotWater")
+    @_in_worker
+    def _mep_plumbing_hot_water(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plumbing_hot_water(
+            args["projectRoot"],
+            supply_temp_c=args.get("supplyTempC"),
+            cold_temp_c=args.get("coldTempC"),
+            loop_length_m=args.get("loopLengthM"),
+            material=args.get("material"),
+        )
+
+    @server.feature("mep/plumbingGas")
+    @_in_worker
+    def _mep_plumbing_gas(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.plumbing_gas(
+            args["projectRoot"],
+            fuel=args.get("fuel"),
+            supply_pressure_kpa=args.get("supplyPressureKpa"),
+            max_drop_kpa=args.get("maxDropKpa"),
+        )
+
+    @server.feature("drawings/scopeBoxes")
+    @_in_worker
+    def _drawings_scope_boxes(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_scope_boxes(
+            args["projectRoot"],
+            scope_boxes=args.get("scopeBoxes"),
+            size=str(args.get("size") or "A1"),
+            scale=float(args.get("scale") or 100.0),
+            prefix=str(args.get("prefix") or "S-"),
+            write_files=bool(args.get("writeFiles")),
+            save_to_settings=bool(args.get("saveToSettings")),
+        )
+
+    @server.feature("drawings/callout")
+    @_in_worker
+    def _drawings_callout(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_callout(
+            args["projectRoot"],
+            level=args.get("level"),
+            callout_number=str(args.get("calloutNumber") or "1"),
+            detail_sheet_number=str(args.get("detailSheetNumber") or "S-501"),
+            x0=args.get("x0"),
+            y0=args.get("y0"),
+            x1=args.get("x1"),
+            y1=args.get("y1"),
+            plan_scale=float(args.get("planScale") or 100.0),
+            detail_scale=float(args.get("detailScale") or 25.0),
+            size=str(args.get("size") or "A1"),
+            write_files=bool(args.get("writeFiles")),
+        )
+
+    @server.feature("drawings/keynotes")
+    @_in_worker
+    def _drawings_keynotes(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_keynotes(args["projectRoot"], sheet=args.get("sheet"))
+
+    @server.feature("drawings/legend")
+    @_in_worker
+    def _drawings_legend(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_legend(args["projectRoot"], sheet=args.get("sheet"))
+
+    @server.feature("drawings/scheduleCategories")
+    def _drawings_schedule_categories(params: Any) -> dict[str, Any]:
+        return handlers.drawings_schedule_categories(_plain(params)["projectRoot"])
+
+    @server.feature("drawings/schedule")
+    @_in_worker
+    def _drawings_schedule(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.drawings_schedule(
+            args["projectRoot"],
+            args["definition"],
+            export_xlsx_path=args.get("exportXlsxPath"),
+        )
+
+    @server.feature("bim/exportIfcFile")
+    @_in_worker
+    def _bim_export_ifc_file(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_export_ifc_file(
+            args["projectRoot"],
+            schema=args.get("schema"),
+            structural_analysis=args.get("includeStructuralAnalysis"),
+            include_georeferencing=args.get("includeGeoreferencing"),
+            crs=args.get("crs"),
+            include_connections=args.get("includeConnections"),
+            out_path=args.get("outPath"),
+        )
+
+    @server.feature("bim/diffIfc")
+    @_in_worker
+    def _bim_diff_ifc(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_diff_ifc(args["beforePath"], args["afterPath"])
+
+    @server.feature("project/validateAll")
+    @_in_worker
+    def _project_validate_all(params: Any) -> dict[str, Any]:
+        return handlers.project_validate_all(_plain(params)["projectRoot"])
+
+    @server.feature("verification/cases")
+    def _verification_cases(params: Any) -> dict[str, Any]:
+        return handlers.verification_cases()
+
+    @server.feature("verification/run")
+    @_in_worker
+    def _verification_run(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.verification_run(
+            out_dir=args.get("outDir"),
+            ids=args.get("ids"),
+            fast_only=bool(args.get("fastOnly", True)),
+            pdf=bool(args.get("pdf", True)),
+        )
+
 
 def _claim_stdout() -> BinaryIO:
     """Keep the real stdout for the protocol and send fd 1 to stderr.

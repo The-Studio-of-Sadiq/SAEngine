@@ -42,6 +42,7 @@ const RibbonSubmenus = {
 	CollabLive: MenuId.for('SaengineRibbon.Submenu.CollabLive'),
 	ManagePackages: MenuId.for('SaengineRibbon.Submenu.ManagePackages'),
 	ManageAi: MenuId.for('SaengineRibbon.Submenu.ManageAi'),
+	AnalyzeRun: MenuId.for('SaengineRibbon.Submenu.AnalyzeRun'),
 } as const;
 
 //#region Part and section opener commands (reuse projectParts.ts)
@@ -197,10 +198,13 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['Electrical', localize('ribbon.grp.electrical', "Electrical")],
 	['FireAndSystems', localize('ribbon.grp.fireSystems', "Fire & Systems")],
 	['Drawings', localize('ribbon.grp.drawings', "Drawings")],
+	['Views', localize('ribbon.grp.views', "Views")],
 	['Annotation', localize('ribbon.grp.annotation', "Annotation")],
+	['Schedules', localize('ribbon.grp.schedules', "Schedules")],
 	['SchedulesAndBOQ', localize('ribbon.grp.schedulesBoq', "Schedules & BOQ")],
 	['Report', localize('ribbon.grp.report', "Report")],
 	['Exports', localize('ribbon.grp.exports', "Exports")],
+	['IFC', localize('ribbon.grp.ifc', "IFC")],
 	['BIMAndCAD', localize('ribbon.grp.bimCad', "BIM & CAD")],
 	['Exchange', localize('ribbon.grp.exchange', "Exchange")],
 	['BOQAndReports', localize('ribbon.grp.boqReports', "BOQ & Reports")],
@@ -422,7 +426,13 @@ addItem(RibbonMenus.Loads, '3_SpecialAndCombos', 3, CMD_SEC_SETTINGS_COMBINATION
 //#region Tab 6: Analyze
 
 addItem(RibbonMenus.Analyze, '1_Solver', 1, 'saengine.runAll', localize('rib.analyze.runAll', "Run All"), Codicon.play, 'large', { precondition: projectOpen });
-addItem(RibbonMenus.Analyze, '1_Solver', 2, 'saengine.fem.runAnalysis', localize('rib.analyze.runAnalysis', "Run Analysis"), Codicon.runAll, 'large', { precondition: projectOpen });
+addSubmenu(RibbonMenus.Analyze, '1_Solver', 2, RibbonSubmenus.AnalyzeRun, localize('rib.analyze.run', "Run"), Codicon.runAll, 'large', true, 'saengine.fem.runAnalysis');
+addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 1, 'saengine.fem.runAnalysis', localize('rib.analyze.runAnalysis', "Run Analysis"), Codicon.runAll, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 2, 'saengine.analyze.runDerive', localize('rib.analyze.deriveOnly', "Derive Only"), Codicon.symbolStructure, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 3, 'saengine.analyze.runAnalyse', localize('rib.analyze.analyseOnly', "Analyse Only"), Codicon.runAll, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 4, 'saengine.analyze.runDesign', localize('rib.analyze.designOnly', "Design Only"), Codicon.symbolRuler, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.AnalyzeRun, '2_check', 1, 'saengine.analyze.checkProject', localize('rib.analyze.checkProject', "Check Project"), Codicon.checklist, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.AnalyzeRun, '2_check', 2, 'saengine.analyze.validateProject', localize('rib.analyze.validate', "Validate"), Codicon.pass, { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '1_Solver', 3, 'saengine.fem.runSelectedCases', localize('rib.analyze.selectedCases', "Selected Cases"), Codicon.checklist, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '1_Solver', 4, CMD_OPEN_FEM, localize('rib.analyze.femModel', "FEM Model"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '1_Solver', 5, CMD_SEC_SETTINGS_ANALYSIS, localize('rib.analyze.modelSettings', "Analysis Settings"), Codicon.settingsGear, 'small', { precondition: projectOpen });
@@ -460,12 +470,27 @@ addItem(RibbonMenus.MEP, '1_Coordination', 1, CMD_SEC_MEP_COORDINATION, localize
 addItem(RibbonMenus.MEP, '1_Coordination', 2, 'saengine.mep.editor.suggestSleeves', localize('rib.mep.suggestSleeves', "Suggest Sleeves"), Codicon.wand, 'large', { precondition: projectOpen });
 
 addItem(RibbonMenus.MEP, '2_Plumbing', 1, CMD_SEC_MEP_PLUMBING, localize('rib.mep.plumbing', "Plumbing"), Codicon.beaker, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '2_Plumbing', 2, 'saengine.mep.plumbing.hotWater', localize('rib.mep.hotWater', "Hot Water"), Codicon.beaker, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '2_Plumbing', 3, 'saengine.mep.plumbing.gas', localize('rib.mep.gas', "Gas & Medical Gas"), Codicon.flame, 'small', { precondition: projectOpen });
+
 addItem(RibbonMenus.MEP, '3_HVAC', 1, CMD_SEC_MEP_HVAC, localize('rib.mep.hvac', "HVAC"), Codicon.dashboard, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '3_HVAC', 2, 'saengine.mep.hvac.roomLoads', localize('rib.mep.roomLoads', "Room Loads"), Codicon.dashboard, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '3_HVAC', 3, 'saengine.mep.hvac.heatingLoads', localize('rib.mep.heatingLoads', "Heating Loads"), Codicon.flame, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '3_HVAC', 4, 'saengine.mep.hvac.ductPressure', localize('rib.mep.ductPressure', "Duct Pressure"), Codicon.compass, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '3_HVAC', 5, 'saengine.mep.hvac.routeDucts', localize('rib.mep.routeDucts', "Route Ducts"), Codicon.wand, 'small', { precondition: projectOpen });
+
 addItem(RibbonMenus.MEP, '4_Electrical', 1, CMD_SEC_MEP_ELECTRICAL, localize('rib.mep.electrical', "Electrical"), Codicon.plug, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '4_Electrical', 2, 'saengine.mep.electrical.boards', localize('rib.mep.boards', "Boards & Circuits"), Codicon.circuitBoard, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '4_Electrical', 3, 'saengine.mep.electrical.cables', localize('rib.mep.cables', "Cable Sizing"), Codicon.plug, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '4_Electrical', 4, 'saengine.mep.electrical.voltageDrop', localize('rib.mep.voltageDrop', "Voltage Drop"), Codicon.pulse, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '4_Electrical', 5, 'saengine.mep.electrical.shortCircuit', localize('rib.mep.shortCircuit', "Short Circuit"), Codicon.symbolEvent, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '4_Electrical', 6, 'saengine.mep.electrical.lighting', localize('rib.mep.lighting', "Lighting"), Codicon.lightbulb, 'small', { precondition: projectOpen });
 
 addItem(RibbonMenus.MEP, '5_FireAndSystems', 1, CMD_SEC_MEP_FIRE, localize('rib.mep.fire', "Fire"), Codicon.flame, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.MEP, '5_FireAndSystems', 2, CMD_SEC_MEP_SYSTEMS, localize('rib.mep.systems', "Systems"), Codicon.circuitBoard, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.MEP, '5_FireAndSystems', 3, 'saengine.office.fabrication', localize('rib.mep.fabrication', "MEP Fabrication"), Codicon.tools, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '5_FireAndSystems', 4, 'saengine.mep.fire.sprinklers', localize('rib.mep.sprinklers', "Place Sprinklers"), Codicon.flame, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MEP, '5_FireAndSystems', 5, 'saengine.mep.fire.alarm', localize('rib.mep.alarm', "Fire Alarm"), Codicon.warning, 'small', { precondition: projectOpen });
 
 //#endregion
 
@@ -476,23 +501,29 @@ addItem(RibbonMenus.Documents, '1_Drawings', 2, CMD_SEC_SETTINGS_DRAWINGS, local
 addItem(RibbonMenus.Documents, '1_Drawings', 3, 'saengine.cad.openDxf', localize('rib.docs.openCad', "Open DXF in CAD"), Codicon.linkExternal, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Documents, '1_Drawings', 4, 'saengine.office.takeoff', localize('rib.docs.takeoff', "PDF Takeoff"), Codicon.preview, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Documents, '2_Annotation', 1, 'saengine.drawings.autoDimension', localize('rib.docs.autoDim', "Auto-Dimension"), Codicon.symbolRuler, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '2_Annotation', 2, 'saengine.drawings.autoTag', localize('rib.docs.autoTag', "Auto-Tag"), Codicon.symbolKey, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '2_Annotation', 3, 'saengine.drawings.autoArrange', localize('rib.docs.autoArrange', "Arrange Labels"), Codicon.layout, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '2_Annotation', 4, 'saengine.drawings.undoAutomation', localize('rib.docs.undoAuto', "Undo Automation"), Codicon.discard, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '2_Views', 1, 'saengine.drawings.scopeBoxes', localize('rib.docs.scopeBoxes', "Scope Boxes"), Codicon.layout, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '2_Views', 2, 'saengine.drawings.callouts', localize('rib.docs.callouts', "Callouts"), Codicon.search, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '2_Views', 3, 'saengine.drawings.keynotes', localize('rib.docs.keynotes', "Keynotes"), Codicon.tag, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '2_Views', 4, 'saengine.drawings.legend', localize('rib.docs.legend', "Legend"), Codicon.bookmark, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Documents, '3_SchedulesAndBOQ', 1, CMD_OPEN_BOQ, localize('rib.docs.boq', "Bill of Quantities"), Codicon.table, 'large', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '3_SchedulesAndBOQ', 2, 'saengine.boq.editRates', localize('rib.docs.rates', "Schedule of Rates"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '3_SchedulesAndBOQ', 3, 'saengine.boq.editCarbon', localize('rib.docs.carbon', "Carbon Factors"), Codicon.globe, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Documents, '3_SchedulesAndBOQ', 4, 'saengine.floorPlan.openMembersTable', localize('rib.docs.membersTable', "Members Schedule"), Codicon.listFlat, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '3_Annotation', 1, 'saengine.drawings.autoDimension', localize('rib.docs.autoDim', "Auto-Dimension"), Codicon.symbolRuler, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '3_Annotation', 2, 'saengine.drawings.autoTag', localize('rib.docs.autoTag', "Auto-Tag"), Codicon.symbolKey, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '3_Annotation', 3, 'saengine.drawings.autoArrange', localize('rib.docs.autoArrange', "Arrange Labels"), Codicon.layout, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '3_Annotation', 4, 'saengine.drawings.undoAutomation', localize('rib.docs.undoAuto', "Undo Automation"), Codicon.discard, 'small', { precondition: projectOpen });
 
-addSubmenu(RibbonMenus.Documents, '4_Report', 1, RibbonSubmenus.DocsReport, localize('rib.docs.report', "Design Report"), Codicon.filePdf, 'large', true, 'saengine.report.print');
+addItem(RibbonMenus.Documents, '4_Schedules', 1, 'saengine.drawings.scheduleBuilder', localize('rib.docs.scheduleBuilder', "Schedule Builder"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '4_Schedules', 2, CMD_OPEN_BOQ, localize('rib.docs.boq', "Bill of Quantities"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '4_Schedules', 3, 'saengine.boq.editRates', localize('rib.docs.rates', "Schedule of Rates"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '4_Schedules', 4, 'saengine.boq.editCarbon', localize('rib.docs.carbon', "Carbon Factors"), Codicon.globe, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Documents, '4_Schedules', 5, 'saengine.floorPlan.openMembersTable', localize('rib.docs.membersTable', "Members Schedule"), Codicon.listFlat, 'small', { precondition: projectOpen });
+
+addSubmenu(RibbonMenus.Documents, '5_Report', 1, RibbonSubmenus.DocsReport, localize('rib.docs.report', "Design Report"), Codicon.filePdf, 'large', true, 'saengine.report.print');
 addSubItem(RibbonSubmenus.DocsReport, '1_report', 1, 'saengine.report.print', localize('rib.docs.printReport', "Print Design Report"), Codicon.filePdf, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.DocsReport, '1_report', 2, 'saengine.report.exportWord', localize('rib.docs.wordReport', "Export Report to Word"), Codicon.fileText, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.DocsReport, '2_config', 1, 'saengine.report.configure', localize('rib.docs.configureReport', "Configure Design Report..."), Codicon.settingsGear, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.DocsReport, '2_config', 2, CMD_SEC_SETTINGS_REPORT, localize('rib.docs.reportSettings', "Design Report Settings"), Codicon.book, { precondition: projectOpen });
 
-addSubmenu(RibbonMenus.Documents, '4_Report', 2, RibbonSubmenus.DocsWorksheets, localize('rib.docs.worksheets', "Worksheets"), Codicon.symbolNumeric, 'large', true, 'saengine.worksheets.open');
+addSubmenu(RibbonMenus.Documents, '5_Report', 2, RibbonSubmenus.DocsWorksheets, localize('rib.docs.worksheets', "Worksheets"), Codicon.symbolNumeric, 'large', true, 'saengine.worksheets.open');
 addSubItem(RibbonSubmenus.DocsWorksheets, '1_ws', 1, 'saengine.worksheets.open', localize('rib.docs.openWorksheets', "Calculation Worksheets..."), Codicon.symbolNumeric, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.DocsWorksheets, '1_ws', 2, 'saengine.worksheets.new', localize('rib.docs.newWorksheet', "New Calculation Worksheet..."), Codicon.add, { precondition: projectOpen });
 
@@ -502,24 +533,28 @@ addSubItem(RibbonSubmenus.DocsWorksheets, '1_ws', 2, 'saengine.worksheets.new', 
 
 addItem(RibbonMenus.Output, '1_Exports', 1, 'saengine.project.showExports', localize('rib.out.exports', "All Exports"), Codicon.export, 'large', { precondition: projectOpen });
 
-addItem(RibbonMenus.Output, '2_BIMAndCAD', 1, 'saengine.bim.exportIfc', localize('rib.out.ifc', "Export IFC"), Codicon.layers, 'large', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '2_BIMAndCAD', 2, 'saengine.floorPlan.exportDxf', localize('rib.out.dxf', "DXF Floor Plans"), Codicon.layout, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '2_BIMAndCAD', 3, 'saengine.revit.exportUi', localize('rib.out.revitExport', "Export for Revit"), Codicon.sync, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '2_BIMAndCAD', 4, 'saengine.revit.importUi', localize('rib.out.revitImport', "Import from Revit..."), Codicon.cloudDownload, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '2_IFC', 1, 'saengine.bim.exportIfcOptions', localize('rib.out.ifcOptions', "Export IFC..."), Codicon.layers, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '2_IFC', 2, 'saengine.bim.compareIfc', localize('rib.out.ifcCompare', "Compare IFC Revisions..."), Codicon.diff, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '2_IFC', 3, 'saengine.bim.exportIfc', localize('rib.out.ifc', "Quick Export IFC"), Codicon.export, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Output, '3_Exchange', 1, 'saengine.export.s2k', localize('rib.out.s2k', "SAP2000 .s2k"), Codicon.export, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '3_Exchange', 2, 'saengine.export.std', localize('rib.out.std', "STAAD .std"), Codicon.export, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '3_Exchange', 3, 'saengine.export.saf', localize('rib.out.saf', "SAF (.xlsx)"), Codicon.table, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '3_Exchange', 4, 'saengine.export.cis2', localize('rib.out.cis2', "CIS/2"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '3_Exchange', 5, 'saengine.export.sdnf', localize('rib.out.sdnf', "SDNF Steel"), Codicon.tools, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '3_Exchange', 6, 'saengine.export.detailingNote', localize('rib.out.detailingNote', "Steel Detailing Guide"), Codicon.info, 'small');
+addItem(RibbonMenus.Output, '3_BIMAndCAD', 1, 'saengine.floorPlan.exportDxf', localize('rib.out.dxf', "DXF Floor Plans"), Codicon.layout, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '3_BIMAndCAD', 2, 'saengine.revit.exportUi', localize('rib.out.revitExport', "Export for Revit"), Codicon.sync, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '3_BIMAndCAD', 3, 'saengine.revit.importUi', localize('rib.out.revitImport', "Import from Revit..."), Codicon.cloudDownload, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Output, '4_BOQAndReports', 1, 'saengine.boq.exportXlsx', localize('rib.out.boqXlsx', "BOQ Excel"), Codicon.table, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_BOQAndReports', 2, 'saengine.boq.exportCsv', localize('rib.out.boqCsv', "BOQ CSV"), Codicon.fileCode, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_BOQAndReports', 3, 'saengine.report.exportWord', localize('rib.out.wordReport', "Word Report"), Codicon.fileText, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 1, 'saengine.export.e2kOptions', localize('rib.out.e2kOptions', "ETABS .e2k Options..."), Codicon.export, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 2, 'saengine.export.s2k', localize('rib.out.s2k', "SAP2000 .s2k"), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 3, 'saengine.export.std', localize('rib.out.std', "STAAD .std"), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 4, 'saengine.export.saf', localize('rib.out.saf', "SAF (.xlsx)"), Codicon.table, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 5, 'saengine.export.cis2', localize('rib.out.cis2', "CIS/2"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 6, 'saengine.export.sdnf', localize('rib.out.sdnf', "SDNF Steel"), Codicon.tools, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '4_Exchange', 7, 'saengine.export.detailingNote', localize('rib.out.detailingNote', "Steel Detailing Guide"), Codicon.info, 'small');
 
-addItem(RibbonMenus.Output, '5_WebAndArchive', 1, 'saengine.export.webViewer', localize('rib.out.webViewer', "Web Viewer"), Codicon.browser, 'large', { precondition: projectOpen });
-addSubmenu(RibbonMenus.Output, '5_WebAndArchive', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive');
+addItem(RibbonMenus.Output, '5_BOQAndReports', 1, 'saengine.boq.exportXlsx', localize('rib.out.boqXlsx', "BOQ Excel"), Codicon.table, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '5_BOQAndReports', 2, 'saengine.boq.exportCsv', localize('rib.out.boqCsv', "BOQ CSV"), Codicon.fileCode, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Output, '5_BOQAndReports', 3, 'saengine.report.exportWord', localize('rib.out.wordReport', "Word Report"), Codicon.fileText, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Output, '6_WebAndArchive', 1, 'saengine.export.webViewer', localize('rib.out.webViewer', "Web Viewer"), Codicon.browser, 'large', { precondition: projectOpen });
+addSubmenu(RibbonMenus.Output, '6_WebAndArchive', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive');
 addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 1, 'saengine.project.exportArchive', localize('rib.out.exportArchive', "Export Project (.civil)..."), Codicon.archive, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 2, 'saengine.project.openArchive', localize('rib.out.openArchive', "Open Project Archive..."), Codicon.folderOpened);
 
@@ -534,6 +569,8 @@ addItem(RibbonMenus.Studies, '1_ConstructionAndCost', 4, 'saengine.office.takeof
 addItem(RibbonMenus.Studies, '1_ConstructionAndCost', 5, 'saengine.office.fabrication', localize('rib.studies.fabrication', "MEP Fabrication"), Codicon.tools, 'small', { precondition: projectOpen });
 
 addItem(RibbonMenus.Studies, '2_Environmental', 1, 'saengine.office.site', localize('rib.studies.site', "Terrain, Sun & Noise"), Codicon.compass, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Studies, '2_Environmental', 2, 'saengine.studies.annualEnergy', localize('rib.studies.annualEnergy', "Annual Energy"), Codicon.pulse, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Studies, '2_Environmental', 3, 'saengine.studies.envelopeCompliance', localize('rib.studies.envelopeCompliance', "Envelope Compliance"), Codicon.pass, 'large', { precondition: projectOpen });
 
 addItem(RibbonMenus.Studies, '3_Optioneering', 1, 'saengine.office.phasing', localize('rib.studies.phasing', "Phases & Options"), Codicon.layers, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Studies, '3_Optioneering', 2, 'saengine.studies.open', localize('rib.studies.designStudies', "Design Studies"), Codicon.beaker, 'large', { precondition: projectOpen });
@@ -574,6 +611,7 @@ addSubItem(RibbonSubmenus.ManagePackages, '1_pkg', 3, 'saengine.codePacks.instal
 addItem(RibbonMenus.Manage, '1_Standards', 2, 'saengine.showPlannedFeatures', localize('rib.manage.planned', "Planned Features"), Codicon.lightbulb, 'small');
 addItem(RibbonMenus.Manage, '1_Standards', 3, 'saengine.components.show', localize('rib.manage.components', "Installer Components"), Codicon.extensions, 'small');
 addItem(RibbonMenus.Manage, '1_Standards', 4, 'saengine.update.check', localize('rib.manage.updates', "Check Updates"), Codicon.refresh, 'small');
+addItem(RibbonMenus.Manage, '1_Standards', 5, 'saengine.manage.verificationManual', localize('rib.manage.verificationManual', "Verification Manual (PDF)"), Codicon.filePdf, 'small');
 
 addItem(RibbonMenus.Manage, '2_OfficeServer', 1, 'saengine.officeServer.run', localize('rib.manage.runServer', "Run on Server"), Codicon.server, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Manage, '2_OfficeServer', 2, 'saengine.officeServer.check', localize('rib.manage.checkServer', "Check Server"), Codicon.pass, 'small');

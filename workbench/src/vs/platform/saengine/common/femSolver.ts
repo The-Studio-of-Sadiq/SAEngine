@@ -186,6 +186,10 @@ export interface IBuildingIfcRequest {
 	 * model too (IfcReinforcingBar, ids `rebar:<element>/<n>`), detailed as the drawings detail them.
 	 */
 	readonly projectRoot?: string;
+	readonly schema?: 'IFC4' | 'IFC2X3';
+	readonly includeStructuralAnalysis?: boolean;
+	readonly includeGeoreferencing?: boolean;
+	readonly crs?: string;
 }
 
 export interface IBuildingIfc {
@@ -766,7 +770,16 @@ export type L12EngineMethod =
 	| 'office/submit' | 'office/status' | 'office/cancel' | 'office/info'
 	| 'graph/nodeTypes' | 'graph/list' | 'graph/create' | 'graph/check' | 'graph/run'
 	| 'studies/list' | 'studies/start' | 'studies/status' | 'studies/cancel' | 'studies/apply'
-	| 'drawings/automate';
+	| 'drawings/automate'
+	| 'mep/electricalCableSize' | 'mep/electricalLighting'
+	| 'mep/hvacLoadsDetailed' | 'mep/hvacDuctPressure' | 'mep/hvacRouteDucts'
+	| 'mep/fireSprinklers' | 'mep/fireAlarm'
+	| 'mep/plumbingHotWater' | 'mep/plumbingGas'
+	| 'drawings/scopeBoxes' | 'drawings/callout' | 'drawings/keynotes' | 'drawings/legend'
+	| 'drawings/scheduleCategories' | 'drawings/schedule'
+	| 'bim/exportIfcFile' | 'bim/diffIfc'
+	| 'project/validateAll'
+	| 'verification/cases' | 'verification/run';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
