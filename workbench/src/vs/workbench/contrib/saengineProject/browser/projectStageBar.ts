@@ -11,7 +11,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -19,8 +19,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaenginePartStatusService, nextStep } from '../../../services/saengineProject/common/partStatus.js';
 import { IProjectStage, projectStages, StageAction, StageState, stageStateLabel } from '../../../services/saengineProject/common/projectStages.js';
@@ -28,14 +26,11 @@ import { ISaengineProject, ISaengineProjectService, projectParts } from '../../.
 import { openPart, openPartSection, partName, stateText } from './projectParts.js';
 
 /*
- * The project stage bar: one thin strip under the title bar with the project's stages in order
- * (Site & Soil, Model, Loads, Analysis, Design, Drawings · BOQ · Report), each with its state
- * from the part statuses (projectStages.ts). Clicking a stage opens its part; its tooltip says
- * what is out of date or failing and the next step. Shown while a project is open.
+ * The project stage bar: the project's stages in order (Site & Soil, Model, Loads, Analysis,
+ * Design, Drawings · BOQ · Report), each with its state from the part statuses
+ * (projectStages.ts). Mounted in the Home ribbon tab's Workflow group. Clicking a stage opens
+ * its part; its tooltip says what is out of date or failing and the next step.
  */
-
-/** Height of the strip [px]: fits 1366x768 under the title bar. */
-const STAGE_BAR_HEIGHT = 28;
 
 /** Commands of the next steps (registered by the analysis part; strings: no imports between the parts). */
 const ACTION_COMMANDS: Record<StageAction, string> = {
@@ -60,12 +55,9 @@ function stateIcon(state: StageState): ThemeIcon {
 	}
 }
 
-export class ProjectStageBar extends Disposable implements IWorkbenchContribution {
+export class ProjectStageBar extends Disposable {
 
-	static readonly ID = 'workbench.contrib.saengine.projectStageBar';
-
-	private readonly element = $('.sa-stage-bar');
-	private readonly strip = this._register(new MutableDisposable<IDisposable>());
+	readonly element = $('.sa-stage-bar');
 	private readonly rendered = this._register(new DisposableStore());
 	private readonly scheduler = this._register(new RunOnceScheduler(() => this.render(), 50));
 	private buttons: HTMLElement[] = [];
@@ -75,7 +67,6 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 	constructor(
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 		@ISaenginePartStatusService private readonly statusService: ISaenginePartStatusService,
-		@IBannerService private readonly bannerService: IBannerService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -84,7 +75,7 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
-		this.element.setAttribute('role', 'toolbar');
+		this.element.setAttribute('role', 'group');
 		this.element.setAttribute('aria-label', localize('stageBar.aria', "Project stages"));
 		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => this.onKeyDown(new StandardKeyboardEvent(e))));
 		this._register(this.projectService.onDidChangeProject(() => this.scheduler.schedule()));
@@ -95,13 +86,14 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 	private render(): void {
 		const project = this.projectService.project;
 		const stages = project ? projectStages(this.statusService.statuses) : [];
-		if (!project || !stages.length) {
-			this.strip.clear();
-			return;
-		}
 		const hadFocus = this.element.contains(this.element.ownerDocument.activeElement);
 		this.rendered.clear();
 		clearNode(this.element);
+		if (!project || !stages.length) {
+			this.buttons = [];
+			append(this.element, $('span.sa-stage-empty', undefined, localize('stageBar.noProject', "Open or create a project to track workflow stages")));
+			return;
+		}
 		const next = nextStep(this.statusService.statuses)?.status.part;
 		const nextStage = next ? stages.find(stage => stage.state !== 'done' && stage.focus?.part === next) : undefined;
 		this.buttons = stages.map((stage, index) => {
@@ -115,20 +107,17 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 		if (hadFocus) {
 			this.buttons[this.focusIndex]?.focus();
 		}
-		if (!this.strip.value) {
-			this.strip.value = this.bannerService.showStrip(this.element, STAGE_BAR_HEIGHT);
-		}
 	}
 
 	private renderStage(project: ISaengineProject, stage: IProjectStage, isNext: boolean): HTMLElement {
 		const button = append(this.element, $<HTMLButtonElement>(`button.sa-stage.sa-stage-${stage.state}`));
 		button.type = 'button';
 		button.classList.toggle('sa-stage-next', isNext);
-		append(button, $(`span.sa-stage-icon${ThemeIcon.asCSSSelector(stateIcon(stage.state))}`)).setAttribute('aria-hidden', 'true');
-		append(button, $('span.sa-stage-label', undefined, stage.label));
-		if (stage.state === 'failed' || stage.state === 'stale') {
-			append(button, $('span.sa-stage-text', undefined, stage.focus ? stateText(stage.focus) : stageStateLabel(stage.state)));
-		}
+		const top = append(button, $('span.sa-stage-top'));
+		append(top, $(`span.sa-stage-icon${ThemeIcon.asCSSSelector(stateIcon(stage.state))}`)).setAttribute('aria-hidden', 'true');
+		append(top, $('span.sa-stage-label', undefined, stage.label));
+		const subText = stage.focus ? stateText(stage.focus) : stageStateLabel(stage.state);
+		append(button, $('span.sa-stage-sub', undefined, subText));
 		const lines = this.describe(project, stage);
 		button.setAttribute('aria-label', lines.join('. '));
 		if (isNext) {
@@ -206,5 +195,3 @@ export class ProjectStageBar extends Disposable implements IWorkbenchContributio
 		}
 	}
 }
-
-registerWorkbenchContribution2(ProjectStageBar.ID, ProjectStageBar, WorkbenchPhase.AfterRestored);

@@ -5,7 +5,6 @@
 
 import './media/projectFlow.css';
 import './saengineShell.contribution.js';
-import './projectStageBar.js';
 import './progressView.js';
 import './propertiesDock.js';
 import './tablesView.js';
