@@ -53,7 +53,6 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyPropertyOnCommit, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { createModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
@@ -348,7 +347,6 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	private readonly gridLinesAction = this._register(new Action('saengine.floorPlan.toggleGridLines', localize('floorPlan.gridLines', "Grid Lines"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.toggleGridLines()));
 	private readonly underlayAction = this._register(new Action('saengine.floorPlan.underlay.toggle', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
 	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.toggleCommandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
-	private readonly gridsAction = this._register(new Action('saengine.ribbon.openSection.floorPlan.grids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
 	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.attach', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
 	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.remove', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
 	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.calibrate', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
@@ -373,8 +371,6 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convert.beam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
 	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convert.wall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
 	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convert.slab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
-	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
-	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.openMembersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
 	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.bulk.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -454,7 +450,6 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		frame.element.tabIndex = -1;
 
 		// The model view's Plan | 3D | Analysis switch, before the story.
-		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commandService, 'plan'))));
 		this.storyControl = this._register(new RibbonSelectModel({
 			id: 'saengine.floorPlan.story',
 			ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan"),
@@ -1300,9 +1295,6 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			this.convertWallAction,
 			this.convertSlabAction,
 			this.deleteSelectionAction,
-			this.membersTableAction,
-			new Separator(),
-			this.gridsAction,
 			this.objectsAction,
 			new Separator(),
 			this.attachUnderlayAction,

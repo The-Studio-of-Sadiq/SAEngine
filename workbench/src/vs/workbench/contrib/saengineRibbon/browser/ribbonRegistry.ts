@@ -31,6 +31,15 @@ export const DataPanelPartContext = new RawContextKey<string>(
 	localize('saengine.dataPanelPart', "The engineering domain of the active SAEngine U3 data panel")
 );
 
+/** Context key identifying the active sub-view of an SAEngine editor. */
+export const SAENGINE_SUB_VIEW_CONTEXT = 'saengineSubView';
+
+export const SubViewContext = new RawContextKey<string>(
+	SAENGINE_SUB_VIEW_CONTEXT,
+	'',
+	localize('saengine.subView', "The active sub-view of the active SAEngine editor")
+);
+
 /** SAEngine editor pane IDs used in contextual ribbon `when` rules (plain strings: no cross-contrib imports). */
 export const SAENGINE_EDITOR_IDS = {
 	soil: 'workbench.editor.saengine.soil',
@@ -132,6 +141,10 @@ function allOf(exprs: readonly [ContextKeyExpression, ...ContextKeyExpression[]]
 	return ContextKeyExpr.and(...exprs) ?? exprs[0];
 }
 
+export function subViewWhen(...subViews: readonly [string, ...string[]]): ContextKeyExpression {
+	return anyOf([SubViewContext.isEqualTo(subViews[0]), ...subViews.slice(1).map(subView => SubViewContext.isEqualTo(subView))]);
+}
+
 function editorWhen(editorIds: readonly [string, ...string[]], dataPanelPart?: string): ContextKeyExpression {
 	const checks: [ContextKeyExpression, ...ContextKeyExpression[]] = [
 		ActiveEditorContext.isEqualTo(editorIds[0]),
@@ -202,7 +215,7 @@ const NOT_SPECIALIZED_PANEL = allOf([
 	...SPECIALIZED_PANEL_PARTS.slice(1).map(part => DataPanelPartContext.notEqualsTo(part)),
 ]);
 
-const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
+export const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
 	ActiveEditorContext.notEqualsTo(SPECIALIZED_EDITOR_IDS[0]),
 	...SPECIALIZED_EDITOR_IDS.slice(1).map(id => ActiveEditorContext.notEqualsTo(id)),
 	anyOf([ActiveEditorContext.notEqualsTo(SAENGINE_EDITOR_IDS.dataPanel), NOT_SPECIALIZED_PANEL]),
@@ -293,35 +306,42 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		label: localize('ribbon.tab.bim3d', "3D View"),
 		menuId: RibbonMenus.Bim3D,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d'),
+		when: allOf([editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d'), subViewWhen('bim.3d', 'bim.additions', 'bim.summary')]),
 	},
 	{
 		id: 'mep',
 		label: localize('ribbon.tab.mep', "MEP"),
 		menuId: RibbonMenus.MEP,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep'),
+		when: allOf([editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep'), subViewWhen(
+			'mep.coordination', 'mep.coordination.data', 'mep.coordination.results',
+			'mep.plumbing', 'mep.plumbing.data', 'mep.plumbing.results',
+			'mep.hvac', 'mep.hvac.data', 'mep.hvac.results',
+			'mep.electrical', 'mep.electrical.data', 'mep.electrical.results',
+			'mep.fire', 'mep.fire.data', 'mep.fire.results',
+			'mep.systems'
+		)]),
 	},
 	{
 		id: 'analyze',
 		label: localize('ribbon.tab.analyze', "Analyze"),
 		menuId: RibbonMenus.Analyze,
 		contextual: true,
-		when: FEM_WHEN,
+		when: allOf([FEM_WHEN, subViewWhen('fem.model', 'fem.pushover')]),
 	},
 	{
 		id: 'results',
 		label: localize('ribbon.tab.results', "Results"),
 		menuId: RibbonMenus.Results,
 		contextual: true,
-		when: FEM_WHEN,
+		when: allOf([FEM_WHEN, subViewWhen('fem.charts')]),
 	},
 	{
 		id: 'design',
 		label: localize('ribbon.tab.design', "Design"),
 		menuId: RibbonMenus.Design,
 		contextual: true,
-		when: FEM_WHEN,
+		when: allOf([FEM_WHEN, subViewWhen('fem.design')]),
 	},
 	{
 		id: 'foundations',

@@ -3,14 +3,11 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -19,7 +16,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { openPart } from './projectParts.js';
 import { PROPERTIES_VIEW_ID } from './propertiesDock.js';
 import { TABLES_VIEW_ID } from './tablesView.js';
@@ -27,9 +23,8 @@ import { MODEL_LAYOUT_VERSION, ModelViewKind, modelViewPart, needsModelLayout } 
 
 /*
  * The model view: the building model in the centre of the window, as plan, 3D or analysis model
- * (with its plans and elevations), the three existing editors of one model. The Floor Plan
- * (plan, a storey at a time) is the one a project opens on; the switch in each of their
- * toolbars opens another in the same place, and the selection follows (modelSelection.ts).
+ * (with its plans and elevations), the three existing editors of one model. The Project tree
+ * opens each editor; the selection follows between them (modelSelection.ts).
  *
  *   ┌ parts ┐┌ Plan | 3D | Analysis ─ model view ──────────┐┌ Properties ┐
  *   │       ││                                             ││ selection  │
@@ -41,65 +36,6 @@ export type { ModelViewKind } from './modelLayoutModel.js';
 
 /** Opens the model view: `plan` (default), `3d` or `analysis`. */
 export const SHOW_MODEL_VIEW_COMMAND = 'saengine.showModelView';
-
-const VIEW_LABELS: { readonly [kind in ModelViewKind]: () => string } = {
-	plan: () => localize('modelView.plan', "Plan"),
-	'3d': () => localize('modelView.3d', "3D"),
-	analysis: () => localize('modelView.analysis', "Analysis"),
-};
-
-const VIEW_TITLES: { readonly [kind in ModelViewKind]: () => string } = {
-	plan: () => localize('modelView.planTitle', "Plan: the floor plan, one storey at a time (05 Floor Plan)"),
-	'3d': () => localize('modelView.3dTitle', "3D: the building model (06 BIM)"),
-	analysis: () => localize('modelView.analysisTitle', "Analysis: the analysis model in 3D, plans and elevations, with the results (08 FEM)"),
-};
-
-/**
- * Creates a `RibbonSegmentedModel` for the Plan | 3D | Analysis switch published to the ribbon
- * by the Plan, 3D Building, and FEM editors.
- */
-export function createModelViewSwitch(commandService: ICommandService, current: ModelViewKind): RibbonSegmentedModel {
-	const model = new RibbonSegmentedModel({
-		id: 'saengine.modelView',
-		ariaLabel: localize('modelView.aria', "Model view"),
-		items: (['plan', '3d', 'analysis'] as const).map(kind => ({
-			id: kind,
-			label: VIEW_LABELS[kind](),
-			tooltip: VIEW_TITLES[kind](),
-		})),
-		selectedId: current,
-	});
-	model.addDisposable(model.onDidSelect(id => {
-		if (id !== current) {
-			model.select(current, false);
-			void commandService.executeCommand(SHOW_MODEL_VIEW_COMMAND, id);
-		}
-	}));
-	return model;
-}
-
-/**
- * Appends the Plan | 3D | Analysis switch of the model view to `container` (an editor frame's
- * title slot, before the editor's own selectors), with `current` pressed. Call it through
- * `instantiationService.invokeFunction`.
- */
-export function appendModelViewSwitch(accessor: ServicesAccessor, container: HTMLElement, current: ModelViewKind): IDisposable {
-	const commandService = accessor.get(ICommandService);
-	const hoverService = accessor.get(IHoverService);
-	const store = new DisposableStore();
-	const group = $('.sa-segmented.sa-view-switch', { role: 'group', 'aria-label': localize('modelView.aria', "Model view") });
-	container.insertBefore(group, container.firstChild);
-	for (const kind of ['plan', '3d', 'analysis'] as const) {
-		const button = append(group, $<HTMLButtonElement>('button.sa-segment', { type: 'button', 'aria-pressed': String(kind === current) }, VIEW_LABELS[kind]()));
-		button.classList.toggle('active', kind === current);
-		store.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, VIEW_TITLES[kind]()));
-		if (kind !== current) {
-			store.add(addDisposableListener(button, EventType.CLICK, () => void commandService.executeCommand(SHOW_MODEL_VIEW_COMMAND, kind)));
-		}
-	}
-	store.add({ dispose: () => group.remove() });
-	return store;
-}
 
 async function showModelView(accessor: ServicesAccessor, kind: ModelViewKind = 'plan', options?: { readonly preserveFocus?: boolean }): Promise<boolean> {
 	const project = accessor.get(ISaengineProjectService).project;

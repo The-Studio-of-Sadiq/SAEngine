@@ -420,7 +420,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.discipline,
 		}));
 		this._register(this.disciplineControl.onDidSelect(id => this.showDiscipline(id as Discipline)));
-		this._register(frame.addViewControl(this.disciplineControl));
 
 		this.storyControl = this._register(new RibbonSelectModel({
 			id: 'saengine.mep.story',
@@ -441,7 +440,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.view,
 		}));
 		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
-		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.mep-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -503,12 +501,23 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	/** The discipline or view shown, for the sidebar's entries under MEP. */
 	get partSection(): string | undefined {
-		return this.view === 'systems' ? 'systems' : this.discipline;
+		return this.view === 'systems' ? 'systems' : this.view === 'data' || this.view === 'results' ? this.view : this.discipline;
+	}
+
+	get ribbonSubView(): string {
+		if (this.view === 'systems') {
+			return 'mep.systems';
+		}
+		return `mep.${this.discipline}${this.view === 'data' || this.view === 'results' ? `.${this.view}` : ''}`;
 	}
 
 	/** `section` (from the sidebar) shows that discipline or the System Browser. */
 	private applySection(options: IEditorOptions | undefined): void {
 		const section = sectionOption(options);
+		if ((section === 'data' || section === 'results') && this.document) {
+			this.showView(section);
+			return;
+		}
 		if (section === 'systems' && this.document) {
 			this.showView('systems');
 			return;
@@ -3606,6 +3615,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.flush();
 		this.cancelDrawing(false);
 		this.discipline = discipline;
+		if (this.view === 'systems' || this.view === 'data' || this.view === 'results') {
+			this.view = 'plan';
+			this.viewControl.selectedId = this.view;
+		}
 		this.selection = undefined;
 		this.selectedClash = undefined;
 		this._onDidChangePartSection.fire();
