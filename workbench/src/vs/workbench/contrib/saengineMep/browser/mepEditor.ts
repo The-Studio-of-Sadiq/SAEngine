@@ -6,7 +6,7 @@
 import '../../saengineLibrary/browser/media/modelEditors.css';
 import './media/mepEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, isHTMLInputElement } from '../../../../base/browser/dom.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -137,24 +137,6 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 
 /** The state of the report: not asked yet, being computed, computed, or no backend / failed. */
 type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
-
-/** One word for a labelled action on a narrow window (its full name stays in the tooltip). */
-function shortActionLabel(action: IAction): string {
-	const id = action.id.replace('saengine.mep.editor.', '');
-	switch (id) {
-		case 'addEquipment': case 'addElecEquipment': return localize('mep.short.equipment', "Equipment");
-		case 'addShaft': return localize('mep.short.shaft', "Shaft");
-		case 'addRiser': case 'addElecRiser': case 'addFireRiser': return localize('mep.short.riser', "Riser");
-		case 'addTank': return localize('mep.short.tank', "Tank");
-		case 'sizeTanks': return localize('mep.short.sizeTanks', "Size");
-		case 'addPlant': return localize('mep.short.plant', "Plant");
-		case 'drawDuct': return localize('mep.short.duct', "Duct");
-		case 'calculateLoads': return localize('mep.short.loads', "Loads");
-		case 'drawTray': return localize('mep.short.tray', "Tray");
-		case 'proposeFire': return localize('mep.short.pumps', "Pumps");
-		default: return action.label;
-	}
-}
 
 /** How long Calculate Loads waits for the backend before it gives up [min]. */
 const HVAC_LOADS_TIMEOUT_MIN = 8;
@@ -438,19 +420,19 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.discipline,
 		}));
 		this._register(this.disciplineControl.onDidSelect(id => this.showDiscipline(id as Discipline)));
-		frame.addViewControl(this.disciplineControl);
+		this._register(frame.addViewControl(this.disciplineControl));
 
 		this.storyControl = this._register(new RibbonSelectModel({
 			id: 'saengine.mep.story',
 			ariaLabel: localize('mep.storyAria', "Story shown"),
 			label: localize('mep.storyLabel', "Story"),
 			tooltip: localize('mep.storyAria', "Story shown"),
-			options: [],
+			items: [],
 			selectedId: '',
-			enabled: false,
+			disabled: true,
 		}));
 		this._register(this.storyControl.onDidSelect(({ id }) => this.showStory(id || undefined)));
-		frame.addViewControl(this.storyControl);
+		this._register(frame.addViewControl(this.storyControl));
 
 		this.viewControl = this._register(new RibbonSegmentedModel({
 			id: 'saengine.mep.views',
@@ -459,7 +441,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.view,
 		}));
 		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
-		frame.addViewControl(this.viewControl);
+		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.mep-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -705,13 +687,13 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		if (!this.storyControl) {
 			return;
 		}
-		const options = this.context.stories.map(s => ({
+		const items = this.context.stories.map(s => ({
 			id: s.id,
-			text: localize('mep.storyOption', "{0} ({1} m)", s.name, `${s.elevation >= 0 ? '+' : ''}${formatNumber(s.elevation / 1000, 2)}`),
+			label: localize('mep.storyOption', "{0} ({1} m)", s.name, `${s.elevation >= 0 ? '+' : ''}${formatNumber(s.elevation / 1000, 2)}`),
 		}));
-		const selectedId = this.story && options.some(o => o.id === this.story) ? this.story : (options[0]?.id ?? '');
-		this.storyControl.setOptions(options.length ? options : [{ id: '', text: localize('mep.noStories', "No stories") }], selectedId);
-		this.storyControl.enabled = options.length > 0;
+		const selectedId = this.story && items.some(o => o.id === this.story) ? this.story : (items[0]?.id ?? '');
+		this.storyControl.setItems(items.length ? items : [{ id: '', label: localize('mep.noStories', "No stories") }], selectedId);
+		this.storyControl.disabled = items.length === 0;
 	}
 
 	private showStory(story: string | undefined): void {
@@ -1678,6 +1660,32 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.renderView();
 		this.renderProperties();
 		this.renderStatus();
+	}
+
+	private renderReportDependent(): void {
+		if (this.view !== 'data') {
+			this.renderView();
+		} else if (this.discipline === 'plumbing' && this.renderedRooms !== JSON.stringify(this.plumbingReport?.rooms ?? null) && !this.viewElement.contains(this.viewElement.ownerDocument.activeElement)) {
+			// The plumbing data shows what the rooms of the architecture give: redrawn when that changes, not while typing.
+			this.renderView();
+		}
+		this.renderProperties();
+		this.renderStatus();
+	}
+
+	private onMainResized(): void {
+		const size = `${this.viewElement.clientWidth}x${this.viewElement.clientHeight}`;
+		if (size !== this.lastSize && this.view === 'plan') {
+			this.renderView();
+		}
+	}
+
+	private updateViewButtons(): void {
+		const usable = !!this.document;
+		this.disciplineControl.disabled = !usable;
+		this.disciplineControl.selectedId = this.discipline;
+		this.viewControl.disabled = !usable;
+		this.viewControl.selectedId = this.view;
 	}
 
 	private renderActions(): void {

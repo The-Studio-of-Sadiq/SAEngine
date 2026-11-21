@@ -51,6 +51,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { headingWithUnit } from '../../../services/saengineProject/common/displayUnits.js';
@@ -287,19 +288,19 @@ export class MembersTable extends Disposable {
 				id,
 				ariaLabel: aria,
 				tooltip: aria,
-				options: [],
+				items: [],
 				selectedId: '0',
 			}));
 			this._register(model.onDidSelect(({ index }) => onSelect(index)));
-			this.frame.addViewControl(model);
+			this._register(this.frame.addViewControl(model));
 			return model;
 		};
 		this.storyFilter = makeFilter('saengine.membersTable.story', localize('membersTable.storyFilter', "Story"), index => this.setFilter({ story: this.storyIds[index] }));
 		this.kindFilter = makeFilter('saengine.membersTable.kind', localize('membersTable.kindFilter', "Kind"), index => this.setFilter({ group: index ? MEMBER_GROUPS[index - 1] : undefined }));
 		this.typeFilter = makeFilter('saengine.membersTable.type', localize('membersTable.typeFilter', "Object type"), index => this.setFilter({ type: this.typeIds[index] }));
-		this.kindFilter.setOptions([
-			{ id: '0', text: localize('membersTable.allKinds', "All kinds") },
-			...MEMBER_GROUPS.map((g, i) => ({ id: String(i + 1), text: GROUP_LABELS[g] })),
+		this.kindFilter.setItems([
+			{ id: '0', label: localize('membersTable.allKinds', "All kinds") },
+			...MEMBER_GROUPS.map((g, i) => ({ id: String(i + 1), label: GROUP_LABELS[g] })),
 		], '0');
 		this.searchHost = $('.members-search');
 		this.search = this._register(new InputBox(this.searchHost, this.contextViewService, {
@@ -308,10 +309,10 @@ export class MembersTable extends Disposable {
 			ariaLabel: localize('membersTable.searchAria', "Find members by ID, object type or grid"),
 		}));
 		this._register(this.search.onDidChange(text => this.setFilter({ text })));
-		this.frame.addViewControl(this._register(new RibbonElementControl({
+		this._register(this.frame.addViewControl(this._register(new RibbonElementControl({
 			id: 'saengine.membersTable.search',
 			element: this.searchHost,
-		})));
+		}))));
 
 		this.frame.setActions([this.exportAction], this.options.followStory ? [this.followAction] : []);
 		this.body = $('.members-body', { tabIndex: 0, role: 'grid', 'aria-multiselectable': 'true', 'aria-label': localize('membersTable.aria', "Members") });
@@ -434,14 +435,14 @@ export class MembersTable extends Disposable {
 			this.filter = { ...this.filter, story: undefined };
 		}
 		const storySel = this.storyIds.includes(this.filter.story) ? String(this.storyIds.indexOf(this.filter.story)) : '0';
-		this.storyFilter.setOptions([{ id: '0', text: localize('membersTable.allStories', "All stories") }, ...stories.map((s, i) => ({ id: String(i + 1), text: s.name }))], storySel);
+		this.storyFilter.setItems([{ id: '0', label: localize('membersTable.allStories', "All stories") }, ...stories.map((s, i) => ({ id: String(i + 1), label: s.name }))], storySel);
 		const types = [...new Set(memberRows(layout).map(r => r.type).filter(Boolean))].sort();
 		this.typeIds = [undefined, ...types];
 		if (this.filter.type && !types.includes(this.filter.type)) {
 			this.filter = { ...this.filter, type: undefined };
 		}
 		const typeSel = this.typeIds.includes(this.filter.type) ? String(this.typeIds.indexOf(this.filter.type)) : '0';
-		this.typeFilter.setOptions([{ id: '0', text: localize('membersTable.allTypes', "All types") }, ...types.map((t, i) => ({ id: String(i + 1), text: t }))], typeSel);
+		this.typeFilter.setItems([{ id: '0', label: localize('membersTable.allTypes', "All types") }, ...types.map((t, i) => ({ id: String(i + 1), label: t }))], typeSel);
 		this.renderRows();
 	}
 

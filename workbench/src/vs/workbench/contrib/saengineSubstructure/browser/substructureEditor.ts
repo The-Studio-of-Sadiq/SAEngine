@@ -294,7 +294,7 @@ export class SubstructureEditor extends EditorPane {
 			selectedId: this.view,
 		}));
 		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
-		frame.addViewControl(this.viewControl);
+		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.sub-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -1689,12 +1689,8 @@ export class SubstructureEditor extends EditorPane {
 
 	private updateViewButtons(): void {
 		const usable = !!this.document;
-		for (const [view, button] of this.viewButtons) {
-			const active = view === this.view;
-			button.classList.toggle('active', active);
-			button.setAttribute('aria-selected', String(active));
-			button.disabled = !usable;
-		}
+		this.viewControl.disabled = !usable;
+		this.viewControl.selectedId = this.view;
 	}
 
 	private renderActions(): void {

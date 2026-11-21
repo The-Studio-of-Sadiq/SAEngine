@@ -87,8 +87,20 @@ export class RibbonSelectModel extends Disposable {
 	get tooltip(): string | undefined { return this._tooltip; }
 	get items(): readonly IRibbonSelectOption[] { return this._items; }
 	get selectedId(): string | undefined { return this._selectedId; }
+	set selectedId(id: string | undefined) {
+		if (id === undefined) {
+			if (this._selectedId !== undefined) {
+				this._selectedId = undefined;
+				this._onDidChange.fire();
+			}
+			return;
+		}
+		this.select(id, false);
+	}
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 	get disabled(): boolean { return this._disabled; }
+	set disabled(disabled: boolean) { this.setDisabled(disabled); }
 
 	get selectedIndex(): number {
 		if (this._selectedId === undefined) {
@@ -119,7 +131,7 @@ export class RibbonSelectModel extends Disposable {
 			? idOrIndex
 			: this._items.findIndex(item => item.id === idOrIndex && !item.isHeading);
 		const item = this._items[index];
-		if (!item || item.isHeading || item.disabled) {
+		if (!item || item.isHeading || (fireEvent && (item.disabled || this._disabled))) {
 			return;
 		}
 		const changed = this._selectedId !== item.id;
@@ -208,8 +220,11 @@ export class RibbonSegmentedModel extends Disposable {
 
 	get items(): readonly IRibbonSegmentItem[] { return this._items; }
 	get selectedId(): string | undefined { return this._selectedId; }
+	set selectedId(id: string | undefined) { this.select(id, false); }
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 	get disabled(): boolean { return this._disabled; }
+	set disabled(disabled: boolean) { this.setDisabled(disabled); }
 
 	setItems(items: readonly IRibbonSegmentItem[], selectedId?: string): void {
 		this._items = items;
@@ -224,7 +239,7 @@ export class RibbonSegmentedModel extends Disposable {
 	select(id: string | undefined, fireEvent = true): void {
 		if (id !== undefined) {
 			const item = this._items.find(candidate => candidate.id === id);
-			if (!item || item.disabled || this._disabled) {
+			if (!item || (fireEvent && (item.disabled || this._disabled))) {
 				return;
 			}
 		}
@@ -317,8 +332,11 @@ export class RibbonToggleModel extends Disposable {
 	get icon(): ThemeIcon | undefined { return this._icon; }
 	get tooltip(): string | undefined { return this._tooltip; }
 	get checked(): boolean { return this._checked; }
+	set checked(checked: boolean) { this.setChecked(checked, false); }
 	get disabled(): boolean { return this._disabled; }
+	set disabled(disabled: boolean) { this.setDisabled(disabled); }
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 
 	setChecked(checked: boolean, fireEvent = true): void {
 		if (this._disabled && fireEvent) {
@@ -431,9 +449,12 @@ export class RibbonSliderModel extends Disposable {
 	get max(): number { return this._max; }
 	get step(): number { return this._step; }
 	get value(): number { return this._value; }
+	set value(value: number) { this.setValue(value, false); }
 	get valueText(): string { return this._valueText; }
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 	get disabled(): boolean { return this._disabled; }
+	set disabled(disabled: boolean) { this.setDisabled(disabled); }
 
 	setRange(min: number, max: number, step?: number): void {
 		const nextStep = step ?? this._step;
@@ -527,6 +548,7 @@ export class RibbonElementControl extends Disposable {
 	}
 
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 
 	setVisible(visible: boolean): void {
 		if (this._visible !== visible) {
@@ -563,6 +585,7 @@ export class RibbonInlineRowControl extends Disposable {
 	}
 
 	get visible(): boolean { return this._visible; }
+	set visible(visible: boolean) { this.setVisible(visible); }
 
 	setVisible(visible: boolean): void {
 		if (this._visible !== visible) {
@@ -774,7 +797,7 @@ export function renderRibbonSelect(
 		model.items.forEach((option, index) => {
 			if (option.isHeading) {
 				if (actions.length > 0) {
-					actions.push(menuStore.add(new Separator()));
+					actions.push(new Separator());
 				}
 				const heading = menuStore.add(new Action(`${model.id}.heading.${index}`, option.label, undefined, false));
 				actions.push(heading);
@@ -1243,7 +1266,7 @@ export function collectControlCollapsedActions(controls: readonly RibbonControl[
 			control.items.forEach((opt, index) => {
 				if (opt.isHeading) {
 					if (children.length > 0) {
-						children.push(store.add(new Separator()));
+						children.push(new Separator());
 					}
 					children.push(store.add(new Action(`${control.id}.h.${index}`, opt.label, undefined, false)));
 					return;
@@ -1257,7 +1280,7 @@ export function collectControlCollapsedActions(controls: readonly RibbonControl[
 				children.push(act);
 			});
 			const subTitle = control.label ? `${control.label}: ${control.selectedItem?.label ?? ''}` : (control.selectedItem?.label || control.ariaLabel);
-			out.push(store.add(new SubmenuAction(control.id, subTitle, children)));
+			out.push(new SubmenuAction(control.id, subTitle, children));
 		} else if (control instanceof RibbonSegmentedModel) {
 			const children: IAction[] = control.items.map(item => {
 				const act = store.add(new Action(`${control.id}.s.${item.id}`, item.label, item.icon ? ThemeIcon.asClassName(item.icon) : undefined, !control.disabled && !item.disabled, async () => {
@@ -1268,7 +1291,7 @@ export function collectControlCollapsedActions(controls: readonly RibbonControl[
 				}
 				return act;
 			});
-			out.push(store.add(new SubmenuAction(control.id, control.ariaLabel, children)));
+			out.push(new SubmenuAction(control.id, control.ariaLabel, children));
 		} else if (control instanceof RibbonToggleModel) {
 			const act = store.add(new Action(control.id, control.label, control.icon ? ThemeIcon.asClassName(control.icon) : undefined, !control.disabled, async () => {
 				control.setChecked(!control.checked, true);
@@ -1288,7 +1311,7 @@ export function collectControlCollapsedActions(controls: readonly RibbonControl[
 				})),
 			];
 			const title = control.valueText ? `${control.label}: ${control.valueText}` : control.label;
-			out.push(store.add(new SubmenuAction(control.id, title, children)));
+			out.push(new SubmenuAction(control.id, title, children));
 		} else if (control instanceof RibbonElementControl) {
 			if (control.collapsedActions) {
 				out.push(...control.collapsedActions(store));

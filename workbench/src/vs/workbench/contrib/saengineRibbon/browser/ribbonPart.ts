@@ -14,7 +14,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IMenu, IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenu, IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -491,7 +491,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 						const out: IAction[] = [...primaryButtons];
 						if (deduped.secondary.length) {
 							if (out.length) {
-								out.push(store.add(new Separator()));
+								out.push(new Separator());
 							}
 							out.push(...deduped.secondary);
 						}
@@ -582,7 +582,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 				tabId: activeTabId,
 				group: tabGroup.group,
 				label: tabGroup.label,
-				icon: tabGroup.icon ?? Codicon.sliders,
+				icon: tabGroup.icon ?? Codicon.settings,
 				collapsible: true,
 				collapsePriority: tabGroup.collapsePriority ?? 110,
 				getCollapsedActions: store => collectControlCollapsedActions(tabGroup.controls, store),

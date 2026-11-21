@@ -8,7 +8,6 @@ import { $, addDisposableListener, append, clearNode, Dimension, EventType } fro
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -22,7 +21,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { FemTableCell, IFemResultList } from '../../../../platform/saengine/common/femSolver.js';
@@ -30,13 +28,14 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { ChartColor, IChartSeries, renderChart, renderSheet } from './femChart.js';
 import { baseReactionTable, closedPmCurve, defaultChartResult, describeMode, elasticDriftLimit, orderLike, extremes, FEM_COLUMN_INTERACTION_COMMAND, floorSpectrumCurves, IFemFloorSpectra, FEM_MEMBER_FORCES_COMMAND, FEM_STORY_RESPONSE_COMMAND, FemAxis2, IFemColumnDiagram, IFemColumnShortening, hingeRowsOf, IFemHingeRow, IFemPushoverAcceptance, IFemPushoverCurve, IFemPushoverTarget, IFemColumnInteraction, IFemDamperDesign, IFemDeviceSuite, IFemIsolationDesign, IFemMemberForces, IFemNonlinearHingeRow, IFemNonlinearHistory, IFemStoryResponse, IFemStoryResult, IFemTimeHistoryDesign, isEarthquakeResult, MemberComponent, memberEnvelope, memberValues, modalTable, modesToReach, profilePeak, spectrumAt, storeyProfile, StoreyQuantity, storeyQuantityLabel, STOREY_QUANTITIES } from './femChartData.js';
 import { IFemDesignRequired, IFemSteelRequirement, resultsFolder, runDesignRequired } from './femDesign.js';
@@ -216,10 +215,8 @@ export class FemResultsEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private scrollable!: DomScrollableElement;
 	private body!: HTMLElement;
-	private resultPicker!: SelectBox;
-	private directionPicker!: SelectBox;
-	private resultGroup!: HTMLElement;
-	private directionGroup!: HTMLElement;
+	private resultControl!: RibbonSelectModel;
+	private directionControl!: RibbonSelectModel;
 
 	private units = chartUnits(undefined);
 	/** The model's units in SAEngine's SI (mm, kN, kN·m), for the tables that convert to the display units themselves. */
@@ -275,7 +272,6 @@ export class FemResultsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IFileService private readonly fileService: IFileService,
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
 	) {
@@ -293,26 +289,35 @@ export class FemResultsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-fem-results-view');
 
-		this.resultGroup = append(this.frame.controlsSlot, $('.fem-results-view-group'));
-		append(this.resultGroup, $('span.sa-frame-label', undefined, localize('femResults.result', "Result")));
-		this.resultPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.resultPickAria', "Load case or combination shown") }));
-		this.resultPicker.render(append(this.resultGroup, $('.fem-results-view-select.result')));
-		this._register(this.resultPicker.onDidSelect(({ index }) => {
+		this.resultControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.resultsView.result',
+			label: localize('femResults.result', "Result"),
+			ariaLabel: localize('femResults.resultPickAria', "Load case or combination shown"),
+			width: 'wide',
+			visible: false,
+		}));
+		this._register(this.resultControl.onDidSelect(({ index }) => {
 			this.setPicked(this.pickerKeys[index]);
 			this.render();
 		}));
+		this._register(this.frame.addViewControl(this.resultControl));
 
-		this.directionGroup = append(this.frame.controlsSlot, $('.fem-results-view-group'));
-		append(this.directionGroup, $('span.sa-frame-label', undefined, localize('femResults.direction', "Direction")));
-		this.directionPicker = this._register(new SelectBox(DIRECTIONS.map<ISelectOptionItem>(d => ({ text: d.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.directionAria', "Directions shown") }));
-		this.directionPicker.render(append(this.directionGroup, $('.fem-results-view-select.direction')));
-		this._register(this.directionPicker.onDidSelect(({ index }) => {
-			this.directions = DIRECTIONS[index]?.value ?? 'XY';
+		this.directionControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.resultsView.direction',
+			label: localize('femResults.direction', "Direction"),
+			ariaLabel: localize('femResults.directionAria', "Directions shown"),
+			items: DIRECTIONS.map(d => ({ id: d.value, label: d.label })),
+			selectedId: this.directions,
+			width: 'compact',
+		}));
+		this._register(this.directionControl.onDidSelect(({ id }) => {
+			this.directions = (id as Directions) || 'XY';
 			if (this.typed) {
 				this.typed.state.directions = this.directions;
 			}
 			this.render();
 		}));
+		this._register(this.frame.addViewControl(this.directionControl));
 
 		this.frame.setActions([this.refreshAction]);
 		this.body = $('.fem-results-view-body', { tabIndex: 0 });
@@ -363,7 +368,7 @@ export class FemResultsEditor extends EditorPane {
 		this.picked = input.state.picked;
 		this.requested = options?.result;
 		this.directions = DIRECTIONS.find(d => d.value === input.state.directions)?.value ?? 'XY';
-		this.directionPicker.select(DIRECTIONS.findIndex(d => d.value === this.directions));
+		this.directionControl.selectedId = this.directions;
 		this.frame.setTitle(input.getName());
 		// A new run deletes and writes the results folder again: its manifest is written last.
 		const folder = resultsFolder(input.model);
@@ -856,8 +861,8 @@ export class FemResultsEditor extends EditorPane {
 		if (options.length) {
 			this.setPicked(this.pickerKeys[index]);
 		}
-		this.resultPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), index);
-		this.resultGroup.classList.toggle('hidden', !options.length);
+		this.resultControl.setItems(options.map(o => ({ id: o.key, label: o.label })), options[index]?.key);
+		this.resultControl.visible = options.length > 0;
 	}
 
 	/** A length or force of the model in the charts' units, with the unit. */
@@ -1059,7 +1064,7 @@ export class FemResultsEditor extends EditorPane {
 
 	private renderCharts(): void {
 		const response = this.response;
-		this.directionGroup.classList.remove('hidden');
+		this.directionControl.visible = true;
 		if (!response) {
 			this.updatePickers([]);
 			// W4C-14: the bridges and special structures stay reachable without a building run.
@@ -1844,7 +1849,7 @@ export class FemResultsEditor extends EditorPane {
 	// ───────────────────────────── a member's page ─────────────────────────────
 
 	private renderMember(member: string): void {
-		this.directionGroup.classList.add('hidden');
+		this.directionControl.visible = false;
 		const detail = this.member;
 		if (!detail) {
 			this.updatePickers([]);

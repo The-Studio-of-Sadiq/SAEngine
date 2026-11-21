@@ -159,9 +159,9 @@ export class FemStrutAndTieEditor extends EditorPane {
 			ariaLabel: localize('femStm.modelAria', "Strut-and-tie model shown"),
 			label: localize('femStm.modelLabel', "Model"),
 			tooltip: localize('femStm.modelAria', "Strut-and-tie model shown"),
-			options: [],
+			items: [],
 			selectedId: '0',
-			enabled: false,
+			disabled: true,
 		}));
 		this._register(this.modelControl.onDidSelect(({ index }) => {
 			this.current = index;
@@ -171,7 +171,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 			this.render();
 			void this.check();
 		}));
-		this.frame.addViewControl(this.modelControl);
+		this._register(this.frame.addViewControl(this.modelControl));
 		this.frame.setHelp(localize('femStm.help', "Draw a strut-and-tie model of a D-region the deep-beam checks do not cover: a dapped end, a corbel with several loads, a frame corner, a wall or beam with an opening. Lay out nodes, struts and ties (or start from a template) in the region's plane, x along the member and y up, in mm; hold its boundary with supports and put the factored forces from the analysis on its nodes, one load case per combination. The truss is solved for every case and each strut, tie and nodal zone is checked with the strut-and-tie procedure of the project's code pack. The models are saved in 08 FEM/strut-and-tie.json."));
 		this.frame.setActions(
 			[this.toolActions.select, this.toolActions.node, this.toolActions.strut, this.toolActions.tie, this.deleteAction, this.checkAction, this.frame.togglePropertiesAction],
@@ -475,9 +475,9 @@ export class FemStrutAndTieEditor extends EditorPane {
 
 	private render(): void {
 		this.renderStore.clear();
-		const options = this.file.models.map((m, k) => ({ id: String(k), text: m.name }));
-		this.modelControl.setOptions(options, String(this.current));
-		this.modelControl.enabled = this.file.models.length > 0;
+		const items = this.file.models.map((m, k) => ({ id: String(k), label: m.name }));
+		this.modelControl.setItems(items, String(this.current));
+		this.modelControl.disabled = this.file.models.length === 0;
 		const model = this.model;
 		this.deleteAction.enabled = !!this.selection;
 		for (const action of [this.renameAction, this.removeAction, this.addCaseAction, this.checkAction, ...Object.values(this.toolActions)]) {

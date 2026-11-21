@@ -123,13 +123,14 @@ export class OfficeToolsEditor extends EditorPane {
 			ariaLabel: localize('office.toolbar', "Office Tools"),
 		}));
 		this.frame.element.classList.add('saengine-office-tools');
-		const tabs = append(this.frame.titleSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('office.tabsAria', "Office tool") }));
-		for (const tool of OFFICE_TOOLS) {
-			const button = append(tabs, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $('span', undefined, toolLabel(tool)));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.show(tool)));
-			this.tabButtons.set(tool, button);
-		}
+		this.tabsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.office.tabs',
+			ariaLabel: localize('office.tabsAria', "Office tool"),
+			items: OFFICE_TOOLS.map(tool => ({ id: tool, label: toolLabel(tool) })),
+			selectedId: this.tool,
+		}));
+		this._register(this.tabsControl.onDidSelect(id => this.show(id as OfficeTool)));
+		this._register(this.frame.addViewControl(this.tabsControl));
 		this.content = append(this.frame.main, $('.office-content', { tabIndex: -1 }));
 	}
 
@@ -148,10 +149,7 @@ export class OfficeToolsEditor extends EditorPane {
 		if (this.input instanceof OfficeToolsInput) {
 			this.input.tool = tool;
 		}
-		for (const [t, button] of this.tabButtons) {
-			button.classList.toggle('checked', t === tool);
-			button.setAttribute('aria-selected', String(t === tool));
-		}
+		this.tabsControl.selectedId = tool;
 		void this.render();
 	}
 

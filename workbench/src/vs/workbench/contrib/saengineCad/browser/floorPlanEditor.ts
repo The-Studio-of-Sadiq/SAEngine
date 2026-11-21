@@ -454,10 +454,17 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		frame.element.tabIndex = -1;
 
 		// The model view's Plan | 3D | Analysis switch, before the story.
-		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'plan')));
-		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan") }));
-		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
-		this._register(this.storyPicker.onDidSelect(async ({ index }) => {
+		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commandService, 'plan'))));
+		this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.story',
+			ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			label: localize('floorPlan.storyLabel', "Story"),
+			tooltip: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			items: [],
+			width: 'normal',
+		}));
+		this._register(frame.addViewControl(this.storyControl));
+		this._register(this.storyControl.onDidSelect(async ({ index }) => {
 			const input = this.input as FloorPlanEditorInput | undefined;
 			if (input && this.storyIds[index] !== input.story) {
 				await this.switchStory(this.storyIds[index]);
@@ -475,7 +482,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			ariaLabel: localize('floorPlan.fillAria', "What the fill tool places"),
 			label: localize('floorPlan.fill', "Fill"),
 			tooltip: localize('floorPlan.fillAria', "What the fill tool places"),
-			options: FILL_CHOICES.map((c, i) => ({ id: String(i), text: c.label })),
+			items: FILL_CHOICES.map((c, i) => ({ id: String(i), label: c.label })),
 			selectedId: String(this.fillChoice),
 			visible: false,
 		}));
@@ -483,13 +490,13 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			this.fillChoice = index;
 			this.updateToolbar();
 		}));
-		frame.addToolControl(this.fillControl);
+		this._register(frame.addToolControl(this.fillControl));
 		this.typeControl = this._register(new RibbonSelectModel({
 			id: 'saengine.floorPlan.type',
 			ariaLabel: localize('floorPlan.typeAria', "Object type to place"),
 			label: localize('floorPlan.type', "Type"),
 			tooltip: localize('floorPlan.typeAria', "Object type to place"),
-			options: [],
+			items: [],
 			selectedId: '',
 			visible: false,
 		}));
@@ -501,14 +508,14 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 				void this.createType(tool);
 			}
 		}));
-		frame.addToolControl(this.typeControl);
+		this._register(frame.addToolControl(this.typeControl));
 		this.typedGroup = $('.floor-plan-inline');
 		this.typedControl = this._register(new RibbonElementControl({
 			id: 'saengine.floorPlan.typed',
 			element: this.typedGroup,
 			visible: false,
 		}));
-		frame.addToolControl(this.typedControl);
+		this._register(frame.addToolControl(this.typedControl));
 
 		for (const { tool, label, icon } of TOOLS) {
 			this.toolActions.set(tool, this._register(new Action(`saengine.floorPlan.tool.${tool}`, label, ThemeIcon.asClassName(icon), true, async () => this.setTool(tool))));
@@ -1319,7 +1326,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			frame.setActions(primary, secondary);
 		}
 
-		this.fillGroup.classList.toggle('hidden', this.tool !== 'fill');
+		this.fillControl.visible = this.tool === 'fill';
 		const hasSelection = editable && this.selected.length > 0;
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
@@ -1329,7 +1336,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 
 		// The object type the placement tool places.
 		const tool = this.placementTool;
-		this.typeGroup.classList.toggle('hidden', !tool);
+		this.typeControl.visible = !!tool;
 		if (tool) {
 			const types = this.typesOfKinds(TOOL_KINDS[tool]);
 			this.typeIds = types.map(([id]) => id);
@@ -1340,8 +1347,14 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 					this.types.set(tool, chosen);
 				}
 			}
-			const options = [...types.map(([, name]) => ({ text: name })), ...(tool !== 'footing' ? [{ text: localize('floorPlan.newType', "New type...") }] : [])];
-			this.typePicker.setOptions(options.length ? options : [{ text: localize('floorPlan.noTypes', "(none defined)") }], Math.max(0, this.typeIds.indexOf(chosen ?? '')));
+			const items = [
+				...types.map(([id, name]) => ({ id, label: name })),
+				...(tool !== 'footing' ? [{ id: '__new__', label: localize('floorPlan.newType', "New type...") }] : []),
+			];
+			this.typeControl.setItems(
+				items.length ? items : [{ id: '', label: localize('floorPlan.noTypes', "(none defined)") }],
+				chosen ?? this.typeIds[0] ?? '',
+			);
 		}
 		this.updateTypedControls();
 	}
@@ -2755,8 +2768,8 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			this.viewStorage.store(storyKey, input.story, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		const storySel = this.storyIds.includes(input.story ?? '') ? (input.story ?? '') : '';
-		this.storyControl.setOptions(
-			stories.length ? stories.map(s => ({ id: s.id, text: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ id: '', text: localize('floorPlan.noStoriesOption', "(no stories)") }],
+		this.storyControl.setItems(
+			stories.length ? stories.map(s => ({ id: s.id, label: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ id: '', label: localize('floorPlan.noStoriesOption', "(no stories)") }],
 			storySel,
 		);
 

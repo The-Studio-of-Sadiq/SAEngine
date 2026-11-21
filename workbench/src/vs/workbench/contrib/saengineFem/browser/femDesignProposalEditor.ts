@@ -166,11 +166,11 @@ export class FemDesignProposalEditor extends EditorPane {
 			ariaLabel: localize('femProposal.modeAria', "How members share object types"),
 			label: localize('femProposal.mode', "Types"),
 			tooltip: localize('femProposal.modeAria', "How members share object types"),
-			options: MODES.map(m => ({ id: m.mode, text: m.label })),
+			items: MODES.map(m => ({ id: m.mode, label: m.label })),
 			selectedId: 'byType',
 		}));
 		this._register(this.modeControl.onDidSelect(({ id }) => this.setMode((id as DesignProposalMode) || 'byType')));
-		this.frame.addViewControl(this.modeControl);
+		this._register(this.frame.addViewControl(this.modeControl));
 		this.frame.setActions([this.applyAction, this.refreshAction, this.stopAction], [this.includeAllAction, this.includeNoneAction, new Separator(), this.openObjectsAction]);
 		this.list = $('.fem-proposal-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
@@ -656,7 +656,7 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.stopAction.enabled = this.applying || this.loading;
 		this.includeAllAction.enabled = this.includeNoneAction.enabled = rows.length > 0 && !this.applying;
 		this.modeControl.selectedId = this.model.mode;
-		this.modeControl.enabled = available && !this.applying;
+		this.modeControl.disabled = !(available && !this.applying);
 		if (this.loading || this.applying) {
 			this.frame.showProgress();
 		} else {

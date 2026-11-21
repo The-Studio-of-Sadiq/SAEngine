@@ -201,6 +201,10 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	static readonly ID = LibraryEditorInput.BUILDING_EDITOR_ID;
 
 	private frame!: EditorFrame;
+	private viewsControl: RibbonSegmentedModel | undefined;
+	private presetsControl: RibbonSegmentedModel | undefined;
+	private storyControl: RibbonSelectModel | undefined;
+	private rebarToggle: RibbonToggleModel | undefined;
 	private viewport!: HTMLElement;
 	private summary!: HTMLElement;
 	private additions!: HTMLElement;

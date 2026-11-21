@@ -347,8 +347,9 @@ export class EditorFrame extends Disposable {
 
 		this.element = append(container, $('.saengine-editor-frame'));
 
+		let bar: HTMLElement | undefined;
 		if (this.inlineToolbar) {
-			const bar = append(this.element, $('.sa-frame-toolbar', { role: 'toolbar', 'aria-label': options.ariaLabel }));
+			bar = append(this.element, $('.sa-frame-toolbar', { role: 'toolbar', 'aria-label': options.ariaLabel }));
 			this.titleSlot = append(bar, $('.sa-frame-title'));
 			this.helpSlot = append(bar, $('.sa-frame-help'));
 			this.controlsSlot = append(bar, $('.sa-frame-controls'));
@@ -360,8 +361,6 @@ export class EditorFrame extends Disposable {
 				toggleMenuTitle: localize('editorFrame.more', "More Actions..."),
 				highlightToggledItems: true,
 			}));
-			this.progress = this._register(new ProgressBar(bar, defaultProgressBarStyles));
-			this.progress.getContainer().classList.add('sa-frame-progress');
 		} else {
 			this.titleSlot = $('.sa-frame-title');
 			this.helpSlot = $('.sa-frame-help');
@@ -371,9 +370,10 @@ export class EditorFrame extends Disposable {
 		}
 
 		this.body = append(this.element, $('.sa-frame-body'));
-		if (!this.inlineToolbar) {
-			this.progress = this._register(new ProgressBar(this.body, defaultProgressBarStyles));
-			this.progress.getContainer().classList.add('sa-frame-progress', 'sa-frame-progress-body');
+		this.progress = this._register(new ProgressBar(bar ?? this.body, defaultProgressBarStyles));
+		this.progress.getContainer().classList.add('sa-frame-progress');
+		if (!bar) {
+			this.progress.getContainer().classList.add('sa-frame-progress-body');
 		}
 		this.main = append(this.body, $('.sa-frame-main'));
 		this.emptyElement = append(this.main, $('.sa-frame-empty'));

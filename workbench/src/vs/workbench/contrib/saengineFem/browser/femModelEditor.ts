@@ -803,7 +803,6 @@ export class FemModelEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,

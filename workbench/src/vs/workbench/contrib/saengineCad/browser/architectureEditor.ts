@@ -289,7 +289,7 @@ export class ArchitectureEditor extends EditorPane {
 			ariaLabel: localize('arch.storyAria', "Story shown"),
 			label: localize('arch.storyLabel', "Story"),
 			tooltip: localize('arch.storyAria', "Story shown"),
-			options: [],
+			items: [],
 			selectedId: '',
 		}));
 		this._register(this.storyControl.onDidSelect(({ index }) => {
@@ -301,14 +301,14 @@ export class ArchitectureEditor extends EditorPane {
 				this.render();
 			}
 		}));
-		frame.addViewControl(this.storyControl);
+		this._register(frame.addViewControl(this.storyControl));
 
 		this.typeControl = this._register(new RibbonSelectModel({
 			id: 'saengine.architecture.type',
 			ariaLabel: localize('arch.typeAria', "Type to place"),
 			label: localize('arch.type', "Type"),
 			tooltip: localize('arch.typeAria', "Type to place"),
-			options: [],
+			items: [],
 			selectedId: '',
 			visible: false,
 		}));
@@ -318,7 +318,7 @@ export class ArchitectureEditor extends EditorPane {
 				this.updateStatus();
 			}
 		}));
-		frame.addToolControl(this.typeControl);
+		this._register(frame.addToolControl(this.typeControl));
 
 		const cad = append(frame.main, $('.saengine-cad-editor'));
 		this.host = append(cad, $('.cad-host'));
@@ -836,8 +836,8 @@ export class ArchitectureEditor extends EditorPane {
 			// The first floor above the lowest level, as the floor plan opens.
 			input.story = this.storyIds[Math.min(1, this.storyIds.length - 1)];
 		}
-		this.storyControl.setOptions(
-			stories.length ? stories.map(s => ({ id: s.id, text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})` })) : [{ id: '', text: localize('arch.noStoriesOption', "(no stories)") }],
+		this.storyControl.setItems(
+			stories.length ? stories.map(s => ({ id: s.id, label: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})` })) : [{ id: '', label: localize('arch.noStoriesOption', "(no stories)") }],
 			stories.length ? (input.story ?? this.storyIds[0] ?? '') : '',
 		);
 		const parsed = parseArchitecture(this.archModel.getValue());
@@ -983,7 +983,7 @@ export class ArchitectureEditor extends EditorPane {
 				const wall = this.arch!.wallTypes.find(w => w.id === t.id);
 				return this.tool === 'wall' && wall ? `${t.id}: ${t.name} (${wallThickness(wall)} mm)` : `${t.id}: ${t.name}`;
 			};
-			this.typeControl.setOptions(types.length ? types.map((t, i) => ({ id: this.typeIds[i] ?? String(i), text: label(t) })) : [{ id: '', text: localize('arch.noTypes', "(none defined)") }], this.typeIds.includes(chosen ?? '') ? (chosen ?? '') : (this.typeIds[0] ?? ''));
+			this.typeControl.setItems(types.length ? types.map((t, i) => ({ id: this.typeIds[i] ?? String(i), label: label(t) })) : [{ id: '', label: localize('arch.noTypes', "(none defined)") }], this.typeIds.includes(chosen ?? '') ? (chosen ?? '') : (this.typeIds[0] ?? ''));
 			this.typeControl.visible = true;
 		}
 	}

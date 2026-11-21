@@ -514,8 +514,6 @@ export class FemResultsBar extends Disposable {
 	private format = resultFormatter(undefined);
 	private list: IFemResultList = { results: [], stale: false };
 	private key: string | undefined;
-	/** The result picker's option k shows result `resultRows[k]` (-1: a group's heading). */
-	private resultRows: number[] = [];
 	/** What the engineer chose to show: shown again on every result that has it (a mode shape has no forces). */
 	private wantedShow: Show | undefined;
 	private mode = 1;
@@ -719,7 +717,7 @@ export class FemResultsBar extends Disposable {
 			group: '0_2_FemScale',
 			label: localize('femResults.groupScale', "Scale"),
 			collapsePriority: 110,
-			icon: Codicon.sliders,
+			icon: Codicon.settings,
 			controls: [this.scaleSlider, this.labelsToggle, this.timeRow],
 			isVisible: () => this.isScaleGroupVisible(),
 		}));
