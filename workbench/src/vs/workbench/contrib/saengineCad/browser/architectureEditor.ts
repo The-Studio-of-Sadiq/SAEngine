@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, Dimension, EventType, isEd
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -71,7 +71,8 @@ const COMPACT_WIDTH = 900;
 /** The 3D view of 6 BIM's part editor (`bim.json` with `{ section: '3d' }`). */
 const BIM_3D_SECTION = '3d';
 
-type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'curtainWall' | 'ceiling' | 'roof' | 'ramp' | 'railing' | 'component' | 'mass' | 'delete';
+export type ArchTool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'curtainWall' | 'ceiling' | 'roof' | 'ramp' | 'railing' | 'component' | 'mass' | 'delete';
+type Tool = ArchTool;
 
 /** Tools that draw a chain of points (a wall's path, a roof's or mass's outline). */
 const CHAIN_TOOLS: ReadonlySet<Tool> = new Set(['wall', 'curtainWall', 'railing', 'roof', 'mass']);
@@ -241,23 +242,7 @@ export class ArchitectureEditor extends EditorPane {
 	private writing = false;
 	private actionsKey = '';
 
-	private readonly toolActions = new Map<Tool, Action>();
-	private readonly undoAction = this._register(new Action('saengine.architecture.undo', localize('arch.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), true, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.architecture.redo', localize('arch.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), true, () => this.undoRedo(true)));
-	private readonly zoomAction = this._register(new Action('saengine.architecture.zoomExtents', localize('arch.zoomExtents', "Zoom Extents"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => {
-		this.userView = false;
-		this.editor?.zoomExtents();
-	}));
-	private readonly structureAction = this._register(new Action('saengine.architecture.toggleStructure', localize('arch.hideStructure', "Hide Structure"), ThemeIcon.asClassName(Codicon.eye), true, async () => {
-		this.showStructure = !this.showStructure;
-		this.render();
-	}));
-	private readonly importAction = this._register(new Action('saengine.architecture.importIfc', localize('arch.importIfc', "Import Architect's IFC..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importIfc()));
-	private readonly importDrawingAction = this._register(new Action('saengine.architecture.importDrawing', localize('arch.importDrawing', "Import Architect's DWG/DXF..."), ThemeIcon.asClassName(Codicon.fileMedia), true, () => this.importDrawing()));
-	private readonly typesLibraryAction = this._register(new Action('saengine.architecture.typesLibrary', localize('arch.typesLibrary', "Types Library..."), ThemeIcon.asClassName(Codicon.library), true, () => this.openTypesLibrary()));
-	private readonly view3dAction = this._register(new Action('saengine.architecture.open3d', localize('arch.open3d', "Show in 3D View"), ThemeIcon.asClassName(Codicon.globe), true, () => this.open3d()));
 	private readonly textAction = this._register(new Action('saengine.architecture.openText', localize('arch.openText', "Edit Types as Text"), undefined, true, () => this.openText()));
-	private readonly floorPlanAction = this._register(new Action('saengine.architecture.openFloorPlan', localize('arch.openFloorPlan', "Open Floor Plan"), undefined, true, () => this.openFloorPlan()));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly propertiesDisposables = this._register(new DisposableStore());
@@ -320,10 +305,6 @@ export class ArchitectureEditor extends EditorPane {
 				this.updateStatus();
 			}
 		}));
-
-		for (const { tool, label, icon } of TOOLS) {
-			this.toolActions.set(tool, this._register(new Action(`saengine.architecture.tool.${tool}`, label, ThemeIcon.asClassName(icon), true, async () => this.setTool(tool))));
-		}
 
 		const cad = append(frame.main, $('.saengine-cad-editor'));
 		this.host = append(cad, $('.cad-host'));
@@ -960,50 +941,9 @@ export class ArchitectureEditor extends EditorPane {
 		if (!frame) {
 			return;
 		}
-		const editable = !!this.arch && !this.parseError && this.storyIds.length > 0;
-		for (const [tool, action] of this.toolActions) {
-			action.checked = tool === this.tool;
-			action.enabled = editable || tool === 'select';
-		}
-		const resource = this.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
-		this.structureAction.checked = this.showStructure;
-		this.structureAction.label = this.showStructure ? localize('arch.hideStructure', "Hide Structure") : localize('arch.showStructure', "Show Structure");
-		this.structureAction.class = ThemeIcon.asClassName(this.showStructure ? Codicon.eye : Codicon.eyeClosed);
-		this.importAction.enabled = editable;
-		this.importDrawingAction.enabled = editable && !this.drawingImport;
-		this.typesLibraryAction.enabled = editable && !this.typesPanel;
-
-		const tools = (names: readonly Tool[]) => names.map(name => this.toolActions.get(name)!);
-		const primary: IAction[] = [
-			...tools(['select']),
-			new Separator(),
-			...tools(['wall', 'door', 'window', 'room', 'separator']),
-			new Separator(),
-			...tools(['curtainWall', 'ceiling', 'roof', 'ramp', 'railing']),
-			new Separator(),
-			...tools(['component', 'mass']),
-			new Separator(),
-			...tools(['delete']),
-			...(this.compact ? [] : [this.undoAction, this.redoAction]),
-			new Separator(),
-			this.zoomAction, ...(this.compact ? [] : [this.structureAction]), this.view3dAction, frame.togglePropertiesAction,
-		];
-		const secondary: IAction[] = [
-			this.typesLibraryAction,
-			new Separator(),
-			this.importDrawingAction,
-			this.importAction,
-			new Separator(),
-			this.textAction,
-			this.floorPlanAction,
-			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, this.structureAction] : []),
-		];
-		const key = `${this.compact}`;
-		if (key !== this.actionsKey) {
-			this.actionsKey = key;
-			frame.setActions(primary, secondary);
+		if (!this.actionsKey) {
+			this.actionsKey = 'ribbon';
+			frame.setActions([frame.togglePropertiesAction], [this.textAction]);
 		}
 
 		const placing = TYPED_TOOLS.has(this.tool);
@@ -1992,5 +1932,43 @@ export class ArchitectureEditor extends EditorPane {
 		if (resource) {
 			await this.editorService.openEditor({ resource: joinPath(dirname(resource), PROJECT_PARTS.find(p => p.id === 'floorPlan')!.mainFile!), options: { pinned: true } });
 		}
+	}
+
+	/** Selects an architecture drafting tool from the Architecture ribbon tab. */
+	selectTool(tool: Tool): void {
+		const editable = !!this.arch && !this.parseError && this.storyIds.length > 0;
+		if (editable || tool === 'select') {
+			this.setTool(tool);
+		}
+	}
+
+	zoomToExtents(): void {
+		this.userView = false;
+		this.editor?.zoomExtents();
+	}
+
+	toggleStructureOverlay(): void {
+		this.showStructure = !this.showStructure;
+		this.render();
+	}
+
+	openTypesLibraryPanel(): void {
+		this.openTypesLibrary();
+	}
+
+	importIfcFile(): Promise<void> {
+		return this.importIfc();
+	}
+
+	importDrawingFile(): Promise<void> {
+		return this.importDrawing();
+	}
+
+	open3dView(): Promise<void> {
+		return this.open3d();
+	}
+
+	openFloorPlanView(): Promise<void> {
+		return this.openFloorPlan();
 	}
 }

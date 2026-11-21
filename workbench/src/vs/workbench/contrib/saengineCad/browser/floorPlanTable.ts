@@ -230,10 +230,7 @@ export class MembersTable extends Disposable {
 	private floorPlan: URI | undefined;
 	private loading = 0;
 
-	private readonly undoAction = this._register(new Action('saengine.membersTable.undo', localize('membersTable.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.membersTable.redo', localize('membersTable.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly exportAction = this._register(new Action('saengine.membersTable.export', localize('membersTable.exportCsv', "Export CSV..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportCsv()));
-	private readonly floorPlanAction = this._register(new Action('saengine.membersTable.floorPlan', localize('membersTable.openFloorPlan', "Open Floor Plan"), ThemeIcon.asClassName(Codicon.symbolArray), true, () => this.openFloorPlan()));
 	private readonly followAction: Action = this._register(new Action('saengine.membersTable.followStory', localize('membersTable.followStory', "Show the Model View's Storey"), undefined, true, async () => this.setFollowStory(!this.followAction.checked)));
 
 	constructor(
@@ -246,7 +243,6 @@ export class MembersTable extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.followAction.checked = !!options.followStory;
@@ -302,7 +298,7 @@ export class MembersTable extends Disposable {
 		}));
 		this._register(this.search.onDidChange(text => this.setFilter({ text })));
 
-		this.frame.setActions([this.undoAction, this.redoAction, this.exportAction], this.options.followStory ? [this.followAction, this.floorPlanAction] : [this.floorPlanAction]);
+		this.frame.setActions([this.exportAction], this.options.followStory ? [this.followAction] : []);
 		this.body = $('.members-body', { tabIndex: 0, role: 'grid', 'aria-multiselectable': 'true', 'aria-label': localize('membersTable.aria', "Members") });
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('members-scroll');
@@ -430,9 +426,6 @@ export class MembersTable extends Disposable {
 		}
 		this.typeFilter.setOptions([{ text: localize('membersTable.allTypes', "All types") }, ...types.map(t => ({ text: t }))], Math.max(0, this.typeIds.indexOf(this.filter.type)));
 		this.renderRows();
-		const resource = this.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
 	}
 
 	private renderRows(reveal = false): void {
@@ -695,13 +688,6 @@ export class MembersTable extends Disposable {
 			this.notificationService.info(localize('membersTable.exported', "Exported {0} members to {1}.", this.shown.length, basename(target)));
 		} catch (error) {
 			this.notificationService.error(localize('membersTable.exportFailed', "The members table could not be exported: {0}", String(error)));
-		}
-	}
-
-	private async openFloorPlan(): Promise<void> {
-		const resource = this.resource;
-		if (resource) {
-			await this.editorService.openEditor({ resource, options: { pinned: true } });
 		}
 	}
 }

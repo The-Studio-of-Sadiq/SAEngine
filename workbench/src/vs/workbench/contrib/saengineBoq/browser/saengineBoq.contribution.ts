@@ -25,6 +25,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { BoqEditor } from './boqEditor.js';
 import { BoqEditorInput, BoqEditorInputSerializer } from './boqEditorInput.js';
 import { BOQ_EXPORT_CSV_COMMAND, BOQ_EXPORT_XLSX_COMMAND, exportBoqCsv, exportBoqXlsx, readProjectBoq } from './boqExport.js';
@@ -243,4 +244,65 @@ for (const [kind, id, title, file] of [
 			}
 		}
 	});
+}
+
+async function activeBoqEditor(accessor: ServicesAccessor): Promise<BoqEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof BoqEditor) {
+		return editorService.activeEditorPane;
+	}
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('boq');
+	if (!project || !part?.mainFile) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } });
+	return pane instanceof BoqEditor ? pane : undefined;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.boq.measure',
+			title: localize2('boq.rib.measureTitle', "Measure / Update from Building Model"),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.refresh,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			menu: { id: RibbonMenus.BOQ, group: '1_Measure', order: 2 },
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await (await activeBoqEditor(accessor))?.compute();
+	}
+});
+registerRibbonItemHint('saengine.boq.measure', { size: 'large', label: localize('boq.rib.measure', "Measure / Update") }, RibbonMenus.BOQ);
+
+for (const [order, id, title, shortLabel, icon, run] of [
+	[1, 'saengine.boq.toggleImperial', localize2('boq.rib.imperialTitle', "Toggle Feet Units (cft, sft, rft)"), localize('boq.rib.imperial', "Feet Units"), Codicon.symbolRuler, (e: BoqEditor) => e.toggleImperialUnits()],
+	[2, 'saengine.boq.expandAll', localize2('boq.rib.expandTitle', "Expand All Breakdowns"), localize('boq.rib.expand', "Expand All"), Codicon.expandAll, (e: BoqEditor) => e.setAllExpanded(true)],
+	[3, 'saengine.boq.collapseAll', localize2('boq.rib.collapseTitle', "Collapse All Breakdowns"), localize('boq.rib.collapse', "Collapse All"), Codicon.collapseAll, (e: BoqEditor) => e.setAllExpanded(false)],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+				menu: { id: RibbonMenus.BOQ, group: '3_Views', order },
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeBoqEditor(accessor);
+			if (editor) {
+				run(editor);
+			}
+		}
+	});
+	registerRibbonItemHint(id, { size: 'small', label: shortLabel }, RibbonMenus.BOQ);
 }

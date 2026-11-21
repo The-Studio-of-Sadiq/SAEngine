@@ -129,8 +129,6 @@ export class CodePacksEditor extends EditorPane {
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private readonly loadScheduler = this._register(new RunOnceScheduler(() => void this.load(), 0));
 
-	private readonly newAction = this._register(new Action('saengine.codePacks.newPack', localize('codePacks.new', "New Code Pack..."), ThemeIcon.asClassName(Codicon.add), true, () => this.newPack()));
-	private readonly installAction = this._register(new Action('saengine.codePacks.installPack', localize('packages.installFromFile', "Install from File..."), ThemeIcon.asClassName(Codicon.package), true, () => this.install()));
 	private readonly validateAction = this._register(new Action('saengine.codePacks.validatePack', localize('codePacks.validate', "Validate"), ThemeIcon.asClassName(Codicon.checklist), true, () => this.validate()));
 	private readonly removeAction = this._register(new Action('saengine.packages.removePack', localize('packages.remove', "Remove..."), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeSelected()));
 	private readonly refreshAction = this._register(new Action('saengine.codePacks.refresh', localize('codePacks.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
@@ -171,7 +169,7 @@ export class CodePacksEditor extends EditorPane {
 		this.frame.element.classList.add('saengine-code-packs-editor');
 		this.frame.setTitle(localize('packages.title', "Packages"));
 		this.frame.setHelp(localize('packages.help', "Packages add to SAEngine without changing the program: design codes (a code as data: locations and hazard tables, loads, combinations, coefficients, materials, factors, detailing limits and the MEP tables, each with its clauses), structure templates (presets of the special-structure shapes) and building templates (a building specification for the New Project wizard). Browse lists the packages published for SAEngine: the list is signed, and every download is checked against its SHA-256 before it is installed. A package holds data only; Python hooks in a design code run only when you trust them. The project chooses its design code in 02 Project Settings."));
-		this.frame.setActions([this.installAction, this.newAction, this.validateAction, this.removeAction, this.refreshAction, this.frame.togglePropertiesAction], [this.openManifestAction, this.componentsAction]);
+		this.frame.setActions([this.validateAction, this.removeAction, this.refreshAction, this.frame.togglePropertiesAction], [this.openManifestAction, this.componentsAction]);
 		this.tabsElement = append(this.frame.controlsSlot, $('.packages-tabs', { role: 'tablist', 'aria-label': localize('packages.tabs', "Packages views") }));
 		this.list = $('.code-packs-list', { role: 'listbox', tabIndex: 0, 'aria-label': localize('packages.listLabel', "Packages") });
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
@@ -810,8 +808,6 @@ export class CodePacksEditor extends EditorPane {
 		this.renderStatus();
 		const selected = this.tab === 'installed' ? this.selected : undefined;
 		const backend = this.available;
-		this.newAction.enabled = backend;
-		this.installAction.enabled = backend;
 		this.validateAction.enabled = backend && !!selected?.path;
 		this.removeAction.enabled = backend && !!selected && selected.scope !== 'builtin';
 		this.openManifestAction.enabled = !!selected?.path;

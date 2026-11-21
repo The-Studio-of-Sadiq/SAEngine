@@ -1138,7 +1138,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.added({ kind: 'opening', index: document.openings.length - 1 }, hostStory(this.context, host)?.id);
 	}
 
-	private addShaft(): void {
+	addShaft(): void {
 		const document = this.document;
 		if (!document || !this.story) {
 			return;

@@ -6,6 +6,7 @@
 import './mepDataPanels.contribution.js';
 import { getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +25,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { registerRibbonItemHint, RibbonButtonSize, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { MepEditor } from './mepEditor.js';
 import { MepEditorInput, MepEditorInputSerializer } from './mepEditorInput.js';
 
@@ -99,6 +101,20 @@ function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<
 UndoCommand.addImplementation(110, 'saengine-mep', accessor => undoRedo(accessor, false));
 RedoCommand.addImplementation(110, 'saengine-mep', accessor => undoRedo(accessor, true));
 
+async function activeMepEditor(accessor: ServicesAccessor): Promise<MepEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof MepEditor) {
+		return editorService.activeEditorPane;
+	}
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('mep');
+	if (!project || !part?.mainFile) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } });
+	return pane instanceof MepEditor ? pane : undefined;
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -112,14 +128,65 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const project = accessor.get(ISaengineProjectService).project;
-		const active = editorService.activeEditorPane;
-		const part = partById('mep');
-		const pane = active instanceof MepEditor ? active
-			: project && part?.mainFile ? await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } }) : undefined;
-		if (pane instanceof MepEditor) {
-			await pane.suggestSleeves();
-		}
+		await (await activeMepEditor(accessor))?.suggestSleeves();
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.mep.editor.importIfc',
+			title: localize2('saengine.mep.importIfcTitle', "Import MEP IFC Model..."),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.cloudDownload,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await (await activeMepEditor(accessor))?.importIfc();
+	}
+});
+
+function registerMepRibbonCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	shortLabel: string,
+	icon: ThemeIcon,
+	group: string,
+	order: number,
+	size: RibbonButtonSize,
+	runWithEditor: (editor: MepEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+				menu: { id: RibbonMenus.MEP, group, order },
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeMepEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+	registerRibbonItemHint(id, { size, label: shortLabel }, RibbonMenus.MEP);
+}
+
+registerMepRibbonCommand('saengine.mep.editor.addShaft', localize2('mep.rib.shaftTitle', "Add MEP Shaft"), localize('mep.rib.shaft', "Add Shaft"), Codicon.layers, '1_Coordination', 4, 'small', e => e.addShaft());
+registerMepRibbonCommand('saengine.mep.editor.sizeTanks', localize2('mep.rib.sizeTanksTitle', "Size Plumbing Tanks"), localize('mep.rib.sizeTanks', "Size Tanks"), Codicon.wand, '2_Plumbing', 4, 'small', e => e.sizeTanks());
+registerMepRibbonCommand('saengine.mep.editor.addDrain', localize2('mep.rib.addDrainTitle', "Add Roof Drain"), localize('mep.rib.addDrain', "Roof Drain"), Codicon.arrowCircleDown, '2_Plumbing', 5, 'small', e => e.addDrain());
+registerMepRibbonCommand('saengine.mep.editor.riserSleeves', localize2('mep.rib.riserSleevesTitle', "Add Sleeves for Plumbing Risers"), localize('mep.rib.riserSleeves', "Riser Sleeves"), Codicon.circleLargeOutline, '2_Plumbing', 6, 'small', e => e.addRiserSleeves());
+registerMepRibbonCommand('saengine.mep.editor.proposePlant', localize2('mep.rib.proposePlantTitle', "Propose HVAC Plant"), localize('mep.rib.proposePlant', "Propose Plant"), Codicon.wand, '3_HVAC', 6, 'small', e => e.proposePlant());
+registerMepRibbonCommand('saengine.mep.editor.calculateLoads', localize2('mep.rib.calcLoadsTitle', "Calculate HVAC Loads"), localize('mep.rib.calcLoads', "Calc Loads"), Codicon.play, '3_HVAC', 7, 'small', e => e.calculateLoads());
+registerMepRibbonCommand('saengine.mep.editor.proposeEquipment', localize2('mep.rib.proposeElecTitle', "Propose Electrical Equipment"), localize('mep.rib.proposeElec', "Propose Equipment"), Codicon.wand, '4_Electrical', 7, 'small', e => e.proposeEquipment());
+registerMepRibbonCommand('saengine.mep.editor.proposeFire', localize2('mep.rib.proposeFireTitle', "Propose Fire Pumps and Tank"), localize('mep.rib.proposeFire', "Propose Pumps & Tank"), Codicon.wand, '5_FireAndSystems', 6, 'small', e => e.proposeFire());

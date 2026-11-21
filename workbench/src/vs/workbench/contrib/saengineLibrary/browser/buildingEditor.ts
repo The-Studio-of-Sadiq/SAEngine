@@ -6,7 +6,7 @@
 import './media/modelEditors.css';
 import type { BuildingLayer, BuildingViewer, BuildingViewPreset } from '@saengine/fem-viewer';
 import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
-import { Action, Separator } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -253,10 +253,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The Part 5 model this one is built from, followed to say when it changed. */
 	private readonly source = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 
-	private readonly rebuildAction = this._register(new Action('saengine.bim.rebuild', '', ThemeIcon.asClassName(Codicon.refresh), true, () => this.build()));
-	private readonly fitAction = this._register(new Action('saengine.bim.fit', localize('building.fit', "Zoom to Fit"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => this.viewer?.fit()));
 	private readonly openSourceAction = this._register(new Action('saengine.bim.openSource', '', undefined, true, async () => this.openSource()));
-	private readonly exportAction = this._register(new Action('saengine.bim.exportIfc', localize('building.exportIfc', "Export IFC"), undefined, false, () => this.exportIfc()));
 	private readonly propertiesDisposables = this._register(new DisposableStore());
 	/** Alpha 9 L11: render presets, walk mode, stills, 4D playback, terrain, sun and phases. */
 	private studies: BimStudies | undefined;
@@ -560,6 +557,23 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	/** Generates the model from the current Part 5 model, keeping the model's own elements. */
+	rebuild(): Promise<void> {
+		return this.build();
+	}
+
+	/** Fits the active 3D viewport to the building model. */
+	fitView(): Promise<void> {
+		return this.viewer?.fit() ?? Promise.resolve();
+	}
+
+	get viewerTools(): ViewerTools | undefined {
+		return this.viewTools;
+	}
+
+	get bimStudies(): BimStudies | undefined {
+		return this.studies;
+	}
+
 	private async build(): Promise<void> {
 		const source = this.upstreamText ?? this.source.value?.object.textEditorModel.getValue();
 		let parsed: JsonValue | undefined;
@@ -1029,10 +1043,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 		const stale = this.stale;
 		const built = !!this.document;
-		this.rebuildAction.label = this.built ? localize('building.rebuild', "Rebuild from {0}", this.sourceName) : localize('building.build', "Build from {0}", this.sourceName);
 		this.openSourceAction.label = localize('building.openSource', "Open {0}", this.sourceName);
-		this.exportAction.enabled = built;
-		this.fitAction.enabled = built && this.view === '3d';
 		this.updateDocumentFrameActions();
 		for (const [view, button] of this.viewButtons) {
 			button.disabled = !built && view !== '3d';
@@ -1042,28 +1053,15 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		}
 	}
 
-	/** Rebuild is an icon button only while the source changed (or it was never built); else in "...". */
+	/** Rebuild, 3D inspection, studies, and export live on the 3D View ribbon tab. */
 	protected override documentFrameActions(): IDocumentFrameActions {
 		const frame = this.frame;
 		if (!frame) {
 			return { primary: [] };
 		}
-		const prominent = this.stale || !this.document;
-		const show3d = this.view === '3d' && !!this.document;
 		return {
-			primary: [
-				...(prominent ? [this.rebuildAction] : []),
-				...(show3d ? [this.fitAction, ...(this.viewTools?.primaryActions() ?? [])] : []),
-				frame.togglePropertiesAction,
-			],
-			secondary: [
-				...(prominent ? [] : [this.rebuildAction]),
-				this.openSourceAction,
-				new Separator(),
-				this.exportAction,
-				...(show3d && this.viewTools ? [new Separator(), ...this.viewTools.secondaryActions()] : []),
-				...(show3d && this.studies ? [new Separator(), ...this.studies.actions()] : []),
-			],
+			primary: [frame.togglePropertiesAction],
+			secondary: [this.openSourceAction],
 		};
 	}
 

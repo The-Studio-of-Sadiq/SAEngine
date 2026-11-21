@@ -39,7 +39,6 @@ import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } fr
 import { chartsBlue, chartsGreen, chartsLines, chartsOrange, chartsPurple, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground, editorForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -193,8 +192,6 @@ export class StructureModelerEditor extends EditorPane {
 	/** A very narrow editor also moves the editing tools and the work level picker to "...". */
 	private narrow = false;
 	private readonly levelAction = this._register(new Action('saengine.structure.level', localize('modeler.levelMenu', "Work Level..."), undefined, true, () => this.pickLevel()));
-	private readonly undoAction = this._register(new Action('saengine.structure.undo', localize('modeler.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.structure.redo', localize('modeler.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly fitAction = this._register(new Action('saengine.structure.fit', localize('modeler.fit', "Zoom to Fit"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => this.modeler?.fit()));
 	private readonly generateAction = this._register(new Action('saengine.structure.generate', localize('modeler.generateTitle', "Add a parametric shape: space truss, plane truss, arch, dome, barrel vault or cable net"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openShape()));
 	private readonly importAction = this._register(new Action('saengine.structure.import', localize('modeler.importTitle', "Add the members and surfaces of a DXF, DWG, IFC or Rhino (.3dm) file"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.openImport()));
@@ -270,7 +267,6 @@ export class StructureModelerEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(StructureModelerEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -374,14 +370,13 @@ export class StructureModelerEditor extends EditorPane {
 			...tools(['member', 'area', 'block', 'support']),
 			new Separator(),
 			...(narrow ? [] : [...tools(['move', 'copy', 'mirror', 'divide', 'delete']), new Separator()]),
-			...(compact ? [] : [this.generateAction, this.importAction, this.scriptAction, new Separator(), this.undoAction, this.redoAction, new Separator()]),
+			...(compact ? [] : [this.generateAction, this.importAction, this.scriptAction, new Separator()]),
 			this.fitAction, this.frame.togglePropertiesAction,
 		];
 		const secondary: IAction[] = [
 			this.formAction,
 			new Separator(),
 			this.generateMenuAction, this.importMenuAction, this.scriptMenuAction,
-			...(compact ? [new Separator(), this.undoAction, this.redoAction] : []),
 			...(narrow ? [new Separator(), ...tools(['move', 'copy', 'mirror', 'divide', 'delete'])] : []),
 			new Separator(),
 			this.levelAction,
@@ -410,14 +405,6 @@ export class StructureModelerEditor extends EditorPane {
 			this.levelPicker.select(Math.max(0, this.levels.findIndex(l => l.z === pick.z) + 1));
 			this.modeler?.setWorkPlane(this.level);
 		}
-	}
-
-	private async undoRedo(redo: boolean): Promise<void> {
-		const resource = (this.input as LibraryEditorInput | undefined)?.resource;
-		if (resource) {
-			await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
-		}
-		this.updateToolbar();
 	}
 
 	override async setInput(input: LibraryEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -563,9 +550,6 @@ export class StructureModelerEditor extends EditorPane {
 		for (const [tool, action] of this.toolActions) {
 			action.checked = tool === this.tool;
 		}
-		const resource = (this.input as LibraryEditorInput | undefined)?.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
 		const kinds = TOOL_KINDS[this.tool];
 		this.typeGroup.classList.toggle('hidden', !kinds && this.tool !== 'support');
 		if (kinds) {

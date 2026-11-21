@@ -48,7 +48,7 @@ import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivati
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
-import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
+import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemDisplayShow, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
 import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
 import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } from './femSeismicDetailing.js';
@@ -1752,5 +1752,50 @@ export class FemModelEditor extends EditorPane {
 			warn: color(chartsOrange),
 			fail: color(chartsRed),
 		};
+	}
+
+	deriveModel(): Promise<void> {
+		return this.derive();
+	}
+
+	toggleMeshNodes(): void {
+		this.meshNodesAction.checked = !this.meshNodesAction.checked;
+		this.viewer?.setMeshNodes(!!this.meshNodesAction.checked);
+	}
+
+	fitView(): void {
+		this.viewer?.fit();
+	}
+
+	setResultDisplay(show: FemDisplayShow): void {
+		this.results?.setShow(show);
+	}
+
+	toggleDesignUtilisation(): void {
+		this.results?.toggleDesign();
+	}
+
+	toggleTables(): void {
+		this.setTablesVisible(!this.tablesVisible);
+	}
+
+	exportResultTables(): Promise<void> {
+		return this.exportTables();
+	}
+
+	exportResultAnimation(): Promise<void> {
+		return this.exportAnimation();
+	}
+
+	toggleSectionBox(): Promise<void> {
+		return this.viewTools?.toggleSectionBox() ?? Promise.resolve();
+	}
+
+	toggleMeasure(): Promise<void> {
+		return this.viewTools?.toggleMeasurePanel() ?? Promise.resolve();
+	}
+
+	toggleRevealHidden(): Promise<void> {
+		return this.viewTools?.toggleRevealHidden() ?? Promise.resolve();
 	}
 }

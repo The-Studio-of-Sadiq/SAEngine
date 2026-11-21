@@ -7,8 +7,9 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpression, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
 
 /** Context key active while a Floor Plan or CAD drawing editor is focused. */
 export const SAENGINE_DRAFT_CONTEXT = 'saengineDraftActive';
@@ -19,22 +20,71 @@ export const DraftActiveContext = new RawContextKey<boolean>(
 	localize('saengine.draftActive', "Whether a SAEngine Floor Plan or CAD drawing editor is active")
 );
 
+/** Context key identifying the engineering domain of an active SAEngine U3 data panel editor. */
+export const SAENGINE_DATA_PANEL_PART_CONTEXT = 'saengineDataPanelPart';
+
+export const DataPanelPartContext = new RawContextKey<string>(
+	SAENGINE_DATA_PANEL_PART_CONTEXT,
+	'',
+	localize('saengine.dataPanelPart', "The engineering domain of the active SAEngine U3 data panel")
+);
+
+/** SAEngine editor pane IDs used in contextual ribbon `when` rules (plain strings: no cross-contrib imports). */
+export const SAENGINE_EDITOR_IDS = {
+	soil: 'workbench.editor.saengine.soil',
+	settings: 'workbench.editor.saengine.settings',
+	codePacks: 'workbench.editor.saengine.codePacks',
+	library: 'workbench.editor.saengine.library',
+	sectionDesigner: 'workbench.editor.saengine.sectionDesigner',
+	floorPlan: 'workbench.editor.saengine.floorPlan',
+	grids: 'workbench.editor.saengine.grids',
+	membersTable: 'workbench.editor.saengine.membersTable',
+	structureModeler: 'workbench.editor.saengine.structureModeler',
+	structure: 'workbench.editor.saengine.structure',
+	cad: 'workbench.editor.saengine.cad',
+	architecture: 'workbench.editor.saengine.architecture',
+	building: 'workbench.editor.saengine.building',
+	mep: 'workbench.editor.saengine.mep',
+	femModel: 'workbench.editor.saengine.femModel',
+	femResults: 'workbench.editor.saengine.femResults',
+	femCfdWind: 'workbench.editor.saengine.femCfdWind',
+	femDesignProposal: 'workbench.editor.saengine.femDesignProposal',
+	femStrutAndTie: 'workbench.editor.saengine.femStrutAndTie',
+	substructure: 'workbench.editor.saengine.substructure',
+	boq: 'workbench.editor.saengine.boq',
+	rates: 'workbench.editor.saengine.rates',
+	exports: 'workbench.editor.saengine.exports',
+	drawingPreview: 'workbench.editor.saengine.drawingPreview',
+	reportTemplate: 'workbench.editor.saengine.reportTemplate',
+	worksheet: 'workbench.editor.saengine.worksheet',
+	officeTools: 'workbench.editor.saengine.officeTools',
+	studies: 'workbench.editor.saengine.studies',
+	graph: 'workbench.editor.saengine.graph',
+	dataPanel: 'workbench.editor.saengine.dataPanel',
+	overview: 'workbench.editor.saengine.overview',
+} as const;
+
 export type RibbonTabId =
 	| 'home'
-	| 'define'
-	| 'model'
+	| 'project'
+	| 'soil'
+	| 'settings'
+	| 'library'
+	| 'plan'
 	| 'draft'
 	| 'annotate'
 	| 'blocksParametric'
-	| 'loads'
-	| 'analyze'
-	| 'design'
+	| 'architecture'
+	| 'bim3d'
 	| 'mep'
-	| 'documents'
+	| 'analyze'
+	| 'results'
+	| 'design'
+	| 'foundations'
+	| 'boq'
 	| 'output'
-	| 'studies'
-	| 'collaborate'
-	| 'manage';
+	| 'documents'
+	| 'studies';
 
 /**
  * MenuId per ribbon tab. Other contributions add buttons via `registerAction2` or
@@ -42,20 +92,25 @@ export type RibbonTabId =
  */
 export const RibbonMenus = {
 	Home: MenuId.for('SaengineRibbon.Home'),
-	Define: MenuId.for('SaengineRibbon.Define'),
-	Model: MenuId.for('SaengineRibbon.Model'),
+	Project: MenuId.for('SaengineRibbon.Project'),
+	Soil: MenuId.for('SaengineRibbon.Soil'),
+	Settings: MenuId.for('SaengineRibbon.Settings'),
+	Library: MenuId.for('SaengineRibbon.Library'),
+	Plan: MenuId.for('SaengineRibbon.Plan'),
 	Draft: MenuId.for('SaengineRibbon.Draft'),
 	Annotate: MenuId.for('SaengineRibbon.Annotate'),
 	BlocksParametric: MenuId.for('SaengineRibbon.BlocksParametric'),
-	Loads: MenuId.for('SaengineRibbon.Loads'),
-	Analyze: MenuId.for('SaengineRibbon.Analyze'),
-	Design: MenuId.for('SaengineRibbon.Design'),
+	Architecture: MenuId.for('SaengineRibbon.Architecture'),
+	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
 	MEP: MenuId.for('SaengineRibbon.MEP'),
-	Documents: MenuId.for('SaengineRibbon.Documents'),
+	Analyze: MenuId.for('SaengineRibbon.Analyze'),
+	Results: MenuId.for('SaengineRibbon.Results'),
+	Design: MenuId.for('SaengineRibbon.Design'),
+	Foundations: MenuId.for('SaengineRibbon.Foundations'),
+	BOQ: MenuId.for('SaengineRibbon.BOQ'),
 	Output: MenuId.for('SaengineRibbon.Output'),
+	Documents: MenuId.for('SaengineRibbon.Documents'),
 	Studies: MenuId.for('SaengineRibbon.Studies'),
-	Collaborate: MenuId.for('SaengineRibbon.Collaborate'),
-	Manage: MenuId.for('SaengineRibbon.Manage'),
 } as const;
 
 export interface IRibbonTabDescriptor {
@@ -67,42 +122,296 @@ export interface IRibbonTabDescriptor {
 	readonly when?: ContextKeyExpression;
 }
 
+function anyOf(exprs: readonly [ContextKeyExpression, ...ContextKeyExpression[]]): ContextKeyExpression {
+	return ContextKeyExpr.or(...exprs) ?? exprs[0];
+}
+
+function allOf(exprs: readonly [ContextKeyExpression, ...ContextKeyExpression[]]): ContextKeyExpression {
+	return ContextKeyExpr.and(...exprs) ?? exprs[0];
+}
+
+function editorWhen(editorIds: readonly [string, ...string[]], dataPanelPart?: string): ContextKeyExpression {
+	const checks: [ContextKeyExpression, ...ContextKeyExpression[]] = [
+		ActiveEditorContext.isEqualTo(editorIds[0]),
+		...editorIds.slice(1).map(id => ActiveEditorContext.isEqualTo(id)),
+	];
+	if (dataPanelPart) {
+		const panelExpr = ContextKeyExpr.and(
+			ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.dataPanel),
+			DataPanelPartContext.isEqualTo(dataPanelPart),
+		);
+		if (panelExpr) {
+			checks.push(panelExpr);
+		}
+	}
+	return anyOf(checks);
+}
+
+const SPECIALIZED_EDITOR_IDS: readonly [string, ...string[]] = [
+	SAENGINE_EDITOR_IDS.soil,
+	SAENGINE_EDITOR_IDS.settings,
+	SAENGINE_EDITOR_IDS.codePacks,
+	SAENGINE_EDITOR_IDS.library,
+	SAENGINE_EDITOR_IDS.sectionDesigner,
+	SAENGINE_EDITOR_IDS.floorPlan,
+	SAENGINE_EDITOR_IDS.grids,
+	SAENGINE_EDITOR_IDS.membersTable,
+	SAENGINE_EDITOR_IDS.structureModeler,
+	SAENGINE_EDITOR_IDS.structure,
+	SAENGINE_EDITOR_IDS.cad,
+	SAENGINE_EDITOR_IDS.architecture,
+	SAENGINE_EDITOR_IDS.building,
+	SAENGINE_EDITOR_IDS.mep,
+	SAENGINE_EDITOR_IDS.femModel,
+	SAENGINE_EDITOR_IDS.femResults,
+	SAENGINE_EDITOR_IDS.femCfdWind,
+	SAENGINE_EDITOR_IDS.femDesignProposal,
+	SAENGINE_EDITOR_IDS.femStrutAndTie,
+	SAENGINE_EDITOR_IDS.substructure,
+	SAENGINE_EDITOR_IDS.boq,
+	SAENGINE_EDITOR_IDS.rates,
+	SAENGINE_EDITOR_IDS.exports,
+	SAENGINE_EDITOR_IDS.drawingPreview,
+	SAENGINE_EDITOR_IDS.reportTemplate,
+	SAENGINE_EDITOR_IDS.worksheet,
+	SAENGINE_EDITOR_IDS.officeTools,
+	SAENGINE_EDITOR_IDS.studies,
+	SAENGINE_EDITOR_IDS.graph,
+];
+
+const SPECIALIZED_PANEL_PARTS: readonly [string, ...string[]] = [
+	'soil',
+	'settings',
+	'library',
+	'plan',
+	'architecture',
+	'bim3d',
+	'mep',
+	'fem',
+	'foundations',
+	'boq',
+	'output',
+	'documents',
+	'studies',
+];
+
+const NOT_SPECIALIZED_PANEL = allOf([
+	DataPanelPartContext.notEqualsTo(SPECIALIZED_PANEL_PARTS[0]),
+	...SPECIALIZED_PANEL_PARTS.slice(1).map(part => DataPanelPartContext.notEqualsTo(part)),
+]);
+
+const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
+	ActiveEditorContext.notEqualsTo(SPECIALIZED_EDITOR_IDS[0]),
+	...SPECIALIZED_EDITOR_IDS.slice(1).map(id => ActiveEditorContext.notEqualsTo(id)),
+	anyOf([ActiveEditorContext.notEqualsTo(SAENGINE_EDITOR_IDS.dataPanel), NOT_SPECIALIZED_PANEL]),
+]);
+
+const DRAFT_WHEN = editorWhen([SAENGINE_EDITOR_IDS.floorPlan, SAENGINE_EDITOR_IDS.cad]);
+const FEM_WHEN = editorWhen([
+	SAENGINE_EDITOR_IDS.femModel,
+	SAENGINE_EDITOR_IDS.femResults,
+	SAENGINE_EDITOR_IDS.femCfdWind,
+	SAENGINE_EDITOR_IDS.femDesignProposal,
+	SAENGINE_EDITOR_IDS.femStrutAndTie,
+], 'fem');
+
 export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	{ id: 'home', label: localize('ribbon.tab.home', "Home"), menuId: RibbonMenus.Home },
-	{ id: 'define', label: localize('ribbon.tab.define', "Define"), menuId: RibbonMenus.Define },
-	{ id: 'model', label: localize('ribbon.tab.model', "Model"), menuId: RibbonMenus.Model },
+	{
+		id: 'project',
+		label: localize('ribbon.tab.project', "Project"),
+		menuId: RibbonMenus.Project,
+		when: PROJECT_TAB_WHEN,
+	},
+	{
+		id: 'soil',
+		label: localize('ribbon.tab.soil', "Soil Report"),
+		menuId: RibbonMenus.Soil,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.soil], 'soil'),
+	},
+	{
+		id: 'settings',
+		label: localize('ribbon.tab.settings', "Settings"),
+		menuId: RibbonMenus.Settings,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.settings, SAENGINE_EDITOR_IDS.codePacks], 'settings'),
+	},
+	{
+		id: 'library',
+		label: localize('ribbon.tab.library', "Library"),
+		menuId: RibbonMenus.Library,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.library, SAENGINE_EDITOR_IDS.sectionDesigner], 'library'),
+	},
+	{
+		id: 'plan',
+		label: localize('ribbon.tab.plan', "Plan"),
+		menuId: RibbonMenus.Plan,
+		contextual: true,
+		when: editorWhen([
+			SAENGINE_EDITOR_IDS.floorPlan,
+			SAENGINE_EDITOR_IDS.grids,
+			SAENGINE_EDITOR_IDS.membersTable,
+			SAENGINE_EDITOR_IDS.structureModeler,
+			SAENGINE_EDITOR_IDS.structure,
+		], 'plan'),
+	},
 	{
 		id: 'draft',
 		label: localize('ribbon.tab.draft', "Draft"),
 		menuId: RibbonMenus.Draft,
 		contextual: true,
 		contextualTag: localize('ribbon.tab.draftTag', "CAD"),
-		when: DraftActiveContext,
+		when: DRAFT_WHEN,
 	},
 	{
 		id: 'annotate',
 		label: localize('ribbon.tab.annotate', "Annotate"),
 		menuId: RibbonMenus.Annotate,
 		contextual: true,
-		when: DraftActiveContext,
+		when: DRAFT_WHEN,
 	},
 	{
 		id: 'blocksParametric',
 		label: localize('ribbon.tab.blocksParametric', "Blocks & Parametric"),
 		menuId: RibbonMenus.BlocksParametric,
 		contextual: true,
-		when: DraftActiveContext,
+		when: DRAFT_WHEN,
 	},
-	{ id: 'loads', label: localize('ribbon.tab.loads', "Loads"), menuId: RibbonMenus.Loads },
-	{ id: 'analyze', label: localize('ribbon.tab.analyze', "Analyze"), menuId: RibbonMenus.Analyze },
-	{ id: 'design', label: localize('ribbon.tab.design', "Design"), menuId: RibbonMenus.Design },
-	{ id: 'mep', label: localize('ribbon.tab.mep', "MEP"), menuId: RibbonMenus.MEP },
-	{ id: 'documents', label: localize('ribbon.tab.documents', "Documents"), menuId: RibbonMenus.Documents },
-	{ id: 'output', label: localize('ribbon.tab.output', "Output"), menuId: RibbonMenus.Output },
-	{ id: 'studies', label: localize('ribbon.tab.studies', "Studies"), menuId: RibbonMenus.Studies },
-	{ id: 'collaborate', label: localize('ribbon.tab.collaborate', "Collaborate"), menuId: RibbonMenus.Collaborate },
-	{ id: 'manage', label: localize('ribbon.tab.manage', "Manage"), menuId: RibbonMenus.Manage },
+	{
+		id: 'architecture',
+		label: localize('ribbon.tab.architecture', "Architecture"),
+		menuId: RibbonMenus.Architecture,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.architecture], 'architecture'),
+	},
+	{
+		id: 'bim3d',
+		label: localize('ribbon.tab.bim3d', "3D View"),
+		menuId: RibbonMenus.Bim3D,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d'),
+	},
+	{
+		id: 'mep',
+		label: localize('ribbon.tab.mep', "MEP"),
+		menuId: RibbonMenus.MEP,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep'),
+	},
+	{
+		id: 'analyze',
+		label: localize('ribbon.tab.analyze', "Analyze"),
+		menuId: RibbonMenus.Analyze,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'results',
+		label: localize('ribbon.tab.results', "Results"),
+		menuId: RibbonMenus.Results,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'design',
+		label: localize('ribbon.tab.design', "Design"),
+		menuId: RibbonMenus.Design,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'foundations',
+		label: localize('ribbon.tab.foundations', "Foundations"),
+		menuId: RibbonMenus.Foundations,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.substructure], 'foundations'),
+	},
+	{
+		id: 'boq',
+		label: localize('ribbon.tab.boq', "BOQ"),
+		menuId: RibbonMenus.BOQ,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.boq, SAENGINE_EDITOR_IDS.rates], 'boq'),
+	},
+	{
+		id: 'output',
+		label: localize('ribbon.tab.output', "Output"),
+		menuId: RibbonMenus.Output,
+		contextual: true,
+		when: editorWhen([SAENGINE_EDITOR_IDS.exports], 'output'),
+	},
+	{
+		id: 'documents',
+		label: localize('ribbon.tab.documents', "Documents"),
+		menuId: RibbonMenus.Documents,
+		contextual: true,
+		when: editorWhen([
+			SAENGINE_EDITOR_IDS.drawingPreview,
+			SAENGINE_EDITOR_IDS.reportTemplate,
+			SAENGINE_EDITOR_IDS.worksheet,
+		], 'documents'),
+	},
+	{
+		id: 'studies',
+		label: localize('ribbon.tab.studies', "Studies"),
+		menuId: RibbonMenus.Studies,
+		contextual: true,
+		when: editorWhen([
+			SAENGINE_EDITOR_IDS.officeTools,
+			SAENGINE_EDITOR_IDS.studies,
+			SAENGINE_EDITOR_IDS.graph,
+		], 'studies'),
+	},
 ];
+
+/** Maps a U3 data panel id and optional `part` descriptor property to a contextual ribbon domain key. */
+export function resolveDataPanelPart(panelId: string | undefined, descriptorPart: string | undefined): string {
+	if (!panelId) {
+		return '';
+	}
+	if (panelId.startsWith('saengine.studies.')) {
+		return 'studies';
+	}
+	if (panelId.startsWith('saengine.drawings.')) {
+		return 'documents';
+	}
+	switch (descriptorPart) {
+		case 'exports': return 'output';
+		case 'substructure': return 'foundations';
+		case 'bim': return 'bim3d';
+		case 'floorPlan':
+		case 'structure': return 'plan';
+		case 'materials':
+		case 'objects': return 'library';
+		default: return descriptorPart ?? '';
+	}
+}
+
+/** Returns the ribbon tabs whose `when` rule matches the current context key state. */
+export function getVisibleRibbonTabs(
+	contextKeyService: Pick<IContextKeyService, 'contextMatchesRules'>,
+	tabs: readonly IRibbonTabDescriptor[] = RIBBON_TABS,
+): readonly IRibbonTabDescriptor[] {
+	return tabs.filter(tab => !tab.when || contextKeyService.contextMatchesRules(tab.when));
+}
+
+/**
+ * Picks the ribbon tab to show after switching editors: returns the remembered tab for
+ * `editorKey` if still visible, otherwise the first contextual tab, falling back to the first visible tab.
+ */
+export function resolveActiveTabForEditor(
+	editorKey: string,
+	visibleTabs: readonly IRibbonTabDescriptor[],
+	rememberedByEditor: ReadonlyMap<string, RibbonTabId>,
+): RibbonTabId {
+	const remembered = rememberedByEditor.get(editorKey);
+	if (remembered && visibleTabs.some(tab => tab.id === remembered)) {
+		return remembered;
+	}
+	return visibleTabs.find(tab => tab.contextual)?.id ?? visibleTabs[0]?.id ?? 'home';
+}
 
 export type RibbonButtonSize = 'large' | 'small';
 

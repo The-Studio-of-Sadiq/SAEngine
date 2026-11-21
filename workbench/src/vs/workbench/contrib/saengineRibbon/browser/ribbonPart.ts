@@ -23,23 +23,30 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { getEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
 import {
 	buildRibbonGroups,
 	computeCollapsedRibbonGroups,
+	DataPanelPartContext,
 	DraftActiveContext,
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
 	getRibbonGroupPriority,
 	getRibbonItemHint,
+	getVisibleRibbonTabs,
 	IRibbonGroupModel,
 	IRibbonTabDescriptor,
 	onDidChangeRibbonRegistry,
+	resolveActiveTabForEditor,
+	resolveDataPanelPart,
 	RIBBON_TABS,
 	RibbonItem,
 	RibbonTabId,
+	SAENGINE_EDITOR_IDS,
 } from './ribbonRegistry.js';
 
 const RIBBON_TABS_HEIGHT = 26;
@@ -47,15 +54,15 @@ const RIBBON_PANEL_HEIGHT = 92;
 const RIBBON_EXPANDED_HEIGHT = RIBBON_TABS_HEIGHT + RIBBON_PANEL_HEIGHT;
 
 const STORAGE_COLLAPSED_KEY = 'saengine.ribbon.collapsed';
-const STORAGE_ACTIVE_TAB_KEY = 'saengine.ribbon.activeTab';
+const STORAGE_TABS_BY_EDITOR_KEY = 'saengine.ribbon.activeTabsByEditor';
 
 const TOGGLE_COLLAPSE_COMMAND_ID = 'saengine.ribbon.toggleCollapse';
 const FOCUS_RIBBON_COMMAND_ID = 'saengine.ribbon.focus';
 
-/** Editor pane IDs that activate the contextual Draft tab (strings: no cross-contrib imports). */
+/** Editor pane IDs that activate the contextual CAD Draft tabs. */
 const DRAFT_EDITOR_IDS: ReadonlySet<string> = new Set([
-	'workbench.editor.saengine.floorPlan',
-	'workbench.editor.saengine.cad',
+	SAENGINE_EDITOR_IDS.floorPlan,
+	SAENGINE_EDITOR_IDS.cad,
 ]);
 
 let ribbonInstance: SaengineRibbonContribution | undefined;
@@ -99,10 +106,15 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private readonly resizeScheduler = this._register(new RunOnceScheduler(() => this.relayoutGroups(), 16));
 
 	private readonly draftContext: IContextKey<boolean>;
+	private readonly dataPanelPartContext: IContextKey<string>;
 	private readonly tabContextKeys: ReadonlySet<string>;
+	private readonly lastTabByEditor = new Map<string, RibbonTabId>();
 
 	private tabButtons: HTMLButtonElement[] = [];
-	private activeTabId: RibbonTabId;
+	private activeTabId: RibbonTabId = 'home';
+	private lastEditorKey: string | undefined;
+	private menuBound = false;
+	private syncingEditor = false;
 	private collapsed: boolean;
 	private toolbarFocusIndex = 0;
 	private activePanelLayout: IActivePanelLayout | undefined;
@@ -137,7 +149,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 		this.collapseBtn.type = 'button';
 
-		const keys = new Set<string>();
+		const keys = new Set<string>([ActiveEditorContext.key, DataPanelPartContext.key]);
 		for (const tab of RIBBON_TABS) {
 			if (tab.when) {
 				for (const key of tab.when.keys()) {
@@ -147,17 +159,17 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}
 		this.tabContextKeys = keys;
 		this.draftContext = DraftActiveContext.bindTo(this.contextKeyService);
+		this.dataPanelPartContext = DataPanelPartContext.bindTo(this.contextKeyService);
 
 		this.collapsed = this.storageService.getBoolean(STORAGE_COLLAPSED_KEY, StorageScope.PROFILE, false);
-		const savedTab = this.storageService.get(STORAGE_ACTIVE_TAB_KEY, StorageScope.WORKSPACE, 'home') as RibbonTabId;
-		this.activeTabId = RIBBON_TABS.some(t => t.id === savedTab) ? savedTab : 'home';
+		this.loadTabMemory();
 
 		this._register(addDisposableListener(this.tablist, EventType.KEY_DOWN, e => this.onTablistKeyDown(new StandardKeyboardEvent(e))));
 		this._register(addDisposableListener(this.collapseBtn, EventType.CLICK, () => this.toggleCollapse()));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateDraftContext()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.syncActiveEditor(true)));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this.tabContextKeys)) {
-				this.renderTabs();
+				this.syncActiveEditor(true);
 			}
 		}));
 		this._register(this.projectService.onDidChangeProject(() => this.panelScheduler.schedule()));
@@ -165,20 +177,87 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		const resizeObserver = this._register(new DisposableResizeObserver('saengine.ribbon', () => this.resizeScheduler.schedule(), getWindow(this.panelsEl)));
 		resizeObserver.observe(this.panelsEl);
 
-		this.updateDraftContext();
+		this.syncActiveEditor(true);
 		this.applyCollapseState();
-		this.renderTabs();
-		this.bindActiveTabMenu();
+		if (!this.menuBound) {
+			this.bindActiveTabMenu();
+		}
 		this.mountStrip();
 	}
 
-	private updateDraftContext(): void {
-		const activeId = this.editorService.activeEditorPane?.getId();
-		this.draftContext.set(!!activeId && DRAFT_EDITOR_IDS.has(activeId));
+	private loadTabMemory(): void {
+		const raw = this.storageService.get(STORAGE_TABS_BY_EDITOR_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+				const validTabs = new Set<string>(RIBBON_TABS.map(t => t.id));
+				for (const [editorKey, tabId] of Object.entries(parsed as { readonly [k: string]: unknown })) {
+					if (typeof tabId === 'string' && validTabs.has(tabId)) {
+						this.lastTabByEditor.set(editorKey, tabId as RibbonTabId);
+					}
+				}
+			}
+		} catch {
+			// Ignore malformed persisted tab history.
+		}
+	}
+
+	private saveTabMemory(): void {
+		const serialized = JSON.stringify(Object.fromEntries(this.lastTabByEditor));
+		this.storageService.store(STORAGE_TABS_BY_EDITOR_KEY, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private activeDataPanelId(): string | undefined {
+		const resource = this.editorService.activeEditor?.resource;
+		if (resource?.scheme === 'saengine-panel') {
+			return resource.path.replace(/^\/+/, '');
+		}
+		return undefined;
+	}
+
+	private syncActiveEditor(autoSwitch: boolean): void {
+		if (this.syncingEditor) {
+			return;
+		}
+		this.syncingEditor = true;
+		try {
+			const activeId = this.editorService.activeEditorPane?.getId() ?? '';
+			const panelId = activeId === SAENGINE_EDITOR_IDS.dataPanel ? this.activeDataPanelId() : undefined;
+			const panelPart = panelId ? resolveDataPanelPart(panelId, getEngineDataPanel(panelId)?.part) : '';
+
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.draftContext.set(DRAFT_EDITOR_IDS.has(activeId));
+				this.dataPanelPartContext.set(panelPart);
+			});
+
+			const contextEditorId = this.contextKeyService.getContextKeyValue<string>(ActiveEditorContext.key) ?? activeId;
+			const editorKey = contextEditorId === SAENGINE_EDITOR_IDS.dataPanel && panelPart
+				? `${contextEditorId}:${panelPart}`
+				: contextEditorId;
+			const editorChanged = editorKey !== this.lastEditorKey;
+			this.lastEditorKey = editorKey;
+
+			const tabs = getVisibleRibbonTabs(this.contextKeyService);
+			const nextTab = (autoSwitch && editorChanged) || !tabs.some(t => t.id === this.activeTabId)
+				? resolveActiveTabForEditor(editorKey, tabs, this.lastTabByEditor)
+				: this.activeTabId;
+			const tabChanged = nextTab !== this.activeTabId;
+			this.activeTabId = nextTab;
+
+			this.renderTabs(tabs);
+			if (tabChanged) {
+				this.bindActiveTabMenu();
+			}
+		} finally {
+			this.syncingEditor = false;
+		}
 	}
 
 	private visibleTabs(): readonly IRibbonTabDescriptor[] {
-		return RIBBON_TABS.filter(tab => !tab.when || this.contextKeyService.contextMatchesRules(tab.when));
+		return getVisibleRibbonTabs(this.contextKeyService);
 	}
 
 	private mountStrip(): void {
@@ -219,7 +298,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private selectTab(tabId: RibbonTabId, options?: { readonly expand?: boolean; readonly focus?: boolean }): void {
 		const changed = this.activeTabId !== tabId;
 		this.activeTabId = tabId;
-		this.storageService.store(STORAGE_ACTIVE_TAB_KEY, tabId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.lastTabByEditor.set(this.lastEditorKey ?? '', tabId);
+		this.saveTabMemory();
 		if (options?.expand && this.collapsed) {
 			this.collapsed = false;
 			this.storageService.store(STORAGE_COLLAPSED_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
@@ -237,10 +317,9 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}
 	}
 
-	private renderTabs(): void {
-		const tabs = this.visibleTabs();
+	private renderTabs(tabs: readonly IRibbonTabDescriptor[] = this.visibleTabs()): void {
 		if (!tabs.some(t => t.id === this.activeTabId)) {
-			this.activeTabId = tabs[0]?.id ?? 'home';
+			this.activeTabId = resolveActiveTabForEditor(this.lastEditorKey ?? '', tabs, this.lastTabByEditor);
 			this.bindActiveTabMenu();
 		}
 		const activeElement = this.tablist.ownerDocument.activeElement;
@@ -285,6 +364,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	}
 
 	private bindActiveTabMenu(): void {
+		this.menuBound = true;
 		this.menuListener.clear();
 		this.activeMenu.clear();
 		const descriptor = RIBBON_TABS.find(t => t.id === this.activeTabId) ?? RIBBON_TABS[0];

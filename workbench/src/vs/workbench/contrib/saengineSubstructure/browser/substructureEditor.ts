@@ -660,7 +660,7 @@ export class SubstructureEditor extends EditorPane {
 		this.renderSelection();
 	}
 
-	private selectUncovered(): void {
+	selectUncovered(): void {
 		if (!this.document) {
 			return;
 		}
@@ -920,7 +920,7 @@ export class SubstructureEditor extends EditorPane {
 		this.added(added);
 	}
 
-	private addPileCaps(): void {
+	addPileCaps(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -948,7 +948,7 @@ export class SubstructureEditor extends EditorPane {
 		this.added(added);
 	}
 
-	private async addRaft(): Promise<void> {
+	async addRaft(): Promise<void> {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -998,7 +998,7 @@ export class SubstructureEditor extends EditorPane {
 		this.added([raft]);
 	}
 
-	private addStrip(): void {
+	addStrip(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1045,7 +1045,7 @@ export class SubstructureEditor extends EditorPane {
 		this.added([strip]);
 	}
 
-	private addTieBeam(): void {
+	addTieBeam(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1061,7 +1061,7 @@ export class SubstructureEditor extends EditorPane {
 		this.changed(true);
 	}
 
-	private addPileType(): void {
+	addPileType(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1071,7 +1071,7 @@ export class SubstructureEditor extends EditorPane {
 		this.changed(true);
 	}
 
-	private async deleteSelection(): Promise<void> {
+	async deleteSelection(): Promise<void> {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1165,7 +1165,7 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	/** A standard pile group under each selected column (the tools' pile type, count and spacing). */
-	private placeGroups(): void {
+	placeGroups(): void {
 		const document = this.document;
 		const columns = this.pickedColumns;
 		if (!document) {
@@ -1205,7 +1205,7 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	/** Make Pile Cap: one cap over the selected piles, carrying the selected columns (or the free ones inside it). */
-	private makeCap(): void {
+	makeCap(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1256,7 +1256,7 @@ export class SubstructureEditor extends EditorPane {
 		this.changed(true);
 	}
 
-	private connectBeams(): void {
+	connectBeams(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1286,7 +1286,7 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	/** Shows the pile grid in the properties, adding one over the columns when there is none. */
-	private editPileGrid(): void {
+	editPileGrid(): void {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1511,10 +1511,18 @@ export class SubstructureEditor extends EditorPane {
 		}
 	}
 
-	private showView(view: View): void {
+	showView(view: View): void {
 		this.flush();
 		this.view = view;
 		this.render();
+	}
+
+	togglePileTool(): void {
+		this.setTool(this.tool === 'pile' ? 'select' : 'pile');
+	}
+
+	toggleBeamTool(): void {
+		this.setTool(this.tool === 'beam' ? 'select' : 'beam');
 	}
 
 	/** Saves the edits (the backend checks the saved file) and checks the foundations at once. */
