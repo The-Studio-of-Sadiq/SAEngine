@@ -606,7 +606,7 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private async compute(): Promise<void> {
+	async compute(): Promise<void> {
 		const model = this.model;
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
 		const { args, missing } = boqComputeArgs(new Map(BOQ_SOURCES.map(({ part }) => [part, this.sources.get(part)?.getValue()])), this.projectService.project?.root.fsPath);
@@ -661,7 +661,7 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private setAllExpanded(expanded: boolean): void {
+	setAllExpanded(expanded: boolean): void {
 		this.expanded.clear();
 		if (expanded) {
 			for (const item of this.document?.items ?? []) {
@@ -669,6 +669,10 @@ export class BoqEditor extends EditorPane {
 			}
 		}
 		this.renderBody(this.selected);
+	}
+
+	toggleImperialUnits(): void {
+		this.setImperial(!this.imperial);
 	}
 
 	private toggle(code: string, expanded = !this.expanded.has(code)): void {

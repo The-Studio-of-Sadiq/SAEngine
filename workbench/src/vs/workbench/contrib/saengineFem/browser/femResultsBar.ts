@@ -94,6 +94,7 @@ const VIEW_STATE_KEY = 'saengine.fem.results.viewState';
 type RebarShow = 'rebarBottomX' | 'rebarBottomY' | 'rebarTopX' | 'rebarTopY';
 /** `hinges` (P3): a pushover step's members coloured by their hinges' demand / limit. */
 type Show = FemResultQuantity | 'none' | 'joints' | 'hinges' | RebarShow;
+export type FemDisplayShow = Show;
 /** The rebar contours in the order of `SLAB_REBAR_LAYERS`. */
 const REBAR_SHOWS: readonly RebarShow[] = ['rebarBottomX', 'rebarBottomY', 'rebarTopX', 'rebarTopY'];
 
@@ -802,7 +803,7 @@ export class FemResultsBar extends Disposable {
 		return visible ? view.elements.filter(e => visible.has(e.id)) : view.elements;
 	}
 
-	private setShow(show: Show): void {
+	setShow(show: Show): void {
 		if (isDesignShow(show) && !isDesignShow(this.show)) {
 			this.showBeforeDesign = this.show;
 		}

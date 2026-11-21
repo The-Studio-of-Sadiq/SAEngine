@@ -500,7 +500,7 @@ export class ViewerTools extends Disposable {
 		this.options.onDidChangeActions?.();
 	}
 
-	private async toggleSectionBox(): Promise<void> {
+	async toggleSectionBox(): Promise<void> {
 		const enabled = this.options.target.toggleSectionBox();
 		if (enabled) {
 			this.sectionPanelOpen = true;
@@ -513,7 +513,23 @@ export class ViewerTools extends Disposable {
 		this.savePersisted();
 	}
 
-	private async sectionBoxFromSelection(): Promise<void> {
+	toggleSectionBoundsPanel(): void {
+		this.sectionPanelOpen = !this.sectionPanelOpen;
+		this.renderSectionPanel();
+	}
+
+	resetSectionBox(): void {
+		this.options.target.resetSectionBox();
+		this.sectionPanelOpen = true;
+		this.syncState();
+	}
+
+	clearSectionPlanes(): void {
+		this.options.target.clearSectionPlanes();
+		this.syncState();
+	}
+
+	async sectionBoxFromSelection(): Promise<void> {
 		const ok = await this.options.target.sectionBoxFromSelection();
 		if (!ok) {
 			this.notificationService.info(localize('viewerTools.selectFirst', "Select one or more elements in the 3D view first."));
@@ -526,7 +542,7 @@ export class ViewerTools extends Disposable {
 		this.savePersisted();
 	}
 
-	private async addAxisPlane(axis: SectionAxis): Promise<void> {
+	async addAxisPlane(axis: SectionAxis): Promise<void> {
 		this.options.target.addSectionPlane(axis);
 		this.sectionPanelOpen = true;
 		this.sectionState = this.options.target.getSectionState();
@@ -535,14 +551,14 @@ export class ViewerTools extends Disposable {
 		this.savePersisted();
 	}
 
-	private async togglePlanePickMode(): Promise<void> {
+	async togglePlanePickMode(): Promise<void> {
 		const next = !this.sectionPickMode;
 		this.sectionPanelOpen = true;
 		this.options.target.setSectionPlanePickMode(next);
 		this.renderSectionPanel();
 	}
 
-	private async toggleMeasurePanel(): Promise<void> {
+	async toggleMeasurePanel(): Promise<void> {
 		if (this.measureMode !== 'off' || this.measurePanelOpen) {
 			this.measurePanelOpen = false;
 			this.options.target.setMeasureMode('off');
@@ -556,7 +572,7 @@ export class ViewerTools extends Disposable {
 		this.renderMeasurePanel();
 	}
 
-	private async selectMeasureMode(mode: ViewerMeasureMode): Promise<void> {
+	async selectMeasureMode(mode: ViewerMeasureMode): Promise<void> {
 		const next = this.measureMode === mode ? 'off' : mode;
 		this.measureMode = next;
 		if (next !== 'off') {
@@ -567,7 +583,12 @@ export class ViewerTools extends Disposable {
 		this.renderMeasurePanel();
 	}
 
-	private async hideTemp(): Promise<void> {
+	clearMeasurements(): void {
+		this.options.target.clearMeasurements();
+		this.syncState();
+	}
+
+	async hideTemp(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -575,7 +596,7 @@ export class ViewerTools extends Disposable {
 		this.syncState();
 	}
 
-	private async isolateTemp(): Promise<void> {
+	async isolateTemp(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -583,7 +604,7 @@ export class ViewerTools extends Disposable {
 		this.syncState();
 	}
 
-	private async hideCategoryTemp(): Promise<void> {
+	async hideCategoryTemp(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -591,7 +612,7 @@ export class ViewerTools extends Disposable {
 		this.syncState();
 	}
 
-	private async isolateCategoryTemp(): Promise<void> {
+	async isolateCategoryTemp(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -599,12 +620,12 @@ export class ViewerTools extends Disposable {
 		this.syncState();
 	}
 
-	private async resetTemp(): Promise<void> {
+	async resetTemp(): Promise<void> {
 		await this.options.target.resetTemporaryVisibility();
 		this.syncState();
 	}
 
-	private async hidePermanent(): Promise<void> {
+	async hidePermanent(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -613,7 +634,7 @@ export class ViewerTools extends Disposable {
 		this.savePersisted();
 	}
 
-	private async unhideSelected(): Promise<void> {
+	async unhideSelected(): Promise<void> {
 		if (!this.options.target.getSelectionIds().length) {
 			return;
 		}
@@ -622,19 +643,19 @@ export class ViewerTools extends Disposable {
 		this.savePersisted();
 	}
 
-	private async unhideAll(): Promise<void> {
+	async unhideAll(): Promise<void> {
 		await this.options.target.unhideAllPermanent();
 		this.syncState();
 		this.savePersisted();
 	}
 
-	private async applyTempPermanent(): Promise<void> {
+	async applyTempPermanent(): Promise<void> {
 		await this.options.target.applyTemporaryHideToPermanent();
 		this.syncState();
 		this.savePersisted();
 	}
 
-	private async toggleRevealHidden(): Promise<void> {
+	async toggleRevealHidden(): Promise<void> {
 		await this.options.target.setRevealHidden(!this.visibilitySummary.revealHidden);
 		this.syncState();
 	}

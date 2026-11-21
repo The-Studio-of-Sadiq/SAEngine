@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { addDays, bimExtents, daysBetween, elementDates, ElementDates, ISchedule, OFFICE_REQUEST_COMMAND, parsePhasing, PHASING_FILE, phaseStates, PhaseState, SCHEDULE_FILE } from './officeModel.js';
 
@@ -74,6 +75,7 @@ export class BimStudies extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogs: IFileDialogService,
 		@INotificationService private readonly notifications: INotificationService,
+		@IQuickInputService private readonly quickInput: IQuickInputService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -165,7 +167,32 @@ export class BimStudies extends Disposable {
 		}
 	}
 
-	private async exportStill(): Promise<void> {
+	async setRenderPreset(preset: RenderPreset): Promise<void> {
+		this.preset = preset;
+		this.presetActions.forEach(a => a.checked = a.id === `saengine.bim.render.${preset}`);
+		await (await this.study())?.setRenderPreset?.(preset);
+	}
+
+	async toggleWalkMode(): Promise<void> {
+		this.walking = !this.walking;
+		this.walkAction.checked = this.walking;
+		await (await this.study())?.setWalkMode?.(this.walking);
+	}
+
+	async pickPhase(): Promise<void> {
+		this.knownPhases = parsePhasing(await this.read(PHASING_FILE)).phases;
+		type PhasePick = IQuickPickItem & { phase?: string };
+		const picks: PhasePick[] = [
+			{ label: localize('bimStudies.phase.all', "All Phases"), phase: undefined },
+			...this.knownPhases.map(p => ({ label: p.name, description: p.id, phase: p.id })),
+		];
+		const chosen = await this.quickInput.pick(picks, { placeHolder: localize('bimStudies.pickPhase', "Show elements built up to phase...") });
+		if (chosen) {
+			await this.showPhase(chosen.phase);
+		}
+	}
+
+	async exportStill(): Promise<void> {
 		const viewer = await this.study();
 		if (!viewer?.exportStill) {
 			this.notifications.info(localize('bimStudies.noStill', "This 3D view cannot export stills yet (update SAEngine)."));
@@ -181,7 +208,7 @@ export class BimStudies extends Disposable {
 		this.notifications.info(localize('bimStudies.stillWritten', "Still written: {0}", target.fsPath));
 	}
 
-	private async sunAtNoon(): Promise<void> {
+	async sunAtNoon(): Promise<void> {
 		const root = this.projectService.project?.root;
 		if (!root) {
 			return;
@@ -201,7 +228,7 @@ export class BimStudies extends Disposable {
 		viewer?.setSun?.(noon?.direction);
 	}
 
-	private async toggleTerrain(): Promise<void> {
+	async toggleTerrain(): Promise<void> {
 		this.terrainShown = !this.terrainShown;
 		this.terrainAction.checked = this.terrainShown;
 		const viewer = await this.study();
@@ -230,7 +257,7 @@ export class BimStudies extends Disposable {
 		viewer.setTerrain?.(mesh.points, mesh.triangles);
 	}
 
-	private async showPhase(phase: string | undefined): Promise<void> {
+	async showPhase(phase: string | undefined): Promise<void> {
 		this.phase = phase;
 		this.phaseItems.forEach(a => a.checked = a.id === `saengine.bim.phase.${phase ?? 'all'}`);
 		const viewer = await this.study();
@@ -261,7 +288,7 @@ export class BimStudies extends Disposable {
 		}
 	}
 
-	private async toggle4d(): Promise<void> {
+	async toggle4d(): Promise<void> {
 		if (this.bar) {
 			this.stop();
 			this.bar.remove();

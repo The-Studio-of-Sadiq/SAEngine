@@ -26,6 +26,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -207,15 +208,6 @@ export class SoilEditor extends EditorPane {
 	/** A borehole's lat/lon (or BTM) typed on the entry screen: its X and Y follow from the backend. */
 	private readonly positionScheduler = this._register(new RunOnceScheduler(() => void this.updateDerivedPosition(), 600));
 
-	private readonly addAction = this._register(new Action('saengine.soil.editor.add', localize('soil.addBorehole', "Add Borehole"), ThemeIcon.asClassName(Codicon.add), true, async () => this.addBorehole()));
-	private readonly importAction = this._register(new Action('saengine.soil.editor.import', localize('soil.import', "Import CSV, Excel, AGS4, DIGGS..."), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.importFile()));
-	private readonly templateAction = this._register(new Action('saengine.soil.editor.template', localize('soil.template', "Save Template..."), ThemeIcon.asClassName(Codicon.notebookTemplate), true, () => this.saveTemplate()));
-	/** Alpha 9 L8: the boreholes as AGS4 or DIGGS. */
-	private readonly exportAction = this._register(new Action('saengine.soil.editor.export', localize('soil.export', "Export AGS4/DIGGS..."), ThemeIcon.asClassName(Codicon.cloudUpload), true, () => this.exportFile()));
-	private readonly deleteAction = this._register(new Action('saengine.soil.editor.delete', localize('soil.deleteBorehole', "Delete Borehole"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteBorehole()));
-	private readonly fenceAction = this._register(new Action('saengine.soil.editor.fence', localize('soil.fence', "Show All Boreholes Side by Side"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this.toggleFence()));
-	private readonly duplicateAction = this._register(new Action('saengine.soil.editor.duplicate', localize('soil.duplicate', "Duplicate Borehole"), undefined, false, async () => this.duplicateBorehole()));
-	private readonly recomputeAction = this._register(new Action('saengine.soil.editor.recompute', localize('soil.recompute', "Compute Results Again"), undefined, true, async () => this.compute()));
 	private readonly openTextAction = this._register(new Action('saengine.soil.editor.openText', localize('soil.openText', "Open as Text"), undefined, true, () => this.openAsText()));
 
 	constructor(
@@ -234,6 +226,7 @@ export class SoilEditor extends EditorPane {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super(SoilEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -689,7 +682,7 @@ export class SoilEditor extends EditorPane {
 		this.list.focus();
 	}
 
-	private duplicateBorehole(): void {
+	duplicateBorehole(): void {
 		const borehole = this.borehole;
 		if (!this.report || !borehole) {
 			return;
@@ -713,6 +706,25 @@ export class SoilEditor extends EditorPane {
 		this.changed(true, localize('soil.undo.duplicate', "duplicating {0} as {1}", borehole.id, copy.id));
 	}
 
+	/** Toggles whether the selected borehole is left out of the site's bearing table. */
+	toggleExcludeFromSite(): void {
+		const borehole = this.borehole;
+		if (!this.report || !borehole) {
+			this.notificationService.info(localize('soil.selectBoreholeFirst', "Select a borehole first."));
+			return;
+		}
+		if (this.report.boreholes.length <= 1) {
+			this.notificationService.info(localize('soil.excludeNeedsTwo', "At least two boreholes are needed to leave one out of the site bearing table."));
+			return;
+		}
+		if (borehole.excludeFromSite) {
+			delete borehole.excludeFromSite;
+		} else {
+			borehole.excludeFromSite = true;
+		}
+		this.changed(true, localize('soil.excludeFromSiteEdit', "Leave Out of Site Table"));
+	}
+
 	/** Shows the log of one borehole (from the fence). */
 	private openLog(index: number): void {
 		this.fence = false;
@@ -721,7 +733,7 @@ export class SoilEditor extends EditorPane {
 		this.render();
 	}
 
-	private toggleFence(): void {
+	toggleFence(): void {
 		this.fence = !this.fence;
 		this.render();
 	}
@@ -737,7 +749,7 @@ export class SoilEditor extends EditorPane {
 		this.render();
 	}
 
-	private showView(view: View): void {
+	showView(view: View): void {
 		this.flush();
 		this.leaveEntry();
 		this.view = view;
@@ -746,6 +758,68 @@ export class SoilEditor extends EditorPane {
 			this.locationScheduler.schedule(0);
 			void this.findQgis();
 		}
+	}
+
+	/** Opens the Strata view and scrolls the 3D stratigraphy block diagram into view. */
+	showStrata3d(): void {
+		// The Strata view shows the fence and 3D block diagrams; scroll to the last (the block diagram).
+		this.showView('strata');
+		this.viewElement.lastElementChild?.scrollIntoView({ block: 'nearest' });
+	}
+
+	/** Opens the borehole entry screen on SPT / Lab Tests and scrolls to the lab test panel. */
+	editLabTests(): void {
+		this.editBorehole('tests');
+		this.labContainer?.scrollIntoView({ block: 'nearest' });
+	}
+
+	/** Edits or clears the allowable bearing pressure override in Project Settings. */
+	async editBearingOverride(): Promise<void> {
+		const model = this.settings.value?.object.textEditorModel;
+		if (!model || model.isDisposed()) {
+			await this.commandService.executeCommand('saengine.ribbon.openSection.settings.foundation');
+			return;
+		}
+		let current: number | undefined;
+		try {
+			const parsed = JSON.parse(model.getValue());
+			if (typeof parsed?.foundation?.allowableBearing === 'number') {
+				current = parsed.foundation.allowableBearing;
+			}
+		} catch {
+			// Ignore parse failure; user can still overwrite or clear.
+		}
+		const raw = await this.quickInputService.input({
+			title: localize('soil.bearingOverrideTitle', "Allowable Bearing Pressure Override"),
+			prompt: localize('soil.bearingOverridePrompt', "Enter override qa [kPa] for every footing, or leave empty to compute qa from the boreholes."),
+			value: current !== undefined ? String(current) : '',
+			validateInput: async text => {
+				const trimmed = text.trim();
+				if (!trimmed) {
+					return undefined;
+				}
+				const n = Number(trimmed);
+				return Number.isFinite(n) && n > 0 ? undefined : localize('soil.bearingOverrideInvalid', "Enter a positive number in kPa, or leave empty to clear.");
+			},
+		});
+		if (raw === undefined) {
+			return;
+		}
+		const trimmed = raw.trim();
+		const next = trimmed ? Number(trimmed) : undefined;
+		const options = model.getOptions();
+		const formatting = { tabSize: options.tabSize, insertSpaces: options.insertSpaces, eol: model.getEOL() };
+		const edits = setProperty(model.getValue(), ['foundation', 'allowableBearing'], next, formatting);
+		model.pushStackElement();
+		model.pushEditOperations([], edits.map(edit => {
+			const start = model.getPositionAt(edit.offset);
+			const end = model.getPositionAt(edit.offset + edit.length);
+			return { range: new Range(start.lineNumber, start.column, end.lineNumber, end.column), text: edit.content };
+		}), () => null);
+		model.pushStackElement();
+		this.notificationService.info(next !== undefined
+			? localize('soil.bearingOverrideSet', "Set allowable bearing override to {0} kPa in Project Settings.", next)
+			: localize('soil.bearingOverrideCleared', "Cleared allowable bearing override; footings now use the soil report boreholes."));
 	}
 
 	/**
@@ -875,7 +949,7 @@ export class SoilEditor extends EditorPane {
 	 * Alpha 9 L8: writes the report's boreholes as AGS4 (.ags) or DIGGS (.xml) (asks where when
 	 * `file` is not given); what the format could not hold is shown as notes.
 	 */
-	async exportFile(file?: URI): Promise<void> {
+	async exportFile(file?: URI, preferredFormat?: 'ags' | 'diggs'): Promise<void> {
 		this.flush();
 		const report = this.report;
 		if (!report?.boreholes.length) {
@@ -887,13 +961,13 @@ export class SoilEditor extends EditorPane {
 		}
 		if (!file) {
 			const folder = this.dataFolder ?? (this.resource ? dirname(dirname(this.resource)) : await this.fileDialogService.defaultFilePath());
+			const agsFilter = { name: localize('soil.exportAgs', "AGS4"), extensions: ['ags'] };
+			const diggsFilter = { name: localize('soil.exportDiggs', "DIGGS (XML)"), extensions: ['xml'] };
+			const defaultName = preferredFormat === 'diggs' ? 'boreholes.xml' : 'boreholes.ags';
 			file = await this.fileDialogService.showSaveDialog({
 				title: localize('soil.exportTitle', "Export Boreholes"),
-				defaultUri: folder ? joinPath(folder, 'boreholes.ags') : undefined,
-				filters: [
-					{ name: localize('soil.exportAgs', "AGS4"), extensions: ['ags'] },
-					{ name: localize('soil.exportDiggs', "DIGGS (XML)"), extensions: ['xml'] },
-				],
+				defaultUri: folder ? joinPath(folder, defaultName) : undefined,
+				filters: preferredFormat === 'diggs' ? [diggsFilter, agsFilter] : [agsFilter, diggsFilter],
 			});
 		}
 		if (!file) {
@@ -1079,28 +1153,8 @@ export class SoilEditor extends EditorPane {
 			return;
 		}
 		const usable = !!this.report;
-		const hasBorehole = !!this.borehole;
-		this.addAction.enabled = this.importAction.enabled = usable && !this.entry;
-		this.deleteAction.enabled = this.duplicateAction.enabled = hasBorehole;
-		this.recomputeAction.enabled = !!this.report?.boreholes.length;
-		this.deleteAction.label = hasBorehole ? localize('soil.deleteNamed', "Delete {0}", this.borehole!.id) : localize('soil.deleteBorehole', "Delete Borehole");
-		this.fenceAction.checked = this.fence;
-		const primary: IAction[] = usable ? [
-			this.addAction,
-			this.importAction,
-			this.templateAction,
-			...(this.view === 'log' && !this.entry && (this.report?.boreholes.length ?? 0) > 1 ? [this.fenceAction] : []),
-			this.deleteAction,
-			frame.togglePropertiesAction,
-		] : [frame.togglePropertiesAction];
-		this.exportAction.enabled = !!this.report?.boreholes.length;
-		const secondary: IAction[] = usable ? [this.duplicateAction, this.exportAction, this.recomputeAction] : [];
-		if (this.developerMode || this.parseError) {
-			if (secondary.length) {
-				secondary.push(new Separator());
-			}
-			secondary.push(this.openTextAction);
-		}
+		const primary: IAction[] = [frame.togglePropertiesAction];
+		const secondary: IAction[] = usable && (this.developerMode || this.parseError) ? [this.openTextAction] : [];
 		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
@@ -3060,7 +3114,14 @@ export class SoilEditor extends EditorPane {
 	/** Writes the GeoPackage to the exports folder and opens it in QGIS. */
 	async openInQgis(): Promise<void> {
 		const folder = this.exportsFolder();
-		if (!folder || !this.qgis?.path || !CommandsRegistry.getCommand(SOIL_OPEN_IN_QGIS_COMMAND)) {
+		if (!folder) {
+			return;
+		}
+		if (!this.qgisAsked) {
+			await this.findQgis();
+		}
+		if (!this.qgis?.path || !CommandsRegistry.getCommand(SOIL_OPEN_IN_QGIS_COMMAND)) {
+			this.notificationService.info(localize('soil.qgisNotFound', "QGIS was not found on this machine, or the backend GIS bridge is unavailable."));
 			return;
 		}
 		const file = await this.exportGis('gpkg', joinPath(folder, 'site-map.gpkg'));

@@ -100,7 +100,8 @@ const WINDOW_DASH_PIXELS = 20;
 /** Mouse travel below which a press counts as a click rather than a pan [px]. */
 const CLICK_PIXELS = 5;
 
-type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+export type FloorPlanTool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+type Tool = FloorPlanTool;
 
 /** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
 type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
@@ -4084,5 +4085,71 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		if (text) {
 			this.message.textContent = text;
 		}
+	}
+
+	/** Selects a floor plan drafting or editing tool from the Plan ribbon tab. */
+	selectTool(tool: FloorPlanTool): void {
+		if (this.layoutState === 'ok' || tool === 'select') {
+			this.setTool(tool);
+		}
+	}
+
+	zoomToExtents(): void {
+		this.userView = false;
+		this.editor?.zoomExtents();
+	}
+
+	openTypicalFloors(): Promise<void> {
+		return this.editTypicalFloors();
+	}
+
+	convertDrafting(kind: 'beam' | 'wall' | 'slab'): Promise<void> {
+		return this.pickConversion(kind);
+	}
+
+	toggleUnderlayVisibility(): void {
+		this.toggleUnderlay();
+	}
+
+	attachUnderlayFile(): Promise<void> {
+		return this.attachUnderlay();
+	}
+
+	removeUnderlayFile(): void {
+		this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined);
+	}
+
+	beginUnderlayPick(kind: 'calibrate' | 'move' | 'rotate' | 'align'): void {
+		this.startUnderlayPick(kind);
+	}
+
+	toggleUnderlayLocked(): void {
+		this.toggleUnderlayLock();
+	}
+
+	selectUnderlayPage(): Promise<void> {
+		return this.pickUnderlayPage();
+	}
+
+	openMemberLineLoad(): void {
+		if (!this.loadsPanel.openLineLoad(this.selected)) {
+			this.notificationService.info(localize('floorPlan.selectBeamForLineLoad', "Select one or more beams in the floor plan to add a line load."));
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		this.renderProperties();
+	}
+
+	openMemberPointLoad(): void {
+		if (!this.loadsPanel.openPointLoad(this.selected)) {
+			this.notificationService.info(localize('floorPlan.selectMemberForPointLoad', "Select one beam or column in the floor plan to add a point load."));
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		this.renderProperties();
+	}
+
+	openSubstructurePart(): void {
+		this.openPart('substructure');
 	}
 }

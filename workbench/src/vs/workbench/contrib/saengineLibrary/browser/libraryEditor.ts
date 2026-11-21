@@ -7,7 +7,8 @@ import { $, addDisposableListener, append, clearNode, EventType } from '../../..
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -20,9 +21,10 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -272,9 +274,6 @@ export class LibraryEditor extends JsonDocumentEditor {
 	private readonly listDisposables = this._register(new DisposableStore());
 	private readonly detailDisposables = this._register(new DisposableStore());
 
-	private addAction: SubmenuAction | undefined;
-	private readonly addActionStore = this._register(new DisposableStore());
-	private addActionKind: LibraryKind | undefined;
 	private readonly duplicateAction = this._register(new Action('saengine.library.duplicate', localize('library.duplicate', "Duplicate"), ThemeIcon.asClassName(Codicon.copy), false, async () => this.duplicateItem()));
 	private readonly deleteAction = this._register(new Action('saengine.library.delete', localize('library.deleteTitle', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteItem()));
 
@@ -287,6 +286,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IFileDialogService private readonly fileDialogs: IFileDialogService,
+		@INotificationService private readonly notifications: INotificationService,
 		@ICommandService private readonly commands: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
@@ -347,31 +348,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 	}
 
 	protected override documentFrameActions(): IDocumentFrameActions {
-		const add = this.createAddAction();
-		if (!add || !this.document) {
-			return { primary: [] };
-		}
 		this.duplicateAction.enabled = this.deleteAction.enabled = !!this.selected;
-		return { primary: [add, this.duplicateAction, this.deleteAction] };
-	}
-
-	/** "+" with a menu of the categories/kinds to add (built again when the library changes). */
-	private createAddAction(): SubmenuAction | undefined {
-		const config = this.config;
-		if (!config) {
-			return undefined;
-		}
-		if (this.addAction && this.addActionKind === this.kind) {
-			return this.addAction;
-		}
-		this.addActionStore.clear();
-		this.addActionKind = this.kind;
-		const materials = config.listKey === 'materials';
-		const actions = config.variants.map(variant => this.addActionStore.add(new Action(`saengine.library.add.${variant.value}`, humanize(variant.value), undefined, true, async () => this.addItem(variant))));
-		this.addAction = new SubmenuAction(`saengine.library.add.${config.listKey}`,
-			materials ? localize('library.addMaterial', "Add Material") : localize('library.addObject', "Add Object Type"),
-			actions, ThemeIcon.asClassName(Codicon.add));
-		return this.addAction;
+		return { primary: [] };
 	}
 
 	protected shapeError(value: JsonObject): IShapeError | undefined {
@@ -1065,7 +1043,7 @@ export class LibraryEditor extends JsonDocumentEditor {
 			}
 		}
 		if (!this.items.length) {
-			append(this.listContainer, $('.library-list-empty', undefined, localize('library.empty', "Nothing here yet. Add an entry with + in the toolbar.")));
+			append(this.listContainer, $('.library-list-empty', undefined, localize('library.emptyRibbon', "Nothing here yet. Add an entry from the Library ribbon tab.")));
 		}
 	}
 
@@ -1399,5 +1377,106 @@ export class LibraryEditor extends JsonDocumentEditor {
 			e.preventDefault();
 			this.select(String(next.id));
 		}
+	}
+
+	/** Active library kind (`materials` or `objects`). */
+	get libraryKind(): LibraryKind | undefined {
+		return this.kind;
+	}
+
+	/** Adds a new material category or object kind entry from the Library ribbon tab. */
+	addByVariant(value: string): void {
+		const variant = this.config?.variants.find(v => v.value === value);
+		if (variant) {
+			this.addItem(variant);
+		}
+	}
+
+	/** Duplicates the currently selected library entry. */
+	duplicateSelected(): void {
+		this.duplicateItem();
+	}
+
+	/** Deletes the currently selected library entry (after confirmation). */
+	deleteSelected(): Promise<void> {
+		return this.deleteItem();
+	}
+
+	/** Scrolls to and focuses the stiffness modifiers block on the active object type. */
+	focusStiffnessModifiers(): void {
+		// The stiffness modifiers are the last block of an object type's form.
+		const target = this.detail.lastElementChild as HTMLElement | null;
+		if (!target) {
+			this.notifications.info(localize('library.selectObjectForModifiers', "Select an object type in 04 Objects to edit its stiffness modifiers."));
+			return;
+		}
+		target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		target.focus();
+	}
+
+	/** Exports the active materials or object types JSON library to a file. */
+	async exportLibrary(): Promise<void> {
+		if (!this.document || !this.config) {
+			return;
+		}
+		const root = this.projectService.project?.root;
+		const defaultName = this.config.listKey === 'materials' ? 'materials-library.json' : 'object-types-library.json';
+		const target = await this.fileDialogs.showSaveDialog({
+			defaultUri: root ? joinPath(root, defaultName) : undefined,
+			filters: [{ name: 'JSON', extensions: ['json'] }],
+		});
+		if (!target) {
+			return;
+		}
+		this.flush();
+		await this.fileService.writeFile(target, VSBuffer.fromString(JSON.stringify(this.document, null, 2)));
+		this.notifications.info(localize('library.exported', "Exported library to {0}", target.fsPath));
+	}
+
+	/** Imports non-conflicting entries from an external JSON library file into the active library. */
+	async importLibrary(): Promise<void> {
+		if (!this.document || !this.config) {
+			return;
+		}
+		const root = this.projectService.project?.root;
+		const picked = await this.fileDialogs.showOpenDialog({
+			defaultUri: root,
+			canSelectMany: false,
+			filters: [{ name: 'JSON', extensions: ['json'] }],
+		});
+		const source = picked?.[0];
+		if (!source) {
+			return;
+		}
+		let parsed: JsonValue;
+		try {
+			parsed = JSON.parse((await this.fileService.readFile(source)).value.toString()) as JsonValue;
+		} catch (error) {
+			this.notifications.error(localize('library.importReadError', "Could not read library file: {0}", error instanceof Error ? error.message : String(error)));
+			return;
+		}
+		const key = this.config.listKey;
+		const incoming = isObject(parsed) && Array.isArray(parsed[key]) ? parsed[key].filter(isObject) : [];
+		if (!incoming.length) {
+			this.notifications.info(localize('library.importEmpty', "No \"{0}\" entries found in {1}.", key, source.fsPath));
+			return;
+		}
+		this.flush();
+		const targetList = this.document[key] as JsonValue[];
+		let added = 0;
+		for (const raw of incoming) {
+			const entry = clone(raw);
+			const rawId = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : undefined;
+			entry.id = rawId && !this.items.some(existing => existing.id === rawId)
+				? rawId
+				: this.uniqueId(rawId ?? String(entry[this.config.discriminator] ?? 'ITEM').toUpperCase());
+			targetList.push(entry);
+			this.selectedId = String(entry.id);
+			added++;
+		}
+		if (added > 0) {
+			this.changed(true);
+		}
+		this.notifications.info(localize('library.importedCount', "Imported {0} entry/entries into {1}.", added, key));
 	}
 }

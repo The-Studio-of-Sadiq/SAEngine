@@ -9,7 +9,6 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -438,10 +437,6 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The Seismic section's read-only design category row (see renderSeismicSummary). */
 	private seismicCell: HTMLElement | undefined;
 	private readonly seismicDisposables = this._register(new DisposableStore());
-	private readonly resetAction = this._register(Object.assign(
-		new Action('saengine.settings.resetCombinations', localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", DEFAULT_CODE_TABLES.edition), undefined, true, () => this.resetCombinations()),
-		{ tooltip: localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", DEFAULT_CODE_TABLES.edition) },
-	));
 
 	constructor(
 		group: IEditorGroup,
@@ -693,7 +688,6 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			document.codePack = option.id;
 			this.changed(true);
 			void this.refreshPackLists();
-			this.updateResetAction();
 			await this.offerPackCombinations(document, fromLabel);
 			await this.offerPackAreaLoads(document, fromLabel);
 		} else {
@@ -893,7 +887,6 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	protected override documentFrameActions(): IDocumentFrameActions {
 		return {
 			primary: this.document && this.documentFrame ? [this.documentFrame.togglePropertiesAction] : [],
-			secondary: this.document ? [this.resetAction] : [],
 		};
 	}
 
@@ -1327,13 +1320,6 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		return { ...clone(TEMPLATES.AreaLoad as JsonObject), id: `AL${n}` };
 	}
 
-	/** W4A-2: the ... menu's action names the pack the settings choose. */
-	private updateResetAction(): void {
-		const name = this.codeName;
-		this.resetAction.label = localize('settings.resetCombinationsEllipsis', "Reset Combinations to {0}...", name);
-		this.resetAction.tooltip = localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", name);
-	}
-
 	/**
 	 * W4A-2: the strength combinations the pack the settings choose generates for the project
 	 * (`saengine.codes.combinations`); the default pack's tables of this build without a backend.
@@ -1359,7 +1345,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	/** Replaces every load combination with the active pack's, after asking (it can also be undone). */
-	private async resetCombinations(): Promise<void> {
+	async resetCombinations(): Promise<void> {
 		const document = this.document;
 		if (!document) {
 			return;
@@ -1538,11 +1524,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			return;
 		}
 		void this.refreshPackLists(); // once per pack: the chosen pack's lists
-		this.updateResetAction();
 		const title = append(this.page, $('.sa-form-page-title', undefined, section.title));
 		if (section.id === 'combinations') {
 			// The code's combinations, one click from the section (also in the ... menu).
-			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: this.resetAction.tooltip }));
+			const resetTitle = localize('settings.resetTitle', "Replace the load combinations with the {0} strength design combinations", this.codeName);
+			const button = this.pageDisposables.add(new Button(append(title, $('span.settings-generate')), { ...defaultButtonStyles, secondary: true, supportIcons: true, title: resetTitle }));
 			button.label = `$(${Codicon.sync.id}) ${localize('settings.generateCombinations', "Generate from {0}", this.codeName)}`;
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
 			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (the finishes). The partition allowance is in L or in SD, as set in Analysis Model › Partition allowance as. T applies to the temperature case (Analysis Model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. These are the base combinations: the analysis expands those with earthquake or wind into more (both signs of each direction, the 100 % + 30 % orthogonal pairs, the accidental eccentricities, and the vertical earthquake on D, so 1.2D shows as 1.29D, say), so the analysis lists more combinations than this table. Hover a column heading for its meaning.")));

@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -134,6 +135,62 @@ registerAction2(class extends Action2 {
 
 	override run(accessor: ServicesAccessor): Promise<unknown> {
 		return accessor.get(IEditorService).openEditor(ExportsEditorInput.instance, { pinned: true });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.exports.revealFolder',
+			title: localize2('saengine.exports.revealFolder', "Open Exports Folder"),
+			category,
+			icon: Codicon.folderOpened,
+			f1: false,
+			precondition: projectOpen,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane instanceof ExportsEditor) {
+			await editorService.activeEditorPane.revealFolder();
+			return;
+		}
+		const project = accessor.get(ISaengineProjectService).project;
+		const exportsPart = partById('exports');
+		if (!project || !exportsPart) {
+			return;
+		}
+		const folder = joinPath(project.root, exportsPart.folder);
+		const fileService = accessor.get(IFileService);
+		const openerService = accessor.get(IOpenerService);
+		if (!await fileService.exists(folder)) {
+			await fileService.createFolder(folder);
+		}
+		await openerService.open(folder, { openExternal: true });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.exports.refresh',
+			title: localize2('saengine.exports.refresh', "Refresh Exports"),
+			category,
+			icon: Codicon.refresh,
+			f1: false,
+			precondition: projectOpen,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const pane = editorService.activeEditorPane instanceof ExportsEditor
+			? editorService.activeEditorPane
+			: await editorService.openEditor(ExportsEditorInput.instance, { pinned: true });
+		if (pane instanceof ExportsEditor) {
+			await pane.scan();
+		}
 	}
 });
 
