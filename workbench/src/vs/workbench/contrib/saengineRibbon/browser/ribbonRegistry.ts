@@ -92,6 +92,7 @@ export interface IRibbonItemHint {
 	readonly size?: RibbonButtonSize;
 	readonly label?: string;
 	readonly primaryCommandId?: string;
+	readonly renderCustom?: (container: HTMLElement, instantiationService: IInstantiationService, action: MenuItemAction) => IDisposable;
 }
 
 export interface IRibbonCustomGroup {
@@ -253,6 +254,7 @@ export interface IRibbonActionItem {
 	readonly action: MenuItemAction;
 	readonly size: RibbonButtonSize;
 	readonly label: string;
+	readonly renderCustom?: (container: HTMLElement, instantiationService: IInstantiationService, action: MenuItemAction) => IDisposable;
 }
 
 export interface IRibbonSubmenuItem {
@@ -326,6 +328,7 @@ export function buildRibbonGroups(
 				action,
 				size: hint?.size ?? defaultSize,
 				label: hint?.label ?? action.label,
+				renderCustom: hint?.renderCustom,
 			};
 		});
 		groups.push({

@@ -12,7 +12,6 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { openPart, openPartSection, partSections } from '../../saengineProject/browser/projectParts.js';
@@ -26,7 +25,6 @@ const aiRunning = ContextKeyExpr.has('saengineAiRunning');
 const aiEditsAllowed = ContextKeyExpr.has('saengineAiEditsAllowed');
 const liveCoEditing = ContextKeyExpr.has('saengineLiveCoEditing');
 const relayHosted = ContextKeyExpr.has('saengineCoEditingRelayHosted');
-const floorPlanActive = ActiveEditorContext.isEqualTo('workbench.editor.saengine.floorPlan');
 
 const category = localize2('saengine.category', "SAEngine");
 
@@ -405,22 +403,6 @@ addItem(RibbonMenus.Model, '4_UnderlayAndImport', 1, 'saengine.project.importStr
 addItem(RibbonMenus.Model, '4_UnderlayAndImport', 2, 'saengine.revit.importUi', localize('rib.model.importRevit', "Import Revit..."), Codicon.sync, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Model, '4_UnderlayAndImport', 3, 'saengine.cad.openDxf', localize('rib.model.openDxf', "Open DXF in CAD"), Codicon.fileMedia, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Model, '4_UnderlayAndImport', 4, 'saengine.project.showImportReport', localize('rib.model.importReport', "Import Report"), Codicon.fileText, 'small');
-
-//#endregion
-
-//#region Tab 4: Draft (Contextual)
-
-addItem(RibbonMenus.Draft, '1_Selection', 1, 'saengine.floorPlan.bulk.selectAll', localize('rib.draft.selectAll', "Select All"), Codicon.checkAll, 'large', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '1_Selection', 2, 'saengine.floorPlan.bulk.selectByType', localize('rib.draft.selectByType', "Select by Type"), Codicon.filter, 'small', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '1_Selection', 3, 'saengine.floorPlan.bulk.deleteSelection', localize('rib.draft.delete', "Delete"), Codicon.trash, 'small', { precondition: floorPlanActive });
-
-addItem(RibbonMenus.Draft, '2_Modify', 1, 'saengine.floorPlan.bulk.mirror', localize('rib.draft.mirror', "Mirror"), Codicon.splitHorizontal, 'large', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '2_Modify', 2, 'saengine.floorPlan.bulk.copyToStories', localize('rib.draft.copyStories', "Copy to Stories"), Codicon.copy, 'large', { precondition: floorPlanActive });
-
-addItem(RibbonMenus.Draft, '3_ViewAndAids', 1, 'saengine.floorPlan.toggleCommandLine', localize('rib.draft.cmdLine', "Command Line"), Codicon.terminal, 'large', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '3_ViewAndAids', 2, 'saengine.floorPlan.toggleGridLines', localize('rib.draft.gridLines', "Grid Lines"), Codicon.layout, 'small', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '3_ViewAndAids', 3, 'saengine.floorPlan.properties', localize('rib.draft.properties', "Properties"), Codicon.symbolProperty, 'small', { precondition: floorPlanActive });
-addItem(RibbonMenus.Draft, '3_ViewAndAids', 4, 'saengine.cad.openDxf', localize('rib.draft.openCad', "Open DXF in CAD"), Codicon.linkExternal, 'small', { precondition: projectOpen });
 
 //#endregion
 

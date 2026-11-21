@@ -97,6 +97,65 @@ interface LayerPickItem extends IQuickPickItem {
 	readonly layer: CadLayerInfo;
 }
 
+export async function pickCadLayer(
+	editor: CadEditorApi,
+	quickInputService: IQuickInputService,
+	notificationService: INotificationService,
+): Promise<boolean> {
+	const layers = editor.layers.list();
+	const selectedIds = editor.selection.get();
+	const isSelected = selectedIds.length > 0;
+
+	const items: LayerPickItem[] = layers.map(layer => {
+		let stateDesc = '';
+		if (layer.current) {
+			stateDesc += localize('layer.current', "[Current] ");
+		}
+		if (layer.generated) {
+			stateDesc += localize('layer.generated', "[Structural, Read-only] ");
+		}
+		if (layer.locked) {
+			stateDesc += '🔒 ';
+		}
+		if (layer.frozen) {
+			stateDesc += '❄️ ';
+		}
+		if (!layer.on) {
+			stateDesc += localize('layer.off', "(Off) ");
+		}
+
+		return {
+			id: layer.name,
+			label: layer.name,
+			description: stateDesc.trim(),
+			layer,
+		};
+	});
+
+	const picked = await quickInputService.pick(items, {
+		title: isSelected
+			? localize('cad.moveSelectionLayer', "Move Selection to Layer")
+			: localize('cad.setCurrentLayer', "Set Current Layer"),
+		placeHolder: localize('cad.chooseLayer', "Select layer..."),
+	});
+
+	if (!picked) {
+		return false;
+	}
+
+	if (picked.layer.generated) {
+		notificationService.warn(localize('layer.generatedReadOnly', "Generated structural layers cannot be modified or made current."));
+		return false;
+	}
+
+	if (isSelected) {
+		editor.properties.set(selectedIds, { layer: picked.layer.name });
+	} else {
+		editor.layers.setCurrent(picked.layer.name);
+	}
+	return true;
+}
+
 export class FloorPlanCadBar extends Disposable {
 	private readonly element: HTMLElement;
 	private readonly cursorLabel: HTMLElement;
@@ -146,6 +205,7 @@ export class FloorPlanCadBar extends Disposable {
 		}));
 
 		this.element = append(container, $('.floor-plan-status-bar'));
+		container.classList.add('with-cad-bar');
 
 		// 1. Left: Cursor coordinates in mm
 		const left = append(this.element, $('.cad-bar-left'));
@@ -245,9 +305,9 @@ export class FloorPlanCadBar extends Disposable {
 		this.layerBtn = append(props, $('button.cad-bar-btn.cad-prop-btn.cad-layer-btn', { title: localize('cad.layerTooltip', "Current Layer / Move Selection to Layer") }));
 		this.layerSwatch = append(this.layerBtn, $('span.cad-swatch'));
 		this.layerStateIcon = append(this.layerBtn, $('span.cad-layer-state'));
-		this.layerLabel = append(this.layerBtn, $('span.cad-layer-name', undefined, 'DRAFT'));
+		this.layerLabel = append(this.layerBtn, $('span.cad-layer-name', undefined, '0'));
 		append(this.layerBtn, $(ThemeIcon.asCSSSelector(Codicon.chevronDown)));
-		this._register(addDisposableListener(this.layerBtn, EventType.CLICK, () => this.showLayerPicker()));
+		this._register(addDisposableListener(this.layerBtn, EventType.CLICK, () => { void this.showLayerPicker(); }));
 
 		// Color picker
 		this.colorBtn = append(props, $('button.cad-bar-btn.cad-prop-btn.cad-color-btn', { title: localize('cad.colorTooltip', "Object Color") }));
@@ -472,62 +532,13 @@ export class FloorPlanCadBar extends Disposable {
 		});
 	}
 
-	private async showLayerPicker(): Promise<void> {
+	public async showLayerPicker(): Promise<void> {
 		if (!this.editor) {
 			return;
 		}
-		const layers = this.editor.layers.list();
-		const selectedIds = this.editor.selection.get();
-		const isSelected = selectedIds.length > 0;
-
-		const items: LayerPickItem[] = layers.map(layer => {
-			let stateDesc = '';
-			if (layer.current) {
-				stateDesc += localize('layer.current', "[Current] ");
-			}
-			if (layer.generated) {
-				stateDesc += localize('layer.generated', "[Structural, Read-only] ");
-			}
-			if (layer.locked) {
-				stateDesc += '🔒 ';
-			}
-			if (layer.frozen) {
-				stateDesc += '❄️ ';
-			}
-			if (!layer.on) {
-				stateDesc += localize('layer.off', "(Off) ");
-			}
-
-			return {
-				id: layer.name,
-				label: layer.name,
-				description: stateDesc.trim(),
-				layer,
-			};
-		});
-
-		const picked = await this.quickInputService.pick(items, {
-			title: isSelected
-				? localize('cad.moveSelectionLayer', "Move Selection to Layer")
-				: localize('cad.setCurrentLayer', "Set Current Layer"),
-			placeHolder: localize('cad.chooseLayer', "Select layer..."),
-		});
-
-		if (!picked || !this.editor) {
-			return;
+		if (await pickCadLayer(this.editor, this.quickInputService, this.notificationService)) {
+			this.updateProperties();
 		}
-
-		if (picked.layer.generated) {
-			this.notificationService.warn(localize('layer.generatedReadOnly', "Generated structural layers cannot be modified or made current."));
-			return;
-		}
-
-		if (isSelected) {
-			this.editor.properties.set(selectedIds, { layer: picked.layer.name });
-		} else {
-			this.editor.layers.setCurrent(picked.layer.name);
-		}
-		this.updateProperties();
 	}
 
 	private showColorMenu(): void {
@@ -635,3 +646,5 @@ export class FloorPlanCadBar extends Disposable {
 		});
 	}
 }
+
+export { FloorPlanCadBar as CadStatusBar };

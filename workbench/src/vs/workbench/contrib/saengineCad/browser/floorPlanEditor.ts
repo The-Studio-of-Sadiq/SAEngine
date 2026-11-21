@@ -8,7 +8,7 @@ import type { CadDraftingHit, CadEditor as CadEditorApi, CadEntitySpec, CadLayer
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isEditableElement, isHTMLElement, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -57,6 +57,8 @@ import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.j
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
+import { CAD_COMMAND_LINE_STORAGE_KEY, ICadEditorPane, notifyActiveCadEditorChanged } from './activeCadEditor.js';
+import { appendCommandHistoryLine, dockCadCommandLine } from './cadCommandLineDock.js';
 import { FloorPlanCadBar } from './floorPlanCadBar.js';
 import { FloorPlanDraftProperties } from './floorPlanDraftProperties.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
@@ -88,8 +90,6 @@ const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 const COMPACT_WIDTH = 950;
 /** Below this width [px] Move, Rotate and Delete go to "..." too. */
 const NARROW_WIDTH = 700;
-/** From this width [px] the drafting tools sit on the toolbar one by one; below it they fold into Draw and Modify menus, as AutoCAD's panels do, so the storey picker and the Plan / 3D / Analysis switch keep their room. */
-const DRAFTING_INLINE_WIDTH = 1700;
 
 /** Screen distances: how close a click must be to a grid intersection or member, and marker size [px]. */
 const SNAP_PIXELS = 24;
@@ -222,7 +222,7 @@ function outlineEntities(shape: IMemberShape, layer: string): CadEntitySpec[] {
  * Stories form edits too. Object types come from `objects.json`, read only, so edits there show
  * up as they are made.
  */
-export class FloorPlanEditor extends EditorPane {
+export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 
 	static readonly ID = FloorPlanEditorInput.EDITOR_ID;
 	private static datalists = 0;
@@ -310,8 +310,6 @@ export class FloorPlanEditor extends EditorPane {
 	private compact = false;
 	/** A very narrow editor also moves Move, Rotate and Delete to "...". */
 	private narrow = false;
-	/** The drafting tools one by one on the toolbar (wide editors), else in Draw and Modify menus. */
-	private draftingInline = false;
 
 	/** The members selected on the plan; the selection service holds the one picked last. */
 	private selected: IMemberRef[] = [];
@@ -374,25 +372,6 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convertBeam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
 	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convertWall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
 	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convertSlab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
-
-	private readonly cadLineAction = this._register(new Action('saengine.floorPlan.cadLine', localize('tool.draftLine', "Line"), ThemeIcon.asClassName(Codicon.dash), true, async () => { void this.editor?.execute('line'); }));
-	private readonly cadPlineAction = this._register(new Action('saengine.floorPlan.cadPline', localize('tool.draftPolyline', "Polyline"), ThemeIcon.asClassName(Codicon.graph), true, async () => { void this.editor?.execute('pline'); }));
-	private readonly cadRectAction = this._register(new Action('saengine.floorPlan.cadRect', localize('tool.draftRect', "Rectangle"), ThemeIcon.asClassName(Codicon.primitiveSquare), true, async () => { void this.editor?.execute('rectang'); }));
-	private readonly cadPolygonAction = this._register(new Action('saengine.floorPlan.cadPolygon', localize('tool.draftPolygon', "Polygon"), ThemeIcon.asClassName(Codicon.symbolConstant), true, async () => { void this.editor?.execute('polygon'); }));
-	private readonly cadCircleAction = this._register(new Action('saengine.floorPlan.cadCircle', localize('tool.draftCircle', "Circle"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('circle'); }));
-	private readonly cadArcAction = this._register(new Action('saengine.floorPlan.cadArc', localize('tool.draftArc', "Arc"), ThemeIcon.asClassName(Codicon.circleOutline), true, async () => { void this.editor?.execute('arc'); }));
-	private readonly cadEllipseAction = this._register(new Action('saengine.floorPlan.cadEllipse', localize('cad.ellipse', "Ellipse"), ThemeIcon.asClassName(Codicon.circleLarge), true, async () => { void this.editor?.execute('ellipse'); }));
-	private readonly cadSplineAction = this._register(new Action('saengine.floorPlan.cadSpline', localize('cad.spline', "Spline"), ThemeIcon.asClassName(Codicon.pulse), true, async () => { void this.editor?.execute('spline'); }));
-	private readonly cadHatchAction = this._register(new Action('saengine.floorPlan.cadHatch', localize('cad.hatch', "Hatch"), ThemeIcon.asClassName(Codicon.paintcan), true, async () => { void this.editor?.execute('hatch'); }));
-	private readonly cadTextAction = this._register(new Action('saengine.floorPlan.cadText', localize('cad.text', "Text"), ThemeIcon.asClassName(Codicon.symbolText), true, async () => { void this.editor?.execute('mtext'); }));
-	private readonly cadDimensionAction = this._register(new Action('saengine.floorPlan.cadDimension', localize('cad.dimension', "Dimension"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => { void this.editor?.execute('dimlinear'); }));
-
-	private readonly cadOffsetAction = this._register(new Action('saengine.floorPlan.cadOffset', localize('tool.draftOffset', "Offset"), ThemeIcon.asClassName(Codicon.move), true, async () => { void this.editor?.execute('offset'); }));
-	private readonly cadTrimAction = this._register(new Action('saengine.floorPlan.cadTrim', localize('tool.draftTrim', "Trim"), ThemeIcon.asClassName(Codicon.debugDisconnect), true, async () => { void this.editor?.execute('trim'); }));
-	private readonly cadExtendAction = this._register(new Action('saengine.floorPlan.cadExtend', localize('tool.draftExtend', "Extend"), ThemeIcon.asClassName(Codicon.arrowUp), true, async () => { void this.editor?.execute('extend'); }));
-	private readonly cadFilletAction = this._register(new Action('saengine.floorPlan.cadFillet', localize('tool.draftFillet', "Fillet"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('fillet'); }));
-	private readonly cadMirrorAction = this._register(new Action('saengine.floorPlan.cadMirror', localize('cad.mirror', "Mirror"), ThemeIcon.asClassName(Codicon.mirror), true, async () => { void this.editor?.execute('mirror'); }));
-	private readonly cadScaleAction = this._register(new Action('saengine.floorPlan.cadScale', localize('cad.scale', "Scale"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => { void this.editor?.execute('scale'); }));
 	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
 	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.membersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
 	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
@@ -568,9 +547,9 @@ export class FloorPlanEditor extends EditorPane {
 		let editor: CadEditorApi;
 		try {
 			const theme = this.themeService.getColorTheme();
+			const showCommandLine = this.viewStorage.getBoolean(CAD_COMMAND_LINE_STORAGE_KEY, StorageScope.WORKSPACE, true);
 			editor = this.editor = await acquireCadEditor(this.host, {
-				// The editor's own toolbar has undo and redo; the command line opens on request.
-				chrome: { commandLine: false, shortcutToolbar: false },
+				chrome: { commandLine: showCommandLine, shortcutToolbar: false },
 				background: cadBackground(theme),
 			});
 		} catch (error) {
@@ -581,7 +560,11 @@ export class FloorPlanEditor extends EditorPane {
 			this.release();
 			return;
 		}
-		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => this.updateToolbar()));
+		this.inputDisposables.add(dockCadCommandLine(this.host));
+		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => {
+			this.viewStorage.store(CAD_COMMAND_LINE_STORAGE_KEY, editor.getChrome().commandLine, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.updateToolbar();
+		}));
 		this.cadBar.setEditor(editor);
 
 		// Resolve the initial story so the drafting drawing can be opened.
@@ -612,6 +595,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 
 		await this.loadStoryDrawing(input.story);
+		notifyActiveCadEditorChanged(editor);
 
 		input.draftingSource = {
 			toDxf: () => editor.toDxf({ excludeGenerated: true }),
@@ -767,11 +751,9 @@ export class FloorPlanEditor extends EditorPane {
 	override layout(dimension: Dimension): void {
 		const compact = dimension.width < COMPACT_WIDTH;
 		const narrow = dimension.width < NARROW_WIDTH;
-		const draftingInline = dimension.width >= DRAFTING_INLINE_WIDTH;
-		if (compact !== this.compact || narrow !== this.narrow || draftingInline !== this.draftingInline) {
+		if (compact !== this.compact || narrow !== this.narrow) {
 			this.compact = compact;
 			this.narrow = narrow;
-			this.draftingInline = draftingInline;
 			this.updateToolbar();
 		}
 		this.frame.layout(dimension.width, dimension.height);
@@ -824,10 +806,42 @@ export class FloorPlanEditor extends EditorPane {
 		this.underlayProblem = undefined;
 		this.resetGesture();
 		this.cadBar?.setEditor(undefined);
+		notifyActiveCadEditorChanged(undefined);
 		if (this.editor) {
 			releaseCadEditor(this.editor);
 			this.editor = undefined;
 		}
+	}
+
+	// ───────────────────────────── ICadEditorPane ─────────────────────────────
+
+	public getCadEditor(): CadEditorApi | undefined {
+		return this.editor;
+	}
+
+	public async executeCadCommand(command: string): Promise<void> {
+		if (!this.editor) {
+			return;
+		}
+		this.resetGesture();
+		this.schedulePreview();
+		try {
+			await this.editor.execute(command);
+		} catch {
+			// Interactive CAD prompts throw on cancellation.
+		}
+	}
+
+	public focusCadProperties(): void {
+		this.focusProperties();
+	}
+
+	public toggleCadCommandLine(): void {
+		this.toggleCommandLine();
+	}
+
+	public async showCadLayerPicker(): Promise<void> {
+		await this.cadBar?.showLayerPicker();
 	}
 
 	// ───────────────────────────── commands ─────────────────────────────
@@ -861,6 +875,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const visible = !editor.getChrome().commandLine;
+		this.viewStorage.store(CAD_COMMAND_LINE_STORAGE_KEY, visible, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		editor.setChrome({ commandLine: visible });
 		if (visible) {
 			getWindow(this.frame.element).setTimeout(() => editor.focusCommandLine(), 0);
@@ -1022,6 +1037,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (e.key !== 'Enter' || !isHTMLInputElement(target) || !target.classList.contains('ml-cli-text') || !this.host.contains(target)) {
 			return;
 		}
+		const rawText = target.value.trim();
 		const command = parseCommand(target.value, parse(this.planModel));
 		if (!command) {
 			return;
@@ -1029,6 +1045,9 @@ export class FloorPlanEditor extends EditorPane {
 		e.preventDefault();
 		e.stopImmediatePropagation();
 		target.value = '';
+		if (rawText) {
+			appendCommandHistoryLine(this.host, `> ${rawText}`);
+		}
 		if (command.kind === 'error') {
 			this.setNotice(command.message);
 		} else if (command.kind === 'help') {
@@ -1187,17 +1206,6 @@ export class FloorPlanEditor extends EditorPane {
 		return isObject(layout) && layout.schema === FLOOR_PLAN_SCHEMA_ID ? 'ok' : 'invalid';
 	}
 
-	/** The drafting tools folded into one toolbar menu (AutoCAD's Draw panel). */
-	private drawMenu(actions: IAction[]): SubmenuAction {
-		const menu = new SubmenuAction('saengine.floorPlan.drawMenu', localize('floorPlan.drawMenu', "Draw"), actions, ThemeIcon.asClassName(Codicon.edit));
-		return menu;
-	}
-
-	private modifyMenu(actions: IAction[]): SubmenuAction {
-		const menu = new SubmenuAction('saengine.floorPlan.modifyMenu', localize('floorPlan.modifyMenu', "Modify"), actions, ThemeIcon.asClassName(Codicon.tools));
-		return menu;
-	}
-
 	/** Brings the toolbar's buttons, the overflow menu and the inline controls up to date. */
 	private updateToolbar(): void {
 		const frame = this.frame;
@@ -1244,25 +1252,12 @@ export class FloorPlanEditor extends EditorPane {
 		this.commandLineAction.checked = commandLine;
 		this.commandLineAction.label = commandLine ? localize('floorPlan.hideCommandLine', "Hide Command Line (:)") : localize('floorPlan.showCommandLine', "Show Command Line (:)");
 
-		const cadDrawActions = [
-			this.cadLineAction, this.cadPlineAction, this.cadRectAction, this.cadPolygonAction, this.cadCircleAction, this.cadArcAction,
-			this.cadEllipseAction, this.cadSplineAction, this.cadHatchAction, this.cadTextAction, this.cadDimensionAction
-		];
-		const cadModifyActions = [
-			this.cadOffsetAction, this.cadTrimAction, this.cadExtendAction, this.cadFilletAction, this.cadMirrorAction, this.cadScaleAction
-		];
-		cadDrawActions.forEach(a => a.enabled = editable && !!this.editor);
-		cadModifyActions.forEach(a => a.enabled = editable && !!this.editor);
-
 		const tools = (names: readonly Tool[]) => names.map(name => this.toolActions.get(name)!);
 		const primary: IAction[] = [
 			...tools(['select']),
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
-			...(this.compact ? [] : this.draftingInline
-				? [...cadDrawActions, new Separator(), ...cadModifyActions, new Separator()]
-				: [this.drawMenu(cadDrawActions), this.modifyMenu(cadModifyActions), new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1296,11 +1291,10 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
-			...(this.compact ? [new Separator(), ...cadDrawActions, new Separator(), ...cadModifyActions] : []),
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
-		const key = `${state}|${this.compact}|${this.narrow}|${this.draftingInline}`;
+		const key = `${state}|${this.compact}|${this.narrow}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
 			frame.setActions(primary, secondary);
@@ -2675,6 +2669,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		input.story = storyId;
 		await this.loadStoryDrawing(storyId);
+		notifyActiveCadEditorChanged(this.editor);
 	}
 
 	/**

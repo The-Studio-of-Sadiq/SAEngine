@@ -415,3 +415,35 @@
 .monaco-workbench.hc-light .sa-ribbon-group-sep {
 	border-right-color: var(--vscode-contrastBorder);
 }
+
+/* Current-layer dropdown button inside Draft -> Layers */
+.monaco-workbench .sa-ribbon-layer-select {
+	min-width: 112px;
+	max-width: 150px;
+	justify-content: space-between;
+	border-color: var(--sa-border);
+	background-color: var(--vscode-input-background, transparent);
+}
+
+.monaco-workbench .sa-ribbon-layer-swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	border: 1px solid rgba(128, 128, 128, 0.5);
+	box-sizing: border-box;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-layer-name {
+	flex: 1;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .sa-ribbon-layer-caret {
+	font-size: 10px;
+	opacity: 0.85;
+	flex: none;
+}

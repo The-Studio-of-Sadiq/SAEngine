@@ -37,6 +37,7 @@ import { FloorPlanEditorInput, FloorPlanEditorInputSerializer } from './floorPla
 // Integrator glue: the Members Table registers its editor, command, undo/redo and working-copy handler.
 import './floorPlanTable.js';
 import './floorPlanTables.js';
+import './cadDraftRibbon.contribution.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CadEditorPane, CadEditorInput.EDITOR_ID, localize('cadEditor', "CAD Drawing")),

@@ -366,6 +366,10 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 	private renderItem(container: HTMLElement, item: RibbonItem): void {
 		if (item.kind === 'action') {
+			if (item.renderCustom) {
+				this.panelDisposables.add(item.renderCustom(container, this.instantiationService, item.action));
+				return;
+			}
 			const action = item.action;
 			const icon = ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : Codicon.symbolMisc;
 			const button = append(container, $<HTMLButtonElement>(`button.sa-ribbon-btn.sa-ribbon-btn-${item.size}`));
