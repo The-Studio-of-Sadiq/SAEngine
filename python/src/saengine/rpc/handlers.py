@@ -3303,3 +3303,27 @@ def worksheet_create(
     from saengine.report.worksheets import create_worksheet
 
     return create_worksheet(project_root, kind, worksheet_id, title)
+
+
+from saengine.rpc.u3_handlers import (  # noqa: F401
+    bim_diff_ifc,
+    bim_export_ifc_file,
+    drawings_callout,
+    drawings_keynotes,
+    drawings_legend,
+    drawings_schedule,
+    drawings_schedule_categories,
+    drawings_scope_boxes,
+    electrical_cable_size,
+    electrical_lighting,
+    fire_alarm,
+    fire_sprinklers,
+    hvac_duct_pressure,
+    hvac_loads_detailed,
+    hvac_route_ducts,
+    plumbing_gas,
+    plumbing_hot_water,
+    project_validate_all,
+    verification_cases,
+    verification_run,
+)

@@ -13,7 +13,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod, OfficeMethod } from '../../../../platform/saengine/common/femSolver.js';
+import { EngineMethod, IBoqComputeRequest, IBuildingIfcRequest, IFemDeriveRequest, IFemSolverService, IMepServiceParams, ISoilBearingRequest, IStructureGeometry, IStructureScriptResult, LibraryFileKind, MepServiceMethod, OfficeMethod } from '../../../../platform/saengine/common/femSolver.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -1006,9 +1006,20 @@ CommandsRegistry.registerCommand('saengine.import.structural', async (accessor, 
  * and its export report (saengine.exporters.etabs) and answers `{path, reportPath, report}`, or
  * `{error}` when the project cannot be exported.
  */
-CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: { readonly projectRoot: string }) => {
+CommandsRegistry.registerCommand('saengine.export.e2k', async (accessor, args: { readonly projectRoot: string; readonly outPath?: string; readonly units?: 'kN-m' | 'N-mm'; readonly lateral?: 'loads' | 'coefficient' }) => {
 	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
-	return accessor.get(IFemSolverService).engine(python, 'export/e2k', { projectRoot: args.projectRoot });
+	return accessor.get(IFemSolverService).engine(python, 'export/e2k', {
+		projectRoot: args.projectRoot,
+		...(args.outPath ? { outPath: args.outPath } : {}),
+		...(args.units ? { units: args.units } : {}),
+		...(args.lateral ? { lateral: args.lateral } : {}),
+	});
+});
+
+/** Generic U3 RPC bridge for domain data panels in the browser workbench layer. */
+CommandsRegistry.registerCommand('saengine.engine.request', async (accessor, method: EngineMethod, params?: object) => {
+	const python = accessor.get(IInstantiationService).createInstance(FemAnalysisRunner).resolvePython();
+	return accessor.get(IFemSolverService).engine(python, method, params ?? {});
 });
 
 /**
