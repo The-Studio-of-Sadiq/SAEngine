@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
 import { IMenuItem, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -12,6 +15,17 @@ import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } f
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DraftRibbonSubmenus } from '../../../saengineCad/browser/cadDraftCommands.js';
 import '../../../saengineCad/browser/cadDraftRibbon.contribution.js';
+import {
+	collectControlCollapsedActions,
+	controlVisibilitySignature,
+	dedupeEditorFrameActions,
+	hasVisibleControls,
+	RibbonInlineRowControl,
+	RibbonSegmentedModel,
+	RibbonSelectModel,
+	RibbonSliderModel,
+	RibbonToggleModel,
+} from '../../browser/ribbonControls.js';
 import {
 	buildRibbonGroups,
 	computeCollapsedRibbonGroups,
@@ -26,6 +40,7 @@ import {
 	registerRibbonItemHint,
 	resolveActiveTabForEditor,
 	resolveDataPanelPart,
+	resolveEditorToolbarTargetTab,
 	RIBBON_TABS,
 	RibbonMenus,
 	RibbonTabId,
@@ -581,6 +596,157 @@ suite('SAEngine - ribbon model', () => {
 			seenIds.add(spec.id);
 			assert.ok(spec.icon.id, `Missing Codicon for ${spec.id}`);
 			assert.ok(spec.tooltip.value.toUpperCase().includes(spec.canonicalName.replace(/^-/, '')), `Tooltip for ${spec.id} should mention ${spec.canonicalName}`);
+		}
+	});
+
+	test('RibbonSelectModel manages items, selection, headings, disabled state, and visibility', () => {
+		const store = new DisposableStore();
+		try {
+			const events: string[] = [];
+			let changes = 0;
+			const select = store.add(new RibbonSelectModel({
+				id: 'test.select',
+				ariaLabel: 'Story',
+				label: 'Story',
+				items: [
+					{ id: 'h1', label: 'Group', isHeading: true },
+					{ id: 's1', label: 'Story 1' },
+					{ id: 's2', label: 'Story 2', disabled: true },
+					{ id: 's3', label: 'Story 3' },
+				],
+			}));
+			store.add(select.onDidChange(() => { changes++; }));
+			store.add(select.onDidSelect(e => events.push(`${e.id}@${e.index}`)));
+
+			assert.strictEqual(select.selectedId, 's1');
+			assert.strictEqual(select.selectedIndex, 1);
+
+			select.select('h1', true);
+			select.select('s2', true);
+			assert.strictEqual(select.selectedId, 's1');
+			assert.deepStrictEqual(events, []);
+
+			select.select(3, true);
+			assert.strictEqual(select.selectedId, 's3');
+			assert.deepStrictEqual(events, ['s3@3']);
+
+			select.disabled = true;
+			select.select('s1', true);
+			assert.strictEqual(select.selectedId, 's3');
+
+			// Programmatic sync via setter works silently even while disabled.
+			select.selectedId = 's1';
+			assert.strictEqual(select.selectedId, 's1');
+			assert.deepStrictEqual(events, ['s3@3']);
+
+			select.visible = false;
+			assert.strictEqual(select.visible, false);
+			select.setItems([{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], 'b');
+			assert.strictEqual(select.selectedId, 'b');
+			assert.ok(changes >= 4);
+		} finally {
+			store.dispose();
+		}
+	});
+
+	test('RibbonSegmentedModel, RibbonToggleModel, and RibbonSliderModel sync state and fire user events', () => {
+		const store = new DisposableStore();
+		try {
+			const segEvents: string[] = [];
+			const seg = store.add(new RibbonSegmentedModel({
+				id: 'test.seg',
+				ariaLabel: 'View',
+				items: [
+					{ id: 'plan', label: 'Plan' },
+					{ id: '3d', label: '3D' },
+				],
+				selectedId: 'plan',
+			}));
+			store.add(seg.onDidSelect(id => segEvents.push(id)));
+			seg.setItemDisabled('3d', true);
+			seg.select('3d', true);
+			assert.strictEqual(seg.selectedId, 'plan');
+			seg.setItemDisabled('3d', false);
+			seg.select('3d', true);
+			assert.strictEqual(seg.selectedId, '3d');
+			seg.disabled = true;
+			seg.selectedId = undefined;
+			assert.strictEqual(seg.selectedId, undefined);
+			assert.deepStrictEqual(segEvents, ['3d']);
+
+			const toggleEvents: boolean[] = [];
+			const toggle = store.add(new RibbonToggleModel({ id: 'test.toggle', label: 'Labels', checked: false }));
+			store.add(toggle.onDidToggle(val => toggleEvents.push(val)));
+			toggle.setChecked(true, true);
+			toggle.disabled = true;
+			toggle.setChecked(false, true);
+			assert.strictEqual(toggle.checked, true);
+			toggle.checked = false;
+			assert.strictEqual(toggle.checked, false);
+			assert.deepStrictEqual(toggleEvents, [true]);
+
+			const sliderValues: number[] = [];
+			const slider = store.add(new RibbonSliderModel({ id: 'test.slider', label: 'Scale', ariaLabel: 'Scale', min: -2, max: 4, step: 0.5, value: 0, resetValue: 0 }));
+			store.add(slider.onDidChangeValue(v => sliderValues.push(v)));
+			slider.setValue(10, true);
+			assert.strictEqual(slider.value, 4);
+			slider.value = -5;
+			assert.strictEqual(slider.value, -2);
+			slider.setRange(0, 10, 1);
+			slider.value = 3;
+			assert.strictEqual(slider.value, 3);
+			assert.deepStrictEqual(sliderValues, [4]);
+		} finally {
+			store.dispose();
+		}
+	});
+
+	test('Ribbon control helpers compute visibility, collapse actions, dedupe editor actions, and resolve target tab', () => {
+		const store = new DisposableStore();
+		try {
+			const select = store.add(new RibbonSelectModel({
+				id: 'test.collapse.select',
+				ariaLabel: 'Result',
+				label: 'Result',
+				items: [
+					{ id: 'h', label: 'Static', isHeading: true },
+					{ id: 'dl', label: 'Dead' },
+					{ id: 'll', label: 'Live' },
+				],
+				selectedId: 'dl',
+			}));
+			const toggle = store.add(new RibbonToggleModel({ id: 'test.collapse.toggle', label: 'Labels', icon: Codicon.tag, checked: true }));
+			const hidden = store.add(new RibbonToggleModel({ id: 'test.collapse.hidden', label: 'Hidden', visible: false }));
+			const slider = store.add(new RibbonSliderModel({ id: 'test.collapse.slider', label: 'Scale', ariaLabel: 'Scale', min: -1, max: 2, value: 0, resetValue: 0, valueText: '1x' }));
+			const row = store.add(new RibbonInlineRowControl({ id: 'test.collapse.row', controls: [toggle, hidden] }));
+
+			assert.strictEqual(hasVisibleControls([hidden]), false);
+			assert.strictEqual(hasVisibleControls([row]), true);
+			assert.strictEqual(controlVisibilitySignature([select, row, slider]), '1,1(1,0),1');
+
+			const collapsed = collectControlCollapsedActions([select, row, slider], store);
+			assert.strictEqual(collapsed.length, 3);
+			assert.ok(collapsed[0] instanceof SubmenuAction);
+			assert.strictEqual(collapsed[1].id, 'test.collapse.toggle');
+			assert.ok(collapsed[2] instanceof SubmenuAction);
+
+			const a1 = store.add(new Action('cmd.keep', 'Keep'));
+			const a2 = store.add(new Action('cmd.dup', 'Dup'));
+			const a3 = store.add(new Action('cmd.sec', 'Secondary'));
+			const deduped = dedupeEditorFrameActions(
+				[a2, new Separator(), a1],
+				[new Separator(), a2, new Separator(), a3, new Separator()],
+				new Set(['cmd.dup']),
+			);
+			assert.deepStrictEqual(deduped.primary.map(a => a.id), ['cmd.keep']);
+			assert.deepStrictEqual(deduped.secondary.map(a => a.id), ['cmd.sec']);
+
+			const femTabs = getVisibleRibbonTabs(contextFor({ [ActiveEditorContext.key]: SAENGINE_EDITOR_IDS.femModel }));
+			assert.strictEqual(resolveEditorToolbarTargetTab(femTabs), 'analyze');
+			const overviewTabs = getVisibleRibbonTabs(contextFor({ [ActiveEditorContext.key]: SAENGINE_EDITOR_IDS.overview }));
+			assert.strictEqual(resolveEditorToolbarTargetTab(overviewTabs), 'project');
+		} finally {
+			store.dispose();
 		}
 	});
 });

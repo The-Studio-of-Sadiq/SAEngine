@@ -51,6 +51,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { headingWithUnit } from '../../../services/saengineProject/common/displayUnits.js';
@@ -206,10 +207,11 @@ export class MembersTable extends Disposable {
 
 	private body!: HTMLElement;
 	private scrollable!: DomScrollableElement;
-	private storyFilter!: SelectBox;
-	private kindFilter!: SelectBox;
-	private typeFilter!: SelectBox;
+	private storyFilter!: RibbonSelectModel;
+	private kindFilter!: RibbonSelectModel;
+	private typeFilter!: RibbonSelectModel;
 	private search!: InputBox;
+	private searchHost!: HTMLElement;
 	private planModel: ITextModel | undefined;
 	private objectsModel: ITextModel | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -281,22 +283,36 @@ export class MembersTable extends Disposable {
 		this.frame.setTitle(localize('membersTable.title', "Members"));
 		this.frame.setHelp(localize('membersTable.help', "Every member placed on the floor plan. Filter, sort by a column heading, select rows (Ctrl+click, Shift+click, Ctrl+A) and click a row's object type or story to change it for all selected rows. Edits go to the floor plan and undo there too; typical floors follow their master."));
 
-		const filter = (aria: string, className: string, onSelect: (index: number) => void) => {
-			const box = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: aria }));
-			box.render(append(this.frame.controlsSlot, $(`.members-filter.${className}`)));
-			this._register(box.onDidSelect(({ index }) => onSelect(index)));
-			return box;
+		const makeFilter = (id: string, aria: string, onSelect: (index: number) => void): RibbonSelectModel => {
+			const model = this._register(new RibbonSelectModel({
+				id,
+				ariaLabel: aria,
+				tooltip: aria,
+				items: [],
+				selectedId: '0',
+			}));
+			this._register(model.onDidSelect(({ index }) => onSelect(index)));
+			this._register(this.frame.addViewControl(model));
+			return model;
 		};
-		this.storyFilter = filter(localize('membersTable.storyFilter', "Story"), 'story', index => this.setFilter({ story: this.storyIds[index] }));
-		this.kindFilter = filter(localize('membersTable.kindFilter', "Kind"), 'kind', index => this.setFilter({ group: index ? MEMBER_GROUPS[index - 1] : undefined }));
-		this.typeFilter = filter(localize('membersTable.typeFilter', "Object type"), 'type', index => this.setFilter({ type: this.typeIds[index] }));
-		this.kindFilter.setOptions([{ text: localize('membersTable.allKinds', "All kinds") }, ...MEMBER_GROUPS.map(g => ({ text: GROUP_LABELS[g] }))], 0);
-		this.search = this._register(new InputBox(append(this.frame.controlsSlot, $('.members-search')), this.contextViewService, {
+		this.storyFilter = makeFilter('saengine.membersTable.story', localize('membersTable.storyFilter', "Story"), index => this.setFilter({ story: this.storyIds[index] }));
+		this.kindFilter = makeFilter('saengine.membersTable.kind', localize('membersTable.kindFilter', "Kind"), index => this.setFilter({ group: index ? MEMBER_GROUPS[index - 1] : undefined }));
+		this.typeFilter = makeFilter('saengine.membersTable.type', localize('membersTable.typeFilter', "Object type"), index => this.setFilter({ type: this.typeIds[index] }));
+		this.kindFilter.setItems([
+			{ id: '0', label: localize('membersTable.allKinds', "All kinds") },
+			...MEMBER_GROUPS.map((g, i) => ({ id: String(i + 1), label: GROUP_LABELS[g] })),
+		], '0');
+		this.searchHost = $('.members-search');
+		this.search = this._register(new InputBox(this.searchHost, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
 			placeholder: localize('membersTable.search', "Find ID, type, grid"),
 			ariaLabel: localize('membersTable.searchAria', "Find members by ID, object type or grid"),
 		}));
 		this._register(this.search.onDidChange(text => this.setFilter({ text })));
+		this._register(this.frame.addViewControl(this._register(new RibbonElementControl({
+			id: 'saengine.membersTable.search',
+			element: this.searchHost,
+		}))));
 
 		this.frame.setActions([this.exportAction], this.options.followStory ? [this.followAction] : []);
 		this.body = $('.members-body', { tabIndex: 0, role: 'grid', 'aria-multiselectable': 'true', 'aria-label': localize('membersTable.aria', "Members") });
@@ -387,7 +403,7 @@ export class MembersTable extends Disposable {
 				const onStory = !this.filter.story || filterRows(layout, [row], { story: this.filter.story }).length > 0;
 				this.filter = { story: onStory ? this.filter.story : undefined };
 				this.search.value = '';
-				this.kindFilter.select(0);
+				this.kindFilter.selectedId = '0';
 				this.render();
 			}
 		}
@@ -418,13 +434,15 @@ export class MembersTable extends Disposable {
 		if (this.filter.story && !stories.some(s => s.id === this.filter.story)) {
 			this.filter = { ...this.filter, story: undefined };
 		}
-		this.storyFilter.setOptions([{ text: localize('membersTable.allStories', "All stories") }, ...stories.map(s => ({ text: s.name }))], Math.max(0, this.storyIds.indexOf(this.filter.story)));
+		const storySel = this.storyIds.includes(this.filter.story) ? String(this.storyIds.indexOf(this.filter.story)) : '0';
+		this.storyFilter.setItems([{ id: '0', label: localize('membersTable.allStories', "All stories") }, ...stories.map((s, i) => ({ id: String(i + 1), label: s.name }))], storySel);
 		const types = [...new Set(memberRows(layout).map(r => r.type).filter(Boolean))].sort();
 		this.typeIds = [undefined, ...types];
 		if (this.filter.type && !types.includes(this.filter.type)) {
 			this.filter = { ...this.filter, type: undefined };
 		}
-		this.typeFilter.setOptions([{ text: localize('membersTable.allTypes', "All types") }, ...types.map(t => ({ text: t }))], Math.max(0, this.typeIds.indexOf(this.filter.type)));
+		const typeSel = this.typeIds.includes(this.filter.type) ? String(this.typeIds.indexOf(this.filter.type)) : '0';
+		this.typeFilter.setItems([{ id: '0', label: localize('membersTable.allTypes', "All types") }, ...types.map((t, i) => ({ id: String(i + 1), label: t }))], typeSel);
 		this.renderRows();
 	}
 

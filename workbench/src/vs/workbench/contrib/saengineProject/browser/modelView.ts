@@ -19,6 +19,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { openPart } from './projectParts.js';
 import { PROPERTIES_VIEW_ID } from './propertiesDock.js';
 import { TABLES_VIEW_ID } from './tablesView.js';
@@ -52,6 +53,30 @@ const VIEW_TITLES: { readonly [kind in ModelViewKind]: () => string } = {
 	'3d': () => localize('modelView.3dTitle', "3D: the building model (06 BIM)"),
 	analysis: () => localize('modelView.analysisTitle', "Analysis: the analysis model in 3D, plans and elevations, with the results (08 FEM)"),
 };
+
+/**
+ * Creates a `RibbonSegmentedModel` for the Plan | 3D | Analysis switch published to the ribbon
+ * by the Plan, 3D Building, and FEM editors.
+ */
+export function createModelViewSwitch(commandService: ICommandService, current: ModelViewKind): RibbonSegmentedModel {
+	const model = new RibbonSegmentedModel({
+		id: 'saengine.modelView',
+		ariaLabel: localize('modelView.aria', "Model view"),
+		items: (['plan', '3d', 'analysis'] as const).map(kind => ({
+			id: kind,
+			label: VIEW_LABELS[kind](),
+			tooltip: VIEW_TITLES[kind](),
+		})),
+		selectedId: current,
+	});
+	model.addDisposable(model.onDidSelect(id => {
+		if (id !== current) {
+			model.select(current, false);
+			void commandService.executeCommand(SHOW_MODEL_VIEW_COMMAND, id);
+		}
+	}));
+	return model;
+}
 
 /**
  * Appends the Plan | 3D | Analysis switch of the model view to `container` (an editor frame's

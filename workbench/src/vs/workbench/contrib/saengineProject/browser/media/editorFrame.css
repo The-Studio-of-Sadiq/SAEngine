@@ -100,6 +100,57 @@
 	pointer-events: none;
 }
 
+.saengine-editor-frame .sa-frame-body > .sa-frame-progress-body {
+	top: 0;
+	bottom: auto;
+	z-index: 2;
+}
+
+/* Embedded RibbonControl styles when hosted inside an inlineToolbar EditorFrame (e.g. bottom Tables). */
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-ctrl-hidden {
+	display: none !important;
+}
+
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-select-row,
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-element-host {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-ctrl-label {
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	white-space: nowrap;
+}
+
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-select {
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	height: 24px;
+	min-width: 96px;
+	max-width: 170px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-dropdown-border, var(--sa-border));
+	border-radius: var(--sa-radius, 3px);
+	background: var(--vscode-dropdown-background, transparent);
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	cursor: pointer;
+}
+
+.saengine-editor-frame .sa-frame-controls .sa-ribbon-select-text {
+	flex: 1;
+	min-width: 0;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* a pill in the toolbar ("Out of date") */
 .saengine-editor-frame .sa-frame-pill {
 	display: inline-flex;

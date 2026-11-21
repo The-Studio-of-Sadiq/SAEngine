@@ -43,6 +43,7 @@ import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/pr
 import { PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { addCeiling, addCurtainWall, addOpening, addRailing, addRamp, addRoof, addRoom, addSeparator, addWall, ARCH_LAYER_SPECS, ArchKind, architectureDrawing, centreLine, curtainWeight, elevationsOf, findRoom, GridLayout, IArchDrawing, IArchitecture, IArchRef, IArchWall, ICeiling, ICurtainGridRule, ICurtainWall, IDoor, IRailing, IRamp, IRoof, IRoom, itemOf, IWindow, nextId, openingSize, parseArchitecture, pathLength, pickItem, pointAlong, projectOnto, RAMP_KINDS, railingOf, rampGradient, RampKind, removeItem, roofEffectiveOutline, roofWeight, storyCounts, structureUnder, updateItem, updateType, wallLevels, wallsOnStory, wallSnapSegments, wallThickness, wallWeight } from './architectureModel.js';
 import { addComponent, addMass, componentOutline, exportTypesLibrary, IComponentInstance, IConceptualMass, IInPlaceElement, importTypesLibrary, massFloorAreaSummary, massVolumeM3, mirrorComponent } from './architectureComponents.js';
 import { signedArea } from '../../../../platform/saengine/common/geometry.js';
@@ -205,9 +206,8 @@ export class ArchitectureEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private host!: HTMLElement;
 	private message!: HTMLElement;
-	private storyPicker!: SelectBox;
-	private typePicker!: SelectBox;
-	private typeGroup!: HTMLElement;
+	private storyControl!: RibbonSelectModel;
+	private typeControl!: RibbonSelectModel;
 
 	private editor: CadEditorApi | undefined;
 	private archModel: ITextModel | undefined;
@@ -284,9 +284,15 @@ export class ArchitectureEditor extends EditorPane {
 		frame.element.classList.add('saengine-floor-plan', 'saengine-architecture');
 		frame.element.tabIndex = -1;
 
-		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('arch.storyAria', "Story shown") }));
-		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
-		this._register(this.storyPicker.onDidSelect(({ index }) => {
+		this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.architecture.story',
+			ariaLabel: localize('arch.storyAria', "Story shown"),
+			label: localize('arch.storyLabel', "Story"),
+			tooltip: localize('arch.storyAria', "Story shown"),
+			items: [],
+			selectedId: '',
+		}));
+		this._register(this.storyControl.onDidSelect(({ index }) => {
 			const input = this.input as ArchitectureEditorInput | undefined;
 			if (input && this.storyIds[index] && this.storyIds[index] !== input.story) {
 				input.story = this.storyIds[index];
@@ -295,16 +301,24 @@ export class ArchitectureEditor extends EditorPane {
 				this.render();
 			}
 		}));
-		this.typeGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
-		append(this.typeGroup, $('span.sa-frame-label', undefined, localize('arch.type', "Type")));
-		this.typePicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('arch.typeAria', "Type to place") }));
-		this.typePicker.render(append(this.typeGroup, $('.floor-plan-select.type')));
-		this._register(this.typePicker.onDidSelect(({ index }) => {
+		this._register(frame.addViewControl(this.storyControl));
+
+		this.typeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.architecture.type',
+			ariaLabel: localize('arch.typeAria', "Type to place"),
+			label: localize('arch.type', "Type"),
+			tooltip: localize('arch.typeAria', "Type to place"),
+			items: [],
+			selectedId: '',
+			visible: false,
+		}));
+		this._register(this.typeControl.onDidSelect(({ index }) => {
 			if (this.typeIds[index]) {
 				this.types.set(this.typeKey(this.tool), this.typeIds[index]);
 				this.updateStatus();
 			}
 		}));
+		this._register(frame.addToolControl(this.typeControl));
 
 		const cad = append(frame.main, $('.saengine-cad-editor'));
 		this.host = append(cad, $('.cad-host'));
@@ -822,9 +836,9 @@ export class ArchitectureEditor extends EditorPane {
 			// The first floor above the lowest level, as the floor plan opens.
 			input.story = this.storyIds[Math.min(1, this.storyIds.length - 1)];
 		}
-		this.storyPicker.setOptions(
-			stories.length ? stories.map(s => ({ text: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})` })) : [{ text: localize('arch.noStoriesOption', "(no stories)") }],
-			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
+		this.storyControl.setItems(
+			stories.length ? stories.map(s => ({ id: s.id, label: `${s.name} (${s.elevation >= 0 ? '+' : ''}${s.elevation})` })) : [{ id: '', label: localize('arch.noStoriesOption', "(no stories)") }],
+			stories.length ? (input.story ?? this.storyIds[0] ?? '') : '',
 		);
 		const parsed = parseArchitecture(this.archModel.getValue());
 		this.parseError = parsed.kind === 'error' ? parsed.message : undefined;
@@ -947,7 +961,9 @@ export class ArchitectureEditor extends EditorPane {
 		}
 
 		const placing = TYPED_TOOLS.has(this.tool);
-		this.typeGroup.classList.toggle('hidden', !placing);
+		if (!placing) {
+			this.typeControl.visible = false;
+		}
 		if (placing && this.arch) {
 			const typesOf: { readonly [tool: string]: readonly { readonly id: string; readonly name: string }[] } = {
 				wall: this.arch.wallTypes, door: this.arch.doorTypes, window: this.arch.windowTypes,
@@ -967,7 +983,8 @@ export class ArchitectureEditor extends EditorPane {
 				const wall = this.arch!.wallTypes.find(w => w.id === t.id);
 				return this.tool === 'wall' && wall ? `${t.id}: ${t.name} (${wallThickness(wall)} mm)` : `${t.id}: ${t.name}`;
 			};
-			this.typePicker.setOptions(types.length ? types.map(t => ({ text: label(t) })) : [{ text: localize('arch.noTypes', "(none defined)") }], Math.max(0, this.typeIds.indexOf(chosen ?? '')));
+			this.typeControl.setItems(types.length ? types.map((t, i) => ({ id: this.typeIds[i] ?? String(i), label: label(t) })) : [{ id: '', label: localize('arch.noTypes', "(none defined)") }], this.typeIds.includes(chosen ?? '') ? (chosen ?? '') : (this.typeIds[0] ?? ''));
+			this.typeControl.visible = true;
 		}
 	}
 

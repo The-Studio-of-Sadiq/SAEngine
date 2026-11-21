@@ -6,7 +6,6 @@
 import '../../saengineLibrary/browser/media/modelEditors.css';
 import './media/mepEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, isHTMLInputElement } from '../../../../base/browser/dom.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -22,7 +21,6 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -31,7 +29,6 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorOpenContext } from '../../../common/editor.js';
@@ -41,6 +38,7 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { IPartSectionPane, sectionOption } from '../../../services/saengineProject/common/partSections.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { fieldPlaceholder, fieldUnitLabel, formatField, formatNumber, IFieldSpec, parseField } from '../../saengineSoil/browser/soilDocument.js';
 import { convertTableCells, convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
@@ -140,24 +138,6 @@ const VIEWS: readonly { readonly view: View; readonly label: string; readonly ic
 /** The state of the report: not asked yet, being computed, computed, or no backend / failed. */
 type ReportState = 'idle' | 'computing' | 'ok' | 'missing' | 'error';
 
-/** One word for a labelled action on a narrow window (its full name stays in the tooltip). */
-function shortActionLabel(action: IAction): string {
-	const id = action.id.replace('saengine.mep.editor.', '');
-	switch (id) {
-		case 'addEquipment': case 'addElecEquipment': return localize('mep.short.equipment', "Equipment");
-		case 'addShaft': return localize('mep.short.shaft', "Shaft");
-		case 'addRiser': case 'addElecRiser': case 'addFireRiser': return localize('mep.short.riser', "Riser");
-		case 'addTank': return localize('mep.short.tank', "Tank");
-		case 'sizeTanks': return localize('mep.short.sizeTanks', "Size");
-		case 'addPlant': return localize('mep.short.plant', "Plant");
-		case 'drawDuct': return localize('mep.short.duct', "Duct");
-		case 'calculateLoads': return localize('mep.short.loads', "Loads");
-		case 'drawTray': return localize('mep.short.tray', "Tray");
-		case 'proposeFire': return localize('mep.short.pumps', "Pumps");
-		default: return action.label;
-	}
-}
-
 /** How long Calculate Loads waits for the backend before it gives up [min]. */
 const HVAC_LOADS_TIMEOUT_MIN = 8;
 
@@ -242,9 +222,9 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private frame!: EditorFrame;
 	private viewElement!: HTMLElement;
-	private storyPicker!: SelectBox;
-	private storyIds: string[] = [];
-	private readonly viewButtons = new Map<View, HTMLButtonElement>();
+	private storyControl!: RibbonSelectModel;
+	private viewControl!: RibbonSegmentedModel;
+	private disciplineControl!: RibbonSegmentedModel;
 
 	private model: ITextModel | undefined;
 	private document: IMep | undefined;
@@ -259,7 +239,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	private discipline: Discipline = 'coordination';
 	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
 	readonly onDidChangePartSection = this._onDidChangePartSection.event;
-	private readonly disciplineButtons = new Map<Discipline, HTMLButtonElement>();
 
 	private plumbingReport: IPlumbingReport | undefined;
 	private plumbingState: ReportState = 'idle';
@@ -394,9 +373,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,
 	) {
 		super(MepEditor.ID, group, telemetryService, themeService, storageService);
@@ -436,26 +413,35 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		frame.setTitle(localize('mep.title', "MEP"));
 		frame.setHelp(localize('mep.help', "The building services as they affect the structure: equipment that loads the floors (water tanks, chillers, generators...), sleeves and openings through beams, slabs and walls, and the vertical shafts. Pick a story, add equipment from typical presets and edit it to the supplier's data, select a beam, slab or wall to add a sleeve through it. Import the MEP IFC models to find where pipes and ducts cross the structure; the Results view lists those clashes and checks the openings."));
 
-		const disciplines = append(frame.titleSlot, $('.sa-segmented.mep-discipline', { role: 'tablist', 'aria-label': localize('mep.disciplineAria', "Discipline") }));
-		for (const { discipline, label } of DISCIPLINE_VIEWS) {
-			const button = append(disciplines, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.showDiscipline(discipline)));
-			this.disciplineButtons.set(discipline, button);
-		}
-		const storyGroup = append(frame.titleSlot, $('.mep-story'));
-		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('mep.storyAria', "Story shown") }));
-		this.storyPicker.render(append(storyGroup, $('.mep-story-select')));
-		this._register(this.storyPicker.onDidSelect(({ index }) => this.showStory(this.storyIds[index])));
+		this.disciplineControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.mep.discipline',
+			ariaLabel: localize('mep.disciplineAria', "Discipline"),
+			items: DISCIPLINE_VIEWS.map(({ discipline, label }) => ({ id: discipline, label })),
+			selectedId: this.discipline,
+		}));
+		this._register(this.disciplineControl.onDidSelect(id => this.showDiscipline(id as Discipline)));
+		this._register(frame.addViewControl(this.disciplineControl));
 
-		const views = append(frame.controlsSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('mep.viewsAria', "MEP view") }));
-		for (const { view, label, icon } of VIEWS) {
-			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $(ThemeIcon.asCSSSelector(icon)));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.showView(view)));
-			this.viewButtons.set(view, button);
-		}
+		this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.mep.story',
+			ariaLabel: localize('mep.storyAria', "Story shown"),
+			label: localize('mep.storyLabel', "Story"),
+			tooltip: localize('mep.storyAria', "Story shown"),
+			items: [],
+			selectedId: '',
+			disabled: true,
+		}));
+		this._register(this.storyControl.onDidSelect(({ id }) => this.showStory(id || undefined)));
+		this._register(frame.addViewControl(this.storyControl));
+
+		this.viewControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.mep.views',
+			ariaLabel: localize('mep.viewsAria', "MEP view"),
+			items: VIEWS.map(({ view, label, icon }) => ({ id: view, label, icon })),
+			selectedId: this.view,
+		}));
+		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
+		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.mep-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -698,15 +684,16 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 	}
 
 	private updateStoryPicker(): void {
-		if (!this.storyPicker) {
+		if (!this.storyControl) {
 			return;
 		}
-		this.storyIds = this.context.stories.map(s => s.id);
-		const options: ISelectOptionItem[] = this.context.stories.map(s => ({
-			text: localize('mep.storyOption', "{0} ({1} m)", s.name, `${s.elevation >= 0 ? '+' : ''}${formatNumber(s.elevation / 1000, 2)}`),
+		const items = this.context.stories.map(s => ({
+			id: s.id,
+			label: localize('mep.storyOption', "{0} ({1} m)", s.name, `${s.elevation >= 0 ? '+' : ''}${formatNumber(s.elevation / 1000, 2)}`),
 		}));
-		this.storyPicker.setOptions(options.length ? options : [{ text: localize('mep.noStories', "No stories") }], Math.max(0, this.storyIds.indexOf(this.story ?? '')));
-		this.storyPicker.setEnabled(options.length > 0);
+		const selectedId = this.story && items.some(o => o.id === this.story) ? this.story : (items[0]?.id ?? '');
+		this.storyControl.setItems(items.length ? items : [{ id: '', label: localize('mep.noStories', "No stories") }], selectedId);
+		this.storyControl.disabled = items.length === 0;
 	}
 
 	private showStory(story: string | undefined): void {
@@ -1675,48 +1662,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.renderStatus();
 	}
 
-	private readonly labelledActions = this._register(new DisposableStore());
-	private labelledGroup: HTMLElement | undefined;
-
-	/** Text buttons for `actions` in the frame's end slot; a submenu opens its menu under the button. */
-	private renderLabelledActions(frame: EditorFrame, actions: readonly IAction[]): void {
-		this.labelledActions.clear();
-		this.labelledGroup?.remove();
-		this.labelledGroup = undefined;
-		if (!actions.length) {
-			return;
-		}
-		const group = this.labelledGroup = append(frame.endSlot, $('.mep-text-actions'));
-		for (const action of actions) {
-			const button = append(group, $<HTMLButtonElement>('button.mep-text-action', { type: 'button', title: action.tooltip || action.label }));
-			if (action.class) {
-				append(button, $(`span.${action.class.split(' ').join('.')}`));
-			}
-			// The full label on wide windows, one word on narrow ones (1366 px: the toolbar has room for little more than icons).
-			append(button, $('span.mep-text-action-label', undefined, action.label));
-			append(button, $('span.mep-text-action-short', undefined, shortActionLabel(action)));
-			if (action instanceof SubmenuAction) {
-				append(button, $(ThemeIcon.asCSSSelector(Codicon.chevronDown)));
-				button.setAttribute('aria-haspopup', 'menu');
-			}
-			const sync = () => {
-				button.disabled = !action.enabled;
-				button.title = action.tooltip || action.label;
-			};
-			sync();
-			if (action instanceof Action) {
-				this.labelledActions.add(action.onDidChange(sync));
-			}
-			this.labelledActions.add(addDisposableListener(button, EventType.CLICK, () => {
-				if (action instanceof SubmenuAction) {
-					this.contextMenuService.showContextMenu({ getAnchor: () => button, getActions: () => action.actions });
-				} else {
-					action.run();
-				}
-			}));
-		}
-	}
-
 	private renderReportDependent(): void {
 		if (this.view !== 'data') {
 			this.renderView();
@@ -1737,18 +1682,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	private updateViewButtons(): void {
 		const usable = !!this.document;
-		for (const [discipline, button] of this.disciplineButtons) {
-			const active = discipline === this.discipline;
-			button.classList.toggle('active', active);
-			button.setAttribute('aria-selected', String(active));
-			button.disabled = !usable;
-		}
-		for (const [view, button] of this.viewButtons) {
-			const active = view === this.view;
-			button.classList.toggle('active', active);
-			button.setAttribute('aria-selected', String(active));
-			button.disabled = !usable;
-		}
+		this.disciplineControl.disabled = !usable;
+		this.disciplineControl.selectedId = this.discipline;
+		this.viewControl.disabled = !usable;
+		this.viewControl.selectedId = this.view;
 	}
 
 	private renderActions(): void {
@@ -1796,18 +1733,11 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			}
 			secondary.push(this.openTextAction);
 		}
-		// The discipline's main actions as labelled buttons (an icon alone did not say what it does); the rest stay icons.
-		const labelled: IAction[] = !usable ? [] : plumbingView ? [this.addRiserAction, this.addTankAction, this.sizeTanksAction]
-			: discipline === 'hvac' ? [this.addPlantAction, this.drawDuctAction, this.calculateLoadsAction]
-				: discipline === 'electrical' ? [this.addElecEquipmentAction, this.addElecRiserAction, this.drawTrayAction]
-					: discipline === 'fire' ? [this.addFireRiserAction, this.proposeFireAction]
-						: [this.addEquipmentAction, this.addShaftAction];
-		const icons = primary.filter(a => !labelled.includes(a));
-		const key = `${labelled.map(a => a.id).join()}|${icons.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
+		// Keep every action in the frame's primary list so all discipline tools are reachable in the ribbon.
+		const key = `${primary.map(a => a.id).join()}|${secondary.map(a => a.id).join()}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
-			frame.setActions(icons, secondary);
-			this.renderLabelledActions(frame, labelled);
+			frame.setActions(primary, secondary);
 		}
 	}
 

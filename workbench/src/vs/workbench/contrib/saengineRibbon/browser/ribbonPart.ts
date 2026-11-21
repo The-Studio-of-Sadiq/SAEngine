@@ -7,14 +7,15 @@ import './media/ribbon.css';
 import { $, addDisposableListener, append, clearNode, DisposableResizeObserver, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IMenu, IMenuService, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenu, IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -22,12 +23,26 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { getEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
+import { frameOfContainer } from '../../saengineProject/browser/modelLayoutModel.js';
+import {
+	collectControlCollapsedActions,
+	dedupeEditorFrameActions,
+	hasVisibleControls,
+	IEditorRibbonFrame,
+	IRibbonControlServices,
+	ISaengineRibbonToolbarService,
+	renderRibbonActionButton,
+	renderRibbonControlStack,
+	renderRibbonHelpButton,
+	renderRibbonPill,
+} from './ribbonControls.js';
 import {
 	buildRibbonGroups,
 	computeCollapsedRibbonGroups,
@@ -38,12 +53,16 @@ import {
 	getRibbonGroupPriority,
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
+	IRibbonCustomGroup,
 	IRibbonGroupModel,
 	IRibbonTabDescriptor,
 	onDidChangeRibbonRegistry,
+	packRibbonColumns,
 	resolveActiveTabForEditor,
 	resolveDataPanelPart,
+	resolveEditorToolbarTargetTab,
 	RIBBON_TABS,
+	RibbonButtonSize,
 	RibbonItem,
 	RibbonTabId,
 	SAENGINE_EDITOR_IDS,
@@ -113,6 +132,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private tabButtons: HTMLButtonElement[] = [];
 	private activeTabId: RibbonTabId = 'home';
 	private lastEditorKey: string | undefined;
+	private activeFrame: IEditorRibbonFrame | undefined;
 	private menuBound = false;
 	private syncingEditor = false;
 	private collapsed: boolean;
@@ -130,6 +150,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
+		@ISaengineRibbonToolbarService private readonly ribbonToolbarService: ISaengineRibbonToolbarService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		ribbonInstance = this;
@@ -174,6 +196,12 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}));
 		this._register(this.projectService.onDidChangeProject(() => this.panelScheduler.schedule()));
 		this._register(onDidChangeRibbonRegistry(() => this.panelScheduler.schedule()));
+		this._register(this.ribbonToolbarService.onDidChangeFrames(() => this.syncActiveFrame()));
+		this._register(this.ribbonToolbarService.onDidChangeToolbar(frame => {
+			if (frame === this.activeFrame) {
+				this.panelScheduler.schedule();
+			}
+		}));
 		const resizeObserver = this._register(new DisposableResizeObserver('saengine.ribbon', () => this.resizeScheduler.schedule(), getWindow(this.panelsEl)));
 		resizeObserver.observe(this.panelsEl);
 
@@ -247,12 +275,28 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const tabChanged = nextTab !== this.activeTabId;
 			this.activeTabId = nextTab;
 
+			const pane = this.editorService.activeEditorPane;
+			const nextFrame = pane instanceof EditorPane ? frameOfContainer(this.ribbonToolbarService.frames, pane.getContainer()) : undefined;
+			const frameChanged = nextFrame !== this.activeFrame;
+			this.activeFrame = nextFrame;
+
 			this.renderTabs(tabs);
 			if (tabChanged) {
 				this.bindActiveTabMenu();
+			} else if (frameChanged) {
+				this.panelScheduler.schedule();
 			}
 		} finally {
 			this.syncingEditor = false;
+		}
+	}
+
+	private syncActiveFrame(): void {
+		const pane = this.editorService.activeEditorPane;
+		const nextFrame = pane instanceof EditorPane ? frameOfContainer(this.ribbonToolbarService.frames, pane.getContainer()) : undefined;
+		if (nextFrame !== this.activeFrame) {
+			this.activeFrame = nextFrame;
+			this.panelScheduler.schedule();
 		}
 	}
 
@@ -374,6 +418,189 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		this.renderActivePanel();
 	}
 
+	private collectMenuCommandIds(menuId: MenuId, out: Set<string>, visited = new Set<string>()): void {
+		if (visited.has(menuId.id)) {
+			return;
+		}
+		visited.add(menuId.id);
+		for (const item of MenuRegistry.getMenuItems(menuId)) {
+			if (item.when && !this.contextKeyService.contextMatchesRules(item.when)) {
+				continue;
+			}
+			if (isIMenuItem(item)) {
+				out.add(item.command.id);
+			} else if (isISubmenuItem(item)) {
+				this.collectMenuCommandIds(item.submenu, out, visited);
+			}
+		}
+	}
+
+	private buildEditorFrameGroups(
+		frame: IEditorRibbonFrame,
+		activeTabId: RibbonTabId,
+		targetTabId: RibbonTabId,
+		existingCommandIds: ReadonlySet<string>,
+	): IRibbonCustomGroup[] {
+		const services: IRibbonControlServices = {
+			hoverService: this.hoverService,
+			contextMenuService: this.contextMenuService,
+			commandService: this.commandService,
+		};
+		const groups: IRibbonCustomGroup[] = [];
+
+		if (activeTabId === targetTabId) {
+			if (hasVisibleControls(frame.viewControls)) {
+				groups.push({
+					tabId: activeTabId,
+					group: '0_1_EditorView',
+					label: localize('ribbon.grp.view', "View"),
+					icon: Codicon.eye,
+					collapsible: true,
+					collapsePriority: 120,
+					getCollapsedActions: store => collectControlCollapsedActions(frame.viewControls, store),
+					render: container => renderRibbonControlStack(container, frame.viewControls, services),
+				});
+			}
+
+			if (hasVisibleControls(frame.toolControls)) {
+				groups.push({
+					tabId: activeTabId,
+					group: '0_2_EditorTool',
+					label: localize('ribbon.grp.tool', "Tool"),
+					icon: Codicon.tools,
+					collapsible: true,
+					collapsePriority: 115,
+					getCollapsedActions: store => collectControlCollapsedActions(frame.toolControls, store),
+					render: container => renderRibbonControlStack(container, frame.toolControls, services),
+				});
+			}
+
+			const deduped = dedupeEditorFrameActions(frame.primaryActions, frame.secondaryActions, existingCommandIds);
+			const primaryButtons = deduped.primary.filter(a => !(a instanceof Separator));
+			const secondaryItems = deduped.secondary.filter(a => !(a instanceof Separator));
+			if (primaryButtons.length > 0 || secondaryItems.length > 0 || frame.pills.length > 0) {
+				const firstIcon = this.iconOfAction(primaryButtons[0] ?? secondaryItems[0]) ?? Codicon.symbolMisc;
+				groups.push({
+					tabId: activeTabId,
+					group: '0_3_EditorActions',
+					label: frame.title,
+					icon: firstIcon,
+					collapsible: true,
+					collapsePriority: 85,
+					getCollapsedActions: store => {
+						const out: IAction[] = [...primaryButtons];
+						if (deduped.secondary.length) {
+							if (out.length) {
+								out.push(new Separator());
+							}
+							out.push(...deduped.secondary);
+						}
+						for (const pill of frame.pills) {
+							if (pill.run) {
+								const run = pill.run;
+								out.push(store.add(new Action(pill.id, pill.text, pill.icon ? ThemeIcon.asClassName(pill.icon) : undefined, true, async () => run())));
+							}
+						}
+						return out;
+					},
+					render: container => {
+						const store = new DisposableStore();
+						const useLargePrimary = primaryButtons.length <= 2 && secondaryItems.length === 0 && frame.pills.length === 0;
+						const packed = packRibbonColumns(primaryButtons.map(action => ({
+							action,
+							size: (useLargePrimary ? 'large' : 'small') as RibbonButtonSize,
+						})));
+						for (const col of packed) {
+							if (col.kind === 'large') {
+								store.add(renderRibbonActionButton(container, col.item.action, 'large', services));
+							} else {
+								const stackEl = append(container, $('div.sa-ribbon-stack'));
+								for (const entry of col.items) {
+									store.add(renderRibbonActionButton(stackEl, entry.action, 'small', services));
+								}
+							}
+						}
+						if (secondaryItems.length > 0 || frame.pills.length > 0) {
+							const extraStack = append(container, $('div.sa-ribbon-stack'));
+							for (const pill of frame.pills) {
+								store.add(renderRibbonPill(extraStack, pill, services));
+							}
+							if (secondaryItems.length <= 2 && primaryButtons.length <= 2 && frame.pills.length === 0) {
+								for (const action of secondaryItems) {
+									store.add(renderRibbonActionButton(extraStack, action, 'small', services));
+								}
+							} else if (secondaryItems.length > 0) {
+								const moreBtn = append(extraStack, $<HTMLButtonElement>('button.sa-ribbon-btn.sa-ribbon-btn-small.sa-ribbon-dropdown'));
+								moreBtn.type = 'button';
+								moreBtn.setAttribute('aria-haspopup', 'menu');
+								moreBtn.setAttribute('aria-expanded', 'false');
+								const moreLabel = localize('ribbon.moreActions', "More");
+								moreBtn.setAttribute('aria-label', moreLabel);
+								append(moreBtn, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(Codicon.ellipsis)}`)).setAttribute('aria-hidden', 'true');
+								append(moreBtn, $('span.sa-ribbon-btn-label', undefined, moreLabel));
+								append(moreBtn, $(`span.sa-ribbon-caret${ThemeIcon.asCSSSelector(Codicon.chevronDown)}`)).setAttribute('aria-hidden', 'true');
+								store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), moreBtn, localize('ribbon.moreActionsTip', "More actions for {0}", frame.title)));
+								store.add(addDisposableListener(moreBtn, EventType.CLICK, () => {
+									this.openSubmenu(moreBtn, moreBtn, deduped.secondary);
+								}));
+							}
+						}
+						return store;
+					},
+				});
+			}
+
+			if (frame.help) {
+				const help = frame.help;
+				groups.push({
+					tabId: activeTabId,
+					group: '999_EditorHelp',
+					label: localize('ribbon.grp.help', "Help"),
+					icon: Codicon.question,
+					collapsible: true,
+					collapsePriority: 5,
+					getCollapsedActions: store => [
+						store.add(new Action('saengine.ribbon.editorHelp', localize('ribbon.help.action', "Help: {0}", frame.title), ThemeIcon.asClassName(Codicon.question), true, async () => {
+							if (help.chapter) {
+								await this.commandService.executeCommand(help.openManualCommand, help.chapter);
+							}
+						})),
+					],
+					render: container => renderRibbonHelpButton(container, help, services),
+				});
+			}
+		}
+
+		for (const tabGroup of frame.tabGroups) {
+			if (tabGroup.tabId !== activeTabId) {
+				continue;
+			}
+			if ((tabGroup.isVisible && !tabGroup.isVisible()) || !hasVisibleControls(tabGroup.controls)) {
+				continue;
+			}
+			groups.push({
+				tabId: activeTabId,
+				group: tabGroup.group,
+				label: tabGroup.label,
+				icon: tabGroup.icon ?? Codicon.settings,
+				collapsible: true,
+				collapsePriority: tabGroup.collapsePriority ?? 110,
+				getCollapsedActions: store => collectControlCollapsedActions(tabGroup.controls, store),
+				render: container => renderRibbonControlStack(container, tabGroup.controls, services),
+			});
+		}
+
+		return groups;
+	}
+
+	private iconOfAction(action: IAction | undefined): ThemeIcon | undefined {
+		if (!action?.class) {
+			return undefined;
+		}
+		const match = /\bcodicon-([a-z0-9-]+)\b/i.exec(action.class);
+		return match ? ThemeIcon.fromId(match[1]) : undefined;
+	}
+
 	private renderActivePanel(): void {
 		const menu = this.activeMenu.value;
 		if (!menu) {
@@ -395,8 +622,28 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		toolbar.setAttribute('role', 'toolbar');
 		toolbar.setAttribute('aria-label', descriptor.label);
 
+		const activeFrame = this.activeFrame;
+		const activeFrameActionsById = new Map<string, IAction>();
+		let frameCustomGroups: IRibbonCustomGroup[] = [];
+		if (activeFrame) {
+			for (const action of [...activeFrame.primaryActions, ...activeFrame.secondaryActions]) {
+				if (!(action instanceof Separator) && !activeFrameActionsById.has(action.id)) {
+					activeFrameActionsById.set(action.id, action);
+				}
+			}
+			const visibleTabs = this.visibleTabs();
+			const targetTabId = resolveEditorToolbarTargetTab(visibleTabs);
+			const contextualTabs = visibleTabs.filter(t => t.contextual);
+			const dedupeTabs = contextualTabs.length ? contextualTabs : visibleTabs.filter(t => t.id === targetTabId);
+			const existingCommandIds = new Set<string>();
+			for (const tab of dedupeTabs) {
+				this.collectMenuCommandIds(tab.menuId, existingCommandIds);
+			}
+			frameCustomGroups = this.buildEditorFrameGroups(activeFrame, descriptor.id, targetTabId, existingCommandIds);
+		}
+
 		const actions = menu.getActions({ renderShortTitle: true });
-		const groups = buildRibbonGroups(actions, getRibbonCustomGroups(descriptor.id), {
+		const groups = buildRibbonGroups(actions, [...getRibbonCustomGroups(descriptor.id), ...frameCustomGroups], {
 			menuId: descriptor.menuId,
 			hintLookup: getRibbonItemHint,
 			labelLookup: getRibbonGroupLabel,
@@ -418,7 +665,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			groupEl.setAttribute('aria-labelledby', `sa-ribbon-grp-${descriptor.id}-${index}`);
 
 			const disposables = this.panelDisposables.add(new DisposableStore());
-			this.renderExpandedGroup(groupEl, descriptor.id, index, group, disposables);
+			this.renderExpandedGroup(groupEl, descriptor.id, index, group, disposables, activeFrameActionsById);
 
 			renderedGroups.push({
 				model: group,
@@ -426,7 +673,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 				index,
 				groupEl,
 				disposables,
-				collapsible: !group.custom && group.columns.length > 0,
+				collapsible: group.custom ? !!group.custom.collapsible : group.columns.length > 0,
 				expandedWidth: groupEl.offsetWidth,
 				collapsedWidth: undefined,
 				collapsed: false,
@@ -461,6 +708,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		index: number,
 		group: IRibbonGroupModel,
 		store: DisposableStore,
+		activeFrameActionsById: ReadonlyMap<string, IAction>,
 	): void {
 		const itemsEl = append(groupEl, $('div.sa-ribbon-items'));
 		const labelEl = append(groupEl, $('div.sa-ribbon-group-label', undefined, group.label));
@@ -473,11 +721,11 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 		for (const column of group.columns) {
 			if (column.kind === 'large') {
-				this.renderItem(itemsEl, column.item, store);
+				this.renderItem(itemsEl, column.item, store, activeFrameActionsById);
 			} else {
 				const stackEl = append(itemsEl, $('div.sa-ribbon-stack'));
 				for (const item of column.items) {
-					this.renderItem(stackEl, item, store);
+					this.renderItem(stackEl, item, store, activeFrameActionsById);
 				}
 			}
 		}
@@ -502,17 +750,22 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		labelSpan.id = `sa-ribbon-grp-${tabId}-${index}`;
 		append(button, $(`span.sa-ribbon-caret${ThemeIcon.asCSSSelector(Codicon.chevronDown)}`)).setAttribute('aria-hidden', 'true');
 
-		const groupActions = this.collectGroupActions(group);
 		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, group.label));
 		store.add(addDisposableListener(button, EventType.CLICK, () => {
+			const menuStore = new DisposableStore();
+			const groupActions = this.collectGroupActions(group, menuStore);
 			if (!groupActions.length) {
+				menuStore.dispose();
 				return;
 			}
-			this.openSubmenu(button, button, groupActions);
+			this.openSubmenu(button, button, groupActions, () => menuStore.dispose());
 		}));
 	}
 
 	private getGroupIcon(group: IRibbonGroupModel): ThemeIcon {
+		if (group.custom?.icon) {
+			return group.custom.icon;
+		}
 		for (const column of group.columns) {
 			if (column.kind === 'large') {
 				return this.getItemIcon(column.item);
@@ -538,7 +791,10 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		return Codicon.symbolMisc;
 	}
 
-	private collectGroupActions(group: IRibbonGroupModel): readonly IAction[] {
+	private collectGroupActions(group: IRibbonGroupModel, store: DisposableStore): readonly IAction[] {
+		if (group.custom?.getCollapsedActions) {
+			return group.custom.getCollapsedActions(store);
+		}
 		const actions: IAction[] = [];
 		for (const column of group.columns) {
 			if (column.kind === 'large') {
@@ -564,7 +820,15 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			this.renderCollapsedGroup(entry.groupEl, entry.tabId, entry.index, entry.model, entry.disposables);
 			entry.collapsedWidth = entry.groupEl.offsetWidth;
 		} else {
-			this.renderExpandedGroup(entry.groupEl, entry.tabId, entry.index, entry.model, entry.disposables);
+			const activeActions = new Map<string, IAction>();
+			if (this.activeFrame) {
+				for (const action of [...this.activeFrame.primaryActions, ...this.activeFrame.secondaryActions]) {
+					if (!(action instanceof Separator) && !activeActions.has(action.id)) {
+						activeActions.set(action.id, action);
+					}
+				}
+			}
+			this.renderExpandedGroup(entry.groupEl, entry.tabId, entry.index, entry.model, entry.disposables, activeActions);
 			entry.expandedWidth = entry.groupEl.offsetWidth;
 		}
 	}
@@ -638,7 +902,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private collectToolbarButtons(container: HTMLElement, out: HTMLElement[] = []): HTMLElement[] {
 		let child = container.firstElementChild;
 		while (child) {
-			if (isHTMLElement(child)) {
+			if (isHTMLElement(child) && !child.classList.contains('sa-ribbon-ctrl-hidden') && !child.classList.contains('hidden')) {
 				if (child.tagName === 'BUTTON') {
 					out.push(child);
 				} else {
@@ -650,37 +914,62 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		return out;
 	}
 
-	private renderItem(container: HTMLElement, item: RibbonItem, store: DisposableStore): void {
+	private renderItem(
+		container: HTMLElement,
+		item: RibbonItem,
+		store: DisposableStore,
+		activeFrameActionsById: ReadonlyMap<string, IAction>,
+	): void {
 		if (item.kind === 'action') {
 			if (item.renderCustom) {
 				store.add(item.renderCustom(container, this.instantiationService, item.action));
 				return;
 			}
 			const action = item.action;
-			const icon = ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : Codicon.symbolMisc;
+			const liveAction = activeFrameActionsById.get(action.id);
+			const baseIcon = ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : Codicon.symbolMisc;
 			const button = append(container, $<HTMLButtonElement>(`button.sa-ribbon-btn.sa-ribbon-btn-${item.size}`));
 			button.type = 'button';
-			append(button, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(icon)}`)).setAttribute('aria-hidden', 'true');
+			const iconEl = append(button, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(baseIcon)}`));
+			iconEl.setAttribute('aria-hidden', 'true');
 			append(button, $('span.sa-ribbon-btn-label', undefined, item.label));
 
-			if (action.checked !== undefined) {
-				button.setAttribute('aria-pressed', String(action.checked));
-			}
-			if (!action.enabled) {
-				button.setAttribute('aria-disabled', 'true');
-				button.classList.add('sa-ribbon-disabled');
-			}
-
 			const fullTitle = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
-			const tip = this.buildTooltip(action.id, fullTitle, action.tooltip, action.enabled);
-			button.setAttribute('aria-label', fullTitle);
-			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip));
+			const hover = store.add(new MutableDisposable<IDisposable>());
+			const syncActionState = () => {
+				const icon = (liveAction ? this.iconOfAction(liveAction) : undefined) ?? baseIcon;
+				iconEl.className = `sa-ribbon-icon ${ThemeIcon.asClassName(icon)}`;
+				const checked = liveAction?.checked !== undefined ? liveAction.checked : action.checked;
+				if (checked !== undefined) {
+					button.setAttribute('aria-pressed', String(checked));
+				} else {
+					button.removeAttribute('aria-pressed');
+				}
+				const enabled = action.enabled && (liveAction ? liveAction.enabled : true);
+				if (!enabled) {
+					button.setAttribute('aria-disabled', 'true');
+					button.classList.add('sa-ribbon-disabled');
+				} else {
+					button.removeAttribute('aria-disabled');
+					button.classList.remove('sa-ribbon-disabled');
+				}
+				const titleText = liveAction?.label || fullTitle;
+				const detailText = liveAction?.tooltip || action.tooltip;
+				const tip = this.buildTooltip(action.id, titleText, detailText, enabled);
+				button.setAttribute('aria-label', titleText);
+				hover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip);
+			};
+
+			syncActionState();
+			if (liveAction instanceof Action) {
+				store.add(liveAction.onDidChange(syncActionState));
+			}
 
 			store.add(addDisposableListener(button, EventType.CLICK, () => {
 				if (button.getAttribute('aria-disabled') === 'true') {
 					return;
 				}
-				void action.run();
+				void (liveAction ?? action).run();
 			}));
 			return;
 		}
@@ -688,32 +977,49 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		const submenu = item.action;
 		if (item.isSplit && item.primaryAction) {
 			const primary = item.primaryAction;
+			const livePrimary = activeFrameActionsById.get(primary.id);
 			const split = append(container, $(`div.sa-ribbon-split.sa-ribbon-split-${item.size}`));
 			const hasEnabledChild = submenu.actions.some(a => a.enabled);
-			if (!primary.enabled && !hasEnabledChild) {
-				split.classList.add('sa-ribbon-disabled');
-			}
 
 			const mainBtn = append(split, $<HTMLButtonElement>(`button.sa-ribbon-btn.sa-ribbon-btn-${item.size}.sa-ribbon-split-main`));
 			mainBtn.type = 'button';
-			const icon = ThemeIcon.isThemeIcon(submenu.item.icon)
+			const baseIcon = ThemeIcon.isThemeIcon(submenu.item.icon)
 				? submenu.item.icon
 				: ThemeIcon.isThemeIcon(primary.item.icon) ? primary.item.icon : Codicon.symbolMisc;
-			append(mainBtn, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(icon)}`)).setAttribute('aria-hidden', 'true');
+			const iconEl = append(mainBtn, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(baseIcon)}`));
+			iconEl.setAttribute('aria-hidden', 'true');
 			append(mainBtn, $('span.sa-ribbon-btn-label', undefined, item.label));
-			if (!primary.enabled) {
-				mainBtn.setAttribute('aria-disabled', 'true');
-				mainBtn.classList.add('sa-ribbon-disabled');
-			}
+
 			const primaryTitle = typeof primary.item.title === 'string' ? primary.item.title : primary.item.title.value;
-			const mainTip = this.buildTooltip(primary.id, primaryTitle, primary.tooltip, primary.enabled);
-			mainBtn.setAttribute('aria-label', primaryTitle);
-			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), mainBtn, mainTip));
+			const mainHover = store.add(new MutableDisposable<IDisposable>());
+			const syncPrimaryState = () => {
+				const icon = (livePrimary ? this.iconOfAction(livePrimary) : undefined) ?? baseIcon;
+				iconEl.className = `sa-ribbon-icon ${ThemeIcon.asClassName(icon)}`;
+				const enabled = primary.enabled && (livePrimary ? livePrimary.enabled : true);
+				split.classList.toggle('sa-ribbon-disabled', !enabled && !hasEnabledChild);
+				if (!enabled) {
+					mainBtn.setAttribute('aria-disabled', 'true');
+					mainBtn.classList.add('sa-ribbon-disabled');
+				} else {
+					mainBtn.removeAttribute('aria-disabled');
+					mainBtn.classList.remove('sa-ribbon-disabled');
+				}
+				const titleText = livePrimary?.label || primaryTitle;
+				const mainTip = this.buildTooltip(primary.id, titleText, livePrimary?.tooltip || primary.tooltip, enabled);
+				mainBtn.setAttribute('aria-label', titleText);
+				mainHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), mainBtn, mainTip);
+			};
+
+			syncPrimaryState();
+			if (livePrimary instanceof Action) {
+				store.add(livePrimary.onDidChange(syncPrimaryState));
+			}
+
 			store.add(addDisposableListener(mainBtn, EventType.CLICK, () => {
 				if (mainBtn.getAttribute('aria-disabled') === 'true') {
 					return;
 				}
-				void primary.run();
+				void (livePrimary ?? primary).run();
 			}));
 
 			const dropBtn = append(split, $<HTMLButtonElement>('button.sa-ribbon-split-drop'));
@@ -763,13 +1069,16 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}));
 	}
 
-	private openSubmenu(anchor: HTMLElement, trigger: HTMLElement, actions: readonly IAction[]): void {
+	private openSubmenu(anchor: HTMLElement, trigger: HTMLElement, actions: readonly IAction[], onHideDispose?: () => void): void {
 		trigger.setAttribute('aria-expanded', 'true');
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			onHide: () => trigger.setAttribute('aria-expanded', 'false'),
+			onHide: () => {
+				trigger.setAttribute('aria-expanded', 'false');
+				onHideDispose?.();
+			},
 		});
 	}
 
@@ -834,6 +1143,10 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 	private onToolbarKeyDown(toolbar: HTMLElement, event: StandardKeyboardEvent): void {
 		if (event.browserEvent.defaultPrevented) {
+			return;
+		}
+		const target = event.target;
+		if (isHTMLElement(target) && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
 			return;
 		}
 		const buttons = this.collectToolbarButtons(toolbar);

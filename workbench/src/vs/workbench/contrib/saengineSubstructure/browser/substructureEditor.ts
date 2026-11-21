@@ -38,6 +38,7 @@ import { DEVELOPER_MODE_SETTING } from '../../../services/saengineProject/common
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { confirmDelete } from '../../../services/saengineProject/common/confirmDelete.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { convertTableCells, convertTextNodes } from '../../saengineProject/browser/displayUnitsTable.js';
 import { displayUnit } from '../../../services/saengineProject/common/displayUnits.js';
 import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
@@ -164,7 +165,7 @@ export class SubstructureEditor extends EditorPane {
 
 	private frame!: EditorFrame;
 	private viewElement!: HTMLElement;
-	private readonly viewButtons = new Map<View, HTMLButtonElement>();
+	private viewControl!: RibbonSegmentedModel;
 
 	private model: ITextModel | undefined;
 	private document: ISubstructure | undefined;
@@ -228,25 +229,25 @@ export class SubstructureEditor extends EditorPane {
 	private readonly siteScheduler = this._register(new RunOnceScheduler(() => this.readSite(), 300));
 	private readonly layoutScheduler = this._register(new RunOnceScheduler(() => this.onMainResized(), 50));
 
-	private readonly addFootingAction = this._register(new Action('saengine.substructure.editor.addFooting', localize('sub.addFooting', "Add Footing under the Selected Columns"), ThemeIcon.asClassName(Codicon.add), true, async () => this.addFootings()));
-	private readonly addPileCapAction = this._register(new Action('saengine.substructure.editor.addPileCap', localize('sub.addPileCap', "Add Pile Cap under the Selected Columns"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, async () => this.addPileCaps()));
-	private readonly addRaftAction = this._register(new Action('saengine.substructure.editor.addRaft', localize('sub.addRaft', "Add Raft under the Selected Columns"), ThemeIcon.asClassName(Codicon.primitiveSquare), true, async () => this.addRaft()));
-	private readonly addTieAction = this._register(new Action('saengine.substructure.editor.addTieBeam', localize('sub.addTie', "Add Tie Beam between the Two Selected Foundations"), ThemeIcon.asClassName(Codicon.dash), true, async () => this.addTieBeam()));
-	private readonly sizeAction = this._register(new Action('saengine.substructure.editor.size', localize('sub.size', "Size Footings"), ThemeIcon.asClassName(Codicon.wand), true, () => this.sizeAll()));
-	private readonly migrateAction = this._register(new Action('saengine.substructure.editor.migrate', localize('sub.migrate', "Import Footings from the Building Model"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.migrate()));
+	private readonly addFootingAction = this._register(new Action('saengine.substructure.addFooting', localize('sub.addFooting', "Add Footing under the Selected Columns"), ThemeIcon.asClassName(Codicon.add), true, async () => this.addFootings()));
+	private readonly addPileCapAction = this._register(new Action('saengine.substructure.addPileCap', localize('sub.addPileCap', "Add Pile Cap under the Selected Columns"), ThemeIcon.asClassName(Codicon.circleLargeOutline), true, async () => this.addPileCaps()));
+	private readonly addRaftAction = this._register(new Action('saengine.substructure.addRaft', localize('sub.addRaft', "Add Raft under the Selected Columns"), ThemeIcon.asClassName(Codicon.primitiveSquare), true, async () => this.addRaft()));
+	private readonly addTieAction = this._register(new Action('saengine.substructure.addTieBeam', localize('sub.addTie', "Add Tie Beam between the Two Selected Foundations"), ThemeIcon.asClassName(Codicon.dash), true, async () => this.addTieBeam()));
+	private readonly sizeAction = this._register(new Action('saengine.substructure.sizeAll', localize('sub.size', "Size Footings"), ThemeIcon.asClassName(Codicon.wand), true, () => this.sizeAll()));
+	private readonly migrateAction = this._register(new Action('saengine.substructure.importFootings', localize('sub.migrate', "Import Footings from the Building Model"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.migrate()));
 	private readonly deleteAction = this._register(new Action('saengine.substructure.editor.delete', localize('sub.delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteSelection()));
-	private readonly addStripAction = this._register(new Action('saengine.substructure.editor.addStrip', localize('sub.addStrip', "Add Strip Footing along the Selected Columns"), undefined, true, async () => this.addStrip()));
-	private readonly addPileTypeAction = this._register(new Action('saengine.substructure.editor.addPileType', localize('sub.addPileType', "Add Pile Type"), undefined, true, async () => this.addPileType()));
-	private readonly selectAllAction = this._register(new Action('saengine.substructure.editor.selectColumns', localize('sub.selectColumns', "Select Columns without a Foundation"), undefined, true, async () => this.selectUncovered()));
+	private readonly addStripAction = this._register(new Action('saengine.substructure.addStrip', localize('sub.addStrip', "Add Strip Footing along the Selected Columns"), undefined, true, async () => this.addStrip()));
+	private readonly addPileTypeAction = this._register(new Action('saengine.substructure.addPileType', localize('sub.addPileType', "Add Pile Type"), undefined, true, async () => this.addPileType()));
+	private readonly selectAllAction = this._register(new Action('saengine.substructure.selectUncovered', localize('sub.selectColumns', "Select Columns without a Foundation"), undefined, true, async () => this.selectUncovered()));
 	private readonly recomputeAction = this._register(new Action('saengine.substructure.editor.recompute', localize('sub.recompute', "Check the Foundations Again"), undefined, true, () => this.computeReport()));
 	private readonly saveAndCheckAction = this._register(new Action('saengine.substructure.editor.saveAndCheck', localize('sub.saveAndCheck', "Save and Check"), ThemeIcon.asClassName(Codicon.checkAll), true, () => this.saveAndCheck()));
 	private readonly openTextAction = this._register(new Action('saengine.substructure.editor.openText', localize('sub.openText', "Open as Text"), undefined, true, () => this.openAsText()));
-	private readonly pileGridAction = this._register(new Action('saengine.substructure.editor.pileGrid', localize('sub.pileGrid', "Pile Grid"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.editPileGrid()));
-	private readonly placePilesAction = this._register(new Action('saengine.substructure.editor.placePiles', localize('sub.placePiles', "Place Piles (click a grid crossing or a point, drag a box over crossings)"), ThemeIcon.asClassName(Codicon.circleFilled), true, async () => this.setTool(this.tool === 'pile' ? 'select' : 'pile')));
-	private readonly pileGroupAction = this._register(new Action('saengine.substructure.editor.pileGroup', localize('sub.pileGroup', "Place a Pile Group under the Selected Columns"), ThemeIcon.asClassName(Codicon.location), true, async () => this.placeGroups()));
-	private readonly makeCapAction = this._register(new Action('saengine.substructure.editor.makeCap', localize('sub.makeCap', "Make Pile Cap from the Selected Piles"), ThemeIcon.asClassName(Codicon.package), false, async () => this.makeCap()));
-	private readonly gradeBeamAction = this._register(new Action('saengine.substructure.editor.gradeBeam', localize('sub.gradeBeamTool', "Draw Grade Beams (click two caps or columns)"), ThemeIcon.asClassName(Codicon.arrowBoth), true, async () => this.setTool(this.tool === 'beam' ? 'select' : 'beam')));
-	private readonly connectAction = this._register(new Action('saengine.substructure.editor.connectBeams', localize('sub.connectBeams', "Connect Grade Beams along the Grid Lines"), undefined, true, async () => this.connectBeams()));
+	private readonly pileGridAction = this._register(new Action('saengine.substructure.pileGrid', localize('sub.pileGrid', "Pile Grid"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.editPileGrid()));
+	private readonly placePilesAction = this._register(new Action('saengine.substructure.placePiles', localize('sub.placePiles', "Place Piles (click a grid crossing or a point, drag a box over crossings)"), ThemeIcon.asClassName(Codicon.circleFilled), true, async () => this.setTool(this.tool === 'pile' ? 'select' : 'pile')));
+	private readonly pileGroupAction = this._register(new Action('saengine.substructure.pileGroup', localize('sub.pileGroup', "Place a Pile Group under the Selected Columns"), ThemeIcon.asClassName(Codicon.location), true, async () => this.placeGroups()));
+	private readonly makeCapAction = this._register(new Action('saengine.substructure.makeCap', localize('sub.makeCap', "Make Pile Cap from the Selected Piles"), ThemeIcon.asClassName(Codicon.package), false, async () => this.makeCap()));
+	private readonly gradeBeamAction = this._register(new Action('saengine.substructure.gradeBeam', localize('sub.gradeBeamTool', "Draw Grade Beams (click two caps or columns)"), ThemeIcon.asClassName(Codicon.arrowBoth), true, async () => this.setTool(this.tool === 'beam' ? 'select' : 'beam')));
+	private readonly connectAction = this._register(new Action('saengine.substructure.connectBeams', localize('sub.connectBeams', "Connect Grade Beams along the Grid Lines"), undefined, true, async () => this.connectBeams()));
 
 	constructor(
 		group: IEditorGroup,
@@ -286,14 +287,14 @@ export class SubstructureEditor extends EditorPane {
 		frame.setTitle(localize('sub.title', "Substructure"));
 		frame.setHelp(localize('sub.help', "The foundations of the building: isolated, combined and strip footings, pile caps on piles, and rafts, with the tie beams between them. Pick columns in the plan and add a foundation under them, or let SAEngine size all of them from the analysis reactions and the soil report. The Results view checks them: bearing pressure, punching and one-way shear, flexure, pile loads against the pile capacity, and a raft's contact pressure and settlement."));
 
-		const views = append(frame.controlsSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('sub.viewsAria', "Substructure view") }));
-		for (const { view, label, icon } of VIEWS) {
-			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $(ThemeIcon.asCSSSelector(icon)));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.showView(view)));
-			this.viewButtons.set(view, button);
-		}
+		this.viewControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.substructure.views',
+			ariaLabel: localize('sub.viewsAria', "Substructure view"),
+			items: VIEWS.map(({ view, label, icon }) => ({ id: view, label, icon })),
+			selectedId: this.view,
+		}));
+		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
+		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.sub-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -1688,12 +1689,8 @@ export class SubstructureEditor extends EditorPane {
 
 	private updateViewButtons(): void {
 		const usable = !!this.document;
-		for (const [view, button] of this.viewButtons) {
-			const active = view === this.view;
-			button.classList.toggle('active', active);
-			button.setAttribute('aria-selected', String(active));
-			button.disabled = !usable;
-		}
+		this.viewControl.disabled = !usable;
+		this.viewControl.selectedId = this.view;
 	}
 
 	private renderActions(): void {

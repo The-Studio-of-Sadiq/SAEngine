@@ -29,6 +29,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { designArguments } from '../../saengineFem/browser/femDesign.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { PDF_TO_DXF_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import {
 	ENVIRONMENT_FILE, FABRICATION_FILE, ganttLayout, ICostOptimisation, ISchedule, IScheduleAnswer, ITakeoff, ITakeoffItem, ITakeoffSheet, measureItem, nextId,
@@ -80,7 +81,7 @@ export class OfficeToolsEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private content!: HTMLElement;
 	private tool: OfficeTool = 'schedule';
-	private readonly tabButtons = new Map<OfficeTool, HTMLButtonElement>();
+	private tabsControl!: RibbonSegmentedModel;
 	private readonly renderStore = this._register(new DisposableStore());
 
 	private schedule: ISchedule | undefined;
@@ -122,13 +123,14 @@ export class OfficeToolsEditor extends EditorPane {
 			ariaLabel: localize('office.toolbar', "Office Tools"),
 		}));
 		this.frame.element.classList.add('saengine-office-tools');
-		const tabs = append(this.frame.titleSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('office.tabsAria', "Office tool") }));
-		for (const tool of OFFICE_TOOLS) {
-			const button = append(tabs, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $('span', undefined, toolLabel(tool)));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.show(tool)));
-			this.tabButtons.set(tool, button);
-		}
+		this.tabsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.office.tabs',
+			ariaLabel: localize('office.tabsAria', "Office tool"),
+			items: OFFICE_TOOLS.map(tool => ({ id: tool, label: toolLabel(tool) })),
+			selectedId: this.tool,
+		}));
+		this._register(this.tabsControl.onDidSelect(id => this.show(id as OfficeTool)));
+		this._register(this.frame.addViewControl(this.tabsControl));
 		this.content = append(this.frame.main, $('.office-content', { tabIndex: -1 }));
 	}
 
@@ -147,10 +149,7 @@ export class OfficeToolsEditor extends EditorPane {
 		if (this.input instanceof OfficeToolsInput) {
 			this.input.tool = tool;
 		}
-		for (const [t, button] of this.tabButtons) {
-			button.classList.toggle('checked', t === tool);
-			button.setAttribute('aria-selected', String(t === tool));
-		}
+		this.tabsControl.selectedId = tool;
 		void this.render();
 	}
 

@@ -7,7 +7,6 @@ import './media/femDesignProposal.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -22,13 +21,12 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, UndoRedoGroup } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
@@ -39,6 +37,7 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { saveProjectEdits } from '../../saengineProject/browser/projectEdits.js';
 import { femObjectsStamp } from '../../../services/saengineProject/common/partSources.js';
 import { DESIGN_ANALYSIS_CHANGED_COMMAND, DESIGN_APPLY_COMMAND, DESIGN_CANCEL_PROPOSAL_COMMAND, DESIGN_PROPOSAL_COMMAND,designArguments, IFemDesignReport, runDesign, writeDesignSummary } from './femDesign.js';
@@ -99,7 +98,7 @@ export class FemDesignProposalEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private scrollable!: DomScrollableElement;
 	private list!: HTMLElement;
-	private modePicker!: SelectBox;
+	private modeControl!: RibbonSelectModel;
 	private readonly model = new DesignProposalModel();
 	private before: IFemDesignReport | undefined;
 	private loading = false;
@@ -143,7 +142,6 @@ export class FemDesignProposalEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -163,11 +161,16 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.frame.element.classList.add('saengine-fem-proposal-editor');
 		this.frame.setTitle(localize('femProposal.title', "Design Reinforcement"));
 		this.frame.setHelp(localize('femProposal.help', "Bars proposed for each object type from the steel its members require under the load combinations of the last analysis run. Keep Shared Types designs each type for its most demanding member; Split into New Types moves members that need much less to new types with lighter bars. Apply changes 04 Objects (06 BIM and 05 Floor Plan for a split) in one edit that Undo reverts. Foundations are designed in 9 Substructure."));
-		const mode = append(this.frame.controlsSlot, $('.fem-proposal-mode'));
-		append(mode, $('span.sa-frame-label', undefined, localize('femProposal.mode', "Types")));
-		this.modePicker = this._register(new SelectBox(MODES.map<ISelectOptionItem>(m => ({ text: m.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femProposal.modeAria', "How members share object types") }));
-		this.modePicker.render(append(mode, $('.fem-proposal-select')));
-		this._register(this.modePicker.onDidSelect(({ index }) => this.setMode(MODES[index]?.mode ?? 'byType')));
+		this.modeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.proposal.mode',
+			ariaLabel: localize('femProposal.modeAria', "How members share object types"),
+			label: localize('femProposal.mode', "Types"),
+			tooltip: localize('femProposal.modeAria', "How members share object types"),
+			items: MODES.map(m => ({ id: m.mode, label: m.label })),
+			selectedId: 'byType',
+		}));
+		this._register(this.modeControl.onDidSelect(({ id }) => this.setMode((id as DesignProposalMode) || 'byType')));
+		this._register(this.frame.addViewControl(this.modeControl));
 		this.frame.setActions([this.applyAction, this.refreshAction, this.stopAction], [this.includeAllAction, this.includeNoneAction, new Separator(), this.openObjectsAction]);
 		this.list = $('.fem-proposal-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
@@ -652,8 +655,8 @@ export class FemDesignProposalEditor extends EditorPane {
 		this.refreshAction.enabled = available && !this.applying && !this.loading;
 		this.stopAction.enabled = this.applying || this.loading;
 		this.includeAllAction.enabled = this.includeNoneAction.enabled = rows.length > 0 && !this.applying;
-		this.modePicker.select(Math.max(0, MODES.findIndex(m => m.mode === this.model.mode)));
-		this.modePicker.setEnabled(available && !this.applying);
+		this.modeControl.selectedId = this.model.mode;
+		this.modeControl.disabled = !(available && !this.applying);
 		if (this.loading || this.applying) {
 			this.frame.showProgress();
 		} else {

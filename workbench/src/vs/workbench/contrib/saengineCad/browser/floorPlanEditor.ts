@@ -53,7 +53,8 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyPropertyOnCommit, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { createModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
@@ -237,10 +238,10 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	private emptyKey = '';
 	private emptyDismissed = false;
 	private readonly emptyDisposables = this._register(new DisposableStore());
-	private storyPicker!: SelectBox;
-	private typePicker!: SelectBox;
-	private typeGroup!: HTMLElement;
+	private storyControl!: RibbonSelectModel;
+	private typeControl!: RibbonSelectModel;
 	private typedGroup!: HTMLElement;
+	private typedControl!: RibbonElementControl;
 	private readonly typedControls = this._register(new DisposableStore());
 	/** The typed length of the beam or wall being drawn, while one is. */
 	private lengthBox: InputBox | undefined;
@@ -316,8 +317,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	private selected: IMemberRef[] = [];
 	/** The fill tool's choice in {@link FILL_CHOICES}. */
 	private fillChoice = 0;
-	private fillPicker!: SelectBox;
-	private fillGroup!: HTMLElement;
+	private fillControl!: RibbonSelectModel;
 	/** A window or lasso being dragged with the Select or Fill tool: where it started and where the mouse is. */
 	private drag: {
 		readonly start: CadPoint;
@@ -346,19 +346,19 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	}));
 	private showGridLines = true;
 	private readonly gridLinesAction = this._register(new Action('saengine.floorPlan.toggleGridLines', localize('floorPlan.gridLines', "Grid Lines"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.toggleGridLines()));
-	private readonly underlayAction = this._register(new Action('saengine.floorPlan.toggleUnderlay', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
-	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.commandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
-	private readonly gridsAction = this._register(new Action('saengine.floorPlan.editGrids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
-	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.attachUnderlay', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
-	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.removeUnderlay', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
-	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.calibrateUnderlay', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
-	private readonly moveUnderlayAction = this._register(new Action('saengine.floorPlan.moveUnderlay', localize('floorPlan.moveUnderlay', "Move Underlay"), undefined, false, async () => this.startUnderlayPick('move')));
-	private readonly rotateUnderlayAction = this._register(new Action('saengine.floorPlan.rotateUnderlay', localize('floorPlan.rotateUnderlay', "Rotate Underlay..."), undefined, false, async () => this.startUnderlayPick('rotate')));
-	private readonly alignUnderlayAction = this._register(new Action('saengine.floorPlan.alignUnderlay', localize('floorPlan.alignUnderlay', "Align Underlay to Grid"), undefined, false, async () => this.startUnderlayPick('align')));
-	private readonly lockUnderlayAction = this._register(new Action('saengine.floorPlan.lockUnderlay', localize('floorPlan.lockUnderlay', "Lock Underlay"), undefined, false, async () => this.toggleUnderlayLock()));
-	private readonly underlayPageAction = this._register(new Action('saengine.floorPlan.underlayPage', localize('floorPlan.underlayPage', "Underlay Page..."), undefined, false, () => this.pickUnderlayPage()));
-	private readonly exportWorkbookAction = this._register(new Action('saengine.floorPlan.exportWorkbook', localize('floorPlan.exportWorkbook', "Export to Excel..."), undefined, false, () => this.exportWorkbook()));
-	private readonly importWorkbookAction = this._register(new Action('saengine.floorPlan.importWorkbook', localize('floorPlan.importWorkbook', "Import from Excel..."), undefined, false, () => this.importWorkbook()));
+	private readonly underlayAction = this._register(new Action('saengine.floorPlan.underlay.toggle', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
+	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.toggleCommandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
+	private readonly gridsAction = this._register(new Action('saengine.ribbon.openSection.floorPlan.grids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
+	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.attach', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
+	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.remove', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
+	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.calibrate', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
+	private readonly moveUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.move', localize('floorPlan.moveUnderlay', "Move Underlay"), undefined, false, async () => this.startUnderlayPick('move')));
+	private readonly rotateUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.rotate', localize('floorPlan.rotateUnderlay', "Rotate Underlay..."), undefined, false, async () => this.startUnderlayPick('rotate')));
+	private readonly alignUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.align', localize('floorPlan.alignUnderlay', "Align Underlay to Grid"), undefined, false, async () => this.startUnderlayPick('align')));
+	private readonly lockUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.lock', localize('floorPlan.lockUnderlay', "Lock Underlay"), undefined, false, async () => this.toggleUnderlayLock()));
+	private readonly underlayPageAction = this._register(new Action('saengine.floorPlan.underlay.page', localize('floorPlan.underlayPage', "Underlay Page..."), undefined, false, () => this.pickUnderlayPage()));
+	private readonly exportWorkbookAction = this._register(new Action('saengine.floorPlan.workbook.export', localize('floorPlan.exportWorkbook', "Export to Excel..."), undefined, false, () => this.exportWorkbook()));
+	private readonly importWorkbookAction = this._register(new Action('saengine.floorPlan.workbook.import', localize('floorPlan.importWorkbook', "Import from Excel..."), undefined, false, () => this.importWorkbook()));
 	private readonly exportAction = this._register(new Action('saengine.floorPlan.exportDxf', localize('floorPlan.exportDxf', "Export DXF"), undefined, false, () => this.exportDxf()));
 	/** Footings are placed in 9 Substructure since Part 9: the floor plan's Footing tool opens it. */
 	private readonly foundationsAction = this._register(new Action('saengine.floorPlan.openSubstructure', localize('floorPlan.openSubstructure', "Place Footings in 9 Substructure"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openPart('substructure')));
@@ -366,16 +366,16 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	private readonly typicalAction = this._register(new Action('saengine.floorPlan.typicalFloors', localize('floorPlan.typicalFloors', "Typical Floors..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.editTypicalFloors()));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
-	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.updateToolbar(); this.schedulePreview(); }));
-	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
-	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
-	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
-	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convertBeam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
-	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convertWall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
-	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convertSlab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
+	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.bulk.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.updateToolbar(); this.schedulePreview(); }));
+	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.bulk.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
+	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.bulk.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
+	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.bulk.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
+	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convert.beam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
+	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convert.wall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
+	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convert.slab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
 	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
-	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.membersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
-	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
+	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.openMembersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
+	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.bulk.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly propertiesDisposables = this._register(new DisposableStore());
@@ -454,10 +454,17 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		frame.element.tabIndex = -1;
 
 		// The model view's Plan | 3D | Analysis switch, before the story.
-		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'plan')));
-		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan") }));
-		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
-		this._register(this.storyPicker.onDidSelect(async ({ index }) => {
+		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commandService, 'plan'))));
+		this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.story',
+			ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			label: localize('floorPlan.storyLabel', "Story"),
+			tooltip: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			items: [],
+			width: 'normal',
+		}));
+		this._register(frame.addViewControl(this.storyControl));
+		this._register(this.storyControl.onDidSelect(async ({ index }) => {
 			const input = this.input as FloorPlanEditorInput | undefined;
 			if (input && this.storyIds[index] !== input.story) {
 				await this.switchStory(this.storyIds[index]);
@@ -470,19 +477,30 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		}));
 
 		// Inline controls of the active tool: what the fill places, the object type to place, the typed move or angle.
-		this.fillGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
-		append(this.fillGroup, $('span.sa-frame-label', undefined, localize('floorPlan.fill', "Fill")));
-		this.fillPicker = this._register(new SelectBox(FILL_CHOICES.map(c => ({ text: c.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.fillAria', "What the fill tool places") }));
-		this.fillPicker.render(append(this.fillGroup, $('.floor-plan-select.fill')));
-		this._register(this.fillPicker.onDidSelect(({ index }) => {
+		this.fillControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.fill',
+			ariaLabel: localize('floorPlan.fillAria', "What the fill tool places"),
+			label: localize('floorPlan.fill', "Fill"),
+			tooltip: localize('floorPlan.fillAria', "What the fill tool places"),
+			items: FILL_CHOICES.map((c, i) => ({ id: String(i), label: c.label })),
+			selectedId: String(this.fillChoice),
+			visible: false,
+		}));
+		this._register(this.fillControl.onDidSelect(({ index }) => {
 			this.fillChoice = index;
 			this.updateToolbar();
 		}));
-		this.typeGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
-		append(this.typeGroup, $('span.sa-frame-label', undefined, localize('floorPlan.type', "Type")));
-		this.typePicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.typeAria', "Object type to place") }));
-		this.typePicker.render(append(this.typeGroup, $('.floor-plan-select.type')));
-		this._register(this.typePicker.onDidSelect(({ index }) => {
+		this._register(frame.addToolControl(this.fillControl));
+		this.typeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.type',
+			ariaLabel: localize('floorPlan.typeAria', "Object type to place"),
+			label: localize('floorPlan.type', "Type"),
+			tooltip: localize('floorPlan.typeAria', "Object type to place"),
+			items: [],
+			selectedId: '',
+			visible: false,
+		}));
+		this._register(this.typeControl.onDidSelect(({ index }) => {
 			const tool = this.placementTool;
 			if (tool && this.typeIds[index]) {
 				this.types.set(tool, this.typeIds[index]);
@@ -490,7 +508,14 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 				void this.createType(tool);
 			}
 		}));
-		this.typedGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
+		this._register(frame.addToolControl(this.typeControl));
+		this.typedGroup = $('.floor-plan-inline');
+		this.typedControl = this._register(new RibbonElementControl({
+			id: 'saengine.floorPlan.typed',
+			element: this.typedGroup,
+			visible: false,
+		}));
+		this._register(frame.addToolControl(this.typedControl));
 
 		for (const { tool, label, icon } of TOOLS) {
 			this.toolActions.set(tool, this._register(new Action(`saengine.floorPlan.tool.${tool}`, label, ThemeIcon.asClassName(icon), true, async () => this.setTool(tool))));
@@ -1301,7 +1326,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			frame.setActions(primary, secondary);
 		}
 
-		this.fillGroup.classList.toggle('hidden', this.tool !== 'fill');
+		this.fillControl.visible = this.tool === 'fill';
 		const hasSelection = editable && this.selected.length > 0;
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
@@ -1311,7 +1336,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 
 		// The object type the placement tool places.
 		const tool = this.placementTool;
-		this.typeGroup.classList.toggle('hidden', !tool);
+		this.typeControl.visible = !!tool;
 		if (tool) {
 			const types = this.typesOfKinds(TOOL_KINDS[tool]);
 			this.typeIds = types.map(([id]) => id);
@@ -1322,8 +1347,14 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 					this.types.set(tool, chosen);
 				}
 			}
-			const options = [...types.map(([, name]) => ({ text: name })), ...(tool !== 'footing' ? [{ text: localize('floorPlan.newType', "New type...") }] : [])];
-			this.typePicker.setOptions(options.length ? options : [{ text: localize('floorPlan.noTypes', "(none defined)") }], Math.max(0, this.typeIds.indexOf(chosen ?? '')));
+			const items = [
+				...types.map(([id, name]) => ({ id, label: name })),
+				...(tool !== 'footing' ? [{ id: '__new__', label: localize('floorPlan.newType', "New type...") }] : []),
+			];
+			this.typeControl.setItems(
+				items.length ? items : [{ id: '', label: localize('floorPlan.noTypes', "(none defined)") }],
+				chosen ?? this.typeIds[0] ?? '',
+			);
 		}
 		this.updateTypedControls();
 	}
@@ -1341,12 +1372,13 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		this.typedControls.clear();
 		this.lengthBox = undefined;
 		clearNode(this.typedGroup);
-		this.typedGroup.classList.toggle('hidden', !key);
 		if (length) {
+			this.typedControl.visible = true;
 			this.renderLengthEntry();
 			return;
 		}
 		if (!picked || (tool !== 'move' && tool !== 'rotate')) {
+			this.typedControl.visible = false;
 			return;
 		}
 		const box = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, {
@@ -1382,6 +1414,7 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			const quarter: IEditorFrameIconButton = this.typedControls.add(this.frame.createIconButton(this.typedGroup, Codicon.refresh, localize('floorPlan.rotate90', "Turn 90°"), () => this.rotateTo(this.rotationOf(picked) + 90)));
 			quarter.element.classList.add('floor-plan-quarter');
 		}
+		this.typedControl.visible = true;
 	}
 
 	/**
@@ -2734,9 +2767,10 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		if (input.story) {
 			this.viewStorage.store(storyKey, input.story, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
-		this.storyPicker.setOptions(
-			stories.length ? stories.map(s => ({ text: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
-			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
+		const storySel = this.storyIds.includes(input.story ?? '') ? (input.story ?? '') : '';
+		this.storyControl.setItems(
+			stories.length ? stories.map(s => ({ id: s.id, label: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ id: '', label: localize('floorPlan.noStoriesOption', "(no stories)") }],
+			storySel,
 		);
 
 		if (input.story && this.currentDraftingStory && input.story !== this.currentDraftingStory) {

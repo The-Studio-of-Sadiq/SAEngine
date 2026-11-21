@@ -33,6 +33,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
@@ -143,7 +144,8 @@ export class SectionDesignerEditor extends EditorPane {
 	/** View: screen = (origin.x + x k, origin.y - y k). */
 	private view = { k: 0.5, ox: 0, oy: 0 };
 	private fitted = false;
-	private readonly toolButtons = new Map<Tool, HTMLButtonElement>();
+	private toolsControl!: RibbonSegmentedModel;
+	private templateControl!: RibbonSelectModel;
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly panelDisposables = this._register(new DisposableStore());
@@ -182,24 +184,37 @@ export class SectionDesignerEditor extends EditorPane {
 		frame.setTitle(localize('section.title', "Section Designer"));
 		frame.setHelp(localize('section.help', "Draw an arbitrary cross-section: regions of concrete or steel plates with openings, and reinforcing bars. Points snap to the grid. Keys: V select, R rectangle, P polygon (Enter closes, Backspace removes the last point), H opening, B bar, L line of bars, O ring of bars, arrows move the selection, Delete removes it, Escape cancels. Properties come from sectionproperties, the interaction diagrams from concreteproperties with the strength reduction factors of the project's code pack (steel sections without concrete: the plastic yield surface). Capacity studies give the moment-curvature curve and the Mx-My contour at an axial force by fibre integration. Object types use the section through the profile \"Designed section\"."));
 
-		const tools = append(frame.controlsSlot, $('.sa-segmented', { role: 'toolbar', 'aria-label': localize('section.toolsAria', "Drawing tools") }));
-		for (const spec of TOOLS) {
-			const button = append(tools, $<HTMLButtonElement>('button.sa-segment', { type: 'button', 'aria-pressed': 'false', 'aria-label': `${spec.label} (${spec.keyLabel})`, title: `${spec.label} (${spec.keyLabel})` }));
-			append(button, $(ThemeIcon.asCSSSelector(spec.icon)));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.setTool(spec.tool)));
-			this.toolButtons.set(spec.tool, button);
-		}
-		const template = append(frame.controlsSlot, $<HTMLSelectElement>('select.section-select.section-template', { 'aria-label': localize('section.templateAria', "Insert a template") }));
-		append(template, $<HTMLOptionElement>('option', { value: '' }, localize('section.template', "Template…")));
-		for (const kind of TEMPLATE_KINDS) {
-			append(template, $<HTMLOptionElement>('option', { value: kind }, templateLabel(kind)));
-		}
-		this._register(addDisposableListener(template, EventType.CHANGE, () => {
-			if (template.value) {
-				this.insertTemplate(template.value as TemplateKind);
-				template.value = '';
+		this.toolsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.section.tools',
+			ariaLabel: localize('section.toolsAria', "Drawing tools"),
+			items: TOOLS.map(spec => ({
+				id: spec.tool,
+				label: spec.label,
+				icon: spec.icon,
+				tooltip: `${spec.label} (${spec.keyLabel})`,
+			})),
+			selectedId: this.tool,
+		}));
+		this._register(this.toolsControl.onDidSelect(id => this.setTool(id as Tool)));
+		this._register(frame.addToolControl(this.toolsControl));
+
+		this.templateControl = this._register(new RibbonSelectModel({
+			id: 'saengine.section.template',
+			ariaLabel: localize('section.templateAria', "Insert a template"),
+			label: localize('section.templateLabel', "Template"),
+			items: [
+				{ id: '', label: localize('section.template', "Template…") },
+				...TEMPLATE_KINDS.map(kind => ({ id: kind, label: templateLabel(kind) })),
+			],
+			selectedId: '',
+		}));
+		this._register(this.templateControl.onDidSelect(({ id }) => {
+			if (id) {
+				this.insertTemplate(id as TemplateKind);
+				this.templateControl.selectedId = '';
 			}
 		}));
+		this._register(frame.addToolControl(this.templateControl));
 		frame.setActions([this.edgesAction, this.deleteAction, this.fitAction, frame.togglePropertiesAction], [this.clearBarsAction]);
 
 		const host = append(frame.main, $('.section-canvas-host'));
@@ -1118,10 +1133,7 @@ export class SectionDesignerEditor extends EditorPane {
 	}
 
 	private updateToolButtons(): void {
-		for (const [tool, button] of this.toolButtons) {
-			button.classList.toggle('active', tool === this.tool);
-			button.setAttribute('aria-pressed', String(tool === this.tool));
-		}
+		this.toolsControl.selectedId = this.tool;
 		this.canvas?.setAttribute('data-tool', this.tool);
 	}
 

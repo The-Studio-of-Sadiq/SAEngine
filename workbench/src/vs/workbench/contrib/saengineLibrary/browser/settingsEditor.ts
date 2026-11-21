@@ -5,7 +5,6 @@
 
 import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -43,6 +42,7 @@ import { IPartSectionPane, sectionOption } from '../../../services/saengineProje
 import { IPartCheckItem, ISaenginePartStatusService } from '../../../services/saengineProject/common/partStatus.js';
 import { ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { IReportTemplateInfo, IReportTemplates, REPORT_TEMPLATES_COMMAND_ID } from '../../saengineReport/browser/reportBuild.js';
 import './media/codePacks.css';
 import { changePackWarning, chosenPackId, CODES_AREA_LOADS_COMMAND, CODES_CHOICES_COMMAND, CODES_COMBINATIONS_COMMAND, CODES_LIST_COMMAND, coverageLabel, DEFAULT_CODE_PACK, ICodePackInfo, ICodePackOption, IPackCombinations, packOptionBlock, packOptions, readCodePacks, readPackAreaLoads, readPackCombinations, readPackLists } from './codePacksModel.js';
@@ -381,13 +381,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	private nav!: HTMLElement;
 	private page!: HTMLElement;
-	private typeSelect: SelectBox | undefined;
-	private typeSlot: HTMLElement | undefined;
-	private typeHover: { update(content: string): void } | undefined;
-	/** The design code (code pack) the project uses, in the toolbar after the project type. */
-	private packSelect: SelectBox | undefined;
-	private packSlot: HTMLElement | undefined;
-	private packHover: { update(content: string): void } | undefined;
+	private typeControl: RibbonSelectModel | undefined;
+	/** The design code (code pack) the project uses, in the ribbon after the project type. */
+	private packControl: RibbonSelectModel | undefined;
 	/** The packs installed (from `saengine.codes.list`); undefined until the backend answers. */
 	private packs: ICodePackInfo[] | undefined;
 	private packChoices: ICodePackOption[] = [];
@@ -623,50 +619,56 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	}
 
 	private createCodePack(frame: EditorFrame): void {
-		const slot = this.packSlot = append(frame.controlsSlot, $('.settings-code-pack'));
-		append(slot, $('span.sa-frame-label', undefined, localize('settings.designCode', "Design code")));
-		const select = this.packSelect = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, {
+		const control = this.packControl = this._register(new RibbonSelectModel({
+			id: 'saengine.settings.codePack',
+			label: localize('settings.designCode', "Design code"),
 			ariaLabel: localize('settings.designCode', "Design code"),
+			width: 'wide',
 		}));
-		const box = append(slot, $('.settings-code-pack-select'));
-		select.render(box);
-		this.packHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), box, ''));
-		this._register(select.onDidSelect(e => {
-			const option = this.packChoices[e.index];
-			if (option) {
-				void this.changeCodePack(option);
+		this._register(frame.addViewControl(control));
+		this._register(control.onDidSelect(({ id }) => {
+			if (id === '__extra_browse__') {
+				this.renderCodePack();
+				void this.commands.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'designCode' });
 				return;
 			}
-			// The entries after the packs: get more, manage or install packs on the Packages page.
-			this.renderCodePack();
-			const extra = e.index - this.packChoices.length;
-			void (extra === 0
-				? this.commands.executeCommand('saengine.packages.show', { tab: 'browse', kind: 'designCode' })
-				: extra === 1 ? this.commands.executeCommand('saengine.packages.show', { tab: 'installed', kind: 'designCode' }) : this.commands.executeCommand('saengine.codePacks.install'));
+			if (id === '__extra_installed__') {
+				this.renderCodePack();
+				void this.commands.executeCommand('saengine.packages.show', { tab: 'installed', kind: 'designCode' });
+				return;
+			}
+			if (id === '__extra_install__') {
+				this.renderCodePack();
+				void this.commands.executeCommand('saengine.codePacks.install');
+				return;
+			}
+			const option = this.packChoices.find(o => o.id === id);
+			if (option) {
+				void this.changeCodePack(option);
+			}
 		}));
 	}
 
 	/** The selector follows the settings' `codePack` and the packs installed. */
 	private renderCodePack(): void {
-		const select = this.packSelect;
-		if (!select) {
+		const control = this.packControl;
+		if (!control) {
 			return;
 		}
-		this.packSlot?.classList.toggle('hidden', !this.document);
+		control.setVisible(!!this.document);
 		const chosen = chosenPackId(this.document);
 		this.packChoices = packOptions(this.packs ?? [], chosen);
-		const index = Math.max(0, this.packChoices.findIndex(o => o.id === chosen));
+		const selected = this.packChoices.find(o => o.id === chosen) ?? this.packChoices[0];
 		// A pack with errors cannot be loaded by analysis or design, so it cannot be chosen.
-		select.setOptions([
-			...this.packChoices.map(o => ({ text: o.label, description: o.description, isDisabled: o.unusable && o.id !== chosen })),
-			{ text: localize('settings.getMorePacks', "Get More Design Codes..."), description: localize('settings.getMorePacksDescription', "Browses the design codes published for SAEngine (Packages page).") },
-			{ text: localize('settings.managePacks', "Manage Packages..."), description: localize('settings.managePacksDescription', "Lists the design codes installed and makes new ones (Packages page).") },
-			{ text: localize('settings.installPack', "Install from File..."), description: localize('settings.installPackDescription', "Installs a design code from a folder or .zip.") },
-		], index);
-		const option = this.packChoices[index];
-		this.packHover?.update(this.packs === undefined
-			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Packages... in this list).", option?.label ?? DEFAULT_CODE_TABLES.edition)
-			: option?.description || option?.label || '');
+		control.setItems([
+			...this.packChoices.map(o => ({ id: o.id, label: o.label, description: o.description, disabled: o.unusable && o.id !== chosen })),
+			{ id: '__extra_browse__', label: localize('settings.getMorePacks', "Get More Design Codes..."), description: localize('settings.getMorePacksDescription', "Browses the design codes published for SAEngine (Packages page).") },
+			{ id: '__extra_installed__', label: localize('settings.managePacks', "Manage Packages..."), description: localize('settings.managePacksDescription', "Lists the design codes installed and makes new ones (Packages page).") },
+			{ id: '__extra_install__', label: localize('settings.installPack', "Install from File..."), description: localize('settings.installPackDescription', "Installs a design code from a folder or .zip.") },
+		], selected?.id);
+		control.setTooltip(this.packs === undefined
+			? localize('settings.designCodeStandIn', "{0}. Other code packs become available when SAEngine offers them (Manage Packages... in this list).", selected?.label ?? DEFAULT_CODE_TABLES.edition)
+			: selected?.description || selected?.label || '');
 	}
 
 	/** Switches the project to another pack after warning that the design results change. */
@@ -854,15 +856,20 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	 * kept in the project manifest. A selector in the toolbar, its description in the hover.
 	 */
 	private createProjectType(frame: EditorFrame): void {
-		const slot = this.typeSlot = append(frame.controlsSlot, $('.settings-project-type'));
-		append(slot, $('span.sa-frame-label', undefined, localize('settings.projectType', "Project type")));
-		const select = this.typeSelect = this._register(new SelectBox(PROJECT_TYPES.map(t => ({ text: t.label, description: t.description })), 0, this.contextViewService, defaultSelectBoxStyles, {
+		const control = this.typeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.settings.projectType',
+			label: localize('settings.projectType', "Project type"),
 			ariaLabel: localize('settings.projectType', "Project type"),
+			items: PROJECT_TYPES.map(t => ({ id: t.type, label: t.label, description: t.description })),
+			width: 'normal',
 		}));
-		const box = append(slot, $('.settings-project-type-select'));
-		select.render(box);
-		this.typeHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), box, ''));
-		this._register(select.onDidSelect(e => void this.changeProjectType(PROJECT_TYPES[e.index].type)));
+		this._register(frame.addViewControl(control));
+		this._register(control.onDidSelect(({ id }) => {
+			const match = PROJECT_TYPES.find(t => t.type === id);
+			if (match) {
+				void this.changeProjectType(match.type);
+			}
+		}));
 	}
 
 	override layout(dimension: Parameters<JsonDocumentEditor['layout']>[0]): void {
@@ -1482,11 +1489,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The toolbar's project type follows the manifest (shown only for a project). */
 	private renderProjectType(): void {
 		const current = this.project.project?.type;
-		this.typeSlot?.classList.toggle('hidden', !current || !this.document);
-		const index = PROJECT_TYPES.findIndex(t => t.type === current);
-		if (index >= 0) {
-			this.typeSelect?.select(index);
-			this.typeHover?.update(PROJECT_TYPES[index].description);
+		this.typeControl?.setVisible(!!current && !!this.document);
+		const match = PROJECT_TYPES.find(t => t.type === current);
+		if (match) {
+			this.typeControl?.select(match.type, false);
+			this.typeControl?.setTooltip(match.description);
 		}
 	}
 

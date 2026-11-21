@@ -43,6 +43,7 @@ import { confirmDelete } from '../../../services/saengineProject/common/confirmD
 import { DEFAULT_CODE_TABLES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import {
 	BOREHOLE_FIELDS, bearingSummary, boreholeDepth, DuplicateChoice, duplicateIds, hasLabData, mergeBoreholes, terminationDepth, boreholePosition, boreholeGround, checkSoilReport, choiceTitle, DESIGN_CHOICES, DESIGN_DEFAULTS, DESIGN_FIELDS, formatField, formatNumber, hasLiquefiable, IBearingCell, IBearingResult, IBorehole, IBoreholeResult, IFieldSpec,
 	ISoilComputeRequest, ISoilImportRequest, ISoilImportResult, ISoilProblem, ISoilReport, ISoilResults, ISoilTemplateRequest, ISoilTemplateResult, ISoilExportResult, SOIL_EXPORT_COMMAND, newBorehole, parseField,
@@ -117,7 +118,7 @@ export class SoilEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private list!: HTMLElement;
 	private viewElement!: HTMLElement;
-	private readonly viewButtons = new Map<View, HTMLButtonElement>();
+	private viewsControl: RibbonSegmentedModel | undefined;
 	private readonly patternPrefix = `saengine-soil-${++instanceCount}`;
 
 	private model: ITextModel | undefined;
@@ -263,14 +264,14 @@ export class SoilEditor extends EditorPane {
 		frame.setTitle(localize('soil.title', "Soil Report"));
 		frame.setHelp(localize('soil.help', "The boreholes of the site investigation: strata, SPT blow counts and lab test results, entered here or imported from a CSV or Excel file. From them SAEngine finds the site class ({0}), the allowable bearing pressure for a range of footing sizes, the liquefaction screening from SPT, the modulus of subgrade reaction and the pile design parameters per layer for the substructure. Depths are in m below the borehole's ground.", activeCodeName()));
 
-		const views = append(frame.controlsSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('soil.viewsAria', "Soil report view") }));
-		for (const { view, label, icon } of VIEWS) {
-			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $(ThemeIcon.asCSSSelector(icon)));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.showView(view)));
-			this.viewButtons.set(view, button);
-		}
+		const viewsControl = this.viewsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.soil.views',
+			ariaLabel: localize('soil.viewsAria', "Soil report view"),
+			items: VIEWS.map(v => ({ id: v.view, label: v.label, icon: v.icon })),
+			selectedId: this.view,
+		}));
+		this._register(frame.addViewControl(viewsControl));
+		this._register(viewsControl.onDidSelect(id => this.showView(id as View)));
 
 		const body = append(frame.main, $('.soil-body'));
 		appendSoilPatterns(body, this.patternPrefix);
@@ -1139,12 +1140,8 @@ export class SoilEditor extends EditorPane {
 
 	private updateViewButtons(): void {
 		const usable = !!this.report;
-		for (const [view, button] of this.viewButtons) {
-			const active = !this.entry && view === this.view;
-			button.classList.toggle('active', active);
-			button.setAttribute('aria-selected', String(active));
-			button.disabled = !usable;
-		}
+		this.viewsControl?.setDisabled(!usable);
+		this.viewsControl?.select(this.entry ? undefined : this.view, false);
 	}
 
 	private renderActions(): void {

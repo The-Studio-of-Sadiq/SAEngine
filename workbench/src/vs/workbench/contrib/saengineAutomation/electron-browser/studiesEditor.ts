@@ -119,7 +119,7 @@ export class StudiesEditor extends EditorPane {
 			id: StudiesEditor.ID,
 			ariaLabel: localize('studies.aria', "Design studies"),
 		}));
-		append(this.frame.titleSlot, $('span', undefined, localize('studies.title', "Design Studies")));
+		this.frame.setTitle(localize('studies.title', "Design Studies"));
 		this.frame.setHelp(localize('studies.help', "A study varies parameters of the project (grid spacing, storey height, concrete grade, section sizes or families, any value) and runs the analysis, design and bill of quantities for each variant on a copy of the project, one after the other in the background. The project itself is not changed until you apply a variant; before the study runs, its current state is saved as a version when the project keeps versions."));
 		this.frame.setActions([this.runAction, this.cancelAction]);
 		this.content = $('.saengine-studies');

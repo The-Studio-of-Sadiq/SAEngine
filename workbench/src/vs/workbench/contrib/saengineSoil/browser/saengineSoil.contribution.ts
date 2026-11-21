@@ -188,7 +188,7 @@ function registerSoilRibbonCommand(
 	title: ReturnType<typeof localize2>,
 	shortLabel: string,
 	icon: ThemeIcon,
-	group: string,
+	group: string | undefined,
 	order: number,
 	size: RibbonButtonSize,
 	runWithEditor: (editor: SoilEditor) => Promise<void> | void,
@@ -202,7 +202,7 @@ function registerSoilRibbonCommand(
 				icon,
 				f1: true,
 				precondition: projectOpen,
-				menu: { id: RibbonMenus.Soil, group, order },
+				...(group ? { menu: { id: RibbonMenus.Soil, group, order } } : {}),
 			});
 		}
 
@@ -213,7 +213,9 @@ function registerSoilRibbonCommand(
 			}
 		}
 	});
-	registerRibbonItemHint(id, { size, label: shortLabel }, RibbonMenus.Soil);
+	if (group) {
+		registerRibbonItemHint(id, { size, label: shortLabel }, RibbonMenus.Soil);
+	}
 }
 
 registerSoilRibbonCommand('saengine.soil.editBorehole', localize2('soil.rib.editTitle', "Edit Borehole"), localize('soil.rib.edit', "Edit Borehole"), Codicon.edit, '1_Boreholes', 4, 'small', e => e.editBorehole());
@@ -221,10 +223,10 @@ registerSoilRibbonCommand('saengine.soil.duplicateBorehole', localize2('soil.rib
 registerSoilRibbonCommand('saengine.soil.deleteBorehole', localize2('soil.rib.delTitle', "Delete Borehole"), localize('soil.rib.delete', "Delete"), Codicon.trash, '1_Boreholes', 6, 'small', e => e.deleteBorehole());
 registerSoilRibbonCommand('saengine.soil.toggleExcludeBearing', localize2('soil.rib.excludeTitle', "Leave Borehole Out of Site Bearing Table"), localize('soil.rib.exclude', "Exclude Bearing"), Codicon.circleSlash, '1_Boreholes', 7, 'small', e => e.toggleExcludeFromSite());
 
-registerSoilRibbonCommand('saengine.soil.viewLog', localize2('soil.rib.logTitle', "Soil View: Log"), localize('soil.rib.log', "Log"), Codicon.layers, '2_Views', 1, 'small', e => e.showView('log'));
-registerSoilRibbonCommand('saengine.soil.viewResults', localize2('soil.rib.resTitle', "Soil View: Results"), localize('soil.rib.results', "Results"), Codicon.graphLine, '2_Views', 2, 'small', e => e.showView('results'));
-registerSoilRibbonCommand('saengine.soil.viewStrata', localize2('soil.rib.strataTitle', "Soil View: Strata"), localize('soil.rib.strata', "Strata"), Codicon.symbolStructure, '2_Views', 3, 'small', e => e.showView('strata'));
-registerSoilRibbonCommand('saengine.soil.viewMap', localize2('soil.rib.mapTitle', "Soil View: Map"), localize('soil.rib.map', "Map"), Codicon.globe, '2_Views', 4, 'small', e => e.showView('map'));
+registerSoilRibbonCommand('saengine.soil.viewLog', localize2('soil.rib.logTitle', "Soil View: Log"), localize('soil.rib.log', "Log"), Codicon.layers, undefined, 1, 'small', e => e.showView('log'));
+registerSoilRibbonCommand('saengine.soil.viewResults', localize2('soil.rib.resTitle', "Soil View: Results"), localize('soil.rib.results', "Results"), Codicon.graphLine, undefined, 2, 'small', e => e.showView('results'));
+registerSoilRibbonCommand('saengine.soil.viewStrata', localize2('soil.rib.strataTitle', "Soil View: Strata"), localize('soil.rib.strata', "Strata"), Codicon.symbolStructure, undefined, 3, 'small', e => e.showView('strata'));
+registerSoilRibbonCommand('saengine.soil.viewMap', localize2('soil.rib.mapTitle', "Soil View: Map"), localize('soil.rib.map', "Map"), Codicon.globe, undefined, 4, 'small', e => e.showView('map'));
 registerSoilRibbonCommand('saengine.soil.viewStrata3d', localize2('soil.rib.strata3dTitle', "Soil View: 3D Strata"), localize('soil.rib.strata3d', "3D Strata"), Codicon.symbolNamespace, '2_Views', 5, 'small', e => e.showStrata3d());
 registerSoilRibbonCommand('saengine.soil.toggleFence', localize2('soil.rib.fenceTitle', "Show All Boreholes Side by Side"), localize('soil.rib.fence', "All Boreholes"), Codicon.splitHorizontal, '2_Views', 6, 'small', e => e.toggleFence());
 

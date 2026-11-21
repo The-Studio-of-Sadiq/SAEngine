@@ -460,3 +460,222 @@
 	opacity: 0.85;
 	flex: none;
 }
+
+/* Embedded EditorFrame controls inside ribbon */
+.monaco-workbench .sa-ribbon-ctrl-hidden {
+	display: none !important;
+}
+
+.monaco-workbench .sa-ribbon-ctrl-label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-select-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 22px;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-select {
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 100px;
+	max-width: 180px;
+	border-color: var(--vscode-dropdown-border, var(--sa-border));
+	background-color: var(--vscode-dropdown-background, var(--vscode-input-background, transparent));
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+}
+
+.monaco-workbench .sa-ribbon-select.sa-ribbon-select-compact {
+	min-width: 78px;
+	max-width: 120px;
+}
+
+.monaco-workbench .sa-ribbon-select.sa-ribbon-select-wide {
+	min-width: 140px;
+	max-width: 220px;
+}
+
+.monaco-workbench .sa-ribbon-select-text {
+	flex: 1;
+	min-width: 0;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .sa-ribbon-segmented {
+	display: inline-flex;
+	align-items: center;
+	height: 22px;
+	padding: 1px;
+	gap: 1px;
+	border-radius: var(--sa-radius, 3px);
+	border: 1px solid var(--sa-border);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--sa-surface-alt));
+	box-sizing: border-box;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-seg-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 18px;
+	padding: 0 7px;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+	white-space: nowrap;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-seg-btn .sa-ribbon-seg-icon {
+	font-size: 13px;
+}
+
+@media (hover: hover) {
+	.monaco-workbench .sa-ribbon-seg-btn:not([aria-disabled="true"]):hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		color: var(--vscode-foreground);
+	}
+}
+
+.monaco-workbench .sa-ribbon-seg-btn[aria-checked="true"],
+.monaco-workbench .sa-ribbon-seg-btn.active {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground));
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder);
+	font-weight: 500;
+}
+
+.monaco-workbench .sa-ribbon-seg-btn[aria-disabled="true"] {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.monaco-workbench .sa-ribbon-seg-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .sa-ribbon-slider-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 22px;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-slider {
+	width: 88px;
+	height: 14px;
+	margin: 0;
+	accent-color: var(--vscode-focusBorder);
+	cursor: pointer;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-slider-value {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	max-width: 130px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .sa-ribbon-inline-row,
+.monaco-workbench .sa-ribbon-element-host {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	flex: none;
+}
+
+.monaco-workbench .sa-ribbon-element-host .monaco-inputbox {
+	height: 22px;
+	font-size: 11px;
+}
+
+.monaco-workbench .sa-ribbon-element-host .monaco-inputbox .input {
+	padding: 1px 6px;
+}
+
+.monaco-workbench .sa-ribbon-element-host .sa-frame-icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: var(--sa-radius, 3px);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+@media (hover: hover) {
+	.monaco-workbench .sa-ribbon-element-host .sa-frame-icon-button:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+}
+
+.monaco-workbench .sa-ribbon-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 8px;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font: inherit;
+	font-size: 11px;
+	cursor: default;
+	white-space: nowrap;
+	box-sizing: border-box;
+	flex: none;
+}
+
+.monaco-workbench button.sa-ribbon-pill {
+	cursor: pointer;
+}
+
+.monaco-workbench .sa-ribbon-pill.warn {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.monaco-workbench .sa-ribbon-pill.fail {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}
+
+.monaco-workbench .sa-ribbon-pill .codicon {
+	font-size: 12px;
+}
+
+.monaco-workbench .sa-ribbon-help-btn.loading {
+	opacity: 0.5;
+	cursor: progress;
+}
+
+.monaco-workbench.hc-black .sa-ribbon-seg-btn[aria-checked="true"],
+.monaco-workbench.hc-light .sa-ribbon-seg-btn[aria-checked="true"],
+.monaco-workbench.hc-black .sa-ribbon-select,
+.monaco-workbench.hc-light .sa-ribbon-select {
+	border-color: var(--vscode-contrastActiveBorder);
+}
