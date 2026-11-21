@@ -762,8 +762,9 @@ export class SoilEditor extends EditorPane {
 
 	/** Opens the Strata view and scrolls the 3D stratigraphy block diagram into view. */
 	showStrata3d(): void {
+		// The Strata view shows the fence and 3D block diagrams; scroll to the last (the block diagram).
 		this.showView('strata');
-		this.viewElement.querySelector('.soil-strata-canvas')?.scrollIntoView({ block: 'nearest' });
+		this.viewElement.lastElementChild?.scrollIntoView({ block: 'nearest' });
 	}
 
 	/** Opens the borehole entry screen on SPT / Lab Tests and scrolls to the lab test panel. */

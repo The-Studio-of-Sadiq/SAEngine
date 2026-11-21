@@ -1404,7 +1404,8 @@ export class LibraryEditor extends JsonDocumentEditor {
 
 	/** Scrolls to and focuses the stiffness modifiers block on the active object type. */
 	focusStiffnessModifiers(): void {
-		const target = this.detail.querySelector<HTMLElement>('.sa-modifiers, .modifiers-group, .form-group:last-child input, .form-group:last-child button');
+		// The stiffness modifiers are the last block of an object type's form.
+		const target = this.detail.lastElementChild as HTMLElement | null;
 		if (!target) {
 			this.notifications.info(localize('library.selectObjectForModifiers', "Select an object type in 04 Objects to edit its stiffness modifiers."));
 			return;
