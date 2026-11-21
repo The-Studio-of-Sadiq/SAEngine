@@ -23,6 +23,16 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import {
+	controlVisibilitySignature,
+	IEditorRibbonFrame,
+	IEditorRibbonTabGroup,
+	IRibbonHelpDescriptor,
+	IRibbonPillDescriptor,
+	ISaengineRibbonToolbarService,
+	renderRibbonControl,
+	RibbonControl,
+} from '../../saengineRibbon/browser/ribbonControls.js';
 import { ISaenginePropertiesDockService } from './propertiesDock.js';
 
 /*
@@ -79,6 +89,10 @@ export interface IEditorFrameOptions {
 	readonly ariaLabel: string;
 	/** Omit for an editor without a properties panel. */
 	readonly properties?: IEditorFramePropertiesOptions;
+	/** Keep an in-frame toolbar (e.g. non-editor panels such as bottom Tables). */
+	readonly inlineToolbar?: boolean;
+	/** Explicit heading for this editor's action group in the ribbon (defaults to `ariaLabel`). */
+	readonly ribbonTitle?: string;
 }
 
 /** What the status line says: muted text, with an icon and an inline link when given. */
@@ -276,7 +290,7 @@ export class EditorFrame extends Disposable {
 	/** Shows or hides the properties panel: put it among the primary actions. */
 	readonly togglePropertiesAction: Action;
 
-	private readonly toolbar: ToolBar;
+	private readonly toolbar: ToolBar | undefined;
 	private readonly progress: ProgressBar;
 	private readonly body: HTMLElement;
 	private readonly panel: HTMLElement | undefined;
@@ -294,6 +308,19 @@ export class EditorFrame extends Disposable {
 	private width = 0;
 	private height = 0;
 
+	private readonly inlineToolbar: boolean;
+	private _title: string;
+	private readonly _viewControls: RibbonControl[] = [];
+	private readonly _toolControls: RibbonControl[] = [];
+	private readonly _tabGroups: IEditorRibbonTabGroup[] = [];
+	private _primaryActions: readonly IAction[] = [];
+	private _secondaryActions: readonly IAction[] = [];
+	private readonly _pills: IRibbonPillDescriptor[] = [];
+	private _help: IRibbonHelpDescriptor | undefined;
+	private pillSequence = 0;
+	private ribbonRegistered = false;
+	private readonly ribbonFrame: IEditorRibbonFrame;
+
 	private readonly _onDidLayoutMain = this._register(new Emitter<void>());
 	/** The main area changed size (the frame was laid out, the panel shown, hidden or resized). */
 	readonly onDidLayoutMain: Event<void> = this._onDidLayoutMain.event;
@@ -301,14 +328,17 @@ export class EditorFrame extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly options: IEditorFrameOptions,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISaenginePropertiesDockService private readonly dockService: ISaenginePropertiesDockService,
+		@ISaengineRibbonToolbarService private readonly ribbonToolbarService: ISaengineRibbonToolbarService,
 	) {
 		super();
 		this.storageKey = `saengine.editorFrame.${options.id}`;
+		this.inlineToolbar = !!options.inlineToolbar;
+		this._title = options.ribbonTitle ?? options.ariaLabel;
 		const panelOptions = options.properties;
 		this.state = readFrameState(this.storageService.get(this.storageKey, StorageScope.PROFILE), {
 			visible: panelOptions?.defaultVisible ?? true,
@@ -317,22 +347,34 @@ export class EditorFrame extends Disposable {
 
 		this.element = append(container, $('.saengine-editor-frame'));
 
-		const bar = append(this.element, $('.sa-frame-toolbar', { role: 'toolbar', 'aria-label': options.ariaLabel }));
-		this.titleSlot = append(bar, $('.sa-frame-title'));
-		this.helpSlot = append(bar, $('.sa-frame-help'));
-		this.controlsSlot = append(bar, $('.sa-frame-controls'));
-		append(bar, $('.sa-frame-spacer'));
-		this.endSlot = append(bar, $('.sa-frame-end'));
-		this.toolbar = this._register(new ToolBar(append(bar, $('.sa-frame-actions')), contextMenuService, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: options.ariaLabel,
-			toggleMenuTitle: localize('editorFrame.more', "More Actions..."),
-			highlightToggledItems: true,
-		}));
-		this.progress = this._register(new ProgressBar(bar, defaultProgressBarStyles));
-		this.progress.getContainer().classList.add('sa-frame-progress');
+		if (this.inlineToolbar) {
+			const bar = append(this.element, $('.sa-frame-toolbar', { role: 'toolbar', 'aria-label': options.ariaLabel }));
+			this.titleSlot = append(bar, $('.sa-frame-title'));
+			this.helpSlot = append(bar, $('.sa-frame-help'));
+			this.controlsSlot = append(bar, $('.sa-frame-controls'));
+			append(bar, $('.sa-frame-spacer'));
+			this.endSlot = append(bar, $('.sa-frame-end'));
+			this.toolbar = this._register(new ToolBar(append(bar, $('.sa-frame-actions')), contextMenuService, {
+				orientation: ActionsOrientation.HORIZONTAL,
+				ariaLabel: options.ariaLabel,
+				toggleMenuTitle: localize('editorFrame.more', "More Actions..."),
+				highlightToggledItems: true,
+			}));
+			this.progress = this._register(new ProgressBar(bar, defaultProgressBarStyles));
+			this.progress.getContainer().classList.add('sa-frame-progress');
+		} else {
+			this.titleSlot = $('.sa-frame-title');
+			this.helpSlot = $('.sa-frame-help');
+			this.controlsSlot = $('.sa-frame-controls');
+			this.endSlot = $('.sa-frame-end');
+			this.toolbar = undefined;
+		}
 
 		this.body = append(this.element, $('.sa-frame-body'));
+		if (!this.inlineToolbar) {
+			this.progress = this._register(new ProgressBar(this.body, defaultProgressBarStyles));
+			this.progress.getContainer().classList.add('sa-frame-progress', 'sa-frame-progress-body');
+		}
 		this.main = append(this.body, $('.sa-frame-main'));
 		this.emptyElement = append(this.main, $('.sa-frame-empty'));
 
@@ -369,8 +411,27 @@ export class EditorFrame extends Disposable {
 		}
 
 		this.status = append(this.element, $('.sa-frame-status', { role: 'status', 'aria-live': 'polite' }));
+
+		const self = this;
+		this.ribbonFrame = {
+			id: options.id,
+			element: this.element,
+			get title() { return self._title; },
+			get viewControls() { return self._viewControls; },
+			get toolControls() { return self._toolControls; },
+			get primaryActions() { return self._primaryActions; },
+			get secondaryActions() { return self._secondaryActions; },
+			get pills() { return self._pills; },
+			get help() { return self._help; },
+			get tabGroups() { return self._tabGroups; },
+		};
+
 		this.applyPanel();
 		this.setHelp(undefined);
+		if (!this.inlineToolbar) {
+			this.ribbonRegistered = true;
+			this._register(this.ribbonToolbarService.register(this.ribbonFrame));
+		}
 	}
 
 	/**
@@ -399,6 +460,25 @@ export class EditorFrame extends Disposable {
 	 * remove it.
 	 */
 	createPill(text: string, options: { readonly severity?: 'warn' | 'fail'; readonly icon?: ThemeIcon; readonly title?: string; readonly run?: () => void }): IDisposable {
+		if (!this.inlineToolbar) {
+			const pill: IRibbonPillDescriptor = {
+				id: `${this.options.id}.pill.${++this.pillSequence}`,
+				text,
+				severity: options.severity,
+				icon: options.icon,
+				title: options.title,
+				run: options.run,
+			};
+			this._pills.push(pill);
+			this.notifyRibbon();
+			return toDisposable(() => {
+				const idx = this._pills.indexOf(pill);
+				if (idx >= 0) {
+					this._pills.splice(idx, 1);
+					this.notifyRibbon();
+				}
+			});
+		}
 		const store = new DisposableStore();
 		const pill = append(this.endSlot, $<HTMLElement>(options.run ? 'button.sa-frame-pill' : 'span.sa-frame-pill'));
 		if (options.severity) {
@@ -419,15 +499,120 @@ export class EditorFrame extends Disposable {
 		return store;
 	}
 
+	/** Publishes a control (view switch, story/view dropdown, toggle) into the ribbon's View group. */
+	addViewControl(control: RibbonControl): IDisposable {
+		if (this.inlineToolbar) {
+			return renderRibbonControl(this.controlsSlot, control, {
+				hoverService: this.hoverService,
+				contextMenuService: this.contextMenuService,
+				commandService: this.commandService,
+			});
+		}
+		this._viewControls.push(control);
+		let sig = controlVisibilitySignature(this._viewControls);
+		const listener = control.onDidChange(() => {
+			const nextSig = controlVisibilitySignature(this._viewControls);
+			if (nextSig !== sig) {
+				sig = nextSig;
+				this.notifyRibbon();
+			}
+		});
+		this.notifyRibbon();
+		return toDisposable(() => {
+			listener.dispose();
+			const idx = this._viewControls.indexOf(control);
+			if (idx >= 0) {
+				this._viewControls.splice(idx, 1);
+				this.notifyRibbon();
+			}
+		});
+	}
+
+	/** Publishes an active-tool control (type picker, typed input) into the ribbon's contextual Tool group. */
+	addToolControl(control: RibbonControl): IDisposable {
+		if (this.inlineToolbar) {
+			return renderRibbonControl(this.controlsSlot, control, {
+				hoverService: this.hoverService,
+				contextMenuService: this.contextMenuService,
+				commandService: this.commandService,
+			});
+		}
+		this._toolControls.push(control);
+		let sig = controlVisibilitySignature(this._toolControls);
+		const listener = control.onDidChange(() => {
+			const nextSig = controlVisibilitySignature(this._toolControls);
+			if (nextSig !== sig) {
+				sig = nextSig;
+				this.notifyRibbon();
+			}
+		});
+		this.notifyRibbon();
+		return toDisposable(() => {
+			listener.dispose();
+			const idx = this._toolControls.indexOf(control);
+			if (idx >= 0) {
+				this._toolControls.splice(idx, 1);
+				this.notifyRibbon();
+			}
+		});
+	}
+
+	/** Publishes a dedicated ribbon group on a specific contextual tab (e.g. FEM's Results tab). */
+	addTabGroup(group: IEditorRibbonTabGroup): IDisposable {
+		if (this.inlineToolbar) {
+			return toDisposable(() => undefined);
+		}
+		this._tabGroups.push(group);
+		const computeSig = () => `${group.isVisible ? group.isVisible() : true}|${controlVisibilitySignature(group.controls)}`;
+		let sig = computeSig();
+		const store = new DisposableStore();
+		for (const control of group.controls) {
+			store.add(control.onDidChange(() => {
+				const nextSig = computeSig();
+				if (nextSig !== sig) {
+					sig = nextSig;
+					this.notifyRibbon();
+				}
+			}));
+		}
+		this.notifyRibbon();
+		return toDisposable(() => {
+			store.dispose();
+			const idx = this._tabGroups.indexOf(group);
+			if (idx >= 0) {
+				this._tabGroups.splice(idx, 1);
+				this.notifyRibbon();
+			}
+		});
+	}
+
+	/** Notifies the ribbon to re-evaluate the published groups of this editor frame. */
+	notifyRibbon(): void {
+		if (!this.inlineToolbar && this.ribbonRegistered) {
+			this.ribbonToolbarService.notifyChanged(this.ribbonFrame);
+		}
+	}
+
 	/** The icon buttons (primary) and the overflow menu (secondary; `Separator`s group it). */
 	setActions(primary: readonly IAction[], secondary: readonly IAction[] = []): void {
-		this.toolbar.setActions(primary, secondary);
+		if (this.toolbar) {
+			this.toolbar.setActions(primary, secondary);
+		}
+		this._primaryActions = primary;
+		this._secondaryActions = secondary;
+		this.notifyRibbon();
 	}
 
 	/** Replaces the title slot's content with a plain title. */
 	setTitle(title: string): void {
-		clearNode(this.titleSlot);
-		append(this.titleSlot, $('span.sa-frame-title-text', undefined, title));
+		if (this.inlineToolbar) {
+			clearNode(this.titleSlot);
+			append(this.titleSlot, $('span.sa-frame-title-text', undefined, title));
+		}
+		if (this._title !== title) {
+			this._title = title;
+			this.notifyRibbon();
+		}
 	}
 
 	/** What the status line says; undefined empties it. */
@@ -470,22 +655,36 @@ export class EditorFrame extends Disposable {
 	 * the user manual (the hover without one).
 	 */
 	setHelp(text: string | undefined): void {
+		const chapter = manualChapterOf(this.options.id);
+		const nextHelp: IRibbonHelpDescriptor | undefined = text || chapter
+			? {
+				text: text ?? localize('editorFrame.helpDefault', "How this part works, step by step, is in the user manual."),
+				chapter,
+				openManualCommand: OPEN_MANUAL_COMMAND,
+			}
+			: undefined;
+		const helpChanged = this._help?.text !== nextHelp?.text || this._help?.chapter !== nextHelp?.chapter;
+		this._help = nextHelp;
+		if (!this.inlineToolbar) {
+			if (helpChanged) {
+				this.notifyRibbon();
+			}
+			return;
+		}
 		this.helpStore.clear();
 		clearNode(this.helpSlot);
-		// Every part's editor has the "?", with a link to its chapter of the user manual (G13).
-		const chapter = manualChapterOf(this.options.id);
-		if (!text && !chapter) {
+		if (!nextHelp) {
 			return;
 		}
 		const label = localize('editorFrame.help', "About This Editor");
 		const button = append(this.helpSlot, $<HTMLButtonElement>('button.sa-frame-icon-button.sa-frame-help-button', { type: 'button', 'aria-label': label }));
 		append(button, $(ThemeIcon.asCSSSelector(Codicon.question)));
 		const content = new MarkdownString(undefined, { isTrusted: { enabledCommands: [OPEN_MANUAL_COMMAND] } });
-		content.appendText(text ?? localize('editorFrame.helpDefault', "How this part works, step by step, is in the user manual."));
+		content.appendText(nextHelp.text);
 		if (chapter) {
 			content.appendMarkdown(`\n\n[${localize('editorFrame.learnMore', "Learn more in the user manual")}](command:${OPEN_MANUAL_COMMAND}?${encodeURIComponent(JSON.stringify([chapter]))})`);
 		}
-		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, { markdown: content, markdownNotSupportedFallback: text }));
+		const hover = this.helpStore.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, { markdown: content, markdownNotSupportedFallback: nextHelp.text }));
 		// N-G11: a click opens the manual's chapter (the hover still explains on hover).
 		this.helpStore.add(addDisposableListener(button, EventType.CLICK, () => {
 			if (chapter) {

@@ -27,6 +27,7 @@ import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { checkStmModel, emptyStmModel, formatUtilisation, IFemDesignCheck, IStmFile, IStmMember, IStmModel, IStmNode, IStmResult, nextStmId, parseStmFile, stmFile, stmTemplate } from './femDesign.js';
 import { FemStrutAndTieInput } from './femStrutAndTieInput.js';
 import { convertText, displayUnit, inputText, isConverted, parseQuantity, significantText, toDisplay } from '../../../services/saengineProject/common/displayUnits.js';
@@ -94,7 +95,7 @@ export class FemStrutAndTieEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private host!: HTMLElement;
 	private svg!: SVGSVGElement;
-	private modelSelect!: HTMLSelectElement;
+	private modelControl!: RibbonSelectModel;
 	private file: IStmFile = { models: [] };
 	private current = 0;
 	private caseIndex = 0;
@@ -153,15 +154,24 @@ export class FemStrutAndTieEditor extends EditorPane {
 			properties: { title: localize('femStm.properties', "Properties"), defaultWidth: 340 },
 		}));
 		this.frame.element.classList.add('saengine-fem-stm-editor');
-		this.modelSelect = append(this.frame.titleSlot, $<HTMLSelectElement>('select.fem-stm-select', { 'aria-label': localize('femStm.modelAria', "Strut-and-tie model shown") }));
-		this._register(addDisposableListener(this.modelSelect, EventType.CHANGE, () => {
-			this.current = this.modelSelect.selectedIndex;
+		this.modelControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.stm.modelSelect',
+			ariaLabel: localize('femStm.modelAria', "Strut-and-tie model shown"),
+			label: localize('femStm.modelLabel', "Model"),
+			tooltip: localize('femStm.modelAria', "Strut-and-tie model shown"),
+			options: [],
+			selectedId: '0',
+			enabled: false,
+		}));
+		this._register(this.modelControl.onDidSelect(({ index }) => {
+			this.current = index;
 			this.caseIndex = 0;
 			this.selection = undefined;
 			this.result = undefined;
 			this.render();
 			void this.check();
 		}));
+		this.frame.addViewControl(this.modelControl);
 		this.frame.setHelp(localize('femStm.help', "Draw a strut-and-tie model of a D-region the deep-beam checks do not cover: a dapped end, a corbel with several loads, a frame corner, a wall or beam with an opening. Lay out nodes, struts and ties (or start from a template) in the region's plane, x along the member and y up, in mm; hold its boundary with supports and put the factored forces from the analysis on its nodes, one load case per combination. The truss is solved for every case and each strut, tie and nodal zone is checked with the strut-and-tie procedure of the project's code pack. The models are saved in 08 FEM/strut-and-tie.json."));
 		this.frame.setActions(
 			[this.toolActions.select, this.toolActions.node, this.toolActions.strut, this.toolActions.tie, this.deleteAction, this.checkAction, this.frame.togglePropertiesAction],
@@ -465,12 +475,9 @@ export class FemStrutAndTieEditor extends EditorPane {
 
 	private render(): void {
 		this.renderStore.clear();
-		clearNode(this.modelSelect);
-		this.file.models.forEach((m, k) => {
-			const option = append(this.modelSelect, $<HTMLOptionElement>('option', { value: String(k) }, m.name));
-			option.selected = k === this.current;
-		});
-		this.modelSelect.disabled = !this.file.models.length;
+		const options = this.file.models.map((m, k) => ({ id: String(k), text: m.name }));
+		this.modelControl.setOptions(options, String(this.current));
+		this.modelControl.enabled = this.file.models.length > 0;
 		const model = this.model;
 		this.deleteAction.enabled = !!this.selection;
 		for (const action of [this.renameAction, this.removeAction, this.addCaseAction, this.checkAction, ...Object.values(this.toolActions)]) {

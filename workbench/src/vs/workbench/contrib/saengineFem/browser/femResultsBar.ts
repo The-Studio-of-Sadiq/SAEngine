@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { FemResultDisplay, FemResultQuantity, FemSelection, FemValueQuantity } from '@saengine/fem-viewer';
-import { $, addDisposableListener, append, clearNode, EventType } from '../../../../base/browser/dom.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -23,8 +24,15 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFemResultEntry, IFemResultList, IFemResultView } from '../../../../platform/saengine/common/femSolver.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameIconButton, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
+import {
+	RibbonElementControl,
+	RibbonInlineRowControl,
+	RibbonSelectModel,
+	RibbonSliderModel,
+	RibbonToggleModel,
+} from '../../saengineRibbon/browser/ribbonControls.js';
 import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignElement, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
@@ -467,22 +475,18 @@ export interface IFemResultsHost {
  */
 export class FemResultsBar extends Disposable {
 
-	private readonly resultGroup: HTMLElement;
-	private readonly showGroup: HTMLElement;
-	private readonly resultPicker: SelectBox;
-	private readonly modePicker: SelectBox;
-	private readonly showPicker: SelectBox;
-	private readonly modeContainer: HTMLElement;
-	private readonly animateButton: IEditorFrameIconButton;
-	private readonly timeContainer: HTMLElement;
-	private readonly timeSlider: HTMLInputElement;
-	private readonly timeLabel: HTMLElement;
-	private readonly timeCaption: HTMLElement;
-	private readonly playButton: IEditorFrameIconButton;
-	private readonly scaleContainer: HTMLElement;
-	private readonly scaleSlider: HTMLInputElement;
-	private readonly scaleLabel: HTMLElement;
-	private readonly labelsButton: IEditorFrameIconButton;
+	private readonly frame: EditorFrame;
+	private readonly resultControl: RibbonSelectModel;
+	private readonly showControl: RibbonSelectModel;
+	private readonly modeControl: RibbonSelectModel;
+	private readonly animateToggle: RibbonToggleModel;
+	private readonly modeRow: RibbonInlineRowControl;
+	private readonly timeSlider: RibbonSliderModel;
+	private readonly playToggle: RibbonToggleModel;
+	private readonly timeRow: RibbonInlineRowControl;
+	private readonly scaleSlider: RibbonSliderModel;
+	private readonly labelsToggle: RibbonToggleModel;
+	private lastGroupState = '';
 	/** Force diagrams: every member's largest and least value labelled. */
 	private memberLabels = false;
 	private playing = false;
@@ -564,85 +568,173 @@ export class FemResultsBar extends Disposable {
 		private readonly host: IFemResultsHost,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
-		@IContextViewService contextViewService: IContextViewService,
+		@IContextViewService _contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+		this.frame = frame;
 		this.ssi = this._register(new FemSsiPanel(() => this.host.changed(), commandService, fileService, model => dirname(dirname(model))));
-		const group = (slot: HTMLElement, className: string) => append(slot, $(`.fem-results-group.${className}`));
 
-		this.resultGroup = group(frame.titleSlot, 'result');
-		this.resultPicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.resultAria', "Analysis result shown") }));
-		this.resultPicker.render(append(this.resultGroup, $('.fem-results-select.result')));
-		this._register(this.resultPicker.onDidSelect(({ index }) => {
-			const row = this.resultRows[index] ?? -1;
-			if (row < 0) {
-				this.render(); // a heading: the picker shows the result it showed
+		this.resultControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.result',
+			label: localize('femResults.resultLabel', "Result"),
+			ariaLabel: localize('femResults.resultAria', "Analysis result shown"),
+			width: 'wide',
+		}));
+		this._register(this.resultControl.onDidSelect(({ id }) => {
+			if (!id || id.startsWith('__heading__')) {
 				return;
 			}
 			this.stopPlaying();
-			this.key = this.list.results[row]?.key;
+			this.key = id;
 			this.saveViewState();
 			this.mode = this.firstFrame();
 			void this.showResult();
 		}));
 
-		this.showGroup = group(frame.titleSlot, 'show');
-		this.showPicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.showAria', "What to show of the result") }));
-		this.showPicker.render(append(this.showGroup, $('.fem-results-select.show')));
-		this._register(this.showPicker.onDidSelect(({ index }) => this.setShow(this.showOptions()[index]?.show ?? 'none')));
+		this.showControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.show',
+			label: localize('femResults.showLabel', "Show"),
+			ariaLabel: localize('femResults.showAria', "What to show of the result"),
+			width: 'normal',
+		}));
+		this._register(this.showControl.onDidSelect(({ id }) => this.setShow(id as Show)));
 
 		// A modal result: the mode shown, and whether its shape oscillates.
-		this.modeContainer = group(frame.controlsSlot, 'mode');
-		append(this.modeContainer, $('span.sa-frame-label', undefined, localize('femResults.mode', "Mode")));
-		this._register(frame.createIconButton(this.modeContainer, Codicon.chevronLeft, localize('femResults.previousMode', "Previous Mode"), () => this.stepMode(-1)));
-		this.modePicker = this._register(new SelectBox([], 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femResults.modeAria', "Mode shown") }));
-		this.modePicker.render(append(this.modeContainer, $('.fem-results-select.mode')));
-		this._register(this.modePicker.onDidSelect(({ index }) => {
+		const prevWrap = $('.sa-ribbon-inline-btn');
+		this._register(frame.createIconButton(prevWrap, Codicon.chevronLeft, localize('femResults.previousMode', "Previous Mode"), () => this.stepMode(-1)));
+		const prevControl = this._register(new RibbonElementControl({
+			id: 'saengine.fem.prevMode',
+			element: prevWrap,
+			collapsedActions: store => [store.add(new Action('saengine.fem.prevMode', localize('femResults.previousMode', "Previous Mode"), undefined, true, async () => this.stepMode(-1)))],
+		}));
+		this.modeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.mode',
+			label: localize('femResults.mode', "Mode"),
+			ariaLabel: localize('femResults.modeAria', "Mode shown"),
+			width: 'compact',
+		}));
+		this._register(this.modeControl.onDidSelect(({ index }) => {
 			this.mode = index + 1;
 			void this.showResult();
 		}));
-		this._register(frame.createIconButton(this.modeContainer, Codicon.chevronRight, localize('femResults.nextMode', "Next Mode"), () => this.stepMode(1)));
-		this.animateButton = this._register(frame.createIconButton(this.modeContainer, Codicon.debugPause, localize('femResults.animate', "Animate the Mode Shape"), () => {
-			this.animate = !this.animate;
+		const nextWrap = $('.sa-ribbon-inline-btn');
+		this._register(frame.createIconButton(nextWrap, Codicon.chevronRight, localize('femResults.nextMode', "Next Mode"), () => this.stepMode(1)));
+		const nextControl = this._register(new RibbonElementControl({
+			id: 'saengine.fem.nextMode',
+			element: nextWrap,
+			collapsedActions: store => [store.add(new Action('saengine.fem.nextMode', localize('femResults.nextMode', "Next Mode"), undefined, true, async () => this.stepMode(1)))],
+		}));
+		this.animateToggle = this._register(new RibbonToggleModel({
+			id: 'saengine.fem.animateMode',
+			label: localize('femResults.animateShort', "Animate"),
+			icon: Codicon.debugPause,
+			tooltip: localize('femResults.animate', "Animate the Mode Shape"),
+			checked: this.animate,
+			size: 'small',
+		}));
+		this._register(this.animateToggle.onDidToggle(checked => {
+			this.animate = checked;
 			this.render();
+		}));
+		this.modeRow = this._register(new RibbonInlineRowControl({
+			id: 'saengine.fem.modeRow',
+			controls: [prevControl, this.modeControl, nextControl, this.animateToggle],
+			visible: false,
 		}));
 
 		// A time history, a pushover or a staged case: the moment, step or stage shown, and playing it.
-		this.timeContainer = group(frame.controlsSlot, 'time');
-		this.timeCaption = append(this.timeContainer, $('span.sa-frame-label', undefined, localize('femResults.time', "Time")));
-		this.timeSlider = append(this.timeContainer, $<HTMLInputElement>('input.fem-results-time', { type: 'range', min: '1', step: '1', 'aria-label': localize('femResults.timeAria', "Moment of the time history shown") }));
-		this._register(addDisposableListener(this.timeSlider, EventType.INPUT, () => {
+		this.timeSlider = this._register(new RibbonSliderModel({
+			id: 'saengine.fem.time',
+			label: localize('femResults.time', "Time"),
+			ariaLabel: localize('femResults.timeAria', "Moment of the time history shown"),
+			min: 1,
+			max: 1,
+			step: 1,
+			value: 1,
+		}));
+		this._register(this.timeSlider.onDidChangeValue(value => {
 			this.stopPlaying();
-			this.mode = Number(this.timeSlider.value);
+			this.mode = value;
 			void this.showResult();
 		}));
-		this.timeLabel = append(this.timeContainer, $('span.fem-results-time-label'));
-		this.playButton = this._register(frame.createIconButton(this.timeContainer, Codicon.play, localize('femResults.play', "Play"), () => this.playing ? this.stopPlaying() : void this.play()));
+		this.playToggle = this._register(new RibbonToggleModel({
+			id: 'saengine.fem.playTime',
+			label: localize('femResults.play', "Play"),
+			icon: Codicon.play,
+			tooltip: localize('femResults.play', "Play"),
+			checked: false,
+			size: 'small',
+		}));
+		this._register(this.playToggle.onDidToggle(() => this.playing ? this.stopPlaying() : void this.play()));
 		this._register(toDisposable(() => this.stopPlaying()));
+		this.timeRow = this._register(new RibbonInlineRowControl({
+			id: 'saengine.fem.timeRow',
+			controls: [this.timeSlider, this.playToggle],
+			visible: false,
+		}));
 
 		// How large the deflections and diagrams are drawn.
-		this.scaleContainer = group(frame.controlsSlot, 'scale');
-		append(this.scaleContainer, $('span.sa-frame-label', undefined, localize('femResults.scale', "Scale")));
-		this.scaleSlider = append(this.scaleContainer, $<HTMLInputElement>('input.fem-results-scale-slider', {
-			type: 'range', min: String(SCALE_MIN_EXPONENT), max: String(SCALE_MAX_EXPONENT), step: String(SCALE_STEP), value: '0',
-			'aria-label': localize('femResults.scaleAria', "How large the deflections and diagrams are drawn"),
+		this.scaleSlider = this._register(new RibbonSliderModel({
+			id: 'saengine.fem.scale',
+			label: localize('femResults.scale', "Scale"),
+			ariaLabel: localize('femResults.scaleAria', "How large the deflections and diagrams are drawn"),
+			min: SCALE_MIN_EXPONENT,
+			max: SCALE_MAX_EXPONENT,
+			step: SCALE_STEP,
+			value: 0,
+			valueText: scaleText(1),
+			resetValue: 0,
 		}));
-		this._register(addDisposableListener(this.scaleSlider, EventType.INPUT, () => {
-			this.scale = Math.pow(2, Number(this.scaleSlider.value));
+		this._register(this.scaleSlider.onDidChangeValue(exponent => {
+			this.scale = Math.pow(2, exponent);
 			this.render();
 		}));
-		this._register(addDisposableListener(this.scaleSlider, EventType.DBLCLICK, () => {
-			this.scale = 1; // back to the automatic size
+		this.labelsToggle = this._register(new RibbonToggleModel({
+			id: 'saengine.fem.labels',
+			label: localize('femResults.labelsShort', "Labels"),
+			icon: Codicon.symbolNumeric,
+			tooltip: localize('femResults.labelMembers', "Label Every Member's Largest and Least Value"),
+			checked: this.memberLabels,
+			size: 'small',
+		}));
+		this._register(this.labelsToggle.onDidToggle(checked => {
+			this.memberLabels = checked;
 			this.render();
 		}));
-		this.scaleLabel = append(this.scaleContainer, $('span.fem-results-scale'));
-		this.labelsButton = this._register(frame.createIconButton(this.scaleContainer, Codicon.symbolNumeric, localize('femResults.labelMembers', "Label Every Member's Largest and Least Value"), () => {
-			this.memberLabels = !this.memberLabels;
-			this.render();
+
+		this._register(frame.addTabGroup({
+			id: 'saengine.fem.resultsGroup',
+			tabId: 'results',
+			group: '0_1_FemResult',
+			label: localize('femResults.groupResult', "Result"),
+			collapsePriority: 120,
+			icon: Codicon.graphLine,
+			controls: [this.resultControl, this.showControl, this.modeRow],
+			isVisible: () => this.hasResults,
+		}));
+		this._register(frame.addTabGroup({
+			id: 'saengine.fem.scaleGroup',
+			tabId: 'results',
+			group: '0_2_FemScale',
+			label: localize('femResults.groupScale', "Scale"),
+			collapsePriority: 110,
+			icon: Codicon.sliders,
+			controls: [this.scaleSlider, this.labelsToggle, this.timeRow],
+			isVisible: () => this.isScaleGroupVisible(),
 		}));
 
 		this.render();
+	}
+
+	private isScaleGroupVisible(): boolean {
+		const entry = this.entry;
+		if (!entry) {
+			return false;
+		}
+		const frames = framesOf(entry);
+		const scalable = this.show !== 'none' && !isDesignShow(this.show) && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
+		return scalable || frames.length > 0 || COMPONENTS.includes(this.show);
 	}
 
 	/** Counts the result lists read: changes when a new run's results arrive. */
@@ -1117,65 +1209,83 @@ export class FemResultsBar extends Disposable {
 
 	private render(): void {
 		const entry = this.entry;
-		this.resultGroup.classList.toggle('hidden', !entry);
-		this.showGroup.classList.toggle('hidden', !entry);
 		const modal = entry?.kind === 'modal';
-		this.modeContainer.classList.toggle('hidden', !modal);
 		const frames = entry ? framesOf(entry) : [];
-		this.timeContainer.classList.toggle('hidden', !frames.length);
 		const scalable = !!entry && this.show !== 'none' && !isDesignShow(this.show) && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
-		this.scaleContainer.classList.toggle('hidden', !scalable);
+		const diagram = !!entry && COMPONENTS.includes(this.show);
+
+		this.resultControl.setVisible(!!entry);
+		this.showControl.setVisible(!!entry);
+		this.modeRow.setVisible(modal);
+		this.timeRow.setVisible(frames.length > 0);
+		this.scaleSlider.setVisible(scalable);
+		this.labelsToggle.setVisible(diagram);
+
 		if (entry) {
 			const grouped = resultOptions(this.list.results);
-			this.resultRows = grouped.rows;
-			this.resultPicker.setOptions(grouped.options, Math.max(0, grouped.rows.indexOf(this.list.results.indexOf(entry))));
+			this.resultControl.setItems(grouped.options.map((opt, idx) => {
+				const row = grouped.rows[idx] ?? -1;
+				const item = row >= 0 ? this.list.results[row] : undefined;
+				return {
+					id: item ? item.key : `__heading__${idx}`,
+					label: opt.text,
+					disabled: opt.isDisabled,
+					isHeading: row < 0,
+				};
+			}), entry.key);
 			if (modal) {
 				const modes = entry.modes ?? [];
-				this.modePicker.setOptions(modes.map<ISelectOptionItem>(m => ({
-					text: m.period === null ? String(m.number) : m.ux === undefined || m.uy === undefined
+				this.modeControl.setItems(modes.map((m, i) => ({
+					id: String(i + 1),
+					label: m.period === null ? String(m.number) : m.ux === undefined || m.uy === undefined
 						? localize('femResults.modeOption', "{0} (T = {1} s)", m.number, m.period.toFixed(3))
 						// Short enough for a laptop's toolbar: the larger share; the status line has both.
 						: localize('femResults.modeOptionShare', "{0} · {1} s · {2} {3} %", m.number, m.period.toFixed(3), m.ux >= m.uy ? 'UX' : 'UY', (100 * Math.max(m.ux, m.uy)).toFixed(0)),
-				})), Math.max(0, this.mode - 1));
+				})), String(Math.max(1, this.mode)));
 				const animatable = this.show === 'deformed';
-				this.animateButton.element.classList.toggle('hidden', !animatable);
-				this.animateButton.setIcon(this.animate ? Codicon.debugPause : Codicon.play);
-				this.animateButton.setTitle(this.animate ? localize('femResults.stopAnimation', "Stop Animating the Mode Shape") : localize('femResults.animate', "Animate the Mode Shape"));
+				this.animateToggle.setVisible(animatable);
+				this.animateToggle.setChecked(this.animate, false);
+				this.animateToggle.setIcon(this.animate ? Codicon.debugPause : Codicon.play);
+				this.animateToggle.setTooltip(this.animate ? localize('femResults.stopAnimation', "Stop Animating the Mode Shape") : localize('femResults.animate', "Animate the Mode Shape"));
 			}
 			if (frames.length) {
-				this.timeSlider.max = String(frames.length);
-				this.timeSlider.value = String(this.mode);
+				this.timeSlider.setRange(1, frames.length, 1);
+				this.timeSlider.setValue(this.mode, false);
 				const frame = frames[this.mode - 1];
-				this.timeCaption.textContent = entry.kind === 'pushover' ? localize('femResults.step', "Step")
-					: entry.kind === 'static' ? localize('femResults.stage', "Stage") : localize('femResults.time', "Time");
-				this.timeSlider.setAttribute('aria-label', entry.kind === 'pushover' ? localize('femResults.stepAria', "Step of the pushover shown")
+				this.timeSlider.setLabel(entry.kind === 'pushover' ? localize('femResults.step', "Step")
+					: entry.kind === 'static' ? localize('femResults.stage', "Stage") : localize('femResults.time', "Time"));
+				this.timeSlider.setAriaLabel(entry.kind === 'pushover' ? localize('femResults.stepAria', "Step of the pushover shown")
 					: entry.kind === 'static' ? localize('femResults.stageAria', "Construction stage shown") : localize('femResults.timeAria', "Moment of the time history shown"));
-				this.timeLabel.textContent = entry.kind === 'pushover'
+				const text = entry.kind === 'pushover'
 					? localize('femResults.pushoverAt', "roof {0}, base shear {1}", this.format('length', frame?.displacement ?? 0), this.format('force', frame?.shear ?? 0))
 					: entry.kind === 'static'
 						? localize('femResults.stageOf', "{0} ({1} of {2})", frame?.stage ?? '', this.mode, frames.length)
 						: localize('femResults.timeOf', "{0} of {1} s", (frame?.time ?? 0).toFixed(2), (frames[frames.length - 1].time ?? 0).toFixed(2));
-				// W4B-24: a long stage name is cut with "..." (in full on hover), not run under Scale.
-				this.timeLabel.title = this.timeLabel.textContent ?? '';
-				this.playButton.setIcon(this.playing ? Codicon.debugPause : Codicon.play);
-				this.playButton.setTitle(this.playing ? localize('femResults.pause', "Pause") : localize('femResults.play', "Play"));
+				this.timeSlider.setValueText(text);
+				this.timeSlider.setTooltip(text);
+				this.playToggle.setChecked(this.playing, false);
+				this.playToggle.setIcon(this.playing ? Codicon.debugPause : Codicon.play);
+				this.playToggle.setLabel(this.playing ? localize('femResults.pause', "Pause") : localize('femResults.play', "Play"));
+				this.playToggle.setTooltip(this.playing ? localize('femResults.pause', "Pause") : localize('femResults.play', "Play"));
 			}
 			const options = this.showOptions();
-			this.showPicker.setOptions(options.map<ISelectOptionItem>(o => ({ text: o.label })), Math.max(0, options.findIndex(o => o.show === this.show)));
+			this.showControl.setItems(options.map(o => ({ id: o.show, label: o.label })), this.show);
 			// The slider is relative to the automatic size: say how large the deflections really are drawn.
 			const magnification = this.show === 'deformed' && this.view && entry.kind !== 'modal' ? deflectionMagnification(this.model, this.view, this.scale) : undefined;
 			const times = magnification === undefined ? undefined : magnification >= 10 ? magnification.toFixed(0) : magnification.toFixed(1);
-			this.scaleLabel.textContent = times !== undefined
+			this.scaleSlider.setValueText(times !== undefined
 				? localize('femResults.scaleMagnified', "{0} · drawn ×{1}", scaleText(this.scale), times)
-				: scaleText(this.scale);
-			this.scaleLabel.title = times !== undefined
+				: scaleText(this.scale));
+			this.scaleSlider.setTooltip(times !== undefined
 				? localize('femResults.scaleMagnifiedTitle', "The deflections are drawn {0} times their real size (the slider's {1} of the automatic size).", times, scaleText(this.scale))
-				: '';
-			this.scaleSlider.value = String(Math.log2(this.scale));
-			const diagram = COMPONENTS.includes(this.show);
-			this.labelsButton.element.classList.toggle('hidden', !diagram);
-			this.labelsButton.element.classList.toggle('checked', diagram && this.memberLabels);
-			this.labelsButton.element.setAttribute('aria-pressed', String(diagram && this.memberLabels));
+				: undefined);
+			this.scaleSlider.setValue(Math.log2(this.scale), false);
+			this.labelsToggle.setChecked(diagram && this.memberLabels, false);
+		}
+		const groupState = `${this.hasResults}|${this.isScaleGroupVisible()}`;
+		if (groupState !== this.lastGroupState) {
+			this.lastGroupState = groupState;
+			this.frame.notifyRibbon();
 		}
 		const view = this.view;
 		const show = this.show;

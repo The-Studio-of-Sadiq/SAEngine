@@ -45,7 +45,8 @@ import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { createModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { RibbonSegmentedModel, RibbonSelectModel, RibbonToggleModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { BimStudies } from '../../saengineOffice/browser/bimStudies.js';
@@ -203,7 +204,6 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	private viewport!: HTMLElement;
 	private summary!: HTMLElement;
 	private additions!: HTMLElement;
-	private readonly viewButtons = new Map<View, HTMLButtonElement>();
 	private readonly form: SchemaForm;
 	private view: View = '3d';
 	private readonly _onDidChangePartSection = this._register(new Emitter<void>());
@@ -240,8 +240,7 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	/** The objects file, read here when the tab was restored before the project was open. */
 	private readonly objectsReference = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 
-	/** Over the 3D view: the story filter, the legend, and the loading and empty notes. */
-	private storySelect!: HTMLSelectElement;
+	/** Over the 3D view: the legend, and the loading and empty notes. */
 	private legend!: HTMLElement;
 	private loadingNote!: HTMLElement;
 	private emptyNote!: HTMLElement;
@@ -314,21 +313,55 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	protected createBody(body: HTMLElement): void {
 		const frame = this.frame;
 
-		// The view: a segmented control, the editor's only text in the toolbar.
-		const views = append(frame.titleSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('building.viewsAria', "Building model view") }));
-		for (const { view, label, icon } of VIEWS) {
-			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }));
-			append(button, $(ThemeIcon.asCSSSelector(icon)));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => {
-				this.showView(view);
-				this.render();
-			}));
-			this.viewButtons.set(view, button);
-		}
 		// The model view's Plan | 3D | Analysis switch, before the building model's own views.
-		this._register(this.instantiation.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, '3d')));
+		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commands, '3d'))));
+		const viewsControl = this.viewsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.building.views',
+			ariaLabel: localize('building.viewsAria', "Building model view"),
+			items: VIEWS.map(v => ({ id: v.view, label: v.label, icon: v.icon })),
+			selectedId: this.view,
+		}));
+		this._register(frame.addViewControl(viewsControl));
+		this._register(viewsControl.onDidSelect(id => {
+			this.showView(id as View);
+			this.render();
+		}));
 
+		const presetsControl = this.presetsControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.building.presets',
+			ariaLabel: localize('building.presetsAria', "View direction"),
+			items: PRESETS.map(p => ({ id: p.preset, label: p.label, icon: p.icon, tooltip: p.label })),
+		}));
+		this._register(frame.addViewControl(presetsControl));
+		this._register(presetsControl.onDidSelect(id => {
+			void this.viewer?.setView(id as BuildingViewPreset);
+		}));
+
+		const storyControl = this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.building.storyFilter',
+			label: localize('building.storyLabel', "Story"),
+			ariaLabel: localize('building.storyFilterAria', "Stories shown"),
+			width: 'normal',
+		}));
+		this._register(frame.addViewControl(storyControl));
+		this._register(storyControl.onDidSelect(({ id }) => {
+			this.storyFilter = id === '__all__' ? undefined : id;
+			void this.applyStoryFilter();
+		}));
+
+		const rebarToggle = this.rebarToggle = this._register(new RibbonToggleModel({
+			id: 'saengine.building.rebar',
+			label: localize('building.rebar', "Reinforcement"),
+			icon: Codicon.symbolArray,
+			tooltip: localize('building.rebarTitle', "Show the designed bars of the beams and columns in 3D (as the drawings detail them), with the IFC reinforcing bars in Export IFC. Hide Columns and Beams in the legend to see the cages."),
+			checked: this.showRebar,
+			size: 'small',
+		}));
+		this._register(frame.addViewControl(rebarToggle));
+		this._register(rebarToggle.onDidToggle(checked => {
+			this.showRebar = checked;
+			this.ifcScheduler.schedule(0);
+		}));
 
 		const container = append(body, $('.building-editor.building-3d'));
 		this.viewport = append(container, $('.building-viewport', { tabIndex: 0 }));
@@ -350,36 +383,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.showView(this.view);
 	}
 
-	/** The camera presets and story filter (top left), the legend (bottom left) and the notes. */
+	/** The legend (bottom left) and the loading/empty notes over the 3D view. */
 	private createViewTools(viewport: HTMLElement): void {
-		const tools = append(viewport, $('.building-3d-tools'));
-		const presets = append(tools, $('.sa-segmented.building-presets', { role: 'group', 'aria-label': localize('building.presetsAria', "View direction") }));
-		for (const { preset, label, icon } of PRESETS) {
-			const button = append(presets, $<HTMLButtonElement>('button.sa-segment', { type: 'button', title: label }));
-			append(button, $(ThemeIcon.asCSSSelector(icon)));
-			append(button, $('span', undefined, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => void this.viewer?.setView(preset)));
-		}
-		// The reinforcement cages of the beams and columns (detailed as the drawings are): asked
-		// for on demand, a large building takes a while to detail and to draw.
-		const rebar = append(tools, $<HTMLButtonElement>('button.sa-segment.building-rebar-toggle', {
-			type: 'button',
-			'aria-pressed': 'false',
-			title: localize('building.rebarTitle', "Show the designed bars of the beams and columns in 3D (as the drawings detail them), with the IFC reinforcing bars in Export IFC. Hide Columns and Beams in the legend to see the cages."),
-		}));
-		append(rebar, $(ThemeIcon.asCSSSelector(Codicon.symbolArray)));
-		append(rebar, $('span', undefined, localize('building.rebar', "Reinforcement")));
-		this._register(addDisposableListener(rebar, EventType.CLICK, () => {
-			this.showRebar = !this.showRebar;
-			rebar.setAttribute('aria-pressed', String(this.showRebar));
-			rebar.classList.toggle('active', this.showRebar);
-			this.ifcScheduler.schedule(0);
-		}));
-		this.storySelect = append(tools, $<HTMLSelectElement>('select.building-story-filter', { 'aria-label': localize('building.storyFilterAria', "Stories shown") }));
-		this._register(addDisposableListener(this.storySelect, EventType.CHANGE, () => {
-			this.storyFilter = this.storySelect.value || undefined;
-			void this.applyStoryFilter();
-		}));
 		this.legend = append(viewport, $('.building-legend', { role: 'group', 'aria-label': localize('building.legendAria', "Layers") }));
 		this.loadingNote = append(viewport, $('.building-3d-note.loading.hidden', { role: 'status' }));
 		append(this.loadingNote, $(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))));
@@ -748,21 +753,22 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	/** The story filter's choices: all stories, or one (the base shows the foundations). */
 	private renderStoryFilter(): void {
-		const select = this.storySelect;
-		if (!select) {
+		const control = this.storyControl;
+		if (!control) {
 			return;
 		}
 		const stories = this.sortedStories();
 		if (this.storyFilter && !stories.some(s => s.id === this.storyFilter)) {
 			this.storyFilter = undefined;
 		}
-		clearNode(select);
-		append(select, $<HTMLOptionElement>('option', { value: '' }, localize('building.allStories', "All stories")));
-		for (const story of stories) {
-			append(select, $<HTMLOptionElement>('option', { value: String(story.id) }, `${story.name ?? story.id} (${formatElevation(Number(story.elevation))})`));
-		}
-		select.value = this.storyFilter ?? '';
-		select.disabled = !stories.length;
+		control.setItems([
+			{ id: '__all__', label: localize('building.allStories', "All stories") },
+			...stories.map(story => ({
+				id: String(story.id),
+				label: `${story.name ?? story.id} (${formatElevation(Number(story.elevation))})`,
+			})),
+		], this.storyFilter ?? '__all__');
+		control.setDisabled(!stories.length);
 	}
 
 	private async applyStoryFilter(): Promise<void> {
@@ -1012,10 +1018,11 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		this.documentFrame?.setHelp(view === 'additions'
 			? localize('building.additionsIntro', "What the building model adds to the Floor Plan: openings cut into slabs and walls, stairs between stories, braces, sloped beams or raking columns, and post-tensioning tendons in slabs. Rebuilding from the Floor Plan keeps them; openings follow their slab or wall.")
 			: undefined);
-		for (const [id, button] of this.viewButtons) {
-			button.classList.toggle('active', id === view);
-			button.setAttribute('aria-selected', String(id === view));
-		}
+		this.viewsControl?.select(view, false);
+		const is3d = view === '3d';
+		this.presetsControl?.setVisible(is3d);
+		this.storyControl?.setVisible(is3d);
+		this.rebarToggle?.setVisible(is3d);
 		if (view === '3d') {
 			this.ifcScheduler.schedule(0);
 			this.viewer?.layout();
@@ -1045,8 +1052,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 		const built = !!this.document;
 		this.openSourceAction.label = localize('building.openSource', "Open {0}", this.sourceName);
 		this.updateDocumentFrameActions();
-		for (const [view, button] of this.viewButtons) {
-			button.disabled = !built && view !== '3d';
+		for (const { view } of VIEWS) {
+			this.viewsControl?.setItemDisabled(view, !built && view !== '3d');
 		}
 		if (this.document) {
 			frame.setStatus(this.status(stale)); // otherwise the frame says why it cannot show the file

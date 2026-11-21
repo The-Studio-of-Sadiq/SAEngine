@@ -3,8 +3,10 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -413,6 +415,17 @@ export function resolveActiveTabForEditor(
 	return visibleTabs.find(tab => tab.contextual)?.id ?? visibleTabs[0]?.id ?? 'home';
 }
 
+/**
+ * Picks the ribbon tab where an active editor publishes its toolbar groups ("View", "<Editor name>", "Help"):
+ * its first contextual tab, or the Project tab (avoiding Home unless no other tab is visible).
+ */
+export function resolveEditorToolbarTargetTab(visibleTabs: readonly IRibbonTabDescriptor[]): RibbonTabId {
+	return visibleTabs.find(tab => tab.contextual)?.id
+		?? visibleTabs.find(tab => tab.id !== 'home')?.id
+		?? visibleTabs[0]?.id
+		?? 'home';
+}
+
 export type RibbonButtonSize = 'large' | 'small';
 
 export interface IRibbonItemHint {
@@ -426,6 +439,10 @@ export interface IRibbonCustomGroup {
 	readonly tabId: RibbonTabId;
 	readonly group: string;
 	readonly label: string;
+	readonly icon?: ThemeIcon;
+	readonly collapsible?: boolean;
+	readonly collapsePriority?: number;
+	readonly getCollapsedActions?: (store: DisposableStore) => readonly IAction[];
 	readonly render: (container: HTMLElement, instantiationService: IInstantiationService) => IDisposable;
 }
 
@@ -746,7 +763,7 @@ export function buildRibbonGroups(
 			key: parsed.key,
 			label: custom.label,
 			order: parsed.order,
-			collapsePriority: priorityLookup(parsed.key) ?? -parsed.order,
+			collapsePriority: custom.collapsePriority ?? priorityLookup(parsed.key) ?? -parsed.order,
 			columns: [],
 			custom,
 		});

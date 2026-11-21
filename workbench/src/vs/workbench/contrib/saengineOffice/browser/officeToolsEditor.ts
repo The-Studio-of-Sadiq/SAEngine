@@ -29,6 +29,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { designArguments } from '../../saengineFem/browser/femDesign.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { PDF_TO_DXF_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import {
 	ENVIRONMENT_FILE, FABRICATION_FILE, ganttLayout, ICostOptimisation, ISchedule, IScheduleAnswer, ITakeoff, ITakeoffItem, ITakeoffSheet, measureItem, nextId,
@@ -80,7 +81,7 @@ export class OfficeToolsEditor extends EditorPane {
 	private frame!: EditorFrame;
 	private content!: HTMLElement;
 	private tool: OfficeTool = 'schedule';
-	private readonly tabButtons = new Map<OfficeTool, HTMLButtonElement>();
+	private tabsControl!: RibbonSegmentedModel;
 	private readonly renderStore = this._register(new DisposableStore());
 
 	private schedule: ISchedule | undefined;

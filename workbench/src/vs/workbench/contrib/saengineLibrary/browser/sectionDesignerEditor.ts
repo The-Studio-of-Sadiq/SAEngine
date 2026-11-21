@@ -33,6 +33,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { projectMaterial } from '../../../services/saengineProject/common/materialDefaults.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { appendPropertyHeading, appendPropertyNote, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonSegmentedModel, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { renderChart } from '../../saengineFem/browser/femChart.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
 import { SectionDesignerInput } from './sectionDesignerInput.js';
@@ -143,7 +144,8 @@ export class SectionDesignerEditor extends EditorPane {
 	/** View: screen = (origin.x + x k, origin.y - y k). */
 	private view = { k: 0.5, ox: 0, oy: 0 };
 	private fitted = false;
-	private readonly toolButtons = new Map<Tool, HTMLButtonElement>();
+	private toolsControl!: RibbonSegmentedModel;
+	private templateControl!: RibbonSelectModel;
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly panelDisposables = this._register(new DisposableStore());
@@ -1118,10 +1120,7 @@ export class SectionDesignerEditor extends EditorPane {
 	}
 
 	private updateToolButtons(): void {
-		for (const [tool, button] of this.toolButtons) {
-			button.classList.toggle('active', tool === this.tool);
-			button.setAttribute('aria-pressed', String(tool === this.tool));
-		}
+		this.toolsControl.selectedId = this.tool;
 		this.canvas?.setAttribute('data-tool', this.tool);
 	}
 
