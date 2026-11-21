@@ -129,6 +129,8 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `architecture/importIfc` | **path**, architectureText, **floorPlanText** | `architecture_import_ifc` (worker) | Adopts an architect's IFC (walls, doors, windows, spaces) into the architecture: ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes"}}`` or ``{"problems"}``. |
 | `architecture/inspectDrawing` | — | `architecture_inspect_drawing` (worker) | An architect's DWG/DXF for the layer-mapping step: its layers (entity counts, block names, sample texts), unit and a preview (``saengine.library.architecture_dxf.inspect_drawing``), or ``{"problems"}``. |
 | `architecture/ramps` | **architectureText**, settingsText | `architecture_ramps` | Every ramp of the architecture checked against the ramp rules of the code pack the settings choose (``saengine.design.ramps.check_ramps``), or ``{"problems"}``. |
+| `bim/diffIfc` | **beforePath**, **afterPath** | `bim_diff_ifc` (worker) |  |
+| `bim/exportIfcFile` | **projectRoot**, schema, includeStructuralAnalysis, includeGeoreferencing, crs, includeConnections, outPath | `bim_export_ifc_file` (worker) |  |
 | `bim/generate` | **floorPlanText**, bimText | `generate_building` | The building model generated from the floor plan, keeping the model's own elements. |
 | `bim/generateFromStructure` | **structureText**, bimText | `generate_building_from_structure` | The building model of a special structure, keeping the model's own elements. |
 | `bim/ifc` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, schema, includeStructuralAnalysis, soilText, crs, projectRoot | `building_ifc` | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
@@ -174,11 +176,17 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `design/strutAndTie` | **model**, projectPath | `strut_and_tie` | One strut-and-tie model of a D-region solved and checked (``saengine.design.stm_model.check_model``) with the code pack the project of the analysis model ``project_path`` chooses; ``{"problems"}`` when the model is not valid. |
 | `design/strutAndTieTemplate` | **template**, parameters | `strut_and_tie_template` | A strut-and-tie model to start from (``saengine.design.stm_model.template``), or ``{"error"}``. |
 | `drawings/automate` | — |  |  |
+| `drawings/callout` | **projectRoot**, level, x0, y0, x1, y1, writeFiles, calloutNumber, detailSheetNumber, planScale, detailScale, size | `drawings_callout` (worker) |  |
 | `drawings/dwg` | **projectRoot**, sheets | `drawings_dwg` (worker) | The current sheets as DWG (LibreDWG's dxf2dwg, a separate program): ``{written, folder, problems}``. |
 | `drawings/generate` | designReportText, **projectRoot**, sheets, size | `drawings_generate` (worker) | Generates the drawings into ``11 Exports/Drawings`` (``saengine.pipeline.drawings``): the answer the Exports page reads, or ``{sheets: [], problems}`` when nothing is drawn. ``design_report``: the design checks Run All has just made (else those of the last run). |
 | `drawings/issue` | **projectRoot** | `drawings_issue` (worker) | Issues the drawing set (``saengine.pipeline.drawings.issue``): every sheet drawn again, the new or changed ones with the new revision, copied into ``Issued/<rev> <date>``; the answer of ``drawings_generate`` with ``issued``, or ``{sheets: [], problems}``. |
+| `drawings/keynotes` | **projectRoot**, sheet | `drawings_keynotes` (worker) |  |
+| `drawings/legend` | **projectRoot**, sheet | `drawings_legend` (worker) |  |
 | `drawings/list` | — | `drawings_list` | The last generation's drawings with what is out of date (reads files only). |
 | `drawings/progress` | — | `drawings_progress` | Where a generation of the project is (``{running: false}`` when none runs). |
+| `drawings/schedule` | **projectRoot**, **definition**, exportXlsxPath | `drawings_schedule` (worker) |  |
+| `drawings/scheduleCategories` | — | `drawings_schedule_categories` |  |
+| `drawings/scopeBoxes` | **projectRoot**, scopeBoxes, writeFiles, saveToSettings, size, scale, prefix | `drawings_scope_boxes` (worker) |  |
 | `export/e2k` | — |  |  |
 | `export/exchange` | — |  |  |
 | `fabrication/bvbs` | — |  |  |
@@ -214,23 +222,32 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `library/steelSections` | — | `steel_sections` | SAEngine's standard steel section table (``saengine.library.steel_sections``). |
 | `mep/checkIds` | **projectRoot**, mepText | `mep_check_ids` (worker) | Checks the models against the coordination's IDS files (``saengine.mep.ids``): ``{"coordination", "results", "counts", "notes"}`` or ``{"problems"}`` (also when IfcTester is not installed). |
 | `mep/coordinate` | **projectRoot**, mepText, tests | `mep_coordinate` (worker) | Runs the clash tests and merges their clashes into the coordination issues (``saengine.mep.coordination.coordinate``), or ``{"problems"}``. |
+| `mep/electricalCableSize` | projectRoot, nominalVoltage, mode, designCurrentA, lengthM, phases, installationMethod, insulation, conductor, ambientC, groupedCircuits, vdLimitPct | `electrical_cable_size` (worker) |  |
+| `mep/electricalLighting` | **projectRoot**, luminaireType, maintenanceFactor, workPlaneM, reflectance | `electrical_lighting` (worker) |  |
 | `mep/electricalOpenings` | **projectRoot**, mepText | `electrical_openings` | The openings the risers and trays still need (07 MEP openings no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/electricalProposeEquipment` | **projectRoot**, mepText | `electrical_propose_equipment` | The electrical equipment SAEngine proposes (07 MEP ``electrical.equipment``, ``sized``): ``{equipment, notes}`` or ``{problems}``. |
 | `mep/electricalReport` | **projectRoot**, mepText | `electrical_report` | The electrical report of 7 MEP (``saengine.electrical.report.electrical_report``: demand, substation, generator, rooms, risers, trays, lightning protection), JSON-safe; never raises. |
 | `mep/electricalUses` | — | `electrical_uses` | The code pack's occupancies of minimum load densities (W/m²; the default pack's Part 8 Table 8.1.17 in the default pack): ``{uses: [{key, label, nonAc, ac, source}]}``. |
 | `mep/exportBcf` | **projectRoot**, **path**, mepText, issues | `mep_export_bcf` | Writes the coordination issues (``issues``: their ids, else all) to the BCF 3.0 file ``path``: ``{"path", "topics"}`` or ``{"problems"}``. |
+| `mep/fireAlarm` | **projectRoot**, standbyHours, alarmMinutes, ageingFactor | `fire_alarm` (worker) |  |
 | `mep/fireOpenings` | **projectRoot**, mepText | `fire_openings` | The sleeves the fire risers and mains still need (07 MEP openings no opening of 07 MEP already gives): ``{openings, notes}`` or ``{problems}``. |
 | `mep/fireProposals` | **projectRoot**, mepText | `fire_propose` | The fire tanks and pumps SAEngine proposes (07 MEP ``fire.tanks`` and ``fire.pumps``, ``sized``): ``{tanks, pumps, notes}`` or ``{problems}``. |
 | `mep/fireReport` | **projectRoot**, mepText | `fire_report` (worker) | The fire protection report of 7 MEP (``saengine.fire.report.fire_report``: the systems the default pack's Part 4 requires, sprinklers, hydraulics, water, pumps, the fire tanks' designs, missing sleeves), JSON-safe; never raises. |
+| `mep/fireSprinklers` | **projectRoot**, hazard, material, ceiling | `fire_sprinklers` (worker) |  |
 | `mep/hvacCancelLoads` | — | `hvac_cancel_loads` | Stops the EnergyPlus runs in progress: ``{cancelled: n}``. |
 | `mep/hvacConstructions` | — | `hvac_constructions` | The envelope constructions SAEngine knows (typical Bangladeshi walls and roofs, glazing from EnergyPlus version 26.2.0's data sets) with their U-values: ``{wall, roof, glazing}`` lists of ``{key, label, u, shgc?}``. |
 | `mep/hvacDuctOpenings` | **projectRoot**, mepText | `hvac_duct_openings` | The openings the ducts need through beams and slabs (07 MEP openings, each passing its checks; ``replaces`` an accepted one when a duct moved), the conflicts with their options and the ``stale`` openings: ``{openings, conflicts, stale, notes}`` or ``{problems}``. |
+| `mep/hvacDuctPressure` | **projectRoot**, material, supplyDeltaT, frictionRate, method | `hvac_duct_pressure` (worker) |  |
 | `mep/hvacLoads` | **projectRoot**, mepText | `hvac_report` (worker) | The HVAC report of 7 MEP: the cooling loads (``saengine.hvac.report.hvac_loads``) at the top level and the air side, plant, shafts and duct openings (``saengine.hvac.air.hvac_air``) under ``air``. ``calculate`` False (the editor after each edit, Run All): EnergyPlus is not started; its cached run is used when it matches the input, else the estimate, with ``calculated`` False. ``calculate`` True: EnergyPlus version 26.2.0 runs (a separate process, about half a minute; :func:`hvac_cancel_loads` stops it). Never raises. |
+| `mep/hvacLoadsDetailed` | **projectRoot**, zoning, epw, useEnergyPlus, annual | `hvac_loads_detailed` (worker) |  |
 | `mep/hvacProposePlant` | **projectRoot**, mepText | `hvac_propose_plant` | The plant SAEngine proposes (07 MEP ``hvac.plant`` entries, ``sized``) for the loads last calculated (else the estimate): ``{plant, notes, ...}`` or ``{problems}``. |
 | `mep/hvacReport` | **projectRoot**, mepText | `hvac_report` | The HVAC report of 7 MEP: the cooling loads (``saengine.hvac.report.hvac_loads``) at the top level and the air side, plant, shafts and duct openings (``saengine.hvac.air.hvac_air``) under ``air``. ``calculate`` False (the editor after each edit, Run All): EnergyPlus is not started; its cached run is used when it matches the input, else the estimate, with ``calculated`` False. ``calculate`` True: EnergyPlus version 26.2.0 runs (a separate process, about half a minute; :func:`hvac_cancel_loads` stops it). Never raises. |
+| `mep/hvacRouteDucts` | **projectRoot**, story, material, applyToMep, system, shape, method, frictionRate, beamPenalty | `hvac_route_ducts` (worker) |  |
 | `mep/hvacTables` | — | `hvac_tables` | The default pack's Part 8 Table 8.2.2's stations (2 % cooling design conditions, Sec 2.12.2.1) and Table 8.2.3's occupancies: ``{cities: [{key, label, db, wb, range}], uses: [{key, label, perPerson, perArea, density, source}]}``. |
 | `mep/importBcf` | **projectRoot**, **path**, mepText | `mep_import_bcf` | Merges the topics of the BCF file ``path`` into the coordination issues: ``{"coordination", "counts"}`` or ``{"problems"}``. |
 | `mep/importIfc` | **projectRoot**, **path**, copy | `mep_import_ifc` | What an MEP IFC model holds (its discipline and elements), for 07 MEP's model list. |
+| `mep/plumbingGas` | **projectRoot**, fuel, supplyPressureKpa, maxDropKpa | `plumbing_gas` (worker) |  |
+| `mep/plumbingHotWater` | **projectRoot**, supplyTempC, coldTempC, loopLengthM, material | `plumbing_hot_water` (worker) |  |
 | `mep/plumbingOccupancies` | — | `plumbing_occupancies` | The default pack's Part 8 Table 8.5.1's occupancies: ``{occupancies: [{key, label, lpcd, ...}]}``. |
 | `mep/plumbingReport` | **projectRoot**, mepText, designs | `plumbing_report` (worker) | The plumbing report (the default pack's Part 8 sizing, tank designs, hydraulics), JSON-safe (``saengine.plumbing.project.full_report``); never raises. ``designs="cached"``: the quick first pass, with the tank designs not yet cached listed as pending. |
 | `mep/plumbingSizeTanks` | **projectRoot**, mepText | `plumbing_size_tanks` | The tanks SAEngine proposes, in 07 MEP's ``plumbing.tanks`` format: ``{tanks, notes}`` or ``{problems}``. |
@@ -246,6 +263,7 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `project/importArchive` | **path**, **destParent**, name, currentVersion, overwrite, migrate | `project_import_archive` (worker) | Unpacks a ``.civil`` file into ``<dest_parent>/<name>``: ``{root, name, files, problems (warnings), migrated, pending, renamed?}``, or a refusal (nothing is left behind). |
 | `project/inspectArchive` | **path**, currentVersion, verify | `project_inspect_archive` | What a ``.civil`` file holds: ``{manifest\|null, problems, ok, files, size}``. |
 | `project/validate` | — | `validate_project` | Load ``path`` with the opensees-studio schema and check its references. |
+| `project/validateAll` | — | `project_validate_all` (worker) |  |
 | `report/build` | **projectRoot**, outPdf, template, format | `build_report` (worker) | The design report of the project, PDF or Word (see ``saengine.report.build_report``). |
 | `report/createTemplate` | **projectRoot**, **id**, base, name | `report_template_create` | Writes a new report template ``template_id`` into the project, a copy of ``base`` (a built-in or project template; the default when not given): ``{"path"}`` or ``{"problems"}``. An existing file is never overwritten. |
 | `report/templates` | — | `report_templates` | The report templates the project can print (built-in and its own) and the one its settings name: ``{"templates": [{id, name, source, path?}], "current"}``. |
@@ -295,6 +313,8 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `substructure/migrate` | — | `substructure_migrate` | The saved substructure with the building model's footings added (nothing is written): ``{"substructure", "notes", "count"}`` or ``{"problems"}``. |
 | `substructure/report` | — | `substructure_report` (worker) | The design checks of the project's saved substructure (see ``saengine.substructure.substructure_report``), or ``{"problems"}`` when a part of the project cannot be read. |
 | `substructure/size` | **projectRoot**, columns, substructureText | `substructure_size` (worker) | Footings proposed for ``columns`` (default: the columns without a foundation) from the reactions and the soil report, with the editor's substructure ``substructure_text`` when given: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``. |
+| `verification/cases` | — | `verification_cases` |  |
+| `verification/run` | outDir, ids, fastOnly, pdf | `verification_run` (worker) |  |
 | `versions/diff` | **projectRoot**, fromVersion, toVersion | `versions_diff` (worker) | Two versions (or a version and the current files, ``b`` omitted) compared part by part. |
 | `versions/list` | **projectRoot**, limit | `versions_list` (worker) | The versions, newest first: ``{versions, count, more}``. |
 | `versions/markIssued` | **projectRoot**, **version**, **label**, author | `versions_mark_issued` (worker) | Marks ``version`` as issued with ``label``: ``{version, tag}``. |

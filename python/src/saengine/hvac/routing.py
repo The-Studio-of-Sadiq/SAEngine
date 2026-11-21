@@ -10,6 +10,7 @@ beam-crossing penalties) and sizes the resulting duct tree with
 
 from __future__ import annotations
 
+import inspect
 import itertools
 import math
 from typing import Any
@@ -26,14 +27,40 @@ DEFAULT_BEAM_PENALTY = 5000.0
 VOID_MARGIN = 50.0
 
 
-def _ceiling_void_depth(arch: Any, story: str) -> tuple[float | None, str | None]:
+def _ceiling_void_depth(
+    arch: Any,
+    story: str,
+    bim: Any = None,
+    objects: Any = None,
+) -> tuple[float | None, str | None]:
     """Query ``saengine.library.architecture.ceiling_void`` if it exists; skip if absent."""
     from saengine.library import architecture as arch_lib
 
     fn = getattr(arch_lib, "ceiling_void", None)
     if fn is None or arch is None:
         return None, "ceiling_void() not available in architecture.py: ceiling void check skipped"
-    depth = fn(arch, story)
+    sig = inspect.signature(fn)
+    positional = [
+        p
+        for p in sig.parameters.values()
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(positional) <= 2:
+        depth = fn(arch, story)
+    else:
+        if bim is None:
+            return None, f"{story}: BIM model not provided: ceiling void check skipped"
+        targets: list[Any] = [
+            r for r in getattr(arch, "rooms", []) if getattr(r, "story", None) == story
+        ]
+        if not targets:
+            targets = [
+                c.id for c in getattr(arch, "ceilings", []) if getattr(c, "story", None) == story
+            ]
+        depths = [
+            float(d) for t in targets if (d := fn(arch, bim, objects, t, story=story)) is not None
+        ]
+        depth = min(depths) if depths else None
     if depth is None:
         return None, f"{story}: ceiling_void() returned no depth: ceiling void check skipped"
     return float(depth), f"{story}: ceiling void depth {float(depth):g} mm checked"
@@ -111,6 +138,7 @@ def auto_route_ducts(
     *,
     bim: Any = None,
     arch: Any = None,
+    objects: Any = None,
     system: str = "supply",
     shape: str = "rect",
     method: str = "equalFriction",
@@ -166,7 +194,7 @@ def auto_route_ducts(
             }
         graph = RoomGraph(places, beams=beams, beam_penalty=beam_penalty, spine=True)
 
-    void_depth, void_note = _ceiling_void_depth(arch, story)
+    void_depth, void_note = _ceiling_void_depth(arch, story, bim=bim, objects=objects)
     if void_note:
         notes.append(void_note)
     max_height: float | None = None
