@@ -10,26 +10,36 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { RibbonButtonSize, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 
-/** Ordered ribbon groups for the contextual Draft tab (AutoCAD Home-tab layout). */
+/** Ordered ribbon groups across the contextual CAD tabs (Draft, Annotate, Blocks & Parametric). */
 export interface IDraftRibbonGroupSpec {
+	readonly menuId: MenuId;
 	readonly raw: string;
 	readonly key: string;
 	readonly label: string;
+	readonly collapsePriority: number;
 }
 
 export const DRAFT_RIBBON_GROUPS: readonly IDraftRibbonGroupSpec[] = [
-	{ raw: '1_Draw', key: 'Draw', label: localize('draft.grp.draw', "Draw") },
-	{ raw: '2_Modify', key: 'Modify', label: localize('draft.grp.modify', "Modify") },
-	{ raw: '3_Annotation', key: 'Annotation', label: localize('draft.grp.annotation', "Annotation") },
-	{ raw: '4_Layers', key: 'Layers', label: localize('draft.grp.layers', "Layers") },
-	{ raw: '5_Properties', key: 'Properties', label: localize('draft.grp.properties', "Properties") },
-	{ raw: '6_Block', key: 'Block', label: localize('draft.grp.block', "Block") },
-	{ raw: '7_Parametric', key: 'Parametric', label: localize('draft.grp.parametric', "Parametric") },
-	{ raw: '8_Utilities', key: 'Utilities', label: localize('draft.grp.utilities', "Utilities") },
-	{ raw: '9_Styles', key: 'Styles', label: localize('draft.grp.styles', "Styles") },
+	// Draft tab
+	{ menuId: RibbonMenus.Draft, raw: '1_Draw', key: 'Draw', label: localize('draft.grp.draw', "Draw"), collapsePriority: 40 },
+	{ menuId: RibbonMenus.Draft, raw: '2_Modify', key: 'Modify', label: localize('draft.grp.modify', "Modify"), collapsePriority: 30 },
+	{ menuId: RibbonMenus.Draft, raw: '3_Layers', key: 'Layers', label: localize('draft.grp.layers', "Layers"), collapsePriority: 20 },
+	{ menuId: RibbonMenus.Draft, raw: '4_Properties', key: 'Properties', label: localize('draft.grp.properties', "Properties"), collapsePriority: 10 },
+	// Annotate tab
+	{ menuId: RibbonMenus.Annotate, raw: '1_Text', key: 'Text', label: localize('annotate.grp.text', "Text"), collapsePriority: 70 },
+	{ menuId: RibbonMenus.Annotate, raw: '2_Dimensions', key: 'Dimensions', label: localize('annotate.grp.dimensions', "Dimensions"), collapsePriority: 60 },
+	{ menuId: RibbonMenus.Annotate, raw: '3_Leaders', key: 'Leaders', label: localize('annotate.grp.leaders', "Leaders"), collapsePriority: 50 },
+	{ menuId: RibbonMenus.Annotate, raw: '4_Tables', key: 'Tables', label: localize('annotate.grp.tables', "Tables"), collapsePriority: 40 },
+	{ menuId: RibbonMenus.Annotate, raw: '5_Centerlines', key: 'Centerlines', label: localize('annotate.grp.centerlines', "Center & Tolerance"), collapsePriority: 30 },
+	{ menuId: RibbonMenus.Annotate, raw: '6_FieldsAndFind', key: 'FieldsAndFind', label: localize('annotate.grp.fieldsAndFind', "Fields & Find"), collapsePriority: 20 },
+	{ menuId: RibbonMenus.Annotate, raw: '7_Styles', key: 'Styles', label: localize('annotate.grp.styles', "Styles"), collapsePriority: 10 },
+	// Blocks & Parametric tab
+	{ menuId: RibbonMenus.BlocksParametric, raw: '1_Block', key: 'Block', label: localize('blocks.grp.block', "Block"), collapsePriority: 30 },
+	{ menuId: RibbonMenus.BlocksParametric, raw: '2_Parametric', key: 'Parametric', label: localize('blocks.grp.parametric', "Parametric"), collapsePriority: 20 },
+	{ menuId: RibbonMenus.BlocksParametric, raw: '3_Utilities', key: 'Utilities', label: localize('blocks.grp.utilities', "Utilities"), collapsePriority: 10 },
 ];
 
-/** Submenu IDs attached to the Draft ribbon tab for split/dropdown buttons. */
+/** Submenu IDs attached to the contextual CAD ribbon tabs for split/dropdown buttons. */
 export const DraftRibbonSubmenus = {
 	DrawCircle: MenuId.for('SaengineRibbon.DraftSubmenu.DrawCircle'),
 	DrawArc: MenuId.for('SaengineRibbon.DraftSubmenu.DrawArc'),
@@ -59,6 +69,7 @@ export const DraftRibbonSubmenus = {
 } as const;
 
 export interface IDraftRibbonSubmenuSpec {
+	readonly menuId: MenuId;
 	readonly group: string;
 	readonly order: number;
 	readonly submenu: MenuId;
@@ -69,39 +80,39 @@ export interface IDraftRibbonSubmenuSpec {
 }
 
 export const DRAFT_RIBBON_SUBMENUS: readonly IDraftRibbonSubmenuSpec[] = [
-	// 1_Draw
-	{ group: '1_Draw', order: 3, submenu: DraftRibbonSubmenus.DrawCircle, title: localize('draft.sub.circle', "Circle"), icon: Codicon.circleLarge, size: 'large', primaryCommandId: 'saengine.cad.circle' },
-	{ group: '1_Draw', order: 4, submenu: DraftRibbonSubmenus.DrawArc, title: localize('draft.sub.arc', "Arc"), icon: Codicon.circleOutline, size: 'small', primaryCommandId: 'saengine.cad.arc' },
-	{ group: '1_Draw', order: 16, submenu: DraftRibbonSubmenus.DrawRegion, title: localize('draft.sub.region', "Region"), icon: Codicon.combine, size: 'small', primaryCommandId: 'saengine.cad.region' },
-	// 2_Modify
-	{ group: '2_Modify', order: 13, submenu: DraftRibbonSubmenus.ModifyArray, title: localize('draft.sub.array', "Array"), icon: Codicon.symbolArray, size: 'small', primaryCommandId: 'saengine.cad.arrayrect' },
-	{ group: '2_Modify', order: 24, submenu: DraftRibbonSubmenus.ModifyDrawOrder, title: localize('draft.sub.drawOrder', "Draw Order"), icon: Codicon.sortPrecedence, size: 'small', primaryCommandId: 'saengine.cad.draworder' },
-	// 3_Annotation
-	{ group: '3_Annotation', order: 1, submenu: DraftRibbonSubmenus.AnnotText, title: localize('draft.sub.text', "Text"), icon: Codicon.symbolText, size: 'large', primaryCommandId: 'saengine.cad.text' },
-	{ group: '3_Annotation', order: 2, submenu: DraftRibbonSubmenus.AnnotDimension, title: localize('draft.sub.dimension', "Dimension"), icon: Codicon.symbolRuler, size: 'large', primaryCommandId: 'saengine.cad.dimlinear' },
-	{ group: '3_Annotation', order: 3, submenu: DraftRibbonSubmenus.AnnotHatch, title: localize('draft.sub.hatch', "Hatch"), icon: Codicon.paintcan, size: 'large', primaryCommandId: 'saengine.cad.hatch' },
-	{ group: '3_Annotation', order: 5, submenu: DraftRibbonSubmenus.AnnotLeader, title: localize('draft.sub.leader', "Leader"), icon: Codicon.symbolMethodArrow, size: 'small', primaryCommandId: 'saengine.cad.mleader' },
-	{ group: '3_Annotation', order: 11, submenu: DraftRibbonSubmenus.AnnotField, title: localize('draft.sub.field', "Field"), icon: Codicon.symbolField, size: 'small', primaryCommandId: 'saengine.cad.field' },
-	// 4_Layers
-	{ group: '4_Layers', order: 5, submenu: DraftRibbonSubmenus.LayerOffOn, title: localize('draft.sub.layerOff', "Off"), icon: Codicon.eyeClosed, size: 'small', primaryCommandId: 'saengine.cad.layoff' },
-	{ group: '4_Layers', order: 6, submenu: DraftRibbonSubmenus.LayerFreezeThaw, title: localize('draft.sub.layerFreeze', "Freeze"), icon: Codicon.debugPause, size: 'small', primaryCommandId: 'saengine.cad.layfrz' },
-	{ group: '4_Layers', order: 7, submenu: DraftRibbonSubmenus.LayerLockUnlock, title: localize('draft.sub.layerLock', "Lock / Unlock"), icon: Codicon.lock, size: 'small', primaryCommandId: 'saengine.cad.laylck' },
-	{ group: '4_Layers', order: 10, submenu: DraftRibbonSubmenus.LayerMergeMore, title: localize('draft.sub.layerMerge', "Merge"), icon: Codicon.mergeInto, size: 'small', primaryCommandId: 'saengine.cad.laymrg' },
-	// 5_Properties
-	{ group: '5_Properties', order: 5, submenu: DraftRibbonSubmenus.PropsLinetype, title: localize('draft.sub.linetype', "Linetype"), icon: Codicon.dash, size: 'small', primaryCommandId: 'saengine.cad.linetype' },
-	// 6_Block
-	{ group: '6_Block', order: 4, submenu: DraftRibbonSubmenus.BlockEdit, title: localize('draft.sub.editBlock', "Edit Block"), icon: Codicon.editSession, size: 'small', primaryCommandId: 'saengine.cad.bedit' },
-	{ group: '6_Block', order: 5, submenu: DraftRibbonSubmenus.BlockRefEdit, title: localize('draft.sub.editRef', "Edit Reference"), icon: Codicon.references, size: 'small', primaryCommandId: 'saengine.cad.refedit' },
-	{ group: '6_Block', order: 6, submenu: DraftRibbonSubmenus.BlockAttributes, title: localize('draft.sub.attributes', "Attributes"), icon: Codicon.tag, size: 'small', primaryCommandId: 'saengine.cad.attdef' },
-	{ group: '6_Block', order: 8, submenu: DraftRibbonSubmenus.BlockDynamic, title: localize('draft.sub.dynParam', "Dynamic Parameter"), icon: Codicon.symbolParameter, size: 'small', primaryCommandId: 'saengine.cad.bparameter' },
-	{ group: '6_Block', order: 9, submenu: DraftRibbonSubmenus.BlockGroup, title: localize('draft.sub.group', "Group"), icon: Codicon.groupByRefType, size: 'small', primaryCommandId: 'saengine.cad.group' },
-	// 7_Parametric
-	{ group: '7_Parametric', order: 1, submenu: DraftRibbonSubmenus.ParamGeometric, title: localize('draft.sub.geometric', "Geometric"), icon: Codicon.magnet, size: 'small', primaryCommandId: 'saengine.cad.geomconstraint' },
-	{ group: '7_Parametric', order: 2, submenu: DraftRibbonSubmenus.ParamDimensional, title: localize('draft.sub.dimensional', "Dimensional"), icon: Codicon.symbolRuler, size: 'small', primaryCommandId: 'saengine.cad.dimconstraint' },
-	// 8_Utilities
-	{ group: '8_Utilities', order: 1, submenu: DraftRibbonSubmenus.UtilMeasure, title: localize('draft.sub.measure', "Measure"), icon: Codicon.compass, size: 'small', primaryCommandId: 'saengine.cad.measuregeom' },
-	{ group: '8_Utilities', order: 6, submenu: DraftRibbonSubmenus.UtilSelect, title: localize('draft.sub.selectAll', "Select All"), icon: Codicon.checkAll, size: 'small', primaryCommandId: 'saengine.cad.selectall' },
-	{ group: '8_Utilities', order: 12, submenu: DraftRibbonSubmenus.UtilView, title: localize('draft.sub.view', "View"), icon: Codicon.zoomIn, size: 'small', primaryCommandId: 'saengine.cad.zoom' },
+	// Draft -> 1_Draw
+	{ menuId: RibbonMenus.Draft, group: '1_Draw', order: 3, submenu: DraftRibbonSubmenus.DrawCircle, title: localize('draft.sub.circle', "Circle"), icon: Codicon.circleLarge, size: 'large', primaryCommandId: 'saengine.cad.circle' },
+	{ menuId: RibbonMenus.Draft, group: '1_Draw', order: 4, submenu: DraftRibbonSubmenus.DrawArc, title: localize('draft.sub.arc', "Arc"), icon: Codicon.circleOutline, size: 'small', primaryCommandId: 'saengine.cad.arc' },
+	{ menuId: RibbonMenus.Draft, group: '1_Draw', order: 16, submenu: DraftRibbonSubmenus.DrawRegion, title: localize('draft.sub.region', "Region"), icon: Codicon.combine, size: 'small', primaryCommandId: 'saengine.cad.region' },
+	{ menuId: RibbonMenus.Draft, group: '1_Draw', order: 18, submenu: DraftRibbonSubmenus.AnnotHatch, title: localize('draft.sub.hatch', "Hatch"), icon: Codicon.paintcan, size: 'small', primaryCommandId: 'saengine.cad.hatch' },
+	// Draft -> 2_Modify
+	{ menuId: RibbonMenus.Draft, group: '2_Modify', order: 13, submenu: DraftRibbonSubmenus.ModifyArray, title: localize('draft.sub.array', "Array"), icon: Codicon.symbolArray, size: 'small', primaryCommandId: 'saengine.cad.arrayrect' },
+	{ menuId: RibbonMenus.Draft, group: '2_Modify', order: 24, submenu: DraftRibbonSubmenus.ModifyDrawOrder, title: localize('draft.sub.drawOrder', "Draw Order"), icon: Codicon.sortPrecedence, size: 'small', primaryCommandId: 'saengine.cad.draworder' },
+	// Draft -> 3_Layers
+	{ menuId: RibbonMenus.Draft, group: '3_Layers', order: 5, submenu: DraftRibbonSubmenus.LayerOffOn, title: localize('draft.sub.layerOff', "Off"), icon: Codicon.eyeClosed, size: 'small', primaryCommandId: 'saengine.cad.layoff' },
+	{ menuId: RibbonMenus.Draft, group: '3_Layers', order: 6, submenu: DraftRibbonSubmenus.LayerFreezeThaw, title: localize('draft.sub.layerFreeze', "Freeze"), icon: Codicon.debugPause, size: 'small', primaryCommandId: 'saengine.cad.layfrz' },
+	{ menuId: RibbonMenus.Draft, group: '3_Layers', order: 7, submenu: DraftRibbonSubmenus.LayerLockUnlock, title: localize('draft.sub.layerLock', "Lock / Unlock"), icon: Codicon.lock, size: 'small', primaryCommandId: 'saengine.cad.laylck' },
+	{ menuId: RibbonMenus.Draft, group: '3_Layers', order: 10, submenu: DraftRibbonSubmenus.LayerMergeMore, title: localize('draft.sub.layerMerge', "Merge"), icon: Codicon.mergeInto, size: 'small', primaryCommandId: 'saengine.cad.laymrg' },
+	// Draft -> 4_Properties
+	{ menuId: RibbonMenus.Draft, group: '4_Properties', order: 5, submenu: DraftRibbonSubmenus.PropsLinetype, title: localize('draft.sub.linetype', "Linetype"), icon: Codicon.dash, size: 'small', primaryCommandId: 'saengine.cad.linetype' },
+	// Annotate
+	{ menuId: RibbonMenus.Annotate, group: '1_Text', order: 1, submenu: DraftRibbonSubmenus.AnnotText, title: localize('draft.sub.text', "Text"), icon: Codicon.symbolText, size: 'large', primaryCommandId: 'saengine.cad.text' },
+	{ menuId: RibbonMenus.Annotate, group: '2_Dimensions', order: 1, submenu: DraftRibbonSubmenus.AnnotDimension, title: localize('draft.sub.dimension', "Dimension"), icon: Codicon.symbolRuler, size: 'large', primaryCommandId: 'saengine.cad.dimlinear' },
+	{ menuId: RibbonMenus.Annotate, group: '3_Leaders', order: 1, submenu: DraftRibbonSubmenus.AnnotLeader, title: localize('draft.sub.leader', "Leader"), icon: Codicon.symbolMethodArrow, size: 'large', primaryCommandId: 'saengine.cad.mleader' },
+	{ menuId: RibbonMenus.Annotate, group: '6_FieldsAndFind', order: 1, submenu: DraftRibbonSubmenus.AnnotField, title: localize('draft.sub.field', "Field"), icon: Codicon.symbolField, size: 'small', primaryCommandId: 'saengine.cad.field' },
+	// Blocks & Parametric -> 1_Block
+	{ menuId: RibbonMenus.BlocksParametric, group: '1_Block', order: 4, submenu: DraftRibbonSubmenus.BlockEdit, title: localize('draft.sub.editBlock', "Edit Block"), icon: Codicon.editSession, size: 'small', primaryCommandId: 'saengine.cad.bedit' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '1_Block', order: 5, submenu: DraftRibbonSubmenus.BlockRefEdit, title: localize('draft.sub.editRef', "Edit Reference"), icon: Codicon.references, size: 'small', primaryCommandId: 'saengine.cad.refedit' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '1_Block', order: 6, submenu: DraftRibbonSubmenus.BlockAttributes, title: localize('draft.sub.attributes', "Attributes"), icon: Codicon.tag, size: 'small', primaryCommandId: 'saengine.cad.attdef' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '1_Block', order: 8, submenu: DraftRibbonSubmenus.BlockDynamic, title: localize('draft.sub.dynParam', "Dynamic Parameter"), icon: Codicon.symbolParameter, size: 'small', primaryCommandId: 'saengine.cad.bparameter' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '1_Block', order: 9, submenu: DraftRibbonSubmenus.BlockGroup, title: localize('draft.sub.group', "Group"), icon: Codicon.groupByRefType, size: 'small', primaryCommandId: 'saengine.cad.group' },
+	// Blocks & Parametric -> 2_Parametric
+	{ menuId: RibbonMenus.BlocksParametric, group: '2_Parametric', order: 1, submenu: DraftRibbonSubmenus.ParamGeometric, title: localize('draft.sub.geometric', "Geometric"), icon: Codicon.magnet, size: 'large', primaryCommandId: 'saengine.cad.geomconstraint' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '2_Parametric', order: 2, submenu: DraftRibbonSubmenus.ParamDimensional, title: localize('draft.sub.dimensional', "Dimensional"), icon: Codicon.symbolRuler, size: 'large', primaryCommandId: 'saengine.cad.dimconstraint' },
+	// Blocks & Parametric -> 3_Utilities
+	{ menuId: RibbonMenus.BlocksParametric, group: '3_Utilities', order: 1, submenu: DraftRibbonSubmenus.UtilMeasure, title: localize('draft.sub.measure', "Measure"), icon: Codicon.compass, size: 'large', primaryCommandId: 'saengine.cad.measuregeom' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '3_Utilities', order: 6, submenu: DraftRibbonSubmenus.UtilSelect, title: localize('draft.sub.selectAll', "Select All"), icon: Codicon.checkAll, size: 'small', primaryCommandId: 'saengine.cad.selectall' },
+	{ menuId: RibbonMenus.BlocksParametric, group: '3_Utilities', order: 12, submenu: DraftRibbonSubmenus.UtilView, title: localize('draft.sub.view', "View"), icon: Codicon.zoomIn, size: 'small', primaryCommandId: 'saengine.cad.zoom' },
 ];
 
 export interface ICadDraftCommandSpec {
@@ -1097,10 +1108,10 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.mtext', "Multiline Text"),
 		tooltip: localize2('cad.tip.mtext', "Create a multiline text object (MTEXT)"),
 		icon: Codicon.textSize,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 4,
-		size: 'small',
+		menuId: RibbonMenus.Annotate,
+		group: '1_Text',
+		order: 2,
+		size: 'large',
 	},
 	// Leader submenu
 	{
@@ -1132,10 +1143,10 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.table', "Table"),
 		tooltip: localize2('cad.tip.table', "Create an empty table object in the drawing (TABLE)"),
 		icon: Codicon.table,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 6,
-		size: 'small',
+		menuId: RibbonMenus.Annotate,
+		group: '4_Tables',
+		order: 1,
+		size: 'large',
 	},
 	{
 		id: 'saengine.cad.gradient',
@@ -1145,8 +1156,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.gradient', "Fill an enclosed area or selected objects with a gradient fill (GRADIENT)"),
 		icon: Codicon.colorMode,
 		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 7,
+		group: '1_Draw',
+		order: 19,
 		size: 'small',
 	},
 	{
@@ -1156,9 +1167,9 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.centermark', "Center Mark"),
 		tooltip: localize2('cad.tip.centermark', "Create a center mark at the center of a selected circle or arc (CENTERMARK)"),
 		icon: Codicon.target,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 8,
+		menuId: RibbonMenus.Annotate,
+		group: '5_Centerlines',
+		order: 1,
 		size: 'small',
 	},
 	{
@@ -1168,9 +1179,9 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.centerline', "Centerline"),
 		tooltip: localize2('cad.tip.centerline', "Create centerline geometry associated with selected lines (CENTERLINE)"),
 		icon: Codicon.horizontalRule,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 9,
+		menuId: RibbonMenus.Annotate,
+		group: '5_Centerlines',
+		order: 2,
 		size: 'small',
 	},
 	{
@@ -1180,9 +1191,9 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.tolerance', "Tolerance"),
 		tooltip: localize2('cad.tip.tolerance', "Create geometric tolerances in a feature control frame (TOLERANCE)"),
 		icon: Codicon.law,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 10,
+		menuId: RibbonMenus.Annotate,
+		group: '5_Centerlines',
+		order: 3,
 		size: 'small',
 	},
 	// Field submenu
@@ -1215,14 +1226,14 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.find', "Find"),
 		tooltip: localize2('cad.tip.find', "Find and replace text in text, mtext, dimensions, tables, and attributes (FIND)"),
 		icon: Codicon.search,
-		menuId: RibbonMenus.Draft,
-		group: '3_Annotation',
-		order: 12,
+		menuId: RibbonMenus.Annotate,
+		group: '6_FieldsAndFind',
+		order: 2,
 		size: 'small',
 	},
 
 	// =========================================================================
-	// 4_Layers (order 2 is the custom Current Layer dropdown)
+	// 3_Layers (order 2 is the custom Current Layer dropdown)
 	// =========================================================================
 	{
 		id: 'saengine.cad.layer',
@@ -1232,7 +1243,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.layer', "Manage layers and layer properties (LAYER)"),
 		icon: Codicon.layers,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 1,
 		size: 'large',
 	},
@@ -1244,7 +1255,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.layiso', "Turn off all layers except those of selected objects (LAYISO)"),
 		icon: Codicon.filter,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 3,
 		size: 'small',
 	},
@@ -1256,7 +1267,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.layuniso', "Restore layers hidden with the Isolate Layer command (LAYUNISO)"),
 		icon: Codicon.filterFilled,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 4,
 		size: 'small',
 	},
@@ -1337,7 +1348,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.laymcur', "Set the current layer to that of a selected object (LAYMCUR)"),
 		icon: Codicon.check,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 8,
 		size: 'small',
 	},
@@ -1349,7 +1360,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.laycur', "Change selected objects to the current layer (LAYCUR)"),
 		icon: Codicon.arrowCircleRight,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 9,
 		size: 'small',
 	},
@@ -1406,13 +1417,13 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.laywalk', "Dynamically inspect objects on each layer sequentially (LAYWALK)"),
 		icon: Codicon.preview,
 		menuId: RibbonMenus.Draft,
-		group: '4_Layers',
+		group: '3_Layers',
 		order: 11,
 		size: 'small',
 	},
 
 	// =========================================================================
-	// 5_Properties (order 3 is saengine.cad.properties registered separately)
+	// 4_Properties (order 3 is saengine.cad.properties registered separately)
 	// =========================================================================
 	{
 		id: 'saengine.cad.matchprop',
@@ -1422,7 +1433,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.matchprop', "Apply the properties of a selected object to other objects (MATCHPROP)"),
 		icon: Codicon.wand,
 		menuId: RibbonMenus.Draft,
-		group: '5_Properties',
+		group: '4_Properties',
 		order: 1,
 		size: 'small',
 	},
@@ -1434,7 +1445,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.chprop', "Change the color, layer, linetype, or lineweight of objects (CHPROP)"),
 		icon: Codicon.settings,
 		menuId: RibbonMenus.Draft,
-		group: '5_Properties',
+		group: '4_Properties',
 		order: 2,
 		size: 'small',
 	},
@@ -1446,7 +1457,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.color', "Set the current color for new objects (COLOR)"),
 		icon: Codicon.symbolColor,
 		menuId: RibbonMenus.Draft,
-		group: '5_Properties',
+		group: '4_Properties',
 		order: 4,
 		size: 'small',
 	},
@@ -1492,13 +1503,13 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		tooltip: localize2('cad.tip.lweight', "Set the current lineweight for new objects (LWEIGHT)"),
 		icon: Codicon.listFlat,
 		menuId: RibbonMenus.Draft,
-		group: '5_Properties',
+		group: '4_Properties',
 		order: 6,
 		size: 'small',
 	},
 
 	// =========================================================================
-	// 6_Block
+	// Blocks & Parametric -> 1_Block
 	// =========================================================================
 	{
 		id: 'saengine.cad.insert',
@@ -1507,8 +1518,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.insert', "Insert"),
 		tooltip: localize2('cad.tip.insert', "Insert a block or drawing into the current drawing (INSERT)"),
 		icon: Codicon.insert,
-		menuId: RibbonMenus.Draft,
-		group: '6_Block',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '1_Block',
 		order: 1,
 		size: 'large',
 	},
@@ -1519,8 +1530,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.block', "Create"),
 		tooltip: localize2('cad.tip.block', "Create a block definition from selected objects (BLOCK)"),
 		icon: Codicon.newCollection,
-		menuId: RibbonMenus.Draft,
-		group: '6_Block',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '1_Block',
 		order: 2,
 		size: 'small',
 	},
@@ -1531,8 +1542,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.wblock', "Write Block"),
 		tooltip: localize2('cad.tip.wblock', "Write objects or a block to a new DXF drawing file (WBLOCK)"),
 		icon: Codicon.saveAs,
-		menuId: RibbonMenus.Draft,
-		group: '6_Block',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '1_Block',
 		order: 3,
 		size: 'small',
 	},
@@ -1645,8 +1656,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.xref', "Xref"),
 		tooltip: localize2('cad.tip.xref', "Attach, overlay, reload, bind, or detach external DXF references (XREF)"),
 		icon: Codicon.link,
-		menuId: RibbonMenus.Draft,
-		group: '6_Block',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '1_Block',
 		order: 7,
 		size: 'small',
 	},
@@ -1928,8 +1939,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.autoconstrain', "Auto Constrain"),
 		tooltip: localize2('cad.tip.autoconstrain', "Automatically infer and apply geometric constraints to selection (AUTOCONSTRAIN)"),
 		icon: Codicon.zap,
-		menuId: RibbonMenus.Draft,
-		group: '7_Parametric',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '2_Parametric',
 		order: 3,
 		size: 'small',
 	},
@@ -1940,8 +1951,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.parameters', "Parameters"),
 		tooltip: localize2('cad.tip.parameters', "Manage named parametric variables and expressions (PARAMETERS)"),
 		icon: Codicon.symbolVariable,
-		menuId: RibbonMenus.Draft,
-		group: '7_Parametric',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '2_Parametric',
 		order: 4,
 		size: 'small',
 	},
@@ -1952,8 +1963,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.delconstraint', "Delete Constraints"),
 		tooltip: localize2('cad.tip.delconstraint', "Remove all geometric and dimensional constraints from selection (DELCONSTRAINT)"),
 		icon: Codicon.trash,
-		menuId: RibbonMenus.Draft,
-		group: '7_Parametric',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '2_Parametric',
 		order: 5,
 		size: 'small',
 	},
@@ -1964,8 +1975,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.constraintbar', "Show Constraints"),
 		tooltip: localize2('cad.tip.constraintbar', "List and inspect active geometric constraints on selected objects (CONSTRAINTBAR)"),
 		icon: Codicon.eye,
-		menuId: RibbonMenus.Draft,
-		group: '7_Parametric',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '2_Parametric',
 		order: 6,
 		size: 'small',
 	},
@@ -2058,8 +2069,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.divide', "Divide"),
 		tooltip: localize2('cad.tip.divide', "Create evenly spaced point objects along a curve (DIVIDE)"),
 		icon: Codicon.ellipsis,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 2,
 		size: 'small',
 	},
@@ -2070,8 +2081,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.measure', "Measure Along"),
 		tooltip: localize2('cad.tip.measure', "Create point objects at measured intervals along a curve (MEASURE)"),
 		icon: Codicon.symbolNumeric,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 3,
 		size: 'small',
 	},
@@ -2082,8 +2093,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.qselect', "Quick Select"),
 		tooltip: localize2('cad.tip.qselect', "Create a selection set based on filtering criteria (QSELECT)"),
 		icon: Codicon.listFilter,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 4,
 		size: 'small',
 	},
@@ -2094,8 +2105,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.selectsimilar', "Select Similar"),
 		tooltip: localize2('cad.tip.selectsimilar', "Find and select all objects that match properties of selected objects (SELECTSIMILAR)"),
 		icon: Codicon.listSelection,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 5,
 		size: 'small',
 	},
@@ -2151,8 +2162,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.units', "Units"),
 		tooltip: localize2('cad.tip.units', "Control coordinate and angle display formats and precision (UNITS)"),
 		icon: Codicon.symbolUnit,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 7,
 		size: 'small',
 	},
@@ -2163,8 +2174,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.dataextraction', "Data Extraction"),
 		tooltip: localize2('cad.tip.dataextraction', "Extract drawing object properties and block counts to a table or CSV (DATAEXTRACTION)"),
 		icon: Codicon.export,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 8,
 		size: 'small',
 	},
@@ -2175,8 +2186,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.purge', "Purge"),
 		tooltip: localize2('cad.tip.purge', "Remove unused blocks, layers, styles, and definitions from the drawing (PURGE)"),
 		icon: Codicon.trash,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 9,
 		size: 'small',
 	},
@@ -2187,8 +2198,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.audit', "Audit"),
 		tooltip: localize2('cad.tip.audit', "Evaluate drawing database integrity and fix errors (AUDIT)"),
 		icon: Codicon.verified,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 10,
 		size: 'small',
 	},
@@ -2199,8 +2210,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.recover', "Recover"),
 		tooltip: localize2('cad.tip.recover', "Repair and recover a damaged DXF drawing file (RECOVER)"),
 		icon: Codicon.debugRestart,
-		menuId: RibbonMenus.Draft,
-		group: '8_Utilities',
+		menuId: RibbonMenus.BlocksParametric,
+		group: '3_Utilities',
 		order: 11,
 		size: 'small',
 	},
@@ -2262,7 +2273,7 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 	},
 
 	// =========================================================================
-	// 9_Styles
+	// Annotate -> 7_Styles
 	// =========================================================================
 	{
 		id: 'saengine.cad.style',
@@ -2271,8 +2282,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.style', "Text Style"),
 		tooltip: localize2('cad.tip.style', "Create, modify, or specify text styles (STYLE)"),
 		icon: Codicon.caseSensitive,
-		menuId: RibbonMenus.Draft,
-		group: '9_Styles',
+		menuId: RibbonMenus.Annotate,
+		group: '7_Styles',
 		order: 1,
 		size: 'small',
 	},
@@ -2283,8 +2294,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.dimstyle', "Dimension Style"),
 		tooltip: localize2('cad.tip.dimstyle', "Create and modify dimension styles (DIMSTYLE)"),
 		icon: Codicon.symbolRuler,
-		menuId: RibbonMenus.Draft,
-		group: '9_Styles',
+		menuId: RibbonMenus.Annotate,
+		group: '7_Styles',
 		order: 2,
 		size: 'small',
 	},
@@ -2295,8 +2306,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.mleaderstyle', "Multileader Style"),
 		tooltip: localize2('cad.tip.mleaderstyle', "Create and modify multileader styles (MLEADERSTYLE)"),
 		icon: Codicon.symbolMethodArrow,
-		menuId: RibbonMenus.Draft,
-		group: '9_Styles',
+		menuId: RibbonMenus.Annotate,
+		group: '7_Styles',
 		order: 3,
 		size: 'small',
 	},
@@ -2307,8 +2318,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.tablestyle', "Table Style"),
 		tooltip: localize2('cad.tip.tablestyle', "Create and modify table styles (TABLESTYLE)"),
 		icon: Codicon.table,
-		menuId: RibbonMenus.Draft,
-		group: '9_Styles',
+		menuId: RibbonMenus.Annotate,
+		group: '7_Styles',
 		order: 4,
 		size: 'small',
 	},
@@ -2319,8 +2330,8 @@ export const CAD_DRAFT_COMMANDS: readonly ICadDraftCommandSpec[] = [
 		title: localize2('cad.cmd.mlstyle', "Multiline Style"),
 		tooltip: localize2('cad.tip.mlstyle', "Create, modify, and manage multiline styles (MLSTYLE)"),
 		icon: Codicon.threeBars,
-		menuId: RibbonMenus.Draft,
-		group: '9_Styles',
+		menuId: RibbonMenus.Annotate,
+		group: '7_Styles',
 		order: 5,
 		size: 'small',
 	},

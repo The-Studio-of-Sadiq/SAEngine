@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/ribbon.css';
-import { $, addDisposableListener, append, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, DisposableResizeObserver, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -28,10 +28,13 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import {
 	buildRibbonGroups,
+	computeCollapsedRibbonGroups,
 	DraftActiveContext,
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
+	getRibbonGroupPriority,
 	getRibbonItemHint,
+	IRibbonGroupModel,
 	IRibbonTabDescriptor,
 	onDidChangeRibbonRegistry,
 	RIBBON_TABS,
@@ -57,6 +60,24 @@ const DRAFT_EDITOR_IDS: ReadonlySet<string> = new Set([
 
 let ribbonInstance: SaengineRibbonContribution | undefined;
 
+interface IRenderedRibbonGroup {
+	readonly model: IRibbonGroupModel;
+	readonly tabId: RibbonTabId;
+	readonly index: number;
+	readonly groupEl: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly collapsible: boolean;
+	expandedWidth: number;
+	collapsedWidth: number | undefined;
+	collapsed: boolean;
+}
+
+interface IActivePanelLayout {
+	readonly toolbar: HTMLElement;
+	readonly sepEls: readonly HTMLElement[];
+	readonly groups: readonly IRenderedRibbonGroup[];
+}
+
 export class SaengineRibbonContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.saengine.ribbon';
@@ -75,6 +96,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private readonly menuListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly panelDisposables = this._register(new DisposableStore());
 	private readonly panelScheduler = this._register(new RunOnceScheduler(() => this.renderActivePanel(), 40));
+	private readonly resizeScheduler = this._register(new RunOnceScheduler(() => this.relayoutGroups(), 16));
 
 	private readonly draftContext: IContextKey<boolean>;
 	private readonly tabContextKeys: ReadonlySet<string>;
@@ -83,6 +105,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private activeTabId: RibbonTabId;
 	private collapsed: boolean;
 	private toolbarFocusIndex = 0;
+	private activePanelLayout: IActivePanelLayout | undefined;
 
 	constructor(
 		@IBannerService private readonly bannerService: IBannerService,
@@ -139,6 +162,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}));
 		this._register(this.projectService.onDidChangeProject(() => this.panelScheduler.schedule()));
 		this._register(onDidChangeRibbonRegistry(() => this.panelScheduler.schedule()));
+		const resizeObserver = this._register(new DisposableResizeObserver('saengine.ribbon', () => this.resizeScheduler.schedule(), getWindow(this.panelsEl)));
+		resizeObserver.observe(this.panelsEl);
 
 		this.updateDraftContext();
 		this.applyCollapseState();
@@ -166,6 +191,9 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		this.storageService.store(STORAGE_COLLAPSED_KEY, this.collapsed, StorageScope.PROFILE, StorageTarget.USER);
 		this.applyCollapseState();
 		this.mountStrip();
+		if (!this.collapsed) {
+			this.resizeScheduler.schedule();
+		}
 	}
 
 	focusTabs(): void {
@@ -274,6 +302,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		const descriptor = RIBBON_TABS.find(t => t.id === this.activeTabId) ?? RIBBON_TABS[0];
 		const hadPanelFocus = this.panelsEl.contains(this.panelsEl.ownerDocument.activeElement);
 
+		this.activePanelLayout = undefined;
 		this.panelDisposables.clear();
 		clearNode(this.panelsEl);
 
@@ -291,45 +320,41 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			menuId: descriptor.menuId,
 			hintLookup: getRibbonItemHint,
 			labelLookup: getRibbonGroupLabel,
+			priorityLookup: getRibbonGroupPriority,
 		});
+
+		const sepEls: HTMLElement[] = [];
+		const renderedGroups: IRenderedRibbonGroup[] = [];
 
 		groups.forEach((group, index) => {
 			if (index > 0) {
 				const sep = append(toolbar, $('div.sa-ribbon-group-sep'));
 				sep.setAttribute('role', 'separator');
 				sep.setAttribute('aria-orientation', 'vertical');
+				sepEls.push(sep);
 			}
 			const groupEl = append(toolbar, $('div.sa-ribbon-group'));
 			groupEl.setAttribute('role', 'group');
-			const labelId = `sa-ribbon-grp-${descriptor.id}-${index}`;
-			groupEl.setAttribute('aria-labelledby', labelId);
+			groupEl.setAttribute('aria-labelledby', `sa-ribbon-grp-${descriptor.id}-${index}`);
 
-			const itemsEl = append(groupEl, $('div.sa-ribbon-items'));
-			const labelEl = append(groupEl, $('div.sa-ribbon-group-label', undefined, group.label));
-			labelEl.id = labelId;
+			const disposables = this.panelDisposables.add(new DisposableStore());
+			this.renderExpandedGroup(groupEl, descriptor.id, index, group, disposables);
 
-			if (group.custom) {
-				this.panelDisposables.add(group.custom.render(itemsEl, this.instantiationService));
-				return;
-			}
-
-			for (const column of group.columns) {
-				if (column.kind === 'large') {
-					this.renderItem(itemsEl, column.item);
-				} else {
-					const stackEl = append(itemsEl, $('div.sa-ribbon-stack'));
-					for (const item of column.items) {
-						this.renderItem(stackEl, item);
-					}
-				}
-			}
+			renderedGroups.push({
+				model: group,
+				tabId: descriptor.id,
+				index,
+				groupEl,
+				disposables,
+				collapsible: !group.custom && group.columns.length > 0,
+				expandedWidth: groupEl.offsetWidth,
+				collapsedWidth: undefined,
+				collapsed: false,
+			});
 		});
 
-		const buttons = this.collectToolbarButtons(toolbar);
-		this.toolbarFocusIndex = Math.min(this.toolbarFocusIndex, Math.max(0, buttons.length - 1));
-		buttons.forEach((button, idx) => {
-			button.tabIndex = idx === this.toolbarFocusIndex ? 0 : -1;
-		});
+		this.activePanelLayout = { toolbar, sepEls, groups: renderedGroups };
+		this.relayoutGroups();
 
 		this.panelDisposables.add(addDisposableListener(toolbar, EventType.FOCUS_IN, e => {
 			const target = e.target;
@@ -344,9 +369,190 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}));
 		this.panelDisposables.add(addDisposableListener(toolbar, EventType.KEY_DOWN, e => this.onToolbarKeyDown(toolbar, new StandardKeyboardEvent(e))));
 
-		if (hadPanelFocus && buttons.length) {
+		if (hadPanelFocus) {
+			const buttons = this.collectToolbarButtons(toolbar);
 			buttons[this.toolbarFocusIndex]?.focus();
 		}
+	}
+
+	private renderExpandedGroup(
+		groupEl: HTMLElement,
+		tabId: RibbonTabId,
+		index: number,
+		group: IRibbonGroupModel,
+		store: DisposableStore,
+	): void {
+		const itemsEl = append(groupEl, $('div.sa-ribbon-items'));
+		const labelEl = append(groupEl, $('div.sa-ribbon-group-label', undefined, group.label));
+		labelEl.id = `sa-ribbon-grp-${tabId}-${index}`;
+
+		if (group.custom) {
+			store.add(group.custom.render(itemsEl, this.instantiationService));
+			return;
+		}
+
+		for (const column of group.columns) {
+			if (column.kind === 'large') {
+				this.renderItem(itemsEl, column.item, store);
+			} else {
+				const stackEl = append(itemsEl, $('div.sa-ribbon-stack'));
+				for (const item of column.items) {
+					this.renderItem(stackEl, item, store);
+				}
+			}
+		}
+	}
+
+	private renderCollapsedGroup(
+		groupEl: HTMLElement,
+		tabId: RibbonTabId,
+		index: number,
+		group: IRibbonGroupModel,
+		store: DisposableStore,
+	): void {
+		const button = append(groupEl, $<HTMLButtonElement>('button.sa-ribbon-btn.sa-ribbon-btn-large.sa-ribbon-dropdown.sa-ribbon-group-collapse-btn'));
+		button.type = 'button';
+		button.setAttribute('aria-haspopup', 'menu');
+		button.setAttribute('aria-expanded', 'false');
+		button.setAttribute('aria-label', group.label);
+
+		const icon = this.getGroupIcon(group);
+		append(button, $(`span.sa-ribbon-icon${ThemeIcon.asCSSSelector(icon)}`)).setAttribute('aria-hidden', 'true');
+		const labelSpan = append(button, $('span.sa-ribbon-btn-label', undefined, group.label));
+		labelSpan.id = `sa-ribbon-grp-${tabId}-${index}`;
+		append(button, $(`span.sa-ribbon-caret${ThemeIcon.asCSSSelector(Codicon.chevronDown)}`)).setAttribute('aria-hidden', 'true');
+
+		const groupActions = this.collectGroupActions(group);
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, group.label));
+		store.add(addDisposableListener(button, EventType.CLICK, () => {
+			if (!groupActions.length) {
+				return;
+			}
+			this.openSubmenu(button, button, groupActions);
+		}));
+	}
+
+	private getGroupIcon(group: IRibbonGroupModel): ThemeIcon {
+		for (const column of group.columns) {
+			if (column.kind === 'large') {
+				return this.getItemIcon(column.item);
+			}
+		}
+		const firstCol = group.columns[0];
+		if (firstCol && firstCol.kind === 'stack' && firstCol.items.length) {
+			return this.getItemIcon(firstCol.items[0]);
+		}
+		return Codicon.symbolMisc;
+	}
+
+	private getItemIcon(item: RibbonItem): ThemeIcon {
+		if (item.kind === 'action') {
+			return ThemeIcon.isThemeIcon(item.action.item.icon) ? item.action.item.icon : Codicon.symbolMisc;
+		}
+		if (ThemeIcon.isThemeIcon(item.action.item.icon)) {
+			return item.action.item.icon;
+		}
+		if (item.primaryAction && ThemeIcon.isThemeIcon(item.primaryAction.item.icon)) {
+			return item.primaryAction.item.icon;
+		}
+		return Codicon.symbolMisc;
+	}
+
+	private collectGroupActions(group: IRibbonGroupModel): readonly IAction[] {
+		const actions: IAction[] = [];
+		for (const column of group.columns) {
+			if (column.kind === 'large') {
+				actions.push(column.item.action);
+			} else {
+				for (const item of column.items) {
+					actions.push(item.action);
+				}
+			}
+		}
+		return actions;
+	}
+
+	private setGroupCollapsed(entry: IRenderedRibbonGroup, collapsed: boolean): void {
+		if (entry.collapsed === collapsed) {
+			return;
+		}
+		entry.disposables.clear();
+		clearNode(entry.groupEl);
+		entry.collapsed = collapsed;
+		entry.groupEl.classList.toggle('sa-ribbon-group-collapsed', collapsed);
+		if (collapsed) {
+			this.renderCollapsedGroup(entry.groupEl, entry.tabId, entry.index, entry.model, entry.disposables);
+			entry.collapsedWidth = entry.groupEl.offsetWidth;
+		} else {
+			this.renderExpandedGroup(entry.groupEl, entry.tabId, entry.index, entry.model, entry.disposables);
+			entry.expandedWidth = entry.groupEl.offsetWidth;
+		}
+	}
+
+	private relayoutGroups(): void {
+		const layout = this.activePanelLayout;
+		if (!layout || this.collapsed) {
+			return;
+		}
+		const availableWidth = this.panelsEl.clientWidth;
+		if (availableWidth <= 0) {
+			return;
+		}
+
+		for (const entry of layout.groups) {
+			if (!entry.collapsed && entry.expandedWidth === 0) {
+				entry.expandedWidth = entry.groupEl.offsetWidth;
+			}
+		}
+
+		const style = getWindow(layout.toolbar).getComputedStyle(layout.toolbar);
+		const paddingX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+		let sepWidth = 0;
+		for (const sep of layout.sepEls) {
+			sepWidth += sep.offsetWidth;
+		}
+
+		const collapsedSet = computeCollapsedRibbonGroups(
+			layout.groups.map(entry => ({
+				key: entry.model.key,
+				order: entry.model.order,
+				collapsePriority: entry.model.collapsePriority,
+				collapsible: entry.collapsible,
+				expandedWidth: entry.expandedWidth,
+				collapsedWidth: entry.collapsedWidth ?? Math.min(entry.expandedWidth, 96),
+			})),
+			availableWidth,
+			paddingX + sepWidth,
+		);
+
+		for (const entry of layout.groups) {
+			this.setGroupCollapsed(entry, collapsedSet.has(entry.model.key));
+		}
+
+		// Re-check actual DOM width in case an estimated collapsedWidth was smaller than rendered text.
+		while (layout.toolbar.scrollWidth > availableWidth) {
+			const next = layout.groups
+				.filter(entry => entry.collapsible && !entry.collapsed && entry.expandedWidth > (entry.collapsedWidth ?? 0))
+				.sort((a, b) => a.model.collapsePriority - b.model.collapsePriority || b.model.order - a.model.order)[0];
+			if (!next) {
+				break;
+			}
+			const beforeWidth = layout.toolbar.scrollWidth;
+			this.setGroupCollapsed(next, true);
+			if (layout.toolbar.scrollWidth >= beforeWidth) {
+				break;
+			}
+		}
+
+		this.updateToolbarTabIndexes(layout.toolbar);
+	}
+
+	private updateToolbarTabIndexes(toolbar: HTMLElement): void {
+		const buttons = this.collectToolbarButtons(toolbar);
+		this.toolbarFocusIndex = Math.min(this.toolbarFocusIndex, Math.max(0, buttons.length - 1));
+		buttons.forEach((button, idx) => {
+			button.tabIndex = idx === this.toolbarFocusIndex ? 0 : -1;
+		});
 	}
 
 	private collectToolbarButtons(container: HTMLElement, out: HTMLElement[] = []): HTMLElement[] {
@@ -364,10 +570,10 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		return out;
 	}
 
-	private renderItem(container: HTMLElement, item: RibbonItem): void {
+	private renderItem(container: HTMLElement, item: RibbonItem, store: DisposableStore): void {
 		if (item.kind === 'action') {
 			if (item.renderCustom) {
-				this.panelDisposables.add(item.renderCustom(container, this.instantiationService, item.action));
+				store.add(item.renderCustom(container, this.instantiationService, item.action));
 				return;
 			}
 			const action = item.action;
@@ -388,9 +594,9 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const fullTitle = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 			const tip = this.buildTooltip(action.id, fullTitle, action.tooltip, action.enabled);
 			button.setAttribute('aria-label', fullTitle);
-			this.panelDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip));
+			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip));
 
-			this.panelDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+			store.add(addDisposableListener(button, EventType.CLICK, () => {
 				if (button.getAttribute('aria-disabled') === 'true') {
 					return;
 				}
@@ -422,8 +628,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const primaryTitle = typeof primary.item.title === 'string' ? primary.item.title : primary.item.title.value;
 			const mainTip = this.buildTooltip(primary.id, primaryTitle, primary.tooltip, primary.enabled);
 			mainBtn.setAttribute('aria-label', primaryTitle);
-			this.panelDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), mainBtn, mainTip));
-			this.panelDisposables.add(addDisposableListener(mainBtn, EventType.CLICK, () => {
+			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), mainBtn, mainTip));
+			store.add(addDisposableListener(mainBtn, EventType.CLICK, () => {
 				if (mainBtn.getAttribute('aria-disabled') === 'true') {
 					return;
 				}
@@ -440,8 +646,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			if (!hasEnabledChild) {
 				dropBtn.setAttribute('aria-disabled', 'true');
 			}
-			this.panelDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dropBtn, dropLabel));
-			this.panelDisposables.add(addDisposableListener(dropBtn, EventType.CLICK, () => {
+			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dropBtn, dropLabel));
+			store.add(addDisposableListener(dropBtn, EventType.CLICK, () => {
 				if (dropBtn.getAttribute('aria-disabled') === 'true') {
 					return;
 				}
@@ -468,8 +674,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		const submenuTitle = typeof submenu.item.title === 'string' ? submenu.item.title : submenu.item.title.value;
 		const tip = this.buildTooltip(undefined, submenuTitle, undefined, enabled);
 		button.setAttribute('aria-label', submenuTitle);
-		this.panelDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip));
-		this.panelDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tip));
+		store.add(addDisposableListener(button, EventType.CLICK, () => {
 			if (button.getAttribute('aria-disabled') === 'true') {
 				return;
 			}

@@ -13,6 +13,8 @@ import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DraftRibbonSubmenus } from '..
 import '../../../saengineCad/browser/cadDraftRibbon.contribution.js';
 import {
 	buildRibbonGroups,
+	computeCollapsedRibbonGroups,
+	DraftActiveContext,
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
 	getRibbonItemHint,
@@ -130,74 +132,125 @@ suite('SAEngine - ribbon model', () => {
 		assert.strictEqual(getRibbonCustomGroups('home').length, 0);
 	});
 
-	test('RIBBON_TABS includes all engineering tabs with contextual Draft tab', () => {
+	test('RIBBON_TABS includes all engineering tabs with three contextual CAD tabs', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
-			['home', 'define', 'model', 'draft', 'loads', 'analyze', 'design', 'mep', 'documents', 'output', 'studies', 'collaborate', 'manage']
+			['home', 'define', 'model', 'draft', 'annotate', 'blocksParametric', 'loads', 'analyze', 'design', 'mep', 'documents', 'output', 'studies', 'collaborate', 'manage']
 		);
-		const draft = RIBBON_TABS.find(t => t.id === 'draft');
-		assert.strictEqual(draft?.contextual, true);
-		assert.ok(draft?.when);
+		for (const id of ['draft', 'annotate', 'blocksParametric'] as const) {
+			const tab = RIBBON_TABS.find(t => t.id === id);
+			assert.strictEqual(tab?.contextual, true, `Expected ${id} to be contextual`);
+			assert.strictEqual(tab?.when, DraftActiveContext, `Expected ${id} to share DraftActiveContext`);
+		}
+		assert.ok(RIBBON_TABS.find(t => t.id === 'draft')?.contextualTag);
 	});
 
-	test('Draft ribbon registers all 9 AutoCAD groups in order and highlights the 11 most-used large buttons', () => {
-		const rawItems = MenuRegistry.getMenuItems(RibbonMenus.Draft);
-		const rawGrouped = new Map<string, (IMenuItem | ISubmenuItem)[]>();
+	test('computeCollapsedRibbonGroups collapses smallest-priority groups first until toolbar fits', () => {
+		const groups = [
+			{ key: 'Draw', order: 1, collapsePriority: 40, collapsible: true, expandedWidth: 650, collapsedWidth: 80 },
+			{ key: 'Workflow', order: 2, collapsePriority: 5, collapsible: false, expandedWidth: 300, collapsedWidth: 80 },
+			{ key: 'Modify', order: 2, collapsePriority: 30, collapsible: true, expandedWidth: 700, collapsedWidth: 80 },
+			{ key: 'Layers', order: 3, collapsePriority: 20, collapsible: true, expandedWidth: 420, collapsedWidth: 80 },
+			{ key: 'Properties', order: 4, collapsePriority: 10, collapsible: true, expandedWidth: 200, collapsedWidth: 80 },
+		];
 
-		for (const item of rawItems) {
-			const groupKey = item.group ?? '';
-			let list = rawGrouped.get(groupKey);
-			if (!list) {
-				list = [];
-				rawGrouped.set(groupKey, list);
+		// All fit (sum = 2270 + 20 chrome = 2290)
+		assert.deepStrictEqual([...computeCollapsedRibbonGroups(groups, 2300, 20)], []);
+
+		// Properties (200->80 saves 120 -> 2170) + Layers (420->80 saves 340 -> 1830) needed to fit 1900; non-collapsible Workflow skipped
+		assert.deepStrictEqual([...computeCollapsedRibbonGroups(groups, 1900, 20)], ['Properties', 'Layers']);
+
+		// Tight width collapses Properties, Layers, Modify (1830 - 620 = 1210)
+		assert.deepStrictEqual([...computeCollapsedRibbonGroups(groups, 1300, 20)], ['Properties', 'Layers', 'Modify']);
+	});
+
+	test('Draft, Annotate, and Blocks & Parametric tabs register their AutoCAD groups and large buttons', () => {
+		const buildTabGroups = (menuId: MenuId) => {
+			const rawItems = MenuRegistry.getMenuItems(menuId);
+			const rawGrouped = new Map<string, (IMenuItem | ISubmenuItem)[]>();
+
+			for (const item of rawItems) {
+				const groupKey = item.group ?? '';
+				let list = rawGrouped.get(groupKey);
+				if (!list) {
+					list = [];
+					rawGrouped.set(groupKey, list);
+				}
+				list.push(item);
 			}
-			list.push(item);
-		}
 
-		const grouped: [string, (MenuItemAction | SubmenuItemAction)[]][] = [];
-		for (const [groupKey, items] of rawGrouped) {
-			items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-			const actions: (MenuItemAction | SubmenuItemAction)[] = [];
-			for (const item of items) {
-				if (isISubmenuItem(item)) {
-					const subItems = MenuRegistry.getMenuItems(item.submenu)
-						.filter(isIMenuItem)
-						.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-						.map(sub => makeMenuAction(sub.command.id, typeof sub.command.title === 'string' ? sub.command.title : sub.command.title.value));
-					actions.push(new SubmenuItemAction(item, undefined, subItems));
-				} else if (isIMenuItem(item)) {
-					actions.push(makeMenuAction(item.command.id, typeof item.command.title === 'string' ? item.command.title : item.command.title.value));
+			const grouped: [string, (MenuItemAction | SubmenuItemAction)[]][] = [];
+			for (const [groupKey, items] of rawGrouped) {
+				items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+				const actions: (MenuItemAction | SubmenuItemAction)[] = [];
+				for (const item of items) {
+					if (isISubmenuItem(item)) {
+						const subItems = MenuRegistry.getMenuItems(item.submenu)
+							.filter(isIMenuItem)
+							.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+							.map(sub => makeMenuAction(sub.command.id, typeof sub.command.title === 'string' ? sub.command.title : sub.command.title.value));
+						actions.push(new SubmenuItemAction(item, undefined, subItems));
+					} else if (isIMenuItem(item)) {
+						actions.push(makeMenuAction(item.command.id, typeof item.command.title === 'string' ? item.command.title : item.command.title.value));
+					}
+				}
+				grouped.push([groupKey, actions]);
+			}
+
+			return buildRibbonGroups(grouped, [], { menuId });
+		};
+
+		const largeIdsOf = (menuId: MenuId) => {
+			const groups = buildTabGroups(menuId);
+			const ids: string[] = [];
+			for (const group of groups) {
+				for (const col of group.columns) {
+					if (col.kind === 'large') {
+						ids.push(col.item.kind === 'action' ? col.item.action.id : col.item.action.item.submenu.id);
+					}
 				}
 			}
-			grouped.push([groupKey, actions]);
-		}
+			return { groups, ids };
+		};
 
-		const groups = buildRibbonGroups(grouped, [], { menuId: RibbonMenus.Draft });
+		const draft = largeIdsOf(RibbonMenus.Draft);
 		assert.deepStrictEqual(
-			groups.map(g => g.key),
-			DRAFT_RIBBON_GROUPS.map(g => g.key),
+			draft.groups.map(g => g.key),
+			DRAFT_RIBBON_GROUPS.filter(g => g.menuId === RibbonMenus.Draft).map(g => g.key),
 		);
-
-		const largeIds: string[] = [];
-		for (const group of groups) {
-			for (const col of group.columns) {
-				if (col.kind === 'large') {
-					largeIds.push(col.item.kind === 'action' ? col.item.action.id : col.item.action.item.submenu.id);
-				}
-			}
-		}
-		assert.deepStrictEqual(largeIds, [
+		assert.deepStrictEqual(draft.ids, [
 			'saengine.cad.line',
 			'saengine.cad.pline',
 			DraftRibbonSubmenus.DrawCircle.id,
 			'saengine.cad.move',
 			'saengine.cad.copy',
 			'saengine.cad.trim',
-			DraftRibbonSubmenus.AnnotText.id,
-			DraftRibbonSubmenus.AnnotDimension.id,
-			DraftRibbonSubmenus.AnnotHatch.id,
 			'saengine.cad.layer',
+		]);
+
+		const annotate = largeIdsOf(RibbonMenus.Annotate);
+		assert.deepStrictEqual(
+			annotate.groups.map(g => g.key),
+			DRAFT_RIBBON_GROUPS.filter(g => g.menuId === RibbonMenus.Annotate).map(g => g.key),
+		);
+		assert.deepStrictEqual(annotate.ids, [
+			DraftRibbonSubmenus.AnnotText.id,
+			'saengine.cad.mtext',
+			DraftRibbonSubmenus.AnnotDimension.id,
+			DraftRibbonSubmenus.AnnotLeader.id,
+			'saengine.cad.table',
+		]);
+
+		const blocksParam = largeIdsOf(RibbonMenus.BlocksParametric);
+		assert.deepStrictEqual(
+			blocksParam.groups.map(g => g.key),
+			DRAFT_RIBBON_GROUPS.filter(g => g.menuId === RibbonMenus.BlocksParametric).map(g => g.key),
+		);
+		assert.deepStrictEqual(blocksParam.ids, [
 			'saengine.cad.insert',
+			DraftRibbonSubmenus.ParamGeometric.id,
+			DraftRibbonSubmenus.ParamDimensional.id,
+			DraftRibbonSubmenus.UtilMeasure.id,
 		]);
 	});
 
@@ -397,15 +450,17 @@ suite('SAEngine - ribbon model', () => {
 			{ cmd: 'CONSTRAINTBAR', actionId: 'saengine.cad.constraintbar' },
 		];
 
-		// Collect every command ID reachable from RibbonMenus.Draft (direct or submenu).
+		// Collect every command ID reachable from the contextual CAD tabs (direct or submenu).
 		const reachableDraftCommandIds = new Set<string>();
-		for (const entry of MenuRegistry.getMenuItems(RibbonMenus.Draft)) {
-			if (isIMenuItem(entry)) {
-				reachableDraftCommandIds.add(entry.command.id);
-			} else if (isISubmenuItem(entry)) {
-				for (const sub of MenuRegistry.getMenuItems(entry.submenu)) {
-					if (isIMenuItem(sub)) {
-						reachableDraftCommandIds.add(sub.command.id);
+		for (const cadMenuId of [RibbonMenus.Draft, RibbonMenus.Annotate, RibbonMenus.BlocksParametric]) {
+			for (const entry of MenuRegistry.getMenuItems(cadMenuId)) {
+				if (isIMenuItem(entry)) {
+					reachableDraftCommandIds.add(entry.command.id);
+				} else if (isISubmenuItem(entry)) {
+					for (const sub of MenuRegistry.getMenuItems(entry.submenu)) {
+						if (isIMenuItem(sub)) {
+							reachableDraftCommandIds.add(sub.command.id);
+						}
 					}
 				}
 			}

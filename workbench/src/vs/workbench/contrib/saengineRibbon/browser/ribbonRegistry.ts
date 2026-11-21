@@ -24,6 +24,8 @@ export type RibbonTabId =
 	| 'define'
 	| 'model'
 	| 'draft'
+	| 'annotate'
+	| 'blocksParametric'
 	| 'loads'
 	| 'analyze'
 	| 'design'
@@ -43,6 +45,8 @@ export const RibbonMenus = {
 	Define: MenuId.for('SaengineRibbon.Define'),
 	Model: MenuId.for('SaengineRibbon.Model'),
 	Draft: MenuId.for('SaengineRibbon.Draft'),
+	Annotate: MenuId.for('SaengineRibbon.Annotate'),
+	BlocksParametric: MenuId.for('SaengineRibbon.BlocksParametric'),
 	Loads: MenuId.for('SaengineRibbon.Loads'),
 	Analyze: MenuId.for('SaengineRibbon.Analyze'),
 	Design: MenuId.for('SaengineRibbon.Design'),
@@ -75,6 +79,20 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		contextualTag: localize('ribbon.tab.draftTag', "CAD"),
 		when: DraftActiveContext,
 	},
+	{
+		id: 'annotate',
+		label: localize('ribbon.tab.annotate', "Annotate"),
+		menuId: RibbonMenus.Annotate,
+		contextual: true,
+		when: DraftActiveContext,
+	},
+	{
+		id: 'blocksParametric',
+		label: localize('ribbon.tab.blocksParametric', "Blocks & Parametric"),
+		menuId: RibbonMenus.BlocksParametric,
+		contextual: true,
+		when: DraftActiveContext,
+	},
 	{ id: 'loads', label: localize('ribbon.tab.loads', "Loads"), menuId: RibbonMenus.Loads },
 	{ id: 'analyze', label: localize('ribbon.tab.analyze', "Analyze"), menuId: RibbonMenus.Analyze },
 	{ id: 'design', label: localize('ribbon.tab.design', "Design"), menuId: RibbonMenus.Design },
@@ -105,6 +123,7 @@ export interface IRibbonCustomGroup {
 const itemHints = new Map<string, IRibbonItemHint>();
 const scopedItemHints = new Map<string, IRibbonItemHint>();
 const groupLabels = new Map<string, string>();
+const groupPriorities = new Map<string, number>();
 const customGroups = new Map<RibbonTabId, IRibbonCustomGroup[]>();
 const registryChangeEmitter = new Emitter<void>();
 
@@ -162,6 +181,27 @@ export function registerRibbonGroupLabel(groupKey: string, label: string): IDisp
 
 export function getRibbonGroupLabel(groupKey: string): string | undefined {
 	return groupLabels.get(groupKey);
+}
+
+/** Registers a collapse priority for a group key (smaller values collapse first when space is tight). */
+export function registerRibbonGroupPriority(groupKey: string, priority: number): IDisposable {
+	const previous = groupPriorities.get(groupKey);
+	groupPriorities.set(groupKey, priority);
+	registryChangeEmitter.fire();
+	return toDisposable(() => {
+		if (groupPriorities.get(groupKey) === priority) {
+			if (previous !== undefined) {
+				groupPriorities.set(groupKey, previous);
+			} else {
+				groupPriorities.delete(groupKey);
+			}
+			registryChangeEmitter.fire();
+		}
+	});
+}
+
+export function getRibbonGroupPriority(groupKey: string): number | undefined {
+	return groupPriorities.get(groupKey);
 }
 
 /** Registers a custom-rendered ribbon group (such as Home's Workflow stepper). */
@@ -273,8 +313,55 @@ export interface IRibbonGroupModel {
 	readonly key: string;
 	readonly label: string;
 	readonly order: number;
+	readonly collapsePriority: number;
 	readonly columns: readonly RibbonColumn<RibbonItem>[];
 	readonly custom?: IRibbonCustomGroup;
+}
+
+export interface IRibbonGroupCollapseInput {
+	readonly key: string;
+	readonly order: number;
+	readonly collapsePriority: number;
+	readonly collapsible: boolean;
+	readonly expandedWidth: number;
+	readonly collapsedWidth: number;
+}
+
+/**
+ * Selects the smallest-priority collapsible groups to collapse into dropdown buttons
+ * so the ribbon fits within `availableWidth` without a horizontal scrollbar.
+ */
+export function computeCollapsedRibbonGroups(
+	groups: readonly IRibbonGroupCollapseInput[],
+	availableWidth: number,
+	chromeWidth = 0,
+): ReadonlySet<string> {
+	const collapsed = new Set<string>();
+	if (availableWidth <= 0) {
+		return collapsed;
+	}
+
+	let totalWidth = chromeWidth;
+	for (const group of groups) {
+		totalWidth += group.expandedWidth;
+	}
+	if (totalWidth <= availableWidth) {
+		return collapsed;
+	}
+
+	const candidates = groups
+		.filter(group => group.collapsible && group.expandedWidth > group.collapsedWidth)
+		.sort((a, b) => a.collapsePriority - b.collapsePriority || b.order - a.order);
+
+	for (const candidate of candidates) {
+		if (totalWidth <= availableWidth) {
+			break;
+		}
+		collapsed.add(candidate.key);
+		totalWidth -= candidate.expandedWidth - candidate.collapsedWidth;
+	}
+
+	return collapsed;
 }
 
 function resolvePrimaryAction(action: SubmenuItemAction, primaryCommandId: string | undefined): MenuItemAction | undefined {
@@ -296,11 +383,13 @@ export function buildRibbonGroups(
 		readonly menuId?: MenuId;
 		readonly hintLookup?: (id: string, menuId?: MenuId) => IRibbonItemHint | undefined;
 		readonly labelLookup?: (key: string) => string | undefined;
+		readonly priorityLookup?: (key: string) => number | undefined;
 	}
 ): readonly IRibbonGroupModel[] {
 	const menuId = options?.menuId;
 	const hintLookup = options?.hintLookup ?? getRibbonItemHint;
 	const labelLookup = options?.labelLookup ?? getRibbonGroupLabel;
+	const priorityLookup = options?.priorityLookup ?? getRibbonGroupPriority;
 	const groups: IRibbonGroupModel[] = [];
 
 	for (const [rawGroup, actions] of menuGroups) {
@@ -336,6 +425,7 @@ export function buildRibbonGroups(
 			key: parsed.key,
 			label: parsed.label,
 			order: parsed.order,
+			collapsePriority: priorityLookup(parsed.key) ?? -parsed.order,
 			columns: packRibbonColumns(items),
 		});
 	}
@@ -347,6 +437,7 @@ export function buildRibbonGroups(
 			key: parsed.key,
 			label: custom.label,
 			order: parsed.order,
+			collapsePriority: priorityLookup(parsed.key) ?? -parsed.order,
 			columns: [],
 			custom,
 		});

@@ -20,7 +20,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { DraftActiveContext, registerRibbonGroupLabel, registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
+import { DraftActiveContext, registerRibbonGroupLabel, registerRibbonGroupPriority, registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { executeActiveCadCommand, getActiveCadEditor, getActiveCadEditorPane, onDidChangeActiveCadEditor } from './activeCadEditor.js';
 import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DRAFT_RIBBON_SUBMENUS, DraftRibbonSubmenus, ICadDraftCommandSpec } from './cadDraftCommands.js';
 import { isLightCanvas } from './cadHost.js';
@@ -28,13 +28,15 @@ import { aciToCss, pickCadLayer } from './floorPlanCadBar.js';
 
 const CAD_CATEGORY = localize2('saengine.cad.category', "CAD");
 const CAD_STANDALONE_EDITOR_ID = 'workbench.editor.saengine.cad';
+const CAD_TAB_MENUS = new Set([RibbonMenus.Draft, RibbonMenus.Annotate, RibbonMenus.BlocksParametric]);
 
 for (const group of DRAFT_RIBBON_GROUPS) {
 	registerRibbonGroupLabel(group.key, group.label);
+	registerRibbonGroupPriority(group.key, group.collapsePriority);
 }
 
 for (const sub of DRAFT_RIBBON_SUBMENUS) {
-	MenuRegistry.appendMenuItem(RibbonMenus.Draft, {
+	MenuRegistry.appendMenuItem(sub.menuId, {
 		group: sub.group,
 		order: sub.order,
 		submenu: sub.submenu,
@@ -46,7 +48,7 @@ for (const sub of DRAFT_RIBBON_SUBMENUS) {
 		size: sub.size,
 		label: sub.title,
 		primaryCommandId: sub.primaryCommandId,
-	}, RibbonMenus.Draft);
+	}, sub.menuId);
 }
 
 function registerCadDraftCommand(spec: ICadDraftCommandSpec): void {
@@ -74,11 +76,11 @@ function registerCadDraftCommand(spec: ICadDraftCommandSpec): void {
 		}
 	});
 
-	if (spec.menuId === RibbonMenus.Draft) {
+	if (CAD_TAB_MENUS.has(spec.menuId)) {
 		registerRibbonItemHint(spec.id, {
 			size: spec.size ?? 'small',
 			label: spec.title.value,
-		}, RibbonMenus.Draft);
+		}, spec.menuId);
 	}
 }
 
@@ -181,7 +183,7 @@ registerAction2(class extends Action2 {
 			precondition: DraftActiveContext,
 			menu: {
 				id: RibbonMenus.Draft,
-				group: '4_Layers',
+				group: '3_Layers',
 				order: 2,
 			},
 		});
@@ -220,7 +222,7 @@ registerAction2(class extends Action2 {
 			precondition: DraftActiveContext,
 			menu: {
 				id: RibbonMenus.Draft,
-				group: '5_Properties',
+				group: '4_Properties',
 				order: 3,
 			},
 			keybinding: {
