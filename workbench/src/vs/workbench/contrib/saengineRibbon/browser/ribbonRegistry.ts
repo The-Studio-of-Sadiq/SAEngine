@@ -368,6 +368,11 @@ export const FEM_WHEN = editorWhen([
 	SAENGINE_EDITOR_IDS.femDesignProposal,
 	SAENGINE_EDITOR_IDS.femStrutAndTie,
 ], 'fem');
+/** Each FEM sub-window shows only its own tabs (owner, 2026-11-23). */
+const FEM_MODEL_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.model')]);
+const FEM_PUSHOVER_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.pushover')]);
+const FEM_CHARTS_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.charts')]);
+const FEM_DESIGN_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.design')]);
 export const FOUNDATIONS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.substructure], 'foundations');
 export const BOQ_WHEN = editorWhen([SAENGINE_EDITOR_IDS.boq, SAENGINE_EDITOR_IDS.rates], 'boq');
 export const EXPORTS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.exports], 'output');
@@ -640,56 +645,56 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		label: localize('ribbon.tab.analyze', "Analyze"),
 		menuId: RibbonMenus.Analyze,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_MODEL_TABS_WHEN,
 	},
 	{
 		id: 'results',
 		label: localize('ribbon.tab.results', "Results"),
 		menuId: RibbonMenus.Results,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_CHARTS_TABS_WHEN,
 	},
 	{
 		id: 'design',
 		label: localize('ribbon.tab.design', "Design"),
 		menuId: RibbonMenus.Design,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_DESIGN_TABS_WHEN,
 	},
 	{
 		id: 'femLoads',
 		label: localize('ribbon.tab.femLoads', "Loads & Combinations"),
 		menuId: RibbonMenus.FemLoads,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_MODEL_TABS_WHEN,
 	},
 	{
 		id: 'femSeismic',
 		label: localize('ribbon.tab.femSeismic', "Seismic"),
 		menuId: RibbonMenus.FemSeismic,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_MODEL_TABS_WHEN,
 	},
 	{
 		id: 'femWind',
 		label: localize('ribbon.tab.femWind', "Wind"),
 		menuId: RibbonMenus.FemWind,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_MODEL_TABS_WHEN,
 	},
 	{
 		id: 'femNonlinear',
 		label: localize('ribbon.tab.femNonlinear', "Nonlinear & Stability"),
 		menuId: RibbonMenus.FemNonlinear,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_PUSHOVER_TABS_WHEN,
 	},
 	{
 		id: 'femServiceability',
 		label: localize('ribbon.tab.femServiceability', "Serviceability"),
 		menuId: RibbonMenus.FemServiceability,
 		contextual: true,
-		when: FEM_WHEN,
+		when: FEM_CHARTS_TABS_WHEN,
 	},
 	{
 		id: 'foundations',
