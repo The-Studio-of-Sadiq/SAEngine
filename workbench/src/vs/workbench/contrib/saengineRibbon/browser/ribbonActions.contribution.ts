@@ -19,6 +19,7 @@ import {
 	RibbonMenus,
 	subViewWhen,
 	PROJECT_TAB_WHEN,
+	registerRibbonGroupWhen,
 } from './ribbonRegistry.js';
 
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -479,6 +480,14 @@ addItem(RibbonMenus.MEP, '4_Electrical', 6, 'saengine.mep.electrical.lighting', 
 addItem(RibbonMenus.MEP, '5_FireAndSystems', 4, 'saengine.mep.fire.sprinklers', localize('rib.mep.sprinklers', "Place Sprinklers"), Codicon.flame, 'small', { precondition: projectOpen, when: mepDisciplineWhen('fire') });
 addItem(RibbonMenus.MEP, '5_FireAndSystems', 5, 'saengine.mep.fire.alarm', localize('rib.mep.alarm', "Fire Alarm"), Codicon.warning, 'small', { precondition: projectOpen, when: mepDisciplineWhen('fire') });
 addItem(RibbonMenus.MEP, '6_Systems', 1, 'saengine.office.fabrication', localize('rib.mep.fabrication', "MEP Fabrication"), Codicon.tools, 'small', { precondition: projectOpen, when: subViewWhen('mep.systems') });
+
+// Each MEP sub-window shows only its own discipline's group (the Project tree picks the discipline).
+registerRibbonGroupWhen(RibbonMenus.MEP, '1_Coordination', mepDisciplineWhen('coordination'));
+registerRibbonGroupWhen(RibbonMenus.MEP, '2_Plumbing', mepDisciplineWhen('plumbing'));
+registerRibbonGroupWhen(RibbonMenus.MEP, '3_HVAC', mepDisciplineWhen('hvac'));
+registerRibbonGroupWhen(RibbonMenus.MEP, '4_Electrical', mepDisciplineWhen('electrical'));
+registerRibbonGroupWhen(RibbonMenus.MEP, '5_FireAndSystems', mepDisciplineWhen('fire'));
+registerRibbonGroupWhen(RibbonMenus.MEP, '6_Systems', subViewWhen('mep.systems'));
 
 //#endregion
 

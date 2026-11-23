@@ -53,6 +53,7 @@ import {
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
 	getRibbonGroupPriority,
+	getRibbonGroupWhen,
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
 	IRibbonCustomGroup,
@@ -676,7 +677,10 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			frameCustomGroups = this.buildEditorFrameGroups(activeFrame, descriptor.id, targetTabId, existingCommandIds);
 		}
 
-		const actions = menu.getActions({ renderShortTitle: true });
+		const actions = menu.getActions({ renderShortTitle: true }).filter(([rawGroup]) => {
+			const when = getRibbonGroupWhen(descriptor.menuId, rawGroup);
+			return !when || this.contextKeyService.contextMatchesRules(when);
+		});
 		const groups = buildRibbonGroups(actions, [...getRibbonCustomGroups(descriptor.id), ...frameCustomGroups], {
 			menuId: descriptor.menuId,
 			hintLookup: getRibbonItemHint,

@@ -529,6 +529,33 @@ export function getRibbonGroupLabel(groupKey: string): string | undefined {
 	return groupLabels.get(groupKey);
 }
 
+const groupWhens = new Map<string, ContextKeyExpression>();
+
+function groupWhenKey(menuId: MenuId, rawGroup: string): string {
+	return `${menuId.id}::${rawGroup}`;
+}
+
+/**
+ * Shows a tab's group only while `when` holds (e.g. the MEP tab's Plumbing group only in the
+ * Plumbing sub-window), so a sub-window's ribbon carries its own commands only.
+ */
+export function registerRibbonGroupWhen(menuId: MenuId, rawGroup: string, when: ContextKeyExpression): IDisposable {
+	const key = groupWhenKey(menuId, rawGroup);
+	groupWhens.set(key, when);
+	registryChangeEmitter.fire();
+	return toDisposable(() => {
+		if (groupWhens.get(key) === when) {
+			groupWhens.delete(key);
+			registryChangeEmitter.fire();
+		}
+	});
+}
+
+/** The visibility rule of a tab's group, if one was registered. */
+export function getRibbonGroupWhen(menuId: MenuId, rawGroup: string): ContextKeyExpression | undefined {
+	return groupWhens.get(groupWhenKey(menuId, rawGroup));
+}
+
 /** Registers a collapse priority for a group key (smaller values collapse first when space is tight). */
 export function registerRibbonGroupPriority(groupKey: string, priority: number): IDisposable {
 	const previous = groupPriorities.get(groupKey);
