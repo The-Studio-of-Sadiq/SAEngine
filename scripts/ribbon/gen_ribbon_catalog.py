@@ -315,6 +315,22 @@ def ts_string(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+BS, QUOTE, CR, LF = chr(92), chr(39), chr(13), chr(10)
+
+
+def ts_value(value: object) -> str:
+    """A non-localized TypeScript literal: strings single-quoted (double quotes are for nls)."""
+    if isinstance(value, str):
+        escaped = (
+            value.replace(BS, BS + BS)
+            .replace(QUOTE, BS + QUOTE)
+            .replace(CR, "")
+            .replace(LF, BS + "n")
+        )
+        return f"'{escaped}'"
+    return json.dumps(value)
+
+
 def feature_literal(nls: str, built: dict) -> str:
     """The TypeScript of a built feature: its help and its localized fields."""
     fields = []
@@ -323,11 +339,11 @@ def feature_literal(nls: str, built: dict) -> str:
             f"key: '{f['key']}'",
             f"label: localize('{nls}.f.{f['key']}', {ts_string(f['label'])})",
             f"type: '{f['type']}'",
-            f"defaultValue: {json.dumps(f['default'])}",
+            f"defaultValue: {ts_value(f['default'])}",
         ]
         if f.get("options"):
             opts = ", ".join(
-                f"{{ value: {json.dumps(o['value'])}, "
+                f"{{ value: {ts_value(o['value'])}, "
                 f"label: localize('{nls}.f.{f['key']}.{slug(str(o['value']))}', {ts_string(o['label'])}) }}"
                 for o in f["options"]
             )
