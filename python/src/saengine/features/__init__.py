@@ -88,7 +88,8 @@ def select(
     *,
     help: str | None = None,
 ) -> Field:
-    opts = tuple(options)
+    # (value, label) pairs; a plain string is its own label.
+    opts = tuple((o, o) if isinstance(o, str) else (o[0], o[1]) for o in options)
     return Field(
         key,
         label,

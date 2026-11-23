@@ -617,28 +617,66 @@ def gltf_export(ctx: FeatureContext, values: dict) -> dict:
     "exportsPublish.usdzExport",
     "USDZ Export",
     part="bim",
-    fields=[text("filename", "Package filename", "model.usdz.json")],
+    fields=[text("filename", "USDZ package filename", "model.usdz")],
 )
 def usdz_export(ctx: FeatureContext, values: dict) -> dict:
-    """Write an honest USDZ conversion manifest containing source BIM inventory and bounds."""
+    """Package BIM line geometry as a standards-shaped uncompressed USDZ archive."""
     coords = coordinate_rows(ctx)
-    bounds = {
-        axis: [min(row[key] for row in coords), max(row[key] for row in coords)]
-        for axis, key in (("xMm", "xMm"), ("yMm", "yMm"), ("zMm", "zMm"))
-    }
-    manifest = {
-        "requestedFormat": "USDZ",
-        "conversionStatus": "manifest-only",
-        "boundsMm": bounds,
-        "coordinates": coords,
-        "note": "A USDZ mesh conversion needs a geometry tessellator not available in the feature runtime.",
-    }
-    path = write_export_json(
-        ctx, values["filename"].strip() or "model.usdz.json", manifest, "Models"
-    )
+    endpoints: dict[str, dict[str, dict]] = {}
+    for row in coords:
+        if row["role"] in ("start", "end"):
+            endpoints.setdefault(row["element"], {})[row["role"]] = row
+    segments = [
+        (ends["start"], ends["end"])
+        for ends in endpoints.values()
+        if "start" in ends and "end" in ends
+    ]
+    points = [point for segment in segments for point in segment] if segments else coords
+    usd_points = [
+        f"({float(row['xMm']) / 1000:.8g}, {float(row['yMm']) / 1000:.8g}, {float(row['zMm']) / 1000:.8g})"
+        for row in points
+    ]
+    if segments:
+        stage = (
+            '#usda 1.0\n(\n    defaultPrim = "Model"\n    metersPerUnit = 1\n    upAxis = "Z"\n)\n'
+            'def Xform "Model" {\n    def BasisCurves "Members" {\n'
+            '        uniform token type = "linear"\n        uniform token wrap = "nonperiodic"\n'
+            f"        point3f[] points = [{', '.join(usd_points)}]\n"
+            f"        int[] curveVertexCounts = [{', '.join('2' for _ in segments)}]\n"
+            "    }\n}\n"
+        )
+        geometry = "linear centerlines"
+    else:
+        stage = (
+            '#usda 1.0\n(\n    defaultPrim = "Model"\n    metersPerUnit = 1\n    upAxis = "Z"\n)\n'
+            'def Xform "Model" {\n    def Points "Coordinates" {\n'
+            f"        point3f[] points = [{', '.join(usd_points)}]\n"
+            "    }\n}\n"
+        )
+        geometry = "survey points"
+    requested = Path(values["filename"].strip() or "model.usdz").name
+    if not requested.casefold().endswith(".usdz"):
+        requested += ".usdz"
+    target = output_path(ctx, requested, "Models")
+    member = "model.usda"
+    padding = (-(30 + len(member.encode("utf-8")) + 4)) % 64
+    info = zipfile.ZipInfo(member)
+    info.compress_type = zipfile.ZIP_STORED
+    info.extra = struct.pack("<HH", 0x1986, padding) + bytes(padding)
+    with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr(info, stage.encode("utf-8"))
+    path = target.relative_to(ctx.root).as_posix()
     return result(
-        summary={"coordinateCount": len(coords), "path": path, "conversionStatus": "manifest-only"},
-        notes=[manifest["note"]],
+        summary={
+            "coordinateCount": len(coords),
+            "segmentCount": len(segments),
+            "geometry": geometry,
+            "path": path,
+            "sizeBytes": target.stat().st_size,
+        },
+        notes=[
+            "USD ASCII geometry is stored uncompressed in a USDZ container with a 64-byte-aligned first asset. Member centerlines are exported; solid surfaces are not inferred from them."
+        ],
     )
 
 

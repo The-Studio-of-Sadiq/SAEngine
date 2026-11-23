@@ -56,7 +56,10 @@ def _flatten(value: Any, prefix: str = "") -> dict[str, Any]:
             result_map.update(_flatten(item, child))
         return result_map
     if isinstance(value, list):
-        return {f"{prefix}[{index}]": item for index, item in enumerate(value)}
+        result_map = {}
+        for index, item in enumerate(value):
+            result_map.update(_flatten(item, f"{prefix}[{index}]"))
+        return result_map
     return {prefix: value} if prefix else {}
 
 
