@@ -380,6 +380,7 @@ def main() -> None:
         "export const CATALOG_GROUPS: readonly ICatalogGroup[] = [",
     ]
     seen_ids: set[str] = set()
+    seen_keys: set[str] = set()
     order_by_tab: dict[str, int] = {}
     total = 0
     for group in catalog["groups"]:
@@ -393,6 +394,10 @@ def main() -> None:
             + slug(group["group"])[:1].upper()
             + slug(group["group"])[1:]
         )
+        # Two groups whose labels slug alike ("Risk & Reliability", "Risk Reliability").
+        while key in seen_keys:
+            key += "X"
+        seen_keys.add(key)
         part = SCOPE_PARTS[scopes[tab].split(".")[0]]
         lines.append(
             f"\t{{ tab: '{tab}', group: '{order}_{key}', key: '{key}', label: localize('ribbonCatalog.group.{key}', {ts_string(group['group'])}), part: '{part}', buttons: ["
