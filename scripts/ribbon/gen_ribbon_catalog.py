@@ -344,8 +344,8 @@ def feature_literal(nls: str, built: dict) -> str:
         if f.get("options"):
             opts = ", ".join(
                 f"{{ value: {ts_value(o['value'])}, "
-                f"label: localize('{nls}.f.{f['key']}.{slug(str(o['value']))}', {ts_string(o['label'])}) }}"
-                for o in f["options"]
+                f"label: localize('{nls}.f.{f['key']}.o{index}', {ts_string(o['label'])}) }}"
+                for index, o in enumerate(f["options"])
             )
             parts.append(f"options: [{opts}]")
         for bound in ("min", "max"):
