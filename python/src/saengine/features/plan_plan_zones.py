@@ -122,27 +122,22 @@ def assign_members(ctx: FeatureContext, values: dict) -> dict:
 def zone_boundary(ctx: FeatureContext, values: dict) -> dict:
     """Measure a polygonal zone boundary, perimeter and polygon centroid."""
     pts = _polygon(values["verticesMm"])
-    area_mm2 = abs(
-        sum(
-            pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
-            for i in range(len(pts))
-        )
+    twice_signed_area = sum(
+        pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+        for i in range(len(pts))
     )
-    signed = area_mm2 / 2
-    if signed <= 1e-9:
-        raise FeatureInputError(
-            "Zone boundary has zero area or clockwise orientation; enter vertices counter-clockwise."
-        )
+    if abs(twice_signed_area) <= 1e-9:
+        raise FeatureInputError("Zone boundary has zero area; enter a non-degenerate polygon.")
     cx = sum(
         (pts[i][0] + pts[(i + 1) % len(pts)][0])
         * (pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1])
         for i in range(len(pts))
-    ) / (6 * signed)
+    ) / (3 * twice_signed_area)
     cy = sum(
         (pts[i][1] + pts[(i + 1) % len(pts)][1])
         * (pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1])
         for i in range(len(pts))
-    ) / (6 * signed)
+    ) / (3 * twice_signed_area)
     perimeter = (
         sum(
             math.hypot(
@@ -155,7 +150,7 @@ def zone_boundary(ctx: FeatureContext, values: dict) -> dict:
     return result(
         summary={
             "zoneName": values["zoneName"],
-            "areaM2": signed / 1e6,
+            "areaM2": abs(twice_signed_area) / 2e6,
             "perimeterM": perimeter,
             "centroidXMm": cx,
             "centroidYMm": cy,

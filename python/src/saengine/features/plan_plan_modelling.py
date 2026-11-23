@@ -18,6 +18,7 @@ from saengine.features import (
 from saengine.features.plan_common import (
     member_rows,
     plan_data,
+    point_xy,
     profile,
     selected_members,
     story_map,
@@ -221,8 +222,14 @@ def rigid_diaphragm(ctx: FeatureContext, values: dict) -> dict:
     slabs = [
         r for r in member_rows(plan) if r["category"] == "slab" and r["story"] == values["storey"]
     ]
-    xs = [r["x1Mm"] for r in slabs]
-    ys = [r["y1Mm"] for r in slabs]
+    boundaries = [
+        point_xy(plan, point)
+        for slab in plan.get("slabs", [])
+        if slab.get("story") == values["storey"]
+        for point in slab.get("boundary", [])
+    ]
+    xs = [point[0] for point in boundaries]
+    ys = [point[1] for point in boundaries]
     width, depth = (max(xs) - min(xs)) / 1000 if xs else 0, (max(ys) - min(ys)) / 1000 if ys else 0
     return result(
         summary={

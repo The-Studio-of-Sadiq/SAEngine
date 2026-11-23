@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import math
 
-from saengine.features import FeatureContext, checkbox, feature, number, result, select, table, text
+from saengine.features import (
+    FeatureContext,
+    FeatureInputError,
+    checkbox,
+    feature,
+    number,
+    result,
+    select,
+    table,
+    text,
+)
 from saengine.features.plan_common import (
     loads_data,
     member_rows,
@@ -33,7 +43,7 @@ def slab_load(ctx: FeatureContext, values: dict) -> dict:
     rows = [r for r in member_rows(plan) if r["category"] == "slab"]
     slab = next((r for r in rows if r["id"] == values["slabId"]), None)
     if slab is None:
-        raise ValueError("Choose an existing slab id.")
+        raise FeatureInputError("Choose an existing slab id.")
     return result(
         summary={
             "slabId": slab["id"],
@@ -70,7 +80,7 @@ def beam_load(ctx: FeatureContext, values: dict) -> dict:
     _, rows = profile(ctx)
     beam = next((r for r in rows if r["id"] == values["beamId"] and r["category"] == "beam"), None)
     if beam is None:
-        raise ValueError("Choose an existing beam id.")
+        raise FeatureInputError("Choose an existing beam id.")
     length = beam["lengthM"]
     if values["shape"] == "point":
         force, centroid = values["pointKn"], values["positionRatio"] * length
@@ -167,7 +177,7 @@ def live_pattern(ctx: FeatureContext, values: dict) -> dict:
     """Select spans for the requested live-load pattern along a continuous beam line."""
     spans = [part.strip() for part in values["spanIds"].split(",") if part.strip()]
     if not spans:
-        raise ValueError("Enter one or more span ids in order.")
+        raise FeatureInputError("Enter one or more span ids in order.")
     selected = []
     for i, span in enumerate(spans):
         n = int(values["startIndex"]) + i
@@ -214,7 +224,7 @@ def pattern_ranges(ctx: FeatureContext, values: dict) -> dict:
         int(values["stride"]),
     )
     if last < first:
-        raise ValueError("Last loaded span must be at or after the first loaded span.")
+        raise FeatureInputError("Last loaded span must be at or after the first loaded span.")
     rows = [
         {
             "span": span,
@@ -256,7 +266,7 @@ def load_groups(ctx: FeatureContext, values: dict) -> dict:
     allowed = {case for case, _ in _CASES}
     unknown = sorted(set(cases) - allowed)
     if not cases or unknown:
-        raise ValueError(
+        raise FeatureInputError(
             f"Enter known load case ids; unknown: {', '.join(unknown) if unknown else 'none were entered'}."
         )
     return result(
@@ -477,7 +487,9 @@ def linear_load(ctx: FeatureContext, values: dict) -> dict:
     _, rows = profile(ctx)
     beam = next((r for r in rows if r["id"] == values["beamId"] and r["category"] == "beam"), None)
     if beam is None or values["endRatio"] <= values["startRatio"]:
-        raise ValueError("Choose an existing beam and an end ratio greater than the start ratio.")
+        raise FeatureInputError(
+            "Choose an existing beam and an end ratio greater than the start ratio."
+        )
     length = beam["lengthM"] * (values["endRatio"] - values["startRatio"])
     return result(
         summary={
@@ -505,7 +517,7 @@ def trapezoidal_load(ctx: FeatureContext, values: dict) -> dict:
     _, rows = profile(ctx)
     beam = next((r for r in rows if r["id"] == values["beamId"] and r["category"] == "beam"), None)
     if beam is None:
-        raise ValueError("Choose an existing beam id.")
+        raise FeatureInputError("Choose an existing beam id.")
     w0, w1, length = values["startKnPerM"], values["endKnPerM"], beam["lengthM"]
     resultant = (w0 + w1) * length / 2
     centroid = length * (w0 + 2 * w1) / (3 * (w0 + w1)) if w0 + w1 else length / 2
@@ -536,10 +548,10 @@ def patch_load(ctx: FeatureContext, values: dict) -> dict:
     _, rows = profile(ctx)
     slab = next((r for r in rows if r["id"] == values["slabId"] and r["category"] == "slab"), None)
     if slab is None:
-        raise ValueError("Choose an existing slab id.")
+        raise FeatureInputError("Choose an existing slab id.")
     area = values["widthM"] * values["lengthM"]
     if area > slab["areaM2"]:
-        raise ValueError("Patch area exceeds the selected slab's total area.")
+        raise FeatureInputError("Patch area exceeds the selected slab's total area.")
     return result(
         summary={
             "patchAreaM2": area,
@@ -677,7 +689,7 @@ def equipment_load(ctx: FeatureContext, values: dict) -> dict:
     _, rows = profile(ctx)
     slab = next((r for r in rows if r["id"] == values["slabId"] and r["category"] == "slab"), None)
     if slab is None:
-        raise ValueError("Choose an existing slab id.")
+        raise FeatureInputError("Choose an existing slab id.")
     force = values["equipmentKn"] + values["maintenanceKn"]
     return result(
         summary={
@@ -813,7 +825,7 @@ def load_path_check(ctx: FeatureContext, values: dict) -> dict:
         (r for r in rows if r["id"] == values["memberId"] and r["category"] == "beam"), None
     )
     if beam is None:
-        raise ValueError("Choose an existing beam id.")
+        raise FeatureInputError("Choose an existing beam id.")
     supports = [
         r for r in rows if r["category"] in {"column", "wall"} and r["story"] == beam["story"]
     ]
@@ -877,9 +889,11 @@ def load_envelope_view(ctx: FeatureContext, values: dict) -> dict:
             case, magnitude = pair.split(":", 1)
             parsed.append({"case": case.strip(), "resultantKn": float(magnitude)})
     except (ValueError, TypeError) as exc:
-        raise ValueError("Enter comma-separated case:value pairs, such as D:10,L:8.") from exc
+        raise FeatureInputError(
+            "Enter comma-separated case:value pairs, such as D:10,L:8."
+        ) from exc
     if not parsed:
-        raise ValueError("Enter at least one case resultant.")
+        raise FeatureInputError("Enter at least one case resultant.")
     maximum, minimum = (
         max(parsed, key=lambda r: r["resultantKn"]),
         min(parsed, key=lambda r: r["resultantKn"]),

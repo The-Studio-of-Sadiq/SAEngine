@@ -619,13 +619,18 @@ def mesh_refinement(ctx: FeatureContext, values: dict) -> dict:
         checkbox("includeBending", "Include slab bending stiffness", True),
         number("modulusMpa", "Elastic modulus", 25000, unit="MPa", min=1),
         number("thicknessMm", "Slab thickness", 150, unit="mm", min=1),
+        number("poissonRatio", "Poisson ratio", 0.2, min=-0.99, max=0.49),
     ],
 )
 def slab_out_of_plane(ctx: FeatureContext, values: dict) -> dict:
     """Calculate elastic plate flexural rigidity D from entered modulus and thickness."""
     _, slabs = _floor(ctx, values["storey"])
     thickness = values["thicknessMm"] / 1000
-    rigidity = values["modulusMpa"] * 1e6 * thickness**3 / 12 if values["includeBending"] else 0
+    rigidity = (
+        values["modulusMpa"] * 1e6 * thickness**3 / (12 * (1 - values["poissonRatio"] ** 2))
+        if values["includeBending"]
+        else 0
+    )
     return result(
         summary={
             "storey": values["storey"],

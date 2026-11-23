@@ -65,7 +65,7 @@ def add_storey(ctx: FeatureContext, values: dict) -> dict:
         text("namePrefix", "Storey name prefix", "Level "),
         number("count", "Number of storeys", 3, min=1, max=100),
         number("heightMm", "Storey height", 3000, unit="mm", min=1),
-        select("location", "Insert relative to", "[(above)]"),
+        select("location", "Insert relative to", [("above", "Above current top")], "above"),
     ],
 )
 def insert_storeys(ctx: FeatureContext, values: dict) -> dict:
