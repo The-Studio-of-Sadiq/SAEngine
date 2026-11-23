@@ -5182,12 +5182,6 @@
    "group": "Steel",
    "buttons": [
     {
-     "label": "Steel Connections",
-     "size": "small",
-     "description": "Creates standard steel connection details.",
-     "inspiredBy": "Tekla Structures"
-    },
-    {
      "label": "Bolts & Welds",
      "size": "small",
      "description": "Adds bolts and welds with sizes and grades.",
@@ -8176,12 +8170,6 @@
    "group": "Assessment",
    "buttons": [
     {
-     "label": "Target Displacement",
-     "size": "small",
-     "description": "Computes the target displacement for the design earthquake.",
-     "inspiredBy": "Eurocode 8"
-    },
-    {
      "label": "Storey Mechanism",
      "size": "small",
      "description": "Detects soft-storey and mechanism formation.",
@@ -9753,12 +9741,6 @@
    "tab": "documents",
    "group": "Views",
    "buttons": [
-    {
-     "label": "View Templates",
-     "size": "small",
-     "description": "Applies saved view templates to plan and section views.",
-     "inspiredBy": "Revit"
-    },
     {
      "label": "Section Marks",
      "size": "small",

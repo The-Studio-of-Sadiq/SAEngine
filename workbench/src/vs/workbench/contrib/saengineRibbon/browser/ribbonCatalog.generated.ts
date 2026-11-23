@@ -1509,7 +1509,6 @@ export const CATALOG_GROUPS: readonly ICatalogGroup[] = [
 		{ id: 'saengine.catalog.bimFabrication.jointDetails', planned: true, label: localize('ribbonCatalog.bimFabrication.jointDetails', "Joint Details"), description: localize('ribbonCatalog.bimFabrication.jointDetails.d', "Defines precast joint and sealant details."), size: 'small', icon: 'symbolMisc' },
 	] },
 	{ tab: 'bimFabrication', group: '62_catBimFabricationSteel', key: 'catBimFabricationSteel', label: localize('ribbonCatalog.group.catBimFabricationSteel', "Steel"), part: 'bim', buttons: [
-		{ id: 'saengine.catalog.bimFabrication.steelConnections', planned: true, label: localize('ribbonCatalog.bimFabrication.steelConnections', "Steel Connections"), description: localize('ribbonCatalog.bimFabrication.steelConnections.d', "Creates standard steel connection details."), size: 'small', icon: 'symbolMisc' },
 		{ id: 'saengine.catalog.bimFabrication.boltsWelds', planned: true, label: localize('ribbonCatalog.bimFabrication.boltsWelds', "Bolts & Welds"), description: localize('ribbonCatalog.bimFabrication.boltsWelds.d', "Adds bolts and welds with sizes and grades."), size: 'small', icon: 'symbolMisc' },
 		{ id: 'saengine.catalog.bimFabrication.cncData', planned: true, label: localize('ribbonCatalog.bimFabrication.cncData', "CNC Data"), description: localize('ribbonCatalog.bimFabrication.cncData.d', "Generates CNC fabrication data for members."), size: 'small', icon: 'symbolMisc' },
 	] },
@@ -2129,7 +2128,6 @@ export const CATALOG_GROUPS: readonly ICatalogGroup[] = [
 		{ id: 'saengine.catalog.femCapacity.performancePoint', planned: true, label: localize('ribbonCatalog.femCapacity.performancePoint', "Performance Point"), description: localize('ribbonCatalog.femCapacity.performancePoint.d', "Computes the performance point intersection."), size: 'small', icon: 'location' },
 	] },
 	{ tab: 'femCapacity', group: '61_catFemCapacityAssessment', key: 'catFemCapacityAssessment', label: localize('ribbonCatalog.group.catFemCapacityAssessment', "Assessment"), part: 'fem', buttons: [
-		{ id: 'saengine.catalog.femCapacity.targetDisplacement', planned: true, label: localize('ribbonCatalog.femCapacity.targetDisplacement', "Target Displacement"), description: localize('ribbonCatalog.femCapacity.targetDisplacement.d', "Computes the target displacement for the design earthquake."), size: 'small', icon: 'beaker' },
 		{ id: 'saengine.catalog.femCapacity.storeyMechanism', planned: true, label: localize('ribbonCatalog.femCapacity.storeyMechanism', "Storey Mechanism"), description: localize('ribbonCatalog.femCapacity.storeyMechanism.d', "Detects soft-storey and mechanism formation."), size: 'small', icon: 'layers' },
 		{ id: 'saengine.catalog.femCapacity.collapseCheck', planned: true, label: localize('ribbonCatalog.femCapacity.collapseCheck', "Collapse Check"), description: localize('ribbonCatalog.femCapacity.collapseCheck.d', "Checks global collapse against the acceptance criteria."), size: 'small', icon: 'symbolArray' },
 	] },
@@ -2456,7 +2454,6 @@ export const CATALOG_GROUPS: readonly ICatalogGroup[] = [
 		{ id: 'saengine.catalog.boqReports.publishTender', planned: true, label: localize('ribbonCatalog.boqReports.publishTender', "Publish Tender"), description: localize('ribbonCatalog.boqReports.publishTender.d', "Packages the tender BOQ for issue."), size: 'small', icon: 'cloudUpload' },
 	] },
 	{ tab: 'documents', group: '60_catDocumentsViews', key: 'catDocumentsViews', label: localize('ribbonCatalog.group.catDocumentsViews', "Views"), part: 'exports', buttons: [
-		{ id: 'saengine.catalog.documents.viewTemplates', planned: true, label: localize('ribbonCatalog.documents.viewTemplates', "View Templates"), description: localize('ribbonCatalog.documents.viewTemplates.d', "Applies saved view templates to plan and section views."), size: 'small', icon: 'eye' },
 		{ id: 'saengine.catalog.documents.sectionMarks', planned: true, label: localize('ribbonCatalog.documents.sectionMarks', "Section Marks"), description: localize('ribbonCatalog.documents.sectionMarks.d', "Places section and detail marks linked to views."), size: 'small', icon: 'tag' },
 		{ id: 'saengine.catalog.documents.detailViews', planned: true, label: localize('ribbonCatalog.documents.detailViews', "Detail Views"), description: localize('ribbonCatalog.documents.detailViews.d', "Creates enlarged detail views from callouts."), size: 'small', icon: 'eye' },
 	] },
