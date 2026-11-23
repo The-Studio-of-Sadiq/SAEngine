@@ -176,7 +176,7 @@ suite('SAEngine - ribbon model', () => {
 			[
 				'home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning', 'soil', 'soilTests', 'soilBearing',
 				'soilSeismic', 'soilEarth', 'soilSite', 'soilProfile', 'soilReport', 'soilDesign', 'settings', 'settingsLoads', 'settingsHazard',
-				'settingsChecks', 'settingsOverrides', 'settingsOccupancy', 'settingsFoundation', 'settingsDrawings', 'settingsUnits', 'settingsAudit',
+				'settingsOverrides', 'settingsOccupancy', 'settingsFoundation', 'settingsDrawings', 'settingsChecks', 'settingsUnits', 'settingsAudit',
 				'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks',
 				'objDesigner', 'objRebar', 'objWalls', 'plan', 'planLoads', 'planModelling', 'planChecks', 'grid', 'stories', 'gridCoords', 'members',
 				'memberGroups', 'memberData', 'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment',
@@ -217,8 +217,8 @@ suite('SAEngine - ribbon model', () => {
 		})).map(t => t.id);
 
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'soilProfile', 'soilReport', 'soilDesign']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings', 'settingsChecks', 'settingsOccupancy', 'settingsUnits', 'settingsAudit']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings', 'settingsChecks', 'settingsOccupancy', 'settingsUnits', 'settingsAudit']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings', 'settingsOccupancy', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings', 'settingsOccupancy', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);

@@ -1000,6 +1000,23 @@ function withCatalogTabs(base: readonly IRibbonTabDescriptor[]): readonly IRibbo
 		});
 		tabs.splice(at >= 0 ? at + 1 : tabs.length, 0, descriptor);
 	}
+	// A window's tabs for all its sub-windows (Project Settings: Checks, Units, Audit) come after
+	// the tabs of the sub-window shown, so a section's own tab is the first one.
+	const shared = tabs.filter(tab => {
+		const scope = CATALOG_TAB_SCOPES[tab.id];
+		return scope !== undefined && !scope.includes('.') && Object.values(CATALOG_TAB_SCOPES).some(other => other.startsWith(`${scope}.`));
+	});
+	for (const tab of shared) {
+		tabs.splice(tabs.indexOf(tab), 1);
+		const window = scopeWindow(CATALOG_TAB_SCOPES[tab.id]);
+		let at = -1;
+		tabs.forEach((other, index) => {
+			if (scopeWindow(CATALOG_TAB_SCOPES[other.id]) === window) {
+				at = index;
+			}
+		});
+		tabs.splice(at + 1, 0, tab);
+	}
 	return tabs;
 }
 
