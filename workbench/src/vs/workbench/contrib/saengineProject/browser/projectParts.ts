@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../base/browser/dom.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -167,6 +168,21 @@ export function isPartEditor(partId: string, editor: { readonly typeId: string }
 	return !!editor && partSections(partId).some(entry => (entry.command && entry.typeId === editor.typeId) || entry.alsoTypeIds?.includes(editor.typeId));
 }
 
+const partEditorIds = new Map<string, string>();
+
+/**
+ * Records the editor a part's main file opens in. The tree then always opens the part there, also
+ * when a text tab of the same file is open (the resolver would otherwise reuse that tab).
+ */
+export function registerPartEditor(partId: string, editorId: string): IDisposable {
+	partEditorIds.set(partId, editorId);
+	return toDisposable(() => {
+		if (partEditorIds.get(partId) === editorId) {
+			partEditorIds.delete(partId);
+		}
+	});
+}
+
 /** Opens `entry` of `part`. */
 export async function openPartSection(project: ISaengineProject, part: IProjectPart, entry: IPartSection, services: {
 	readonly editorService: IEditorService;
@@ -176,7 +192,7 @@ export async function openPartSection(project: ISaengineProject, part: IProjectP
 	if (entry.command) {
 		await services.commandService.executeCommand(entry.command);
 	} else if (resource) {
-		const section: IPartSectionOptions = { pinned: true, preserveFocus: options?.preserveFocus, override: entry.editorId, section: entry.sections?.[0] };
+		const section: IPartSectionOptions = { pinned: true, preserveFocus: options?.preserveFocus, override: entry.editorId ?? partEditorIds.get(part.id), section: entry.sections?.[0] };
 		await services.editorService.openEditor({ resource, options: section });
 	}
 }
@@ -269,7 +285,7 @@ export async function openPart(project: ISaengineProject, part: IProjectPart, se
 }, options?: { readonly preserveFocus?: boolean }): Promise<void> {
 	const resource = partResource(project, part);
 	if (resource) {
-		await services.editorService.openEditor({ resource, options: { pinned: true, preserveFocus: options?.preserveFocus } });
+		await services.editorService.openEditor({ resource, options: { pinned: true, preserveFocus: options?.preserveFocus, override: partEditorIds.get(part.id) } });
 	} else if (part.id === 'exports') {
 		await services.editorService.openEditor(ExportsEditorInput.instance, { pinned: true, preserveFocus: options?.preserveFocus });
 	}

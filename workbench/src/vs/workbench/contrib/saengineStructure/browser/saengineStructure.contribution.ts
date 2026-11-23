@@ -27,6 +27,7 @@ import { ISaengineProjectService, STRUCTURE_PART } from '../../../services/saeng
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { PLANNED_TAPERED_MEMBERS, SCRIPT_OUTPUT_CHANNEL_ID, StructureModelerEditor, StructureTool, StructureView } from './structureModeler.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 async function activeStructureModelerEditor(accessor: ServicesAccessor): Promise<StructureModelerEditor | undefined> {
 	const editorService = accessor.get(IEditorService);
@@ -125,6 +126,7 @@ class StructureModelerResolverContribution extends Disposable implements IWorkbe
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._register(registerPartEditor(STRUCTURE_PART.id, StructureModelerEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${STRUCTURE_PART.mainFile}`,
 			{

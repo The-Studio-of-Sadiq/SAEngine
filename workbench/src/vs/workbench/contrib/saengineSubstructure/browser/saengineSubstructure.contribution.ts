@@ -29,6 +29,7 @@ import { registerRibbonItemHint, RibbonButtonSize, RibbonMenus } from '../../sae
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 /** Opens the substructure editor and sizes all foundations (the sizing assistant). */
 export const SUBSTRUCTURE_SIZE_ALL_COMMAND = 'saengine.substructure.sizeAll';
@@ -58,6 +59,7 @@ class SubstructureEditorResolverContribution extends Disposable implements IWork
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, SubstructureEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{

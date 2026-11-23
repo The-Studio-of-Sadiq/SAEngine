@@ -39,6 +39,7 @@ import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from '.
 import { humanize } from './schemaForm.js';
 import './codePacks.contribution.js';
 import './sectionDesigner.contribution.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(LibraryEditor, LibraryEditorInput.EDITOR_ID, localize('libraryEditor', "SAEngine Library Editor")),
@@ -118,6 +119,9 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 			const part = partById(kind);
 			if (!part?.mainFile) {
 				continue;
+			}
+			if (kind !== 'floorPlan' && kind !== 'structure') {
+				this._register(registerPartEditor(kind, EDITOR_IDS[kind]));
 			}
 			this._register(editorResolverService.registerEditor(
 				`**/${part.mainFile}`,

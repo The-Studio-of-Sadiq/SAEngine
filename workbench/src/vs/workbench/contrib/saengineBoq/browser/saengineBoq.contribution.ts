@@ -33,6 +33,7 @@ import { BOQ_RATES_FILE, BOQ_CARBON_FILE, ensureBoqFile } from './boqCosting.js'
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { RatesEditor } from './ratesEditor.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(BoqEditor, BoqEditor.ID, localize('boqEditorPane', "SAEngine Bill of Quantities")),
@@ -57,6 +58,7 @@ class BoqEditorResolverContribution extends Disposable implements IWorkbenchCont
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, BoqEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{

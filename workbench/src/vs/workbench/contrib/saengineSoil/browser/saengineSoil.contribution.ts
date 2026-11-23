@@ -30,6 +30,7 @@ import { SITE_RESPONSE_FEATURE } from './soilStrata.js';
 import { SoilEditorInput, SoilEditorInputSerializer } from './soilEditorInput.js';
 import { SOIL_ADD_BOREHOLE_COMMAND, SOIL_IMPORT_FILE_COMMAND, SOIL_SAVE_TEMPLATE_COMMAND } from './soilDocument.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SoilEditor, SoilEditor.ID, localize('soilEditorPane', "SAEngine Soil Report")),
@@ -54,6 +55,7 @@ class SoilEditorResolverContribution extends Disposable implements IWorkbenchCon
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, SoilEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{

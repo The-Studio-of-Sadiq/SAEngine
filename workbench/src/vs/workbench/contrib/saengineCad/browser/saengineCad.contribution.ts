@@ -42,6 +42,7 @@ import { FloorPlanEditorInput, FloorPlanEditorInputSerializer } from './floorPla
 import './floorPlanTable.js';
 import './floorPlanTables.js';
 import './cadDraftRibbon.contribution.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CadEditorPane, CadEditorInput.EDITOR_ID, localize('cadEditor', "CAD Drawing")),
@@ -95,6 +96,7 @@ class CadEditorResolverContribution extends Disposable implements IWorkbenchCont
 		));
 
 		// The project's floor plan opens as the plan view of its building model.
+		this._register(registerPartEditor(FLOOR_PLAN_PART.id, FloorPlanEditorInput.EDITOR_ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${FLOOR_PLAN_PART.mainFile}`,
 			{

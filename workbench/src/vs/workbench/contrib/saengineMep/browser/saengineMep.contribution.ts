@@ -31,6 +31,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { OPEN_PLANNED_FEATURE_COMMAND } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { MepEditor } from './mepEditor.js';
 import { MepEditorInput, MepEditorInputSerializer } from './mepEditorInput.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 /** Opens the MEP editor and asks the backend for the sleeves the MEP IFC models' clashes need. */
 export const MEP_SUGGEST_SLEEVES_EDITOR_COMMAND = 'saengine.mep.editor.suggestSleeves';
@@ -58,6 +59,7 @@ class MepEditorResolverContribution extends Disposable implements IWorkbenchCont
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, MepEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{
