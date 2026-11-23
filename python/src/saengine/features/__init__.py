@@ -209,11 +209,15 @@ def feature(
     ) -> Callable[..., FeatureResult]:
         if feature_id in REGISTRY:
             raise ValueError(f"feature {feature_id!r} registered twice")
+        # One field per key: a shared field list may repeat one a feature adds itself.
+        unique: dict[str, Field] = {}
+        for f in fields:
+            unique.setdefault(f.key, f)
         REGISTRY[feature_id] = Feature(
             feature_id,
             title,
             part,
-            tuple(fields),
+            tuple(unique.values()),
             fn,
             help or (fn.__doc__ or "").strip().split("\n")[0],
             requires_project,

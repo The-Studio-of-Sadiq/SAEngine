@@ -182,8 +182,8 @@ def orientation(ctx: FeatureContext, values: dict) -> dict:
     state = _state(ctx)
     template = state["templates"].setdefault(_id(values["templateId"]), {})
     template.setdefault("page", {})["orientation"] = values["orientation"]
-    width = template["page"].get("widthMm", 210)
-    height = template["page"].get("heightMm", 297)
+    width = template["page"].setdefault("widthMm", 210)
+    height = template["page"].setdefault("heightMm", 297)
     if (values["orientation"] == "landscape") != (width > height):
         template["page"]["widthMm"], template["page"]["heightMm"] = height, width
     _save(ctx, state)

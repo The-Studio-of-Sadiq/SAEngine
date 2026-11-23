@@ -132478,21 +132478,6 @@
     "max": 2
    },
    {
-    "key": "pgaG",
-    "label": "Peak ground acceleration [g] [g]",
-    "type": "number",
-    "default": 0.25,
-    "min": 0.01
-   },
-   {
-    "key": "magnitude",
-    "label": "Moment magnitude",
-    "type": "number",
-    "default": 7.5,
-    "min": 4,
-    "max": 9.5
-   },
-   {
     "key": "strainRows",
     "label": "Layer index, post-liquefaction volumetric strain [%]",
     "type": "text",
