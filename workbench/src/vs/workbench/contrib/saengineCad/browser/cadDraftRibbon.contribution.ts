@@ -20,19 +20,31 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { DraftActiveContext, registerRibbonGroupLabel, registerRibbonGroupPriority, registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
+import { CAD_ONLY_WHEN, DRAFT_WHEN, DraftActiveContext, FLOOR_PLAN_WHEN, registerRibbonGroupLabel, registerRibbonGroupPriority, registerRibbonGroupWhen, registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { executeActiveCadCommand, getActiveCadEditor, getActiveCadEditorPane, onDidChangeActiveCadEditor } from './activeCadEditor.js';
-import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DRAFT_RIBBON_SUBMENUS, DraftRibbonSubmenus, ICadDraftCommandSpec } from './cadDraftCommands.js';
+import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DRAFT_RIBBON_SUBMENUS, ICadDraftCommandSpec } from './cadDraftCommands.js';
 import { isLightCanvas } from './cadHost.js';
 import { aciToCss, pickCadLayer } from './floorPlanCadBar.js';
 
 const CAD_CATEGORY = localize2('saengine.cad.category', "CAD");
 const CAD_STANDALONE_EDITOR_ID = 'workbench.editor.saengine.cad';
-const CAD_TAB_MENUS = new Set([RibbonMenus.Draft, RibbonMenus.Annotate, RibbonMenus.BlocksParametric]);
+const CAD_TAB_MENUS = new Set([
+	RibbonMenus.Home,
+	RibbonMenus.Insert,
+	RibbonMenus.Draft,
+	RibbonMenus.Annotate,
+	RibbonMenus.Parametric,
+	RibbonMenus.View,
+	RibbonMenus.Manage,
+	RibbonMenus.Output,
+]);
 
 for (const group of DRAFT_RIBBON_GROUPS) {
 	registerRibbonGroupLabel(group.key, group.label);
 	registerRibbonGroupPriority(group.key, group.collapsePriority);
+	if (group.when) {
+		registerRibbonGroupWhen(group.menuId, group.raw, group.when);
+	}
 }
 
 for (const sub of DRAFT_RIBBON_SUBMENUS) {
@@ -43,15 +55,38 @@ for (const sub of DRAFT_RIBBON_SUBMENUS) {
 		title: sub.title,
 		icon: sub.icon,
 		isSplitButton: true,
+		when: sub.when,
 	});
 	registerRibbonItemHint(sub.submenu.id, {
 		size: sub.size,
 		label: sub.title,
 		primaryCommandId: sub.primaryCommandId,
 	}, sub.menuId);
+	if (sub.extraMenu) {
+		MenuRegistry.appendMenuItem(sub.extraMenu.menuId, {
+			group: sub.extraMenu.group,
+			order: sub.extraMenu.order,
+			submenu: sub.submenu,
+			title: sub.title,
+			icon: sub.icon,
+			isSplitButton: true,
+			when: sub.extraMenu.when,
+		});
+		registerRibbonItemHint(sub.submenu.id, {
+			size: sub.extraMenu.size ?? sub.size,
+			label: sub.title,
+			primaryCommandId: sub.primaryCommandId,
+		}, sub.extraMenu.menuId);
+	}
 }
 
 function registerCadDraftCommand(spec: ICadDraftCommandSpec): void {
+	const menus = spec.extraMenu
+		? [
+			{ id: spec.menuId, group: spec.group, order: spec.order, when: spec.when },
+			{ id: spec.extraMenu.menuId, group: spec.extraMenu.group, order: spec.extraMenu.order, when: spec.extraMenu.when },
+		]
+		: { id: spec.menuId, group: spec.group, order: spec.order, when: spec.when };
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -63,11 +98,7 @@ function registerCadDraftCommand(spec: ICadDraftCommandSpec): void {
 				metadata: { description: spec.tooltip },
 				f1: true,
 				precondition: DraftActiveContext,
-				menu: {
-					id: spec.menuId,
-					group: spec.group,
-					order: spec.order,
-				},
+				menu: menus,
 			});
 		}
 
@@ -81,6 +112,12 @@ function registerCadDraftCommand(spec: ICadDraftCommandSpec): void {
 			size: spec.size ?? 'small',
 			label: spec.title.value,
 		}, spec.menuId);
+	}
+	if (spec.extraMenu && CAD_TAB_MENUS.has(spec.extraMenu.menuId)) {
+		registerRibbonItemHint(spec.id, {
+			size: spec.extraMenu.size ?? spec.size ?? 'small',
+			label: spec.title.value,
+		}, spec.extraMenu.menuId);
 	}
 }
 
@@ -181,11 +218,10 @@ registerAction2(class extends Action2 {
 			metadata: { description: localize2('cad.meta.currentLayer', "Switch current drafting layer or move selected objects to a layer (CLAYER)") },
 			f1: true,
 			precondition: DraftActiveContext,
-			menu: {
-				id: RibbonMenus.Draft,
-				group: '3_Layers',
-				order: 2,
-			},
+			menu: [
+				{ id: RibbonMenus.Draft, group: '5_Layers', order: 2, when: CAD_ONLY_WHEN },
+				{ id: RibbonMenus.Home, group: '8_Layers', order: 2, when: FLOOR_PLAN_WHEN },
+			],
 		});
 	}
 
@@ -208,6 +244,10 @@ registerRibbonItemHint('saengine.cad.currentLayer', {
 	size: 'small',
 	renderCustom: renderCurrentLayerDropdown,
 }, RibbonMenus.Draft);
+registerRibbonItemHint('saengine.cad.currentLayer', {
+	size: 'small',
+	renderCustom: renderCurrentLayerDropdown,
+}, RibbonMenus.Home);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -220,11 +260,10 @@ registerAction2(class extends Action2 {
 			metadata: { description: localize2('cad.meta.properties', "Open Properties palette / change object properties (PROPERTIES / CHPROP)") },
 			f1: true,
 			precondition: DraftActiveContext,
-			menu: {
-				id: RibbonMenus.Draft,
-				group: '4_Properties',
-				order: 3,
-			},
+			menu: [
+				{ id: RibbonMenus.Draft, group: '6_Properties', order: 3, when: CAD_ONLY_WHEN },
+				{ id: RibbonMenus.Home, group: '9_Properties', order: 3, when: FLOOR_PLAN_WHEN },
+			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Digit1,
@@ -247,6 +286,10 @@ registerRibbonItemHint('saengine.cad.properties', {
 	size: 'small',
 	label: localize('cad.label.properties', "Properties"),
 }, RibbonMenus.Draft);
+registerRibbonItemHint('saengine.cad.properties', {
+	size: 'small',
+	label: localize('cad.label.properties', "Properties"),
+}, RibbonMenus.Home);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -260,9 +303,10 @@ registerAction2(class extends Action2 {
 			f1: true,
 			precondition: DraftActiveContext,
 			menu: {
-				id: DraftRibbonSubmenus.UtilView,
-				group: '2_cli',
-				order: 1,
+				id: RibbonMenus.View,
+				group: '1_Navigate',
+				order: 4,
+				when: DRAFT_WHEN,
 			},
 		});
 	}
@@ -271,3 +315,8 @@ registerAction2(class extends Action2 {
 		getActiveCadEditorPane(accessor.get(IEditorService))?.toggleCadCommandLine?.();
 	}
 });
+
+registerRibbonItemHint('saengine.cad.toggleCommandLine', {
+	size: 'small',
+	label: localize('cad.label.toggleCommandLine', "Command Line"),
+}, RibbonMenus.View);

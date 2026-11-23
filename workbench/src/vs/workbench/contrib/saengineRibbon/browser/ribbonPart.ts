@@ -138,6 +138,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private tabButtons: HTMLButtonElement[] = [];
 	private activeTabId: RibbonTabId = 'home';
 	private lastEditorKey: string | undefined;
+	private lastSubView = '';
 	private activeFrame: IEditorRibbonFrame | undefined;
 	private activeSectionPane: IPartSectionPane | undefined;
 	private menuBound = false;
@@ -270,10 +271,14 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const panelId = activeId === SAENGINE_EDITOR_IDS.dataPanel ? this.activeDataPanelId() : undefined;
 			const panelPart = panelId ? resolveDataPanelPart(panelId, getEngineDataPanel(panelId)?.part) : '';
 
+			const subView = this.activeSubView(activeId, sectionPane);
+			const subViewChanged = subView !== this.lastSubView;
+			this.lastSubView = subView;
+
 			this.contextKeyService.bufferChangeEvents(() => {
 				this.draftContext.set(DRAFT_EDITOR_IDS.has(activeId));
 				this.dataPanelPartContext.set(panelPart);
-				this.subViewContext.set(this.activeSubView(activeId, sectionPane));
+				this.subViewContext.set(subView);
 			});
 
 			const contextEditorId = this.contextKeyService.getContextKeyValue<string>(ActiveEditorContext.key) ?? activeId;
@@ -285,7 +290,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 			const tabs = getVisibleRibbonTabs(this.contextKeyService);
 			const nextTab = (autoSwitch && editorChanged) || !tabs.some(t => t.id === this.activeTabId)
-				? resolveActiveTabForEditor(editorKey, tabs, this.lastTabByEditor)
+				? resolveActiveTabForEditor(editorKey, tabs, this.lastTabByEditor, subView)
 				: this.activeTabId;
 			const tabChanged = nextTab !== this.activeTabId;
 			this.activeTabId = nextTab;
@@ -297,7 +302,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			this.renderTabs(tabs);
 			if (tabChanged) {
 				this.bindActiveTabMenu();
-			} else if (frameChanged) {
+			} else if (frameChanged || subViewChanged) {
 				this.panelScheduler.schedule();
 			}
 		} finally {
@@ -398,7 +403,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 	private renderTabs(tabs: readonly IRibbonTabDescriptor[] = this.visibleTabs()): void {
 		if (!tabs.some(t => t.id === this.activeTabId)) {
-			this.activeTabId = resolveActiveTabForEditor(this.lastEditorKey ?? '', tabs, this.lastTabByEditor);
+			this.activeTabId = resolveActiveTabForEditor(this.lastEditorKey ?? '', tabs, this.lastTabByEditor, this.lastSubView);
 			this.bindActiveTabMenu();
 		}
 		const activeElement = this.tablist.ownerDocument.activeElement;
@@ -459,6 +464,12 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}
 		visited.add(menuId.id);
 		for (const item of MenuRegistry.getMenuItems(menuId)) {
+			if (item.group) {
+				const groupWhen = getRibbonGroupWhen(menuId, item.group);
+				if (groupWhen && !this.contextKeyService.contextMatchesRules(groupWhen)) {
+					continue;
+				}
+			}
 			if (item.when && !this.contextKeyService.contextMatchesRules(item.when)) {
 				continue;
 			}
@@ -667,11 +678,9 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 				}
 			}
 			const visibleTabs = this.visibleTabs();
-			const targetTabId = resolveEditorToolbarTargetTab(visibleTabs);
-			const contextualTabs = visibleTabs.filter(t => t.contextual);
-			const dedupeTabs = contextualTabs.length ? contextualTabs : visibleTabs.filter(t => t.id === targetTabId);
+			const targetTabId = resolveEditorToolbarTargetTab(visibleTabs, this.lastEditorKey ?? '', this.lastSubView);
 			const existingCommandIds = new Set<string>();
-			for (const tab of dedupeTabs) {
+			for (const tab of visibleTabs) {
 				this.collectMenuCommandIds(tab.menuId, existingCommandIds);
 			}
 			frameCustomGroups = this.buildEditorFrameGroups(activeFrame, descriptor.id, targetTabId, existingCommandIds);

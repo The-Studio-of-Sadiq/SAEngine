@@ -8,7 +8,9 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -23,8 +25,82 @@ import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../..
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, STRUCTURE_PART } from '../../../services/saengineProject/common/saengineProject.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
-import { PLANNED_TAPERED_MEMBERS, SCRIPT_OUTPUT_CHANNEL_ID, StructureModelerEditor } from './structureModeler.js';
+import { PLANNED_TAPERED_MEMBERS, SCRIPT_OUTPUT_CHANNEL_ID, StructureModelerEditor, StructureTool, StructureView } from './structureModeler.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+
+async function activeStructureModelerEditor(accessor: ServicesAccessor): Promise<StructureModelerEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof StructureModelerEditor) {
+		return editorService.activeEditorPane;
+	}
+	const project = accessor.get(ISaengineProjectService).project;
+	if (!project || !STRUCTURE_PART.mainFile) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor({
+		resource: joinPath(project.root, STRUCTURE_PART.folder, STRUCTURE_PART.mainFile),
+		options: { override: StructureModelerEditor.ID, pinned: true },
+	});
+	return pane instanceof StructureModelerEditor ? pane : undefined;
+}
+
+const structureProjectOpen = ContextKeyExpr.has('saengineProjectOpen');
+
+function registerStructureCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	runWithEditor: (editor: StructureModelerEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				f1: true,
+				precondition: structureProjectOpen,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeStructureModelerEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+}
+
+for (const [tool, title] of [
+	['select', localize2('structure.cmd.select', "Structure 3D: Select")],
+	['member', localize2('structure.cmd.member', "Structure 3D: Draw Member")],
+	['area', localize2('structure.cmd.area', "Structure 3D: Draw Area")],
+	['block', localize2('structure.cmd.block', "Structure 3D: Place Block")],
+	['support', localize2('structure.cmd.support', "Structure 3D: Place Support")],
+	['move', localize2('structure.cmd.move', "Structure 3D: Move Selection")],
+	['copy', localize2('structure.cmd.copy', "Structure 3D: Copy Selection")],
+	['mirror', localize2('structure.cmd.mirror', "Structure 3D: Mirror Selection")],
+	['divide', localize2('structure.cmd.divide', "Structure 3D: Divide Member")],
+	['delete', localize2('structure.cmd.delete', "Structure 3D: Delete Selection")],
+] as readonly [StructureTool, ReturnType<typeof localize2>][]) {
+	registerStructureCommand(`saengine.structure.tool.${tool}`, title, e => e.selectTool(tool));
+}
+
+for (const [view, title] of [
+	['3d', localize2('structure.cmd.view3d', "Structure 3D: Isometric 3D View")],
+	['top', localize2('structure.cmd.viewTop', "Structure 3D: Top Plan View")],
+	['front', localize2('structure.cmd.viewFront', "Structure 3D: Front Elevation View")],
+	['side', localize2('structure.cmd.viewSide', "Structure 3D: Side Elevation View")],
+] as readonly [StructureView, ReturnType<typeof localize2>][]) {
+	registerStructureCommand(`saengine.structure.view.${view}`, title, e => e.selectView(view));
+}
+
+registerStructureCommand('saengine.structure.fitView', localize2('structure.cmd.fit', "Structure 3D: Zoom to Fit"), e => e.fitView());
+registerStructureCommand('saengine.structure.generateShape', localize2('structure.cmd.generateShape', "Structure 3D: Generate Parametric Shape..."), e => e.openShapeDialog());
+registerStructureCommand('saengine.structure.importGeometry', localize2('structure.cmd.importGeometry', "Structure 3D: Import Geometry..."), e => e.openImportDialog());
+registerStructureCommand('saengine.structure.runScript', localize2('structure.cmd.runScript', "Structure 3D: Run Python Script..."), e => e.openScriptPicker());
+registerStructureCommand('saengine.structure.pickLevel', localize2('structure.cmd.pickLevel', "Structure 3D: Set Work Level..."), e => e.openLevelPicker());
+registerStructureCommand('saengine.structure.openForm', localize2('structure.cmd.openForm', "Structure 3D: Edit Grids & Tables"), e => e.openGridsForm());
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(StructureModelerEditor, StructureModelerEditor.ID, localize('structureModeler', "SAEngine Structural Model 3D")),

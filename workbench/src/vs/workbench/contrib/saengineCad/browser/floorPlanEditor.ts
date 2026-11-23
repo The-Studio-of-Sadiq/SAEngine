@@ -3589,8 +3589,8 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		}
 	}
 
-	/** Picks a DXF or DWG and attaches it to the current story; files from elsewhere are copied into the project. */
-	private async attachUnderlay(): Promise<void> {
+	/** Picks a DXF/DWG/PDF underlay or point cloud and attaches it to the current story; files from elsewhere are copied into the project. */
+	private async attachUnderlay(pointCloudOnly = false): Promise<void> {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const story = input?.story;
 		if (!input || !story) {
@@ -3598,14 +3598,20 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		}
 		const folder = dirname(input.resource);
 		const picked = await this.fileDialogService.showOpenDialog({
-			title: localize('floorPlan.pickUnderlayOrScan', "Attach a Drawing or Point Cloud (DXF, DWG, PDF, LAS, XYZ, PTS, LAZ, E57)"),
+			title: pointCloudOnly
+				? localize('floorPlan.pickPointCloud', "Attach a Point Cloud (LAS, XYZ, PTS, LAZ, E57)")
+				: localize('floorPlan.pickUnderlayOrScan', "Attach a Drawing or Point Cloud (DXF, DWG, PDF, LAS, XYZ, PTS, LAZ, E57)"),
 			canSelectFiles: true,
 			canSelectMany: false,
-			filters: [
-				{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] },
-				// Alpha 9 L2: laser scans, shown as the slice at the story's cut with the lines traced through it.
-				{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
-			],
+			filters: pointCloudOnly
+				? [
+					{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
+				]
+				: [
+					{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] },
+					// Alpha 9 L2: laser scans, shown as the slice at the story's cut with the lines traced through it.
+					{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
+				],
 			defaultUri: folder,
 		});
 		const source = picked?.[0];
@@ -4138,7 +4144,11 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 	}
 
 	attachUnderlayFile(): Promise<void> {
-		return this.attachUnderlay();
+		return this.attachUnderlay(false);
+	}
+
+	attachPointCloudFile(): Promise<void> {
+		return this.attachUnderlay(true);
 	}
 
 	removeUnderlayFile(): void {

@@ -654,7 +654,7 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private async openAsJson(): Promise<void> {
+	async openAsJson(): Promise<void> {
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
 		if (resource) {
 			await this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } }, this.group);

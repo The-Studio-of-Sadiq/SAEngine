@@ -1988,4 +1988,34 @@ export class ArchitectureEditor extends EditorPane {
 	openFloorPlanView(): Promise<void> {
 		return this.openFloorPlan();
 	}
+
+	clearSelection(): void {
+		this.selected = undefined;
+		this.render();
+	}
+
+	async runRampChecks(): Promise<void> {
+		const text = this.archModel?.getValue();
+		if (text === undefined) {
+			return;
+		}
+		try {
+			const result = await this.commandService.executeCommand<IRampChecks>('saengine.architecture.checkRamps', { architectureText: text });
+			const ramps = result?.ramps ?? [];
+			if (ramps.length === 0) {
+				this.notificationService.info(localize('arch.rampCheckNone', "No ramps in the architectural model."));
+				return;
+			}
+			const failed = ramps.filter(r => r.covered && !r.ok);
+			if (failed.length > 0) {
+				this.notificationService.warn(localize('arch.rampCheckFail', "{0} of {1} ramp(s) do not meet the code pack rules.", failed.length, ramps.length));
+				this.selected = { kind: 'ramps', id: failed[0].id };
+				this.render();
+			} else {
+				this.notificationService.info(localize('arch.rampCheckPass', "Checked {0} ramp(s): all meet the code pack rules.", ramps.length));
+			}
+		} catch (error) {
+			this.notificationService.error(String(error));
+		}
+	}
 }

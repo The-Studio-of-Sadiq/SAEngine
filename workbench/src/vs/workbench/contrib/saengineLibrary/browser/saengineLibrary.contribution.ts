@@ -10,7 +10,7 @@ import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,15 +26,12 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { MATERIALS_SCHEMA, OBJECTS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { BimStudies, RenderPreset } from '../../saengineOffice/browser/bimStudies.js';
-import { registerRibbonItemHint, RibbonMenus, subViewWhen } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { BuildingEditor } from './buildingEditor.js';
 import { GridsEditor } from './gridsEditor.js';
 import { SettingsEditor } from './settingsEditor.js';
 import { StructureEditor } from './structureEditor.js';
 import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
-
-const BIM_3D_SUB_VIEW = subViewWhen('bim.3d');
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
 import { humanize } from './schemaForm.js';
 import './codePacks.contribution.js';
@@ -253,15 +250,11 @@ function registerBuildingStudyCommand(
 	id: string,
 	title: ReturnType<typeof localize2>,
 	icon: typeof Codicon[keyof typeof Codicon] | undefined,
-	group: string,
-	order: number,
-	size: 'large' | 'small',
 	run: (studies: BimStudies) => Promise<void> | void,
 ): void {
-	registerRibbonItemHint(id, { size }, RibbonMenus.Bim3D);
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id, title, icon, menu: { id: RibbonMenus.Bim3D, group, order, when: BIM_3D_SUB_VIEW } });
+			super({ id, title, icon });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const notificationService = accessor.get(INotificationService);
@@ -605,30 +598,8 @@ for (const [order, preset, label] of [
 }
 
 registerBuildingStudyCommand('saengine.bim.study.walk', localize2('rib.bim.walk', "Walk Mode"), Codicon.compass, '4_RenderAndStudies', 2, 'small', s => s.toggleWalkMode());
-registerBuildingStudyCommand('saengine.bim.study.still', localize2('rib.bim.still', "Export Still..."), Codicon.deviceCamera, '4_RenderAndStudies', 3, 'small', s => s.exportStill());
-registerBuildingStudyCommand('saengine.bim.study.sun', localize2('rib.bim.sun', "Sun at Noon"), Codicon.lightbulb, '4_RenderAndStudies', 4, 'small', s => s.sunAtNoon());
-registerBuildingStudyCommand('saengine.bim.study.4d', localize2('rib.bim.4d', "4D Playback"), Codicon.calendar, '4_RenderAndStudies', 5, 'large', s => s.toggle4d());
-registerBuildingStudyCommand('saengine.bim.study.terrain', localize2('rib.bim.terrain', "Show Terrain"), Codicon.globe, '4_RenderAndStudies', 6, 'small', s => s.toggleTerrain());
-registerBuildingStudyCommand('saengine.bim.study.phases', localize2('rib.bim.phases', "Filter Phase..."), Codicon.layers, '4_RenderAndStudies', 7, 'small', s => s.pickPhase());
-
-registerRibbonItemHint('saengine.bim.exportIfc', { size: 'large' }, RibbonMenus.Bim3D);
-MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
-	command: { id: 'saengine.bim.exportIfc', title: localize2('rib.bim.exportIfc', "Export IFC"), icon: Codicon.export },
-	group: '5_Export',
-	order: 1,
-	when: BIM_3D_SUB_VIEW,
-});
-registerRibbonItemHint('saengine.bim.exportIfcOptions', { size: 'small' }, RibbonMenus.Bim3D);
-MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
-	command: { id: 'saengine.bim.exportIfcOptions', title: localize2('rib.bim.exportIfcOpts', "Export IFC Options..."), icon: Codicon.layers },
-	group: '5_Export',
-	order: 2,
-	when: BIM_3D_SUB_VIEW,
-});
-registerRibbonItemHint('saengine.bim.compareIfc', { size: 'small' }, RibbonMenus.Bim3D);
-MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
-	command: { id: 'saengine.bim.compareIfc', title: localize2('rib.bim.compareIfc', "Compare IFC..."), icon: Codicon.diff },
-	group: '5_Export',
-	order: 3,
-	when: BIM_3D_SUB_VIEW,
-});
+registerBuildingStudyCommand('saengine.bim.study.still', localize2('rib.bim.still', "Export Still..."), Codicon.deviceCamera, s => s.exportStill());
+registerBuildingStudyCommand('saengine.bim.study.sun', localize2('rib.bim.sun', "Sun at Noon"), Codicon.lightbulb, s => s.sunAtNoon());
+registerBuildingStudyCommand('saengine.bim.study.4d', localize2('rib.bim.4d', "4D Playback"), Codicon.calendar, s => s.toggle4d());
+registerBuildingStudyCommand('saengine.bim.study.terrain', localize2('rib.bim.terrain', "Show Terrain"), Codicon.globe, s => s.toggleTerrain());
+registerBuildingStudyCommand('saengine.bim.study.phases', localize2('rib.bim.phases', "Filter Phase..."), Codicon.layers, s => s.pickPhase());

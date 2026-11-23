@@ -685,6 +685,47 @@ export class MembersTable extends Disposable {
 		}
 	}
 
+	setKindFilter(group?: (typeof MEMBER_GROUPS)[number]): void {
+		this.filter = { ...this.filter, group };
+		this.kindFilter.selectedId = group ? String(MEMBER_GROUPS.indexOf(group) + 1) : '0';
+		this.renderRows();
+	}
+
+	resetFilters(): void {
+		this.filter = {};
+		this.storyFilter.selectedId = '0';
+		this.kindFilter.selectedId = '0';
+		this.typeFilter.selectedId = '0';
+		this.search.value = '';
+		this.renderRows();
+	}
+
+	selectAllRows(): void {
+		for (const row of this.shown) {
+			this.selected.add(rowKey(row));
+		}
+		this.renderRows();
+	}
+
+	clearSelection(): void {
+		this.selected.clear();
+		this.renderRows();
+	}
+
+	focusSearch(): void {
+		this.search.focus();
+	}
+
+	sortBy(key: SortKey): void {
+		const descending = this.sort.key === key ? !this.sort.descending : false;
+		this.sort = { key, descending };
+		this.renderRows();
+	}
+
+	exportTableCsv(): Promise<void> {
+		return this.exportCsv();
+	}
+
 	private async exportCsv(): Promise<void> {
 		const floorPlan = this.floorPlan;
 		const exportsPart = partById('exports');
