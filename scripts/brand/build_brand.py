@@ -766,7 +766,9 @@ def write_rasters() -> None:
     # on white), opaque, the same logo as the exe (VisualElementsManifest.xml sets white too)
     for size in (70, 150):
         tile = Image.new("RGBA", (size, size), (255, 255, 255, 255))
-        tile.alpha_composite(rasterise(mark_square(COLOUR, "tl", 512, 64, detail=size > 70), size, size, ss=8))
+        tile.alpha_composite(
+            rasterise(mark_square(COLOUR, "tl", 512, 64, detail=size > 70), size, size, ss=8)
+        )
         tile.save(res / "win32" / f"code_{size}x{size}.png")
     # Linux
     big[512].save(res / "linux" / "code.png")
