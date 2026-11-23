@@ -25,6 +25,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { registerRibbonItemHint, RibbonButtonSize, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
@@ -130,6 +131,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.wand,
 			f1: true,
 			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			menu: { id: RibbonMenus.Foundations, group: '4_Design', order: 1 },
 		});
 	}
 
@@ -137,6 +139,7 @@ registerAction2(class extends Action2 {
 		await (await substructureEditor(accessor))?.sizeAll();
 	}
 });
+registerRibbonItemHint(SUBSTRUCTURE_SIZE_ALL_COMMAND, { size: 'large', label: localize('fdn.rib.sizeAll', "Size Footings") }, RibbonMenus.Foundations);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -147,6 +150,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.cloudDownload,
 			f1: true,
 			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			menu: { id: RibbonMenus.Foundations, group: '1_Shallow', order: 5 },
 		});
 	}
 
@@ -154,11 +158,16 @@ registerAction2(class extends Action2 {
 		await (await substructureEditor(accessor))?.migrate();
 	}
 });
+registerRibbonItemHint(SUBSTRUCTURE_IMPORT_FOOTINGS_COMMAND, { size: 'small', label: localize('fdn.rib.import', "Import Footings") }, RibbonMenus.Foundations);
 
 function registerFoundationCommand(
 	id: string,
 	title: ReturnType<typeof localize2>,
+	shortLabel: string,
 	icon: ThemeIcon,
+	group: string,
+	order: number,
+	size: RibbonButtonSize,
 	runWithEditor: (editor: SubstructureEditor) => Promise<void> | void,
 ): void {
 	registerAction2(class extends Action2 {
@@ -170,6 +179,7 @@ function registerFoundationCommand(
 				icon,
 				f1: true,
 				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+				menu: { id: RibbonMenus.Foundations, group, order },
 			});
 		}
 
@@ -180,31 +190,32 @@ function registerFoundationCommand(
 			}
 		}
 	});
+	registerRibbonItemHint(id, { size, label: shortLabel }, RibbonMenus.Foundations);
 }
 
-registerFoundationCommand('saengine.substructure.addFooting', localize2('fdn.rib.addFootingTitle', "Add Footing under Selected Columns"), Codicon.add, e => e.addFootings());
-registerFoundationCommand('saengine.substructure.addRaft', localize2('fdn.rib.addRaftTitle', "Add Raft Foundation"), Codicon.primitiveSquare, e => e.addRaft());
-registerFoundationCommand('saengine.substructure.addStrip', localize2('fdn.rib.addStripTitle', "Add Strip Footing"), Codicon.layoutPanel, e => e.addStrip());
-registerFoundationCommand('saengine.substructure.selectUncovered', localize2('fdn.rib.uncoveredTitle', "Select Columns without a Foundation"), Codicon.selection, e => e.selectUncovered());
+registerFoundationCommand('saengine.substructure.addFooting', localize2('fdn.rib.addFootingTitle', "Add Footing under Selected Columns"), localize('fdn.rib.addFooting', "Add Footing"), Codicon.add, '1_Shallow', 1, 'large', e => e.addFootings());
+registerFoundationCommand('saengine.substructure.addRaft', localize2('fdn.rib.addRaftTitle', "Add Raft Foundation"), localize('fdn.rib.addRaft', "Add Raft"), Codicon.primitiveSquare, '1_Shallow', 2, 'large', e => e.addRaft());
+registerFoundationCommand('saengine.substructure.addStrip', localize2('fdn.rib.addStripTitle', "Add Strip Footing"), localize('fdn.rib.addStrip', "Strip Footing"), Codicon.layoutPanel, '1_Shallow', 3, 'small', e => e.addStrip());
+registerFoundationCommand('saengine.substructure.selectUncovered', localize2('fdn.rib.uncoveredTitle', "Select Columns without a Foundation"), localize('fdn.rib.uncovered', "Uncovered Columns"), Codicon.selection, '1_Shallow', 4, 'small', e => e.selectUncovered());
 
-registerFoundationCommand('saengine.substructure.addPileCap', localize2('fdn.rib.addCapTitle', "Add Pile Cap under Selected Columns"), Codicon.circleLargeOutline, e => e.addPileCaps());
-registerFoundationCommand('saengine.substructure.placePiles', localize2('fdn.rib.placePilesTitle', "Place Piles Tool"), Codicon.circleFilled, e => e.togglePileTool());
-registerFoundationCommand('saengine.substructure.pileGrid', localize2('fdn.rib.pileGridTitle', "Edit Pile Grid"), Codicon.symbolNumeric, e => e.editPileGrid());
-registerFoundationCommand('saengine.substructure.pileGroup', localize2('fdn.rib.pileGroupTitle', "Place Pile Group under Selected Columns"), Codicon.location, e => e.placeGroups());
-registerFoundationCommand('saengine.substructure.makeCap', localize2('fdn.rib.makeCapTitle', "Make Pile Cap from Selected Piles"), Codicon.package, e => e.makeCap());
-registerFoundationCommand('saengine.substructure.addPileType', localize2('fdn.rib.addPileTypeTitle', "Add Pile Type"), Codicon.newFile, e => e.addPileType());
+registerFoundationCommand('saengine.substructure.addPileCap', localize2('fdn.rib.addCapTitle', "Add Pile Cap under Selected Columns"), localize('fdn.rib.addCap', "Add Pile Cap"), Codicon.circleLargeOutline, '2_Piles', 1, 'large', e => e.addPileCaps());
+registerFoundationCommand('saengine.substructure.placePiles', localize2('fdn.rib.placePilesTitle', "Place Piles Tool"), localize('fdn.rib.placePiles', "Place Piles"), Codicon.circleFilled, '2_Piles', 2, 'large', e => e.togglePileTool());
+registerFoundationCommand('saengine.substructure.pileGrid', localize2('fdn.rib.pileGridTitle', "Edit Pile Grid"), localize('fdn.rib.pileGrid', "Pile Grid"), Codicon.symbolNumeric, '2_Piles', 3, 'small', e => e.editPileGrid());
+registerFoundationCommand('saengine.substructure.pileGroup', localize2('fdn.rib.pileGroupTitle', "Place Pile Group under Selected Columns"), localize('fdn.rib.pileGroup', "Pile Group"), Codicon.location, '2_Piles', 4, 'small', e => e.placeGroups());
+registerFoundationCommand('saengine.substructure.makeCap', localize2('fdn.rib.makeCapTitle', "Make Pile Cap from Selected Piles"), localize('fdn.rib.makeCap', "Make Cap"), Codicon.package, '2_Piles', 5, 'small', e => e.makeCap());
+registerFoundationCommand('saengine.substructure.addPileType', localize2('fdn.rib.addPileTypeTitle', "Add Pile Type"), localize('fdn.rib.addPileType', "Add Pile Type"), Codicon.newFile, '2_Piles', 6, 'small', e => e.addPileType());
 
-registerFoundationCommand('saengine.substructure.gradeBeam', localize2('fdn.rib.gradeBeamTitle', "Draw Grade Beam Tool"), Codicon.arrowBoth, e => e.toggleBeamTool());
-registerFoundationCommand('saengine.substructure.addTieBeam', localize2('fdn.rib.addTieTitle', "Add Tie Beam between Selected Foundations"), Codicon.dash, e => e.addTieBeam());
-registerFoundationCommand('saengine.substructure.connectBeams', localize2('fdn.rib.connectTitle', "Connect Grade Beams along Grid Lines"), Codicon.gitMerge, e => e.connectBeams());
-registerFoundationCommand('saengine.substructure.delete', localize2('fdn.rib.deleteTitle', "Delete Selected Foundation or Pile"), Codicon.trash, e => e.deleteSelection());
+registerFoundationCommand('saengine.substructure.gradeBeam', localize2('fdn.rib.gradeBeamTitle', "Draw Grade Beam Tool"), localize('fdn.rib.gradeBeam', "Draw Grade Beam"), Codicon.arrowBoth, '3_GradeBeams', 1, 'large', e => e.toggleBeamTool());
+registerFoundationCommand('saengine.substructure.addTieBeam', localize2('fdn.rib.addTieTitle', "Add Tie Beam between Selected Foundations"), localize('fdn.rib.addTie', "Add Tie Beam"), Codicon.dash, '3_GradeBeams', 2, 'small', e => e.addTieBeam());
+registerFoundationCommand('saengine.substructure.connectBeams', localize2('fdn.rib.connectTitle', "Connect Grade Beams along Grid Lines"), localize('fdn.rib.connect', "Connect Beams"), Codicon.gitMerge, '3_GradeBeams', 3, 'small', e => e.connectBeams());
+registerFoundationCommand('saengine.substructure.delete', localize2('fdn.rib.deleteTitle', "Delete Selected Foundation or Pile"), localize('fdn.rib.delete', "Delete"), Codicon.trash, '3_GradeBeams', 4, 'small', e => e.deleteSelection());
 
-registerFoundationCommand('saengine.substructure.saveAndCheck', localize2('fdn.rib.saveCheckTitle', "Save and Check Foundations"), Codicon.checkAll, e => e.saveAndCheck());
-registerFoundationCommand('saengine.substructure.recompute', localize2('fdn.rib.recomputeTitle', "Check Foundations Again"), Codicon.refresh, e => e.computeReport());
+registerFoundationCommand('saengine.substructure.saveAndCheck', localize2('fdn.rib.saveCheckTitle', "Save and Check Foundations"), localize('fdn.rib.saveCheck', "Save & Check"), Codicon.checkAll, '4_Design', 2, 'large', e => e.saveAndCheck());
+registerFoundationCommand('saengine.substructure.recompute', localize2('fdn.rib.recomputeTitle', "Check Foundations Again"), localize('fdn.rib.recompute', "Check Again"), Codicon.refresh, '4_Design', 3, 'small', e => e.computeReport());
 
-registerFoundationCommand('saengine.substructure.viewPlan', localize2('fdn.rib.viewPlanTitle', "Substructure View: Plan"), Codicon.symbolStructure, e => e.showView('plan'));
-registerFoundationCommand('saengine.substructure.viewData', localize2('fdn.rib.viewDataTitle', "Substructure View: Data"), Codicon.table, e => e.showView('data'));
-registerFoundationCommand('saengine.substructure.viewResults', localize2('fdn.rib.viewResultsTitle', "Substructure View: Results"), Codicon.graphLine, e => e.showView('results'));
+registerFoundationCommand('saengine.substructure.viewPlan', localize2('fdn.rib.viewPlanTitle', "Substructure View: Plan"), localize('fdn.rib.viewPlan', "Plan"), Codicon.symbolStructure, '5_Views', 1, 'small', e => e.showView('plan'));
+registerFoundationCommand('saengine.substructure.viewData', localize2('fdn.rib.viewDataTitle', "Substructure View: Data"), localize('fdn.rib.viewData', "Data"), Codicon.table, '5_Views', 2, 'small', e => e.showView('data'));
+registerFoundationCommand('saengine.substructure.viewResults', localize2('fdn.rib.viewResultsTitle', "Substructure View: Results"), localize('fdn.rib.viewResults', "Results"), Codicon.graphLine, '5_Views', 3, 'small', e => e.showView('results'));
 
 // Planned features of 9 Substructure (MVP: methods BNBC 2020 does not give itself).
 

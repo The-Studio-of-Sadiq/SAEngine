@@ -690,7 +690,11 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const when = getRibbonGroupWhen(descriptor.menuId, rawGroup);
 			return !when || this.contextKeyService.contextMatchesRules(when);
 		});
-		const groups = buildRibbonGroups(actions, [...getRibbonCustomGroups(descriptor.id), ...frameCustomGroups], {
+		const customGroups = getRibbonCustomGroups(descriptor.id).filter(group => {
+			const when = getRibbonGroupWhen(descriptor.menuId, group.group);
+			return !when || this.contextKeyService.contextMatchesRules(when);
+		});
+		const groups = buildRibbonGroups(actions, [...customGroups, ...frameCustomGroups], {
 			menuId: descriptor.menuId,
 			hintLookup: getRibbonItemHint,
 			labelLookup: getRibbonGroupLabel,

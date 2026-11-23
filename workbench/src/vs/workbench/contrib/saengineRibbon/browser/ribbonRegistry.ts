@@ -87,22 +87,19 @@ export type RibbonTabId =
 	| 'bim3d'
 	| 'mep'
 	| 'analyze'
-	| 'loads'
 	| 'results'
 	| 'design'
 	| 'foundations'
 	| 'boq'
-	| 'exports'
 	| 'documents'
 	| 'studies'
-	| 'insert'
 	| 'draft'
+	| 'insert'
 	| 'annotate'
 	| 'parametric'
 	| 'view'
 	| 'manage'
-	| 'output'
-	| 'collaborate';
+	| 'output';
 
 /**
  * MenuId per ribbon tab. Other contributions add buttons via `registerAction2` or
@@ -120,12 +117,10 @@ export const RibbonMenus = {
 	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
 	MEP: MenuId.for('SaengineRibbon.MEP'),
 	Analyze: MenuId.for('SaengineRibbon.Analyze'),
-	Loads: MenuId.for('SaengineRibbon.Loads'),
 	Results: MenuId.for('SaengineRibbon.Results'),
 	Design: MenuId.for('SaengineRibbon.Design'),
 	Foundations: MenuId.for('SaengineRibbon.Foundations'),
 	BOQ: MenuId.for('SaengineRibbon.BOQ'),
-	Exports: MenuId.for('SaengineRibbon.Exports'),
 	Documents: MenuId.for('SaengineRibbon.Documents'),
 	Studies: MenuId.for('SaengineRibbon.Studies'),
 	Insert: MenuId.for('SaengineRibbon.Insert'),
@@ -135,7 +130,6 @@ export const RibbonMenus = {
 	View: MenuId.for('SaengineRibbon.View'),
 	Manage: MenuId.for('SaengineRibbon.Manage'),
 	Output: MenuId.for('SaengineRibbon.Output'),
-	Collaborate: MenuId.for('SaengineRibbon.Collaborate'),
 } as const;
 
 export interface IRibbonTabDescriptor {
@@ -242,6 +236,7 @@ export const SOIL_WHEN = editorWhen([SAENGINE_EDITOR_IDS.soil], 'soil');
 export const SETTINGS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.settings, SAENGINE_EDITOR_IDS.codePacks], 'settings');
 export const LIBRARY_WHEN = editorWhen([SAENGINE_EDITOR_IDS.library, SAENGINE_EDITOR_IDS.sectionDesigner], 'library');
 export const PLAN_SUB_WHEN = editorWhen([
+	SAENGINE_EDITOR_IDS.floorPlan,
 	SAENGINE_EDITOR_IDS.grids,
 	SAENGINE_EDITOR_IDS.membersTable,
 	SAENGINE_EDITOR_IDS.structureModeler,
@@ -309,7 +304,7 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	},
 	{
 		id: 'plan',
-		label: localize('ribbon.tab.plan', "Plan"),
+		label: localize('ribbon.tab.plan', "Structure"),
 		menuId: RibbonMenus.Plan,
 		contextual: true,
 		when: PLAN_SUB_WHEN,
@@ -350,13 +345,6 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: FEM_WHEN,
 	},
 	{
-		id: 'loads',
-		label: localize('ribbon.tab.loads', "Loads"),
-		menuId: RibbonMenus.Loads,
-		contextual: true,
-		when: FEM_WHEN,
-	},
-	{
 		id: 'results',
 		label: localize('ribbon.tab.results', "Results"),
 		menuId: RibbonMenus.Results,
@@ -385,13 +373,6 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: BOQ_WHEN,
 	},
 	{
-		id: 'exports',
-		label: localize('ribbon.tab.exports', "Exports"),
-		menuId: RibbonMenus.Exports,
-		contextual: true,
-		when: EXPORTS_WHEN,
-	},
-	{
 		id: 'documents',
 		label: localize('ribbon.tab.documents', "Documents"),
 		menuId: RibbonMenus.Documents,
@@ -406,16 +387,18 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: STUDIES_WHEN,
 	},
 	{
-		id: 'insert',
-		label: localize('ribbon.tab.insert', "Insert"),
-		menuId: RibbonMenus.Insert,
-	},
-	{
 		id: 'draft',
 		label: localize('ribbon.tab.draft', "Draft"),
 		menuId: RibbonMenus.Draft,
 		contextual: true,
 		contextualTag: localize('ribbon.tab.draftTag', "CAD"),
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'insert',
+		label: localize('ribbon.tab.insert', "Insert"),
+		menuId: RibbonMenus.Insert,
+		contextual: true,
 		when: DRAFT_WHEN,
 	},
 	{
@@ -436,22 +419,22 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		id: 'view',
 		label: localize('ribbon.tab.view', "View"),
 		menuId: RibbonMenus.View,
+		contextual: true,
+		when: DRAFT_WHEN,
 	},
 	{
 		id: 'manage',
 		label: localize('ribbon.tab.manage', "Manage"),
 		menuId: RibbonMenus.Manage,
+		contextual: true,
+		when: DRAFT_WHEN,
 	},
 	{
 		id: 'output',
 		label: localize('ribbon.tab.output', "Output"),
 		menuId: RibbonMenus.Output,
-		when: EXPORTS_WHEN.negate(),
-	},
-	{
-		id: 'collaborate',
-		label: localize('ribbon.tab.collaborate', "Collaborate"),
-		menuId: RibbonMenus.Collaborate,
+		contextual: true,
+		when: anyOf([EXPORTS_WHEN, DRAFT_WHEN]),
 	},
 ];
 

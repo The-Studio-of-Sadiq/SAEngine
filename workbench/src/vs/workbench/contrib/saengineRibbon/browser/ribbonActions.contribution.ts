@@ -20,6 +20,7 @@ import {
 	subViewWhen,
 	PROJECT_TAB_WHEN,
 	registerRibbonGroupWhen,
+	EXPORTS_WHEN,
 } from './ribbonRegistry.js';
 
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -200,6 +201,11 @@ registerRibbonCustomGroup({
 		return stageBar;
 	},
 });
+
+// Parts and Workflow open other windows, which the project tree already does: they show only on the
+// Overview (no editor), so an editor's Home tab holds that window's own tools.
+registerRibbonGroupWhen(RibbonMenus.Home, '2_Parts', PROJECT_TAB_WHEN);
+registerRibbonGroupWhen(RibbonMenus.Home, '3_Workflow', PROJECT_TAB_WHEN);
 
 //#endregion
 
@@ -500,8 +506,6 @@ addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 1, 'saengine.fem.runAnalysis', lo
 addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 2, 'saengine.analyze.runDerive', localize('rib.analyze.deriveOnly', "Derive Only"), Codicon.symbolStructure, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 3, 'saengine.analyze.runAnalyse', localize('rib.analyze.analyseOnly', "Analyse Only"), Codicon.runAll, { precondition: projectOpen });
 addSubItem(RibbonSubmenus.AnalyzeRun, '1_run', 4, 'saengine.analyze.runDesign', localize('rib.analyze.designOnly', "Design Only"), Codicon.symbolRuler, { precondition: projectOpen });
-addSubItem(RibbonSubmenus.AnalyzeRun, '2_check', 1, 'saengine.analyze.checkProject', localize('rib.analyze.checkProject', "Check Project"), Codicon.checklist, { precondition: projectOpen });
-addSubItem(RibbonSubmenus.AnalyzeRun, '2_check', 2, 'saengine.analyze.validateProject', localize('rib.analyze.validate', "Validate"), Codicon.pass, { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '1_Solver', 3, 'saengine.fem.runSelectedCases', localize('rib.analyze.selectedCases', "Selected Cases"), Codicon.checklist, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '1_Solver', 4, 'saengine.fem.deriveModel', localize('rib.analyze.deriveModel', "Derive Model"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
 
@@ -511,8 +515,6 @@ addItem(RibbonMenus.Analyze, '3_MeshAndView', 1, 'saengine.fem.toggleMeshNodes',
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 2, 'saengine.fem.fitView', localize('rib.analyze.fitView', "Zoom to Fit"), Codicon.screenFull, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 3, 'saengine.fem.showLog', localize('rib.analyze.log', "Analysis Log"), Codicon.output, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 4, 'saengine.runAll.showSteps', localize('rib.analyze.steps', "Run All Steps"), Codicon.listFlat, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Analyze, '3_MeshAndView', 5, 'saengine.restartEngine', localize('rib.analyze.restart', "Restart Engine"), Codicon.debugRestart, 'small');
-addItem(RibbonMenus.Analyze, '3_MeshAndView', 6, 'saengine.manage.verificationManual', localize('rib.analyze.verification', "Verification Manual"), Codicon.filePdf, 'small');
 
 //#endregion
 
@@ -535,7 +537,6 @@ addItem(RibbonMenus.Results, '1_Display', 3, 'saengine.fem.exportAnimation', loc
 addItem(RibbonMenus.Results, '2_ChartsAndTables', 2, 'saengine.fem.toggleTables', localize('rib.res.tables', "Result Tables"), Codicon.table, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Results, '2_ChartsAndTables', 3, 'saengine.fem.exportResultTables', localize('rib.res.exportTables', "Export Tables"), Codicon.export, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Results, '2_ChartsAndTables', 4, 'saengine.fem.showBridgeResults', localize('rib.res.bridge', "Bridge Results"), Codicon.compass, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Results, '2_ChartsAndTables', 5, 'saengine.fem.pickMember', localize('rib.res.memberDetails', "Member Details"), Codicon.search, 'small', { precondition: projectOpen });
 
 addItem(RibbonMenus.Results, '3_Inspect3D', 1, 'saengine.fem.sectionBox', localize('rib.res.sectionBox', "Section Box"), Codicon.symbolMisc, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Results, '3_Inspect3D', 2, 'saengine.fem.measure', localize('rib.res.measure', "Measure"), Codicon.symbolRuler, 'small', { precondition: projectOpen });
@@ -573,7 +574,11 @@ addItem(RibbonMenus.BOQ, '4_Export', 2, 'saengine.boq.exportCsv', localize('rib.
 
 addItem(RibbonMenus.Output, '1_Exports', 2, 'saengine.exports.revealFolder', localize('rib.out.revealFolder', "Exports Folder"), Codicon.folderOpened, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Output, '1_Exports', 3, 'saengine.exports.refresh', localize('rib.out.refresh', "Refresh"), Codicon.refresh, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '1_Exports', 4, 'saengine.manage.verificationManual', localize('rib.out.verification', "Verification Manual"), Codicon.filePdf, 'small');
+
+// The floor plan's Output tab shows only drawing exports; project-wide exports stay in the Exports window.
+for (const outputGroup of ['1_Exports', '2_IFC', '4_Exchange', '5_BOQAndReports']) {
+	registerRibbonGroupWhen(RibbonMenus.Output, outputGroup, EXPORTS_WHEN);
+}
 
 addItem(RibbonMenus.Output, '2_IFC', 1, 'saengine.bim.exportIfcOptions', localize('rib.out.ifcOptions', "Export IFC..."), Codicon.layers, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Output, '2_IFC', 2, 'saengine.bim.compareIfc', localize('rib.out.ifcCompare', "Compare IFC Revisions..."), Codicon.diff, 'large', { precondition: projectOpen });
@@ -598,7 +603,6 @@ addItem(RibbonMenus.Output, '5_BOQAndReports', 3, 'saengine.report.exportWord', 
 addItem(RibbonMenus.Output, '6_WebAndArchive', 1, 'saengine.export.webViewer', localize('rib.out.webViewer', "Web Viewer"), Codicon.browser, 'large', { precondition: projectOpen });
 addSubmenu(RibbonMenus.Output, '6_WebAndArchive', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive');
 addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 1, 'saengine.project.exportArchive', localize('rib.out.exportArchive', "Export Project (.civil)..."), Codicon.archive, { precondition: projectOpen });
-addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 2, 'saengine.project.openArchive', localize('rib.out.openArchive', "Open Project Archive..."), Codicon.folderOpened);
 
 //#endregion
 

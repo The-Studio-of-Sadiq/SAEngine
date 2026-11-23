@@ -172,9 +172,9 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
 			[
-				'home', 'project', 'soil', 'settings', 'library', 'plan',
-				'draft', 'annotate', 'blocksParametric', 'architecture', 'bim3d', 'mep',
-				'analyze', 'results', 'design', 'foundations', 'boq', 'output', 'documents', 'studies',
+				'home', 'project', 'soil', 'soilTests', 'settings', 'library', 'plan',
+				'architecture', 'bim3d', 'mep', 'analyze', 'results', 'design', 'foundations', 'boq',
+				'documents', 'studies', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output',
 			]
 		);
 		const home = RIBBON_TABS.find(t => t.id === 'home');
@@ -197,26 +197,26 @@ suite('SAEngine - ribbon model', () => {
 			[SAENGINE_SUB_VIEW_CONTEXT]: subView,
 		})).map(t => t.id);
 
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil', 'soilTests']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'draft', 'annotate', 'blocksParametric']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structureModeler), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structure), ['home', 'plan']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.cad), ['home', 'draft', 'annotate', 'blocksParametric']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.cad), ['home', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.architecture), ['home', 'architecture']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mep']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'analyze']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'results']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
 
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.substructure), ['home', 'foundations']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.boq), ['home', 'boq']);
@@ -233,11 +233,11 @@ suite('SAEngine - ribbon model', () => {
 
 		// U3 data panels show the contextual tabs of their owning part.
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), 'mep.electrical'), ['home', 'mep']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
 	});
 
 	test('MEP coordination shows only its groups and has no duplicate command ids across ribbon tabs', () => {
@@ -280,6 +280,15 @@ suite('SAEngine - ribbon model', () => {
 				.sort();
 		};
 		assert.deepStrictEqual(duplicateIdsFor(context), []);
+		const windows: [string, string][] = [
+			[SAENGINE_EDITOR_IDS.floorPlan, ''], [SAENGINE_EDITOR_IDS.cad, ''], [SAENGINE_EDITOR_IDS.soil, ''],
+			[SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.substructure, ''],
+			[SAENGINE_EDITOR_IDS.boq, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.overview, ''],
+		];
+		assert.deepStrictEqual(windows.map(([editorId, subView]) => duplicateIdsFor(contextFor({
+			[ActiveEditorContext.key]: editorId,
+			[SAENGINE_SUB_VIEW_CONTEXT]: subView,
+		}))).flat(), []);
 		assert.deepStrictEqual(duplicateIdsFor(contextFor({
 			[ActiveEditorContext.key]: SAENGINE_EDITOR_IDS.overview,
 		})), []);
@@ -293,7 +302,7 @@ suite('SAEngine - ribbon model', () => {
 		const empty = new Map<string, RibbonTabId>();
 
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.soil, tabsFor(SAENGINE_EDITOR_IDS.soil), empty), 'soil');
-		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.floorPlan, tabsFor(SAENGINE_EDITOR_IDS.floorPlan), empty), 'plan');
+		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.floorPlan, tabsFor(SAENGINE_EDITOR_IDS.floorPlan), empty), 'home');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), empty), 'analyze');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.overview, tabsFor(SAENGINE_EDITOR_IDS.overview), empty), 'home');
 
@@ -303,7 +312,7 @@ suite('SAEngine - ribbon model', () => {
 			[SAENGINE_EDITOR_IDS.soil, 'home'],
 			[SAENGINE_EDITOR_IDS.overview, 'project'],
 		]);
-		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), remembered), 'analyze');
+		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), remembered), 'results');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.floorPlan, tabsFor(SAENGINE_EDITOR_IDS.floorPlan), remembered), 'draft');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.soil, tabsFor(SAENGINE_EDITOR_IDS.soil), remembered), 'home');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.overview, tabsFor(SAENGINE_EDITOR_IDS.overview), remembered), 'project');
@@ -332,7 +341,7 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual([...computeCollapsedRibbonGroups(groups, 1300, 20)], ['Properties', 'Layers', 'Modify']);
 	});
 
-	test('Draft, Annotate, and Blocks & Parametric tabs register their AutoCAD groups and large buttons', () => {
+	test('Draft, Insert, Annotate, and Parametric tabs register their AutoCAD groups and large buttons', () => {
 		const buildTabGroups = (menuId: MenuId) => {
 			const rawItems = MenuRegistry.getMenuItems(menuId);
 			const rawGrouped = new Map<string, (IMenuItem | ISubmenuItem)[]>();
@@ -393,7 +402,9 @@ suite('SAEngine - ribbon model', () => {
 			'saengine.cad.move',
 			'saengine.cad.copy',
 			'saengine.cad.trim',
+			DraftRibbonSubmenus.UtilMeasure.id,
 			'saengine.cad.layer',
+			DraftRibbonSubmenus.BlockGroup.id,
 		]);
 
 		const annotate = largeIdsOf(RibbonMenus.Annotate);
@@ -409,21 +420,14 @@ suite('SAEngine - ribbon model', () => {
 			'saengine.cad.table',
 		]);
 
-		const blocksParam = largeIdsOf(RibbonMenus.BlocksParametric);
+		const insertTab = largeIdsOf(RibbonMenus.Insert);
+		assert.ok(insertTab.ids.includes('saengine.cad.insert'));
+		const parametric = largeIdsOf(RibbonMenus.Parametric);
 		assert.deepStrictEqual(
-			blocksParam.groups.map(g => g.key),
-			DRAFT_RIBBON_GROUPS.filter(g => g.menuId === RibbonMenus.BlocksParametric).map(g => g.key),
+			parametric.groups.map(g => g.key),
+			DRAFT_RIBBON_GROUPS.filter(g => g.menuId === RibbonMenus.Parametric).map(g => g.key),
 		);
-		assert.deepStrictEqual(blocksParam.ids, [
-			'saengine.cad.insert',
-			DraftRibbonSubmenus.ParamGeometric.id,
-			DraftRibbonSubmenus.ParamDimensional.id,
-			DraftRibbonSubmenus.UtilMeasure.id,
-		]);
-	});
 
-	test('Every command mirrored from COMMANDS.md has a registered Draft ribbon action and menu entry', () => {
-		// Mirrored from packages/cad-editor/COMMANDS.md (available commands + library commands).
 		const COMMANDS_MD_LIST: readonly { readonly cmd: string; readonly actionId: string }[] = [
 			// Draw
 			{ cmd: 'LINE', actionId: 'saengine.cad.line' },
@@ -620,7 +624,7 @@ suite('SAEngine - ribbon model', () => {
 
 		// Collect every command ID reachable from the contextual CAD tabs (direct or submenu).
 		const reachableDraftCommandIds = new Set<string>();
-		for (const cadMenuId of [RibbonMenus.Draft, RibbonMenus.Annotate, RibbonMenus.BlocksParametric]) {
+		for (const cadMenuId of [RibbonMenus.Home, RibbonMenus.Draft, RibbonMenus.Insert, RibbonMenus.Annotate, RibbonMenus.Parametric, RibbonMenus.View, RibbonMenus.Manage, RibbonMenus.Output]) {
 			for (const entry of MenuRegistry.getMenuItems(cadMenuId)) {
 				if (isIMenuItem(entry)) {
 					reachableDraftCommandIds.add(entry.command.id);

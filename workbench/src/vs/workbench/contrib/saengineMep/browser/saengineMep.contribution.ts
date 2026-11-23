@@ -25,6 +25,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { registerRibbonItemHint, RibbonButtonSize, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { MepEditor } from './mepEditor.js';
 import { MepEditorInput, MepEditorInputSerializer } from './mepEditorInput.js';
 
@@ -151,7 +152,11 @@ registerAction2(class extends Action2 {
 function registerMepRibbonCommand(
 	id: string,
 	title: ReturnType<typeof localize2>,
+	shortLabel: string,
 	icon: ThemeIcon,
+	group: string,
+	order: number,
+	size: RibbonButtonSize,
 	runWithEditor: (editor: MepEditor) => Promise<void> | void,
 ): void {
 	registerAction2(class extends Action2 {
@@ -163,6 +168,7 @@ function registerMepRibbonCommand(
 				icon,
 				f1: true,
 				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+				menu: { id: RibbonMenus.MEP, group, order },
 			});
 		}
 
@@ -173,13 +179,14 @@ function registerMepRibbonCommand(
 			}
 		}
 	});
+	registerRibbonItemHint(id, { size, label: shortLabel }, RibbonMenus.MEP);
 }
 
-registerMepRibbonCommand('saengine.mep.editor.addShaft', localize2('mep.rib.shaftTitle', "Add MEP Shaft"), Codicon.layers, e => e.addShaft());
-registerMepRibbonCommand('saengine.mep.editor.sizeTanks', localize2('mep.rib.sizeTanksTitle', "Size Plumbing Tanks"), Codicon.wand, e => e.sizeTanks());
-registerMepRibbonCommand('saengine.mep.editor.addDrain', localize2('mep.rib.addDrainTitle', "Add Roof Drain"), Codicon.arrowCircleDown, e => e.addDrain());
-registerMepRibbonCommand('saengine.mep.editor.riserSleeves', localize2('mep.rib.riserSleevesTitle', "Add Sleeves for Plumbing Risers"), Codicon.circleLargeOutline, e => e.addRiserSleeves());
-registerMepRibbonCommand('saengine.mep.editor.proposePlant', localize2('mep.rib.proposePlantTitle', "Propose HVAC Plant"), Codicon.wand, e => e.proposePlant());
-registerMepRibbonCommand('saengine.mep.editor.calculateLoads', localize2('mep.rib.calcLoadsTitle', "Calculate HVAC Loads"), Codicon.play, e => e.calculateLoads());
-registerMepRibbonCommand('saengine.mep.editor.proposeEquipment', localize2('mep.rib.proposeElecTitle', "Propose Electrical Equipment"), Codicon.wand, e => e.proposeEquipment());
-registerMepRibbonCommand('saengine.mep.editor.proposeFire', localize2('mep.rib.proposeFireTitle', "Propose Fire Pumps and Tank"), Codicon.wand, e => e.proposeFire());
+registerMepRibbonCommand('saengine.mep.editor.addShaft', localize2('mep.rib.shaftTitle', "Add MEP Shaft"), localize('mep.rib.shaft', "Add Shaft"), Codicon.layers, '1_Coordination', 4, 'small', e => e.addShaft());
+registerMepRibbonCommand('saengine.mep.editor.sizeTanks', localize2('mep.rib.sizeTanksTitle', "Size Plumbing Tanks"), localize('mep.rib.sizeTanks', "Size Tanks"), Codicon.wand, '2_Plumbing', 4, 'small', e => e.sizeTanks());
+registerMepRibbonCommand('saengine.mep.editor.addDrain', localize2('mep.rib.addDrainTitle', "Add Roof Drain"), localize('mep.rib.addDrain', "Roof Drain"), Codicon.arrowCircleDown, '2_Plumbing', 5, 'small', e => e.addDrain());
+registerMepRibbonCommand('saengine.mep.editor.riserSleeves', localize2('mep.rib.riserSleevesTitle', "Add Sleeves for Plumbing Risers"), localize('mep.rib.riserSleeves', "Riser Sleeves"), Codicon.circleLargeOutline, '2_Plumbing', 6, 'small', e => e.addRiserSleeves());
+registerMepRibbonCommand('saengine.mep.editor.proposePlant', localize2('mep.rib.proposePlantTitle', "Propose HVAC Plant"), localize('mep.rib.proposePlant', "Propose Plant"), Codicon.wand, '3_HVAC', 6, 'small', e => e.proposePlant());
+registerMepRibbonCommand('saengine.mep.editor.calculateLoads', localize2('mep.rib.calcLoadsTitle', "Calculate HVAC Loads"), localize('mep.rib.calcLoads', "Calc Loads"), Codicon.play, '3_HVAC', 7, 'small', e => e.calculateLoads());
+registerMepRibbonCommand('saengine.mep.editor.proposeEquipment', localize2('mep.rib.proposeElecTitle', "Propose Electrical Equipment"), localize('mep.rib.proposeElec', "Propose Equipment"), Codicon.wand, '4_Electrical', 7, 'small', e => e.proposeEquipment());
+registerMepRibbonCommand('saengine.mep.editor.proposeFire', localize2('mep.rib.proposeFireTitle', "Propose Fire Pumps and Tank"), localize('mep.rib.proposeFire', "Propose Pumps & Tank"), Codicon.wand, '5_FireAndSystems', 6, 'small', e => e.proposeFire());
