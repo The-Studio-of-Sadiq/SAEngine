@@ -286,6 +286,30 @@ def load_all() -> None:
         importlib.import_module(info.name)
 
 
+INDEX = Path(__file__).with_name("index.json")
+
+
+def _load_one(feature_id: str) -> Feature | None:
+    """Imports only the module of ``feature_id`` (index.json, written by the export): loading
+    every feature module imports most of the engine and takes many seconds."""
+    if feature_id not in REGISTRY:
+        try:
+            module = json.loads(INDEX.read_text(encoding="utf-8")).get(feature_id)
+        except (OSError, ValueError):
+            module = None
+        if module:
+            importlib.import_module(module)
+        if feature_id not in REGISTRY:
+            load_all()
+    return REGISTRY.get(feature_id)
+
+
+def module_index() -> dict[str, str]:
+    """Feature id -> the module that registers it."""
+    load_all()
+    return {k: REGISTRY[k].run.__module__ for k in sorted(REGISTRY)}
+
+
 def describe() -> list[dict[str, Any]]:
     load_all()
     return [REGISTRY[k].to_dict() for k in sorted(REGISTRY)]
@@ -295,8 +319,7 @@ def run(
     feature_id: str, project_root: str | None, values: dict[str, Any] | None = None
 ) -> FeatureResult:
     """Runs a feature with its inputs (missing ones take their defaults)."""
-    load_all()
-    found = REGISTRY.get(feature_id)
+    found = REGISTRY.get(feature_id) or _load_one(feature_id)
     if found is None:
         return result(problems=[f"No feature {feature_id!r} in this version."])
     merged = {f.key: f.default for f in found.fields}

@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from saengine.features import describe
+from saengine.features import INDEX, describe, module_index
 
 
 def main(out: str) -> None:
@@ -20,7 +20,9 @@ def main(out: str) -> None:
     Path(out).write_text(
         json.dumps(features, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    print(f"{len(features)} features -> {out}")
+    # The package's own index: a run imports only the feature's module.
+    INDEX.write_text(json.dumps(module_index(), indent=0) + chr(10), encoding="utf-8")
+    print(f"{len(features)} features -> {out} and {INDEX.name}")
 
 
 if __name__ == "__main__":
