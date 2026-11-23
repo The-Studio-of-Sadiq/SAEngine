@@ -174,9 +174,12 @@
 	min-width: 0;
 }
 
+/* The groups spread over the whole row (owner, 2026-11-23); they keep their own widths, which
+   the collapse logic measures, and the free space goes between them. */
 .monaco-workbench .sa-ribbon-toolbar {
 	display: flex;
 	align-items: stretch;
+	justify-content: space-between;
 	width: 100%;
 	height: 91px;
 	padding: 4px 8px 2px;
