@@ -326,9 +326,17 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			case SAENGINE_EDITOR_IDS.femModel:
 				return this.editorService.activeEditor?.resource && basename(this.editorService.activeEditor.resource) === 'pushover.osmodel' ? 'fem.pushover' : 'fem.model';
 			case SAENGINE_EDITOR_IDS.femResults: return 'fem.charts';
-			case SAENGINE_EDITOR_IDS.femDesignProposal:
-			case SAENGINE_EDITOR_IDS.femStrutAndTie: return 'fem.design';
-			case SAENGINE_EDITOR_IDS.femCfdWind: return 'fem.model';
+			case SAENGINE_EDITOR_IDS.femDesignProposal: return 'fem.design';
+			case SAENGINE_EDITOR_IDS.femStrutAndTie: return 'fem.stm';
+			case SAENGINE_EDITOR_IDS.femCfdWind: return 'fem.cfd';
+			case SAENGINE_EDITOR_IDS.library: {
+				const resource = this.editorService.activeEditor?.resource;
+				return resource && basename(resource).startsWith('materials') ? 'library.materials' : 'library.objects';
+			}
+			case SAENGINE_EDITOR_IDS.sectionDesigner: return 'library.objects';
+			case SAENGINE_EDITOR_IDS.drawingPreview: return 'documents.drawing';
+			case SAENGINE_EDITOR_IDS.reportTemplate: return 'documents.report';
+			case SAENGINE_EDITOR_IDS.worksheet: return 'documents.worksheet';
 			default: return '';
 		}
 	}

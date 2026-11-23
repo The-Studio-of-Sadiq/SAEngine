@@ -12,6 +12,7 @@ import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { CATALOG_TABS, CATALOG_TAB_SCOPES, CatalogTabId, RibbonScope } from './ribbonCatalog.generated.js';
 
 /** Context key active while a Floor Plan or CAD drawing editor is focused. */
 export const SAENGINE_DRAFT_CONTEXT = 'saengineDraftActive';
@@ -150,7 +151,8 @@ export type RibbonTabId =
 	| 'output'
 	| 'exportsExchange'
 	| 'exportsFabrication'
-	| 'exportsArchive';
+	| 'exportsArchive'
+	| CatalogTabId;
 
 /**
  * MenuId per ribbon tab. Other contributions add buttons via `registerAction2` or
@@ -387,7 +389,7 @@ export const STUDIES_WHEN = editorWhen([
 	SAENGINE_EDITOR_IDS.graph,
 ], 'studies');
 
-export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
+const BASE_TABS: readonly IRibbonTabDescriptor[] = [
 	{ id: 'home', label: localize('ribbon.tab.home', "Home"), menuId: RibbonMenus.Home },
 	{
 		id: 'project',
@@ -908,6 +910,100 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: EXPORTS_WHEN,
 	},
 ];
+
+/** The sub-view, or none (a data panel of the part, the structural modeller). */
+function subViewOrNone(...subViews: readonly [string, ...string[]]): ContextKeyExpression {
+	return anyOf([subViewWhen(...subViews), SubViewContext.isEqualTo('')]);
+}
+
+/**
+ * Where a scope's tabs show: a window, or one sub-window of it (owner, 2026-11-23: every
+ * sub-window shows only its own ribbon). The scopes come from scripts/ribbon/ribbon_catalog.json.
+ */
+export function scopeWhen(scope: RibbonScope): ContextKeyExpression {
+	switch (scope) {
+		case 'soil': return SOIL_WHEN;
+		case 'settings': return SETTINGS_WHEN;
+		// The settings editor reports its section (settingsEditor.ts SECTIONS), as the tree's entries group them.
+		case 'settings.code': return allOf([SETTINGS_WHEN, subViewOrNone('settings.project', 'settings.occupancy', 'settings.construction', 'settings.site', 'settings.packages')]);
+		case 'settings.loads': return allOf([SETTINGS_WHEN, subViewOrNone('settings.areaLoads', 'settings.cranes', 'settings.specialStructures', 'settings.combinations', 'settings.analysis')]);
+		case 'settings.hazard': return allOf([SETTINGS_WHEN, subViewOrNone('settings.seismic', 'settings.wind')]);
+		case 'settings.foundation': return allOf([SETTINGS_WHEN, subViewOrNone('settings.foundation')]);
+		case 'settings.drawings': return allOf([SETTINGS_WHEN, subViewOrNone('settings.drawings', 'settings.detailing', 'settings.report')]);
+		case 'settings.codeValues': return allOf([SETTINGS_WHEN, subViewOrNone('settings.codeOverrides')]);
+		case 'materials': return allOf([LIBRARY_WHEN, subViewOrNone('library.materials')]);
+		case 'objects': return allOf([LIBRARY_WHEN, subViewOrNone('library.objects')]);
+		case 'plan.plan': return allOf([PLAN_SUB_WHEN, subViewOrNone('plan.plan')]);
+		case 'plan.grids': return allOf([PLAN_SUB_WHEN, subViewWhen('plan.grids')]);
+		case 'plan.members': return allOf([PLAN_SUB_WHEN, subViewWhen('plan.members')]);
+		case 'architecture': return ARCHITECTURE_WHEN;
+		case 'bim.3d': return allOf([BIM_WHEN, subViewOrNone('bim.3d')]);
+		case 'bim.additions': return allOf([BIM_WHEN, subViewWhen('bim.additions')]);
+		case 'bim.summary': return allOf([BIM_WHEN, subViewWhen('bim.summary')]);
+		case 'mep.coordination': return MEP_COORDINATION_WHEN;
+		case 'mep.plumbing': return MEP_PLUMBING_WHEN;
+		case 'mep.hvac': return MEP_HVAC_WHEN;
+		case 'mep.electrical': return MEP_ELECTRICAL_WHEN;
+		case 'mep.fire': return MEP_FIRE_WHEN;
+		case 'mep.systems': return MEP_SYSTEMS_WHEN;
+		case 'fem.model': return FEM_MODEL_TABS_WHEN;
+		case 'fem.charts': return FEM_CHARTS_TABS_WHEN;
+		case 'fem.pushover': return FEM_PUSHOVER_TABS_WHEN;
+		case 'fem.design': return FEM_DESIGN_TABS_WHEN;
+		case 'fem.cfd': return allOf([FEM_WHEN, subViewWhen('fem.cfd')]);
+		case 'fem.stm': return allOf([FEM_WHEN, subViewWhen('fem.stm')]);
+		case 'foundations': return FOUNDATIONS_WHEN;
+		case 'boq': return BOQ_WHEN;
+		case 'documents.drawing': return allOf([DOCUMENTS_WHEN, subViewOrNone('documents.drawing')]);
+		case 'documents.report': return allOf([DOCUMENTS_WHEN, subViewWhen('documents.report')]);
+		case 'documents.worksheet': return allOf([DOCUMENTS_WHEN, subViewWhen('documents.worksheet')]);
+		case 'studies': return STUDIES_WHEN;
+		case 'exports': return EXPORTS_WHEN;
+		case 'overview': return PROJECT_TAB_WHEN;
+	}
+}
+
+/** The top window of a scope (`fem.model` -> `fem`), to place a window's catalog tabs after its own. */
+function scopeWindow(scope: RibbonScope | undefined): string | undefined {
+	return scope?.split('.')[0];
+}
+
+/** The menu of a catalog tab. */
+export function catalogTabMenu(id: CatalogTabId): MenuId {
+	return MenuId.for(`SaengineRibbon.Catalog.${id}`);
+}
+
+/**
+ * The base tabs, each limited to its scope, with the catalog's tabs after the last tab of the
+ * same window.
+ */
+function withCatalogTabs(base: readonly IRibbonTabDescriptor[]): readonly IRibbonTabDescriptor[] {
+	const tabs = base.map(tab => {
+		const scope = CATALOG_TAB_SCOPES[tab.id];
+		return scope ? { ...tab, when: scopeWhen(scope) } : tab;
+	});
+	for (const catalogTab of CATALOG_TABS) {
+		const descriptor: IRibbonTabDescriptor = {
+			id: catalogTab.id,
+			label: catalogTab.label,
+			menuId: catalogTabMenu(catalogTab.id),
+			// The Overview's tabs sit with Home and Project: the window has no contextual tab.
+			contextual: catalogTab.scope !== 'overview',
+			when: scopeWhen(catalogTab.scope),
+		};
+		const window = scopeWindow(catalogTab.scope);
+		let at = -1;
+		tabs.forEach((tab, index) => {
+			if (scopeWindow(CATALOG_TAB_SCOPES[tab.id]) === window) {
+				at = index;
+			}
+		});
+		tabs.splice(at >= 0 ? at + 1 : tabs.length, 0, descriptor);
+	}
+	return tabs;
+}
+
+export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = withCatalogTabs(BASE_TABS);
 
 /** Maps a U3 data panel id and optional `part` descriptor property to a contextual ribbon domain key. */
 export function resolveDataPanelPart(panelId: string | undefined, descriptorPart: string | undefined): string {
