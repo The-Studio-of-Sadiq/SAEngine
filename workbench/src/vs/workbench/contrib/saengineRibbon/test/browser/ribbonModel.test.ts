@@ -174,25 +174,43 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
 			[
-				'home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning', 'soil', 'soilTests', 'soilBearing',
-				'soilSeismic', 'soilEarth', 'soilSite', 'soilProfile', 'soilReport', 'soilDesign', 'settings', 'settingsLoads', 'settingsHazard',
-				'settingsOverrides', 'settingsOccupancy', 'settingsFoundation', 'settingsDrawings', 'settingsChecks', 'settingsUnits', 'settingsAudit',
-				'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks',
-				'objDesigner', 'objRebar', 'objWalls', 'plan', 'planLoads', 'planModelling', 'planChecks', 'grid', 'stories', 'gridCoords', 'members',
-				'memberGroups', 'memberData', 'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment',
-				'architectureEnvelope', 'architectureFinishes', 'architectureChecks', 'bim3d', 'bimExchange', 'bimFabrication', 'bimStudies',
-				'bimView', 'bimNavigation', 'bimAdditions', 'bimSummary', 'bimQuantities', 'bimQa', 'mepCoordination', 'mepIssues', 'mepPlumbing',
-				'mepPlumbingDesign', 'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems', 'mepFire', 'mepFireSystems', 'mepSystems',
-				'mepClash', 'mepViews', 'mepDrainage', 'mepFixtures', 'mepDucts', 'mepEquipment', 'mepLighting', 'mepContainment', 'mepLowVoltage',
-				'mepSprinkler', 'mepSmoke', 'mepBrowser', 'mepFabrication', 'mepCommissioning', 'analyze', 'results', 'design', 'femLoads',
+				'home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning', 'overviewDashboard', 'overviewTeam',
+				'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'soilProfile', 'soilReport', 'soilDesign', 'settings',
+				'settingsLoads', 'settingsHazard', 'settingsOverrides', 'settingsOccupancy', 'settingsFoundation', 'settingsDrawings',
+				'settingsCodeLibraries', 'settingsCodeLocalisation', 'settingsCodeValuesLimits', 'settingsCodeValuesAnchorage',
+				'settingsCodeValuesDetailing', 'settingsDrawingsSheetStandards', 'settingsDrawingsLineStyles', 'settingsDrawingsPenSets',
+				'settingsFoundationSoil', 'settingsFoundationPiles', 'settingsFoundationExcavation', 'settingsHazardMaps', 'settingsHazardReturn',
+				'settingsHazardSnowThermal', 'settingsLoadsLiveTables', 'settingsLoadsSelfWeight', 'settingsLoadsMoving', 'settingsChecks',
+				'settingsUnits', 'settingsAudit', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'materialsSteel',
+				'materialsTests', 'materialsMapping', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls',
+				'objectsBoltsWelds', 'plan', 'planLoads', 'planModelling', 'planChecks', 'grid', 'stories', 'gridCoords', 'members', 'memberGroups',
+				'memberData', 'planGridsSite', 'planGridsReference', 'planGridsOpenings', 'planGridsLevelTemplates', 'planMembersProperties',
+				'planMembersReleases', 'planMembersBracing', 'planMembersCamber', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination',
+				'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment', 'architectureEnvelope', 'architectureFinishes',
+				'architectureChecks', 'bim3d', 'bimExchange', 'bimFabrication', 'bimStudies', 'bimView', 'bimNavigation', 'bimAdditions', 'bimSummary',
+				'bimQuantities', 'bimQa', 'bim3dAppearance', 'bim3dAnnotations', 'bim3dInterference', 'bimAdditionsFamilies',
+				'bimAdditionsConnections', 'bimAdditionsOpenings', 'bimAdditionsCurtain', 'bimAdditionsMassing', 'bimSummaryCarbonCost',
+				'bimSummaryCompliance', 'bimSummaryVersioning', 'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign', 'mepHvac',
+				'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems', 'mepFire', 'mepFireSystems', 'mepSystems', 'mepClash', 'mepViews',
+				'mepDrainage', 'mepFixtures', 'mepDucts', 'mepEquipment', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepSprinkler', 'mepSmoke',
+				'mepBrowser', 'mepFabrication', 'mepCommissioning', 'mepCoordinationClearances', 'mepCoordinationPenetrations',
+				'mepCoordinationSequencing', 'mepElectricalCableSizing', 'mepElectricalEarthing', 'mepFireAlarmZoning', 'mepFireExtinguishers',
+				'mepFireDampers', 'mepHvacPipes', 'mepHvacTerminals', 'mepHvacControls', 'mepPlumbingHeating', 'mepPlumbingRainwater',
+				'mepPlumbingQuality', 'mepSystemsZoning', 'mepSystemsBalancing', 'mepSystemsMaintenance', 'analyze', 'results', 'design', 'femLoads',
 				'femSeismic', 'femWind', 'femNonlinear', 'femServiceability', 'femMesh', 'femModel', 'femCharts', 'femTables', 'femDynamics',
 				'femHinges', 'femCapacity', 'femDetailing', 'femCode', 'femCfd', 'femCfdResults', 'femWindClimate', 'femStrutTie', 'femStmResults',
-				'femStmRegions', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial',
-				'foundationsReport', 'foundationsDetailing', 'foundationsLoads', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'boqLibrary',
-				'boqReconcile', 'boqReports', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports',
-				'docMarkup', 'docTemplate', 'docFields', 'docWorksheet', 'docCalc', 'docCharts', 'studies', 'studiesDesign', 'studiesEnvironment',
-				'studiesSite', 'studiesVerification', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output', 'exportsExchange',
-				'exportsFabrication', 'exportsArchive', 'exportsPublish',
+				'femStmRegions', 'femCfdTurbulence', 'femCfdSolver', 'femCfdPedestrian', 'femCfdDispersion', 'femChartsEnvelopes',
+				'femChartsTimeSeries', 'femDesignOptimisation', 'femDesignConnections', 'femDesignFire', 'femDesignSeismicDetailing',
+				'femModelDiaphragms', 'femPushoverTarget', 'femPushoverPattern', 'femPushoverPerformance', 'femPushoverMechanism', 'femStmTopology',
+				'femStmNodes', 'femStmTies', 'femStmLoadPaths', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining',
+				'foundationsSpecial', 'foundationsReport', 'foundationsDetailing', 'foundationsLoads', 'boq', 'boqCosting', 'boqSchedule',
+				'boqTakeoff', 'boqLibrary', 'boqReconcile', 'boqReports', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules',
+				'documentsReports', 'docMarkup', 'docTemplate', 'docFields', 'docWorksheet', 'docCalc', 'docCharts', 'documentsDrawingViewTemplates',
+				'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks', 'documentsReportDataLinks', 'documentsReportPagination',
+				'documentsReportDistribution', 'documentsWorksheetUnits', 'documentsWorksheetValidation', 'documentsWorksheetLibraries',
+				'documentsWorksheetCollaboration', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification',
+				'studiesRisk', 'studiesOptimisation', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output', 'exportsExchange',
+				'exportsFabrication', 'exportsArchive', 'exportsPublish', 'exportsBatchExport', 'exportsDataMapping', 'exportsSecure',
 			]
 		);
 		const home = RIBBON_TABS.find(t => t.id === 'home');
@@ -217,75 +235,92 @@ suite('SAEngine - ribbon model', () => {
 		})).map(t => t.id);
 
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'soilProfile', 'soilReport', 'soilDesign']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings', 'settingsOccupancy', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings', 'settingsOccupancy', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structureModeler), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structure), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings', 'settingsOccupancy', 'settingsCodeLibraries', 'settingsCodeLocalisation', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings', 'settingsOccupancy', 'settingsCodeLibraries', 'settingsCodeLocalisation', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'materialsSteel', 'materialsTests', 'materialsMapping', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls', 'objectsBoltsWelds']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'materialsSteel', 'materialsTests', 'materialsMapping', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls', 'objectsBoltsWelds']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structureModeler), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structure), ['home', 'plan', 'planLoads', 'planModelling', 'planChecks', 'planPlanDiaphragms', 'planPlanZones', 'planPlanCoordination']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.cad), ['home', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.architecture), ['home', 'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment', 'architectureEnvelope', 'architectureFinishes', 'architectureChecks']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d', 'bimStudies', 'bimView', 'bimNavigation']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.data'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.results'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.data'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.results'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.data'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.results'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.data'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.results'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.data'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.results'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.systems'), ['home', 'mepSystems', 'mepBrowser', 'mepFabrication', 'mepCommissioning']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'femNonlinear', 'femHinges', 'femCapacity']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'results', 'femServiceability', 'femCharts', 'femTables', 'femDynamics']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d', 'bimStudies', 'bimView', 'bimNavigation', 'bim3dAppearance', 'bim3dAnnotations', 'bim3dInterference']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews', 'mepCoordinationClearances', 'mepCoordinationPenetrations', 'mepCoordinationSequencing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.data'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews', 'mepCoordinationClearances', 'mepCoordinationPenetrations', 'mepCoordinationSequencing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.results'), ['home', 'mepCoordination', 'mepIssues', 'mepClash', 'mepViews', 'mepCoordinationClearances', 'mepCoordinationPenetrations', 'mepCoordinationSequencing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures', 'mepPlumbingHeating', 'mepPlumbingRainwater', 'mepPlumbingQuality']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.data'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures', 'mepPlumbingHeating', 'mepPlumbingRainwater', 'mepPlumbingQuality']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.results'), ['home', 'mepPlumbing', 'mepPlumbingDesign', 'mepDrainage', 'mepFixtures', 'mepPlumbingHeating', 'mepPlumbingRainwater', 'mepPlumbingQuality']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment', 'mepHvacPipes', 'mepHvacTerminals', 'mepHvacControls']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.data'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment', 'mepHvacPipes', 'mepHvacTerminals', 'mepHvacControls']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.results'), ['home', 'mepHvac', 'mepHvacAnalysis', 'mepDucts', 'mepEquipment', 'mepHvacPipes', 'mepHvacTerminals', 'mepHvacControls']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepElectricalCableSizing', 'mepElectricalEarthing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.data'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepElectricalCableSizing', 'mepElectricalEarthing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.results'), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepElectricalCableSizing', 'mepElectricalEarthing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke', 'mepFireAlarmZoning', 'mepFireExtinguishers', 'mepFireDampers']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.data'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke', 'mepFireAlarmZoning', 'mepFireExtinguishers', 'mepFireDampers']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.results'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke', 'mepFireAlarmZoning', 'mepFireExtinguishers', 'mepFireDampers']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.systems'), ['home', 'mepSystems', 'mepBrowser', 'mepFabrication', 'mepCommissioning', 'mepSystemsZoning', 'mepSystemsBalancing', 'mepSystemsMaintenance']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'femNonlinear', 'femHinges', 'femCapacity', 'femPushoverTarget', 'femPushoverPattern', 'femPushoverPerformance', 'femPushoverMechanism']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'results', 'femServiceability', 'femCharts', 'femTables', 'femDynamics', 'femChartsEnvelopes', 'femChartsTimeSeries']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode', 'femDesignOptimisation', 'femDesignConnections', 'femDesignFire', 'femDesignSeismicDetailing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode', 'femDesignOptimisation', 'femDesignConnections', 'femDesignFire', 'femDesignSeismicDetailing']);
 
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.substructure), ['home', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport', 'foundationsDetailing', 'foundationsLoads']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.boq), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'boqLibrary', 'boqReconcile', 'boqReports']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.rates), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'boqLibrary', 'boqReconcile', 'boqReports']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.exports), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive', 'exportsPublish']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.drawingPreview), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.officeTools), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.studies), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.graph), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.overview), ['home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning']);
-		assert.deepStrictEqual(visibleIds(''), ['home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.exports), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive', 'exportsPublish', 'exportsBatchExport', 'exportsDataMapping', 'exportsSecure']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.drawingPreview), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup', 'documentsDrawingViewTemplates', 'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup', 'documentsDrawingViewTemplates', 'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup', 'documentsDrawingViewTemplates', 'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.officeTools), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'studiesRisk', 'studiesOptimisation']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.studies), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'studiesRisk', 'studiesOptimisation']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.graph), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'studiesRisk', 'studiesOptimisation']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.overview), ['home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning', 'overviewDashboard', 'overviewTeam']);
+		assert.deepStrictEqual(visibleIds(''), ['home', 'project', 'overviewParts', 'overviewActivity', 'overviewTasks', 'overviewLearning', 'overviewDashboard', 'overviewTeam']);
 
 		// Each sub-window shows only its own tabs (owner, 2026-11-23).
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids, '', 'plan.grids'), ['home', 'grid', 'stories', 'gridCoords']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable, '', 'plan.members'), ['home', 'members', 'memberGroups', 'memberData']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library, '', 'library.materials'), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library, '', 'library.objects'), ['home', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.seismic'), ['home', 'settingsHazard', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.cfd'), ['home', 'femCfd', 'femCfdResults', 'femWindClimate']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.stm'), ['home', 'femStrutTie', 'femStmResults', 'femStmRegions']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate, '', 'documents.report'), ['home', 'documentsSchedules', 'documentsReports', 'docTemplate', 'docFields']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet, '', 'documents.worksheet'), ['home', 'docWorksheet', 'docCalc', 'docCharts']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.summary'), ['home', 'bimExchange', 'bimSummary', 'bimQuantities', 'bimQa']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.additions'), ['home', 'bimFabrication', 'bimAdditions']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids, '', 'plan.grids'), ['home', 'grid', 'stories', 'gridCoords', 'planGridsSite', 'planGridsReference', 'planGridsOpenings', 'planGridsLevelTemplates']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable, '', 'plan.members'), ['home', 'members', 'memberGroups', 'memberData', 'planMembersProperties', 'planMembersReleases', 'planMembersBracing', 'planMembersCamber']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library, '', 'library.materials'), ['home', 'library', 'libraryConcrete', 'libraryMasonry', 'libraryCompliance', 'materialsSteel', 'materialsTests', 'materialsMapping']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library, '', 'library.objects'), ['home', 'librarySections', 'libraryObjects', 'libraryChecks', 'objDesigner', 'objRebar', 'objWalls', 'objectsBoltsWelds']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.seismic'), ['home', 'settingsHazard', 'settingsHazardMaps', 'settingsHazardReturn', 'settingsHazardSnowThermal', 'settingsChecks', 'settingsUnits', 'settingsAudit']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.cfd'), ['home', 'femCfd', 'femCfdResults', 'femWindClimate', 'femCfdTurbulence', 'femCfdSolver', 'femCfdPedestrian', 'femCfdDispersion']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.stm'), ['home', 'femStrutTie', 'femStmResults', 'femStmRegions', 'femStmTopology', 'femStmNodes', 'femStmTies', 'femStmLoadPaths']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate, '', 'documents.report'), ['home', 'documentsSchedules', 'documentsReports', 'docTemplate', 'docFields', 'documentsReportDataLinks', 'documentsReportPagination', 'documentsReportDistribution']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet, '', 'documents.worksheet'), ['home', 'docWorksheet', 'docCalc', 'docCharts', 'documentsWorksheetUnits', 'documentsWorksheetValidation', 'documentsWorksheetLibraries', 'documentsWorksheetCollaboration']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.summary'), ['home', 'bimExchange', 'bimSummary', 'bimQuantities', 'bimQa', 'bimSummaryCarbonCost', 'bimSummaryCompliance', 'bimSummaryVersioning']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.additions'), ['home', 'bimFabrication', 'bimAdditions', 'bimAdditionsFamilies', 'bimAdditionsConnections', 'bimAdditionsOpenings', 'bimAdditionsCurtain', 'bimAdditionsMassing']);
+
+		// Owner (2026-11-23): at least 7 tabs besides Home in every window and sub-window.
+		const subWindows: [string, string][] = [
+			[SAENGINE_EDITOR_IDS.soil, ''], [SAENGINE_EDITOR_IDS.settings, 'settings.project'], [SAENGINE_EDITOR_IDS.settings, 'settings.areaLoads'],
+			[SAENGINE_EDITOR_IDS.settings, 'settings.seismic'], [SAENGINE_EDITOR_IDS.settings, 'settings.foundation'], [SAENGINE_EDITOR_IDS.settings, 'settings.drawings'],
+			[SAENGINE_EDITOR_IDS.settings, 'settings.codeOverrides'], [SAENGINE_EDITOR_IDS.library, 'library.materials'], [SAENGINE_EDITOR_IDS.library, 'library.objects'],
+			[SAENGINE_EDITOR_IDS.structureModeler, ''], [SAENGINE_EDITOR_IDS.grids, 'plan.grids'], [SAENGINE_EDITOR_IDS.membersTable, 'plan.members'],
+			[SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.building, 'bim.additions'],
+			[SAENGINE_EDITOR_IDS.building, 'bim.summary'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.hvac'], [SAENGINE_EDITOR_IDS.mep, 'mep.electrical'], [SAENGINE_EDITOR_IDS.mep, 'mep.fire'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.systems'], [SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.femModel, 'fem.pushover'],
+			[SAENGINE_EDITOR_IDS.femResults, 'fem.charts'], [SAENGINE_EDITOR_IDS.femDesignProposal, 'fem.design'], [SAENGINE_EDITOR_IDS.femCfdWind, 'fem.cfd'],
+			[SAENGINE_EDITOR_IDS.femStrutAndTie, 'fem.stm'], [SAENGINE_EDITOR_IDS.substructure, ''], [SAENGINE_EDITOR_IDS.boq, ''],
+			[SAENGINE_EDITOR_IDS.drawingPreview, 'documents.drawing'], [SAENGINE_EDITOR_IDS.reportTemplate, 'documents.report'], [SAENGINE_EDITOR_IDS.worksheet, 'documents.worksheet'],
+			[SAENGINE_EDITOR_IDS.studies, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.overview, ''],
+		];
+		assert.deepStrictEqual(subWindows.map(([editorId, subView]) => `${editorId} ${subView}`).filter((_, i) => visibleIds(subWindows[i][0], '', subWindows[i][1]).length - 1 < 7), []);
 
 		// Data panels show the contextual tabs of their owning part.
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), resolveDataPanelSubView('saengine.mep.electrical.boards')), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive', 'exportsPublish']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.u6e.bim.rebarCages', 'bim3d')), ['home', 'bim3d', 'bimStudies', 'bimView', 'bimNavigation']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), resolveDataPanelSubView('saengine.mep.electrical.boards')), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepElectricalCableSizing', 'mepElectricalEarthing']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup', 'documentsDrawingViewTemplates', 'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive', 'exportsPublish', 'exportsBatchExport', 'exportsDataMapping', 'exportsSecure']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'studiesRisk', 'studiesOptimisation']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.u6e.bim.rebarCages', 'bim3d')), ['home', 'bim3d', 'bimStudies', 'bimView', 'bimNavigation', 'bim3dAppearance', 'bim3dAnnotations', 'bim3dInterference']);
 	});
 
 	test('Every U6e ribbon tab has at least two groups', () => {

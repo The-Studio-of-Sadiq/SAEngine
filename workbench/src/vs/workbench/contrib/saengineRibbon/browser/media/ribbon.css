@@ -30,8 +30,10 @@
 	box-sizing: border-box;
 }
 
+/* The tabs fill the row: each grows with the window from its own width (owner, 2026-11-23). */
 .monaco-workbench .sa-ribbon-tablist {
 	display: flex;
+	flex: 1 1 auto;
 	align-items: stretch;
 	gap: 2px;
 	overflow-x: auto;
@@ -57,7 +59,8 @@
 	color: var(--vscode-tab-inactiveForeground, var(--vscode-descriptionForeground));
 	font: inherit;
 	white-space: nowrap;
-	flex: none;
+	flex: 1 0 auto;
+	justify-content: center;
 	cursor: pointer;
 	box-sizing: border-box;
 }
