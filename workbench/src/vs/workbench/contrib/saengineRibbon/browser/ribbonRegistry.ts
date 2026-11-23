@@ -95,7 +95,13 @@ export type RibbonTabId =
 	| 'libraryChecks'
 	| 'plan'
 	| 'architecture'
+	| 'architectureRooms'
+	| 'architectureExchange'
+	| 'architectureEnvironment'
 	| 'bim3d'
+	| 'bimExchange'
+	| 'bimFabrication'
+	| 'bimStudies'
 	| 'mepCoordination'
 	| 'mepIssues'
 	| 'mepPlumbing'
@@ -110,6 +116,11 @@ export type RibbonTabId =
 	| 'analyze'
 	| 'results'
 	| 'design'
+	| 'femLoads'
+	| 'femSeismic'
+	| 'femWind'
+	| 'femNonlinear'
+	| 'femServiceability'
 	| 'foundations'
 	| 'foundationsPiles'
 	| 'foundationsPileAnalysis'
@@ -121,14 +132,25 @@ export type RibbonTabId =
 	| 'boqSchedule'
 	| 'boqTakeoff'
 	| 'documents'
+	| 'documentsDrawings'
+	| 'documentsSheets'
+	| 'documentsSchedules'
+	| 'documentsReports'
 	| 'studies'
+	| 'studiesDesign'
+	| 'studiesEnvironment'
+	| 'studiesSite'
+	| 'studiesVerification'
 	| 'draft'
 	| 'insert'
 	| 'annotate'
 	| 'parametric'
 	| 'view'
 	| 'manage'
-	| 'output';
+	| 'output'
+	| 'exportsExchange'
+	| 'exportsFabrication'
+	| 'exportsArchive';
 
 /**
  * MenuId per ribbon tab. Other contributions add buttons via `registerAction2` or
@@ -154,7 +176,13 @@ export const RibbonMenus = {
 	LibraryChecks: MenuId.for('SaengineRibbon.LibraryChecks'),
 	Plan: MenuId.for('SaengineRibbon.Plan'),
 	Architecture: MenuId.for('SaengineRibbon.Architecture'),
+	ArchitectureRooms: MenuId.for('SaengineRibbon.ArchitectureRooms'),
+	ArchitectureExchange: MenuId.for('SaengineRibbon.ArchitectureExchange'),
+	ArchitectureEnvironment: MenuId.for('SaengineRibbon.ArchitectureEnvironment'),
 	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
+	BimExchange: MenuId.for('SaengineRibbon.BimExchange'),
+	BimFabrication: MenuId.for('SaengineRibbon.BimFabrication'),
+	BimStudies: MenuId.for('SaengineRibbon.BimStudies'),
 	MepCoordination: MenuId.for('SaengineRibbon.MepCoordination'),
 	MepIssues: MenuId.for('SaengineRibbon.MepIssues'),
 	MepPlumbing: MenuId.for('SaengineRibbon.MepPlumbing'),
@@ -169,6 +197,11 @@ export const RibbonMenus = {
 	Analyze: MenuId.for('SaengineRibbon.Analyze'),
 	Results: MenuId.for('SaengineRibbon.Results'),
 	Design: MenuId.for('SaengineRibbon.Design'),
+	FemLoads: MenuId.for('SaengineRibbon.FemLoads'),
+	FemSeismic: MenuId.for('SaengineRibbon.FemSeismic'),
+	FemWind: MenuId.for('SaengineRibbon.FemWind'),
+	FemNonlinear: MenuId.for('SaengineRibbon.FemNonlinear'),
+	FemServiceability: MenuId.for('SaengineRibbon.FemServiceability'),
 	Foundations: MenuId.for('SaengineRibbon.Foundations'),
 	FoundationsPiles: MenuId.for('SaengineRibbon.FoundationsPiles'),
 	FoundationsPileAnalysis: MenuId.for('SaengineRibbon.FoundationsPileAnalysis'),
@@ -180,7 +213,18 @@ export const RibbonMenus = {
 	BOQSchedule: MenuId.for('SaengineRibbon.BOQSchedule'),
 	BOQTakeoff: MenuId.for('SaengineRibbon.BOQTakeoff'),
 	Documents: MenuId.for('SaengineRibbon.Documents'),
+	DocumentsDrawings: MenuId.for('SaengineRibbon.DocumentsDrawings'),
+	DocumentsSheets: MenuId.for('SaengineRibbon.DocumentsSheets'),
+	DocumentsSchedules: MenuId.for('SaengineRibbon.DocumentsSchedules'),
+	DocumentsReports: MenuId.for('SaengineRibbon.DocumentsReports'),
 	Studies: MenuId.for('SaengineRibbon.Studies'),
+	StudiesDesign: MenuId.for('SaengineRibbon.StudiesDesign'),
+	StudiesEnvironment: MenuId.for('SaengineRibbon.StudiesEnvironment'),
+	StudiesSite: MenuId.for('SaengineRibbon.StudiesSite'),
+	StudiesVerification: MenuId.for('SaengineRibbon.StudiesVerification'),
+	ExportsExchange: MenuId.for('SaengineRibbon.ExportsExchange'),
+	ExportsFabrication: MenuId.for('SaengineRibbon.ExportsFabrication'),
+	ExportsArchive: MenuId.for('SaengineRibbon.ExportsArchive'),
 	Insert: MenuId.for('SaengineRibbon.Insert'),
 	Draft: MenuId.for('SaengineRibbon.Draft'),
 	Annotate: MenuId.for('SaengineRibbon.Annotate'),
@@ -306,6 +350,10 @@ export const PLAN_SUB_WHEN = editorWhen([
 ], 'plan');
 export const ARCHITECTURE_WHEN = editorWhen([SAENGINE_EDITOR_IDS.architecture], 'architecture');
 export const BIM_WHEN = editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d');
+const BIM_RIBBON_WHEN = allOf([
+	BIM_WHEN,
+	anyOf([subViewWhen('bim.3d', 'bim.additions', 'bim.summary'), ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.dataPanel)]),
+]);
 export const MEP_WHEN = editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep');
 const MEP_COORDINATION_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('coordination')]);
 const MEP_PLUMBING_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('plumbing')]);
@@ -462,11 +510,53 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: ARCHITECTURE_WHEN,
 	},
 	{
+		id: 'architectureRooms',
+		label: localize('ribbon.tab.architectureRooms', "Rooms & Schedules"),
+		menuId: RibbonMenus.ArchitectureRooms,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
+	},
+	{
+		id: 'architectureExchange',
+		label: localize('ribbon.tab.architectureExchange', "Import & Export"),
+		menuId: RibbonMenus.ArchitectureExchange,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
+	},
+	{
+		id: 'architectureEnvironment',
+		label: localize('ribbon.tab.architectureEnvironment', "Environment"),
+		menuId: RibbonMenus.ArchitectureEnvironment,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
+	},
+	{
 		id: 'bim3d',
 		label: localize('ribbon.tab.bim3d', "3D View"),
 		menuId: RibbonMenus.Bim3D,
 		contextual: true,
-		when: allOf([BIM_WHEN, subViewWhen('bim.3d', 'bim.additions', 'bim.summary')]),
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'bimExchange',
+		label: localize('ribbon.tab.bimExchange', "IFC & Exchange"),
+		menuId: RibbonMenus.BimExchange,
+		contextual: true,
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'bimFabrication',
+		label: localize('ribbon.tab.bimFabrication', "Rebar & Fabrication"),
+		menuId: RibbonMenus.BimFabrication,
+		contextual: true,
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'bimStudies',
+		label: localize('ribbon.tab.bimStudies', "Studies"),
+		menuId: RibbonMenus.BimStudies,
+		contextual: true,
+		when: BIM_RIBBON_WHEN,
 	},
 	{
 		id: 'mepCoordination',
@@ -567,6 +657,41 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: FEM_WHEN,
 	},
 	{
+		id: 'femLoads',
+		label: localize('ribbon.tab.femLoads', "Loads & Combinations"),
+		menuId: RibbonMenus.FemLoads,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femSeismic',
+		label: localize('ribbon.tab.femSeismic', "Seismic"),
+		menuId: RibbonMenus.FemSeismic,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femWind',
+		label: localize('ribbon.tab.femWind', "Wind"),
+		menuId: RibbonMenus.FemWind,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femNonlinear',
+		label: localize('ribbon.tab.femNonlinear', "Nonlinear & Stability"),
+		menuId: RibbonMenus.FemNonlinear,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femServiceability',
+		label: localize('ribbon.tab.femServiceability', "Serviceability"),
+		menuId: RibbonMenus.FemServiceability,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
 		id: 'foundations',
 		label: localize('ribbon.tab.foundations', "Shallow & Raft"),
 		menuId: RibbonMenus.Foundations,
@@ -644,9 +769,65 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: DOCUMENTS_WHEN,
 	},
 	{
+		id: 'documentsDrawings',
+		label: localize('ribbon.tab.documentsDrawings', "Drawings"),
+		menuId: RibbonMenus.DocumentsDrawings,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsSheets',
+		label: localize('ribbon.tab.documentsSheets', "Sheets & Issue"),
+		menuId: RibbonMenus.DocumentsSheets,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsSchedules',
+		label: localize('ribbon.tab.documentsSchedules', "Schedules & Keynotes"),
+		menuId: RibbonMenus.DocumentsSchedules,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsReports',
+		label: localize('ribbon.tab.documentsReports', "Reports & Worksheets"),
+		menuId: RibbonMenus.DocumentsReports,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
 		id: 'studies',
 		label: localize('ribbon.tab.studies', "Studies"),
 		menuId: RibbonMenus.Studies,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesDesign',
+		label: localize('ribbon.tab.studiesDesign', "Design Studies"),
+		menuId: RibbonMenus.StudiesDesign,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesEnvironment',
+		label: localize('ribbon.tab.studiesEnvironment', "Environment"),
+		menuId: RibbonMenus.StudiesEnvironment,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesSite',
+		label: localize('ribbon.tab.studiesSite', "Site & Terrain"),
+		menuId: RibbonMenus.StudiesSite,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesVerification',
+		label: localize('ribbon.tab.studiesVerification', "Verification"),
+		menuId: RibbonMenus.StudiesVerification,
 		contextual: true,
 		when: STUDIES_WHEN,
 	},
@@ -699,6 +880,27 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		menuId: RibbonMenus.Output,
 		contextual: true,
 		when: anyOf([EXPORTS_WHEN, DRAFT_WHEN]),
+	},
+	{
+		id: 'exportsExchange',
+		label: localize('ribbon.tab.exportsExchange', "Exchange"),
+		menuId: RibbonMenus.ExportsExchange,
+		contextual: true,
+		when: EXPORTS_WHEN,
+	},
+	{
+		id: 'exportsFabrication',
+		label: localize('ribbon.tab.exportsFabrication', "Fabrication"),
+		menuId: RibbonMenus.ExportsFabrication,
+		contextual: true,
+		when: EXPORTS_WHEN,
+	},
+	{
+		id: 'exportsArchive',
+		label: localize('ribbon.tab.exportsArchive', "Archive & Validation"),
+		menuId: RibbonMenus.ExportsArchive,
+		contextual: true,
+		when: EXPORTS_WHEN,
 	},
 ];
 

@@ -5,3 +5,4 @@
 
 import './ribbonPart.js';
 import './ribbonActions.contribution.js';
+import './u6eDataPanels.contribution.js';

@@ -21,6 +21,8 @@ import {
 	PROJECT_TAB_WHEN,
 	registerRibbonGroupWhen,
 	EXPORTS_WHEN,
+	FLOOR_PLAN_WHEN,
+	SETTINGS_WHEN,
 } from './ribbonRegistry.js';
 
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -218,6 +220,61 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['ConstructionAndCost', localize('ribbon.grp.constructionCost', "Construction & Cost")],
 	['Environmental', localize('ribbon.grp.environmental', "Environmental")],
 	['Optioneering', localize('ribbon.grp.optioneering', "Optioneering")],
+	// U6e
+	['LoadPattern', localize('u6e.grp.loadPattern', "Gravity & Live Loads")],
+	['SpecialtyLoads', localize('u6e.grp.specialtyLoads', "Specialty Loads")],
+	['CombinationAudit', localize('u6e.grp.combinationAudit', "Combinations")],
+	['SeismicHazard', localize('u6e.grp.seismicHazard', "Hazard & Design")],
+	['GroundMotions', localize('u6e.grp.groundMotions', "Ground Motions")],
+	['SeismicResponse', localize('u6e.grp.seismicResponse', "Response & Regularity")],
+	['IsolationSystems', localize('u6e.grp.isolationSystems', "Isolation Systems")],
+	['WindExposure', localize('u6e.grp.windExposure', "Wind Exposure")],
+	['WindEffects', localize('u6e.grp.windEffects', "Wind Effects")],
+	['PressureCoefficients', localize('u6e.grp.pressureCoefficients', "Pressure Coefficients")],
+	['NonlinearAnalysis', localize('u6e.grp.nonlinearAnalysis', "Nonlinear Analysis")],
+	['StabilityChecks', localize('u6e.grp.stabilityChecks', "Stability Checks")],
+	['ConstructionStages', localize('u6e.grp.constructionStages', "Construction Stages")],
+	['FoundationInteraction', localize('u6e.grp.foundationInteraction', "Soil Interaction")],
+	['SwayAndSettlement', localize('u6e.grp.swaySettlement', "Sway & Settlement")],
+	['VibrationChecks', localize('u6e.grp.vibrationChecks', "Vibration Checks")],
+	['ConcreteDesign', localize('u6e.grp.concreteDesign', "Concrete Design")],
+	['MemberDesign', localize('u6e.grp.memberDesign', "Member Design")],
+	['CapacityDetailing', localize('u6e.grp.capacityDetailing', "Capacity & Detailing")],
+	['FireAndConnections', localize('u6e.grp.fireConnections', "Fire & Connections")],
+	['ModelExchange', localize('u6e.grp.modelExchange', "Model Exchange")],
+	['IFCValidation', localize('u6e.grp.ifcValidation', "IFC Validation")],
+	['RebarModel', localize('u6e.grp.rebarModel', "Rebar Model")],
+	['FabricationSchedules', localize('u6e.grp.fabricationSchedules', "Fabrication Schedules")],
+	['DaylightStudy', localize('u6e.grp.daylightStudy', "Daylight Study")],
+	['SitePlanning', localize('u6e.grp.sitePlanning', "Site Planning")],
+	['PhaseReview', localize('u6e.grp.phaseReview', "Phase Review")],
+	['EnvironmentStudy', localize('u6e.grp.environmentStudy', "Environment Study")],
+	['RoomChecks', localize('u6e.grp.roomChecks', "Room Checks")],
+	['MassingReview', localize('u6e.grp.massingReview', "Massing & Floors")],
+	['EnvelopeReview', localize('u6e.grp.envelopeReview', "Envelope Review")],
+	['ScanData', localize('u6e.grp.scanData', "Scan Data")],
+	['SolarExposure', localize('u6e.grp.solarExposure', "Solar Exposure")],
+	['RoadNoise', localize('u6e.grp.roadNoise', "Road Noise")],
+	['DrawingReview', localize('u6e.grp.drawingReview', "Drawing Review")],
+	['DrawingInventory', localize('u6e.grp.drawingInventory', "Drawing Inventory")],
+	['SheetIssue', localize('u6e.grp.sheetIssue', "Sheets & Issue")],
+	['ProjectInformation', localize('u6e.grp.projectInformation', "Project Information")],
+	['ClauseTraceability', localize('u6e.grp.clauseTraceability', "Clause Traceability")],
+	['ScheduleCategories', localize('u6e.grp.scheduleCategories', "Schedule Categories")],
+	['CalculationPackages', localize('u6e.grp.calculationPackages', "Calculation Packages")],
+	['WorksheetInventory', localize('u6e.grp.worksheetInventory', "Worksheet Inventory")],
+	['SpecialStructures', localize('u6e.grp.specialStructures', "Special Structures")],
+	['BatchVerification', localize('u6e.grp.batchVerification', "Batch Verification")],
+	['SolarAndDaylight', localize('u6e.grp.solarAndDaylight', "Solar & Daylight")],
+	['TerrainReview', localize('u6e.grp.terrainReview', "Terrain Review")],
+	['VerificationCases', localize('u6e.grp.verificationCases', "Verification Cases")],
+	['AnalysisFormats', localize('u6e.grp.analysisFormats', "Analysis Formats")],
+	['ExchangeFormats', localize('u6e.grp.exchangeFormats', "Exchange Formats")],
+	['ExchangeGuides', localize('u6e.grp.exchangeGuides', "Exchange Guides")],
+	['FabricationPreview', localize('u6e.grp.fabricationPreview', "Fabrication Preview")],
+	['ArchiveReview', localize('u6e.grp.archiveReview', "Archive Review")],
+	['StructuralValidation', localize('u6e.grp.structuralValidation', "Structural Validation")],
+	['FormatValidation', localize('u6e.grp.formatValidation', "Format Validation")],
 	// Project tab (Collaborate & Manage groups)
 	['SyncAndWorksharing', localize('ribbon.grp.syncWorksharing', "Sync & Worksharing")],
 	['LiveCoEditing', localize('ribbon.grp.liveCoEditing', "Live Co-Editing")],
@@ -303,6 +360,10 @@ function addItem(
 	registerRibbonItemHint(id, { size, label: title }, menuId);
 }
 
+function addU6ePanelItem(menuId: MenuId, group: string, order: number, panel: string, title: string, icon: ThemeIcon, size: RibbonButtonSize = 'large'): void {
+	addItem(menuId, group, order, `saengine.u6e.${panel}`, title, icon, size, { precondition: projectOpen });
+}
+
 function addSubItem(
 	menuId: MenuId,
 	group: string,
@@ -377,7 +438,7 @@ function addNestedSubmenu(
 addItem(RibbonMenus.Home, '1_Project', 1, 'saengine.project.new', localize('rib.home.new', "New"), Codicon.newFolder, 'large');
 addSubmenu(RibbonMenus.Home, '1_Project', 2, RibbonSubmenus.HomeOpen, localize('rib.home.open', "Open"), Codicon.folderOpened, 'large', true, 'saengine.project.open');
 addSubItem(RibbonSubmenus.HomeOpen, '1_open', 1, 'saengine.project.open', localize('rib.home.openProject', "Open Project..."), Codicon.folderOpened);
-addSubItem(RibbonSubmenus.HomeOpen, '1_open', 2, 'saengine.project.openArchive', localize('rib.home.openArchive', "Open Project Archive..."), Codicon.archive);
+addSubItem(RibbonSubmenus.HomeOpen, '1_open', 2, 'saengine.project.openArchive', localize('rib.home.openArchive', "Open Project Archive..."), Codicon.archive, { when: EXPORTS_WHEN.negate() });
 addSubItem(RibbonSubmenus.HomeOpen, '1_open', 3, 'saengine.project.openSample', localize('rib.home.openSample', "Open Sample Project..."), Codicon.project);
 addSubItem(RibbonSubmenus.HomeOpen, '1_open', 5, 'saengine.project.showStart', localize('rib.home.showStart', "Show Start Window"), Codicon.home);
 
@@ -415,7 +476,7 @@ addSubItem(RibbonSubmenus.HomeCollaborate, '3_versions', 1, 'saengine.project.sh
 addSubItem(RibbonSubmenus.HomeCollaborate, '3_versions', 2, 'saengine.project.saveVersion', localize('rib.collab.saveVersion', "Save Version"), Codicon.gitCommit, { precondition: projectOpen });
 
 addSubmenu(RibbonMenus.Home, '6_Workspace', 2, RibbonSubmenus.HomeManage, localize('rib.home.manage', "Manage"), Codicon.settingsGear, 'small', false, undefined, HOME_MENUS_WHEN);
-addNestedSubmenu(RibbonSubmenus.HomeManage, '1_standards', 1, RibbonSubmenus.ManagePackages, localize('rib.manage.packages', "Packages"), Codicon.package);
+addNestedSubmenu(RibbonSubmenus.HomeManage, '1_standards', 1, RibbonSubmenus.ManagePackages, localize('rib.manage.packages', "Packages"), Codicon.package, SETTINGS_WHEN.negate());
 addNestedSubmenu(RibbonSubmenus.HomeManage, '1_standards', 2, RibbonSubmenus.ManageAi, localize('rib.manage.aiControl', "AI Control"), Codicon.robot);
 addSubItem(RibbonSubmenus.HomeManage, '2_server', 2, 'saengine.officeServer.check', localize('rib.manage.checkServer', "Check Server"), Codicon.pass);
 addSubItem(RibbonSubmenus.HomeManage, '2_server', 3, 'saengine.officeServer.setToken', localize('rib.manage.setToken', "Set Server Token"), Codicon.key);
@@ -778,9 +839,125 @@ addItem(RibbonMenus.Design, '1_Checks', 3, 'saengine.analyze.validateProject', l
 addItem(RibbonMenus.Design, '2_Detailing', 2, 'saengine.fem.pickMember', localize('rib.design.memberDetails', "Member Details"), Codicon.search, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Design, '2_Detailing', 3, 'saengine.fem.strutAndTie', localize('rib.design.strutAndTie', "Strut-and-Tie"), Codicon.symbolStructure, 'large', { precondition: projectOpen });
 
+addU6ePanelItem(RibbonMenus.Design, '3_ConcreteDesign', 1, 'fem.punchingShear', localize('u6e.rib.fem.punchingShear', "Punching Shear"), Codicon.circleLargeFilled);
+addU6ePanelItem(RibbonMenus.Design, '3_ConcreteDesign', 2, 'fem.deflectionCheck', localize('u6e.rib.fem.deflectionCheck', "Deflection Check"), Codicon.graphLine);
+addU6ePanelItem(RibbonMenus.Design, '3_ConcreteDesign', 3, 'fem.crackControl', localize('u6e.rib.fem.crackControl', "Crack Control"), Codicon.warning, 'small');
+addU6ePanelItem(RibbonMenus.Design, '3_ConcreteDesign', 4, 'fem.torsionDesign', localize('u6e.rib.fem.torsionDesign', "Torsion Design"), Codicon.sync, 'small');
+addU6ePanelItem(RibbonMenus.Design, '4_CapacityDetailing', 1, 'fem.capacitySeismicDetailing', localize('u6e.rib.fem.capacitySeismicDetailing', "Capacity & Seismic Detailing"), Codicon.shield);
+addU6ePanelItem(RibbonMenus.Design, '4_CapacityDetailing', 2, 'fem.fireSteelConnections', localize('u6e.rib.fem.fireSteelConnections', "Fire, Steel & Connections"), Codicon.tools);
 
 //#endregion
 
+//#region U6e: FEM advanced analysis tabs
+
+addU6ePanelItem(RibbonMenus.FemLoads, '1_LoadPattern', 1, 'fem.notionalLoads', localize('u6e.rib.fem.notionalLoads', "Notional Loads"), Codicon.arrowBoth);
+addU6ePanelItem(RibbonMenus.FemLoads, '1_LoadPattern', 2, 'fem.patternLive', localize('u6e.rib.fem.patternLive', "Pattern Live Loads"), Codicon.symbolNumeric);
+addU6ePanelItem(RibbonMenus.FemLoads, '1_LoadPattern', 3, 'fem.snowRainLoads', localize('u6e.rib.fem.snowRainLoads', "Snow & Rain Loads"), Codicon.cloud);
+addU6ePanelItem(RibbonMenus.FemLoads, '2_SpecialtyLoads', 1, 'fem.thermalLoads', localize('u6e.rib.fem.thermalLoads', "Thermal Loads"), Codicon.flame);
+addU6ePanelItem(RibbonMenus.FemLoads, '2_SpecialtyLoads', 2, 'fem.floodLoads', localize('u6e.rib.fem.floodLoads', "Flood Loads"), Codicon.globe);
+addU6ePanelItem(RibbonMenus.FemLoads, '2_SpecialtyLoads', 3, 'fem.stairCraneLoads', localize('u6e.rib.fem.stairCraneLoads', "Stair & Crane Loads"), Codicon.tools);
+addU6ePanelItem(RibbonMenus.FemLoads, '3_CombinationAudit', 1, 'fem.loadCombinations', localize('u6e.rib.fem.loadCombinations', "Load Combinations Audit"), Codicon.listOrdered);
+
+addU6ePanelItem(RibbonMenus.FemSeismic, '1_SeismicHazard', 1, 'fem.spectralHazard', localize('u6e.rib.fem.spectralHazard', "Spectral Hazard"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.FemSeismic, '1_SeismicHazard', 2, 'fem.seismicSummary', localize('u6e.rib.fem.seismicSummary', "Seismic Summary"), Codicon.graphLine);
+addU6ePanelItem(RibbonMenus.FemSeismic, '2_GroundMotions', 1, 'fem.groundMotions', localize('u6e.rib.fem.groundMotions', "Ground Motions"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.FemSeismic, '2_GroundMotions', 2, 'fem.linearTimeHistory', localize('u6e.rib.fem.linearTimeHistory', "Linear Time History"), Codicon.debug);
+addU6ePanelItem(RibbonMenus.FemSeismic, '3_SeismicResponse', 1, 'fem.irregularities', localize('u6e.rib.fem.irregularities', "Seismic Irregularities"), Codicon.warning);
+addU6ePanelItem(RibbonMenus.FemSeismic, '3_SeismicResponse', 2, 'fem.torsionalEffects', localize('u6e.rib.fem.torsionalEffects', "Torsional Effects"), Codicon.sync);
+addU6ePanelItem(RibbonMenus.FemSeismic, '3_SeismicResponse', 3, 'fem.twoLevelSeismic', localize('u6e.rib.fem.twoLevelSeismic', "Two-Level Seismic"), Codicon.layers);
+addU6ePanelItem(RibbonMenus.FemSeismic, '3_SeismicResponse', 4, 'fem.floorSpectra', localize('u6e.rib.fem.floorSpectra', "Floor Spectra"), Codicon.graph);
+addU6ePanelItem(RibbonMenus.FemSeismic, '4_IsolationSystems', 1, 'fem.isolationDampers', localize('u6e.rib.fem.isolationDampers', "Isolation & Dampers"), Codicon.shield);
+
+addU6ePanelItem(RibbonMenus.FemWind, '1_WindExposure', 1, 'fem.windSpeedFactors', localize('u6e.rib.fem.windSpeedFactors', "Wind Speed Factors"), Codicon.globe);
+addU6ePanelItem(RibbonMenus.FemWind, '1_WindExposure', 2, 'fem.peakVelocityPressure', localize('u6e.rib.fem.peakVelocityPressure', "Peak Velocity Pressure"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.FemWind, '2_WindEffects', 1, 'fem.gustResponse', localize('u6e.rib.fem.gustResponse', "Gust Response"), Codicon.graphLine);
+addU6ePanelItem(RibbonMenus.FemWind, '2_WindEffects', 2, 'fem.windComfort', localize('u6e.rib.fem.windComfort', "Wind Comfort"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.FemWind, '3_PressureCoefficients', 1, 'fem.localPressures', localize('u6e.rib.fem.localPressures', "Local Pressures"), Codicon.arrowBoth);
+addU6ePanelItem(RibbonMenus.FemWind, '3_PressureCoefficients', 2, 'fem.openStructures', localize('u6e.rib.fem.openStructures', "Open Structures"), Codicon.symbolStructure);
+
+addU6ePanelItem(RibbonMenus.FemNonlinear, '1_NonlinearAnalysis', 1, 'fem.pushoverAnalysis', localize('u6e.rib.fem.pushoverAnalysis', "Pushover Analysis"), Codicon.graphLine);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '1_NonlinearAnalysis', 2, 'fem.nonlinearHistory', localize('u6e.rib.fem.nonlinearHistory', "Nonlinear History"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '2_StabilityChecks', 1, 'fem.pDeltaBuckling', localize('u6e.rib.fem.pDeltaBuckling', "P-Delta & Buckling"), Codicon.warning);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '2_StabilityChecks', 2, 'fem.swayDrift', localize('u6e.rib.fem.swayDrift', "Sway & Drift"), Codicon.arrowBoth);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '3_ConstructionStages', 1, 'fem.stagedConstruction', localize('u6e.rib.fem.stagedConstruction', "Staged Construction"), Codicon.layers);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '3_ConstructionStages', 2, 'fem.creepShrinkage', localize('u6e.rib.fem.creepShrinkage', "Creep & Shrinkage"), Codicon.graph);
+addU6ePanelItem(RibbonMenus.FemNonlinear, '4_FoundationInteraction', 1, 'fem.ssiSprings', localize('u6e.rib.fem.ssiSprings', "Soil-Structure Interaction"), Codicon.symbolStructure);
+
+addU6ePanelItem(RibbonMenus.FemServiceability, '1_SwayAndSettlement', 1, 'fem.differentialSettlement', localize('u6e.rib.fem.differentialSettlement', "Differential Settlement"), Codicon.arrowDown);
+addU6ePanelItem(RibbonMenus.FemServiceability, '2_VibrationChecks', 1, 'fem.floorVibration', localize('u6e.rib.fem.floorVibration', "Floor Vibration"), Codicon.pulse);
+
+//#endregion
+
+//#region U6e: BIM, Architecture, Documents, Studies and Exports
+
+addU6ePanelItem(RibbonMenus.BimExchange, '1_ModelExchange', 1, 'bim.syncStamps', localize('u6e.rib.bim.syncStamps', "Model Sync Status"), Codicon.sync);
+addU6ePanelItem(RibbonMenus.BimExchange, '2_IFCValidation', 1, 'bim.ifcCheck', localize('u6e.rib.bim.ifcCheck', "Structural IFC Check"), Codicon.checklist);
+addU6ePanelItem(RibbonMenus.BimExchange, '3_ModelReview', 1, 'bim.detailingModel', localize('u6e.rib.bim.detailingModel', "Detailing Model Audit"), Codicon.layers);
+
+addU6ePanelItem(RibbonMenus.BimFabrication, '1_RebarModel', 1, 'bim.rebarCages', localize('u6e.rib.bim.rebarCages', "Rebar Cages"), Codicon.symbolStructure);
+addU6ePanelItem(RibbonMenus.BimFabrication, '2_FabricationSchedules', 1, 'bim.barBendingSchedule', localize('u6e.rib.bim.barBendingSchedule', "Bar Bending Schedule"), Codicon.listOrdered);
+
+addU6ePanelItem(RibbonMenus.BimStudies, '1_DaylightStudy', 1, 'bim.studyDaylight', localize('u6e.rib.bim.studyDaylight', "Daylight & Solar Study"), Codicon.lightbulb);
+addU6ePanelItem(RibbonMenus.BimStudies, '2_EnvironmentStudy', 1, 'bim.studyNoise', localize('u6e.rib.bim.studyNoise', "Noise Study"), Codicon.pulse);
+addU6ePanelItem(RibbonMenus.BimStudies, '3_PhaseReview', 1, 'bim.studyPhasing', localize('u6e.rib.bim.studyPhasing', "Phasing Summary"), Codicon.layers);
+addU6ePanelItem(RibbonMenus.BimStudies, '4_SitePlanning', 1, 'bim.studySite', localize('u6e.rib.bim.studySite', "Plot Planning"), Codicon.compass);
+
+addU6ePanelItem(RibbonMenus.ArchitectureRooms, '1_RoomChecks', 1, 'architecture.roomsCheck', localize('u6e.rib.arch.roomsCheck', "Rooms Check"), Codicon.checklist);
+addU6ePanelItem(RibbonMenus.ArchitectureRooms, '2_MassingReview', 1, 'architecture.massingFloors', localize('u6e.rib.arch.massingFloors', "Massing & Floors"), Codicon.home);
+addU6ePanelItem(RibbonMenus.ArchitectureRooms, '3_EnvelopeReview', 1, 'architecture.roofCeilingCurtain', localize('u6e.rib.arch.roofCeilingCurtain', "Roof, Ceiling & Curtain Wall"), Codicon.layers);
+
+addU6ePanelItem(RibbonMenus.ArchitectureExchange, '1_IFCValidation', 1, 'architecture.ifcCheck', localize('u6e.rib.arch.ifcCheck', "Structural IFC Check"), Codicon.checklist);
+addU6ePanelItem(RibbonMenus.ArchitectureExchange, '2_ScanData', 1, 'architecture.pointCloudStatus', localize('u6e.rib.arch.pointCloudStatus', "Point Cloud Status"), Codicon.symbolFile);
+
+addU6ePanelItem(RibbonMenus.ArchitectureEnvironment, '1_DaylightStudy', 1, 'architecture.daylight', localize('u6e.rib.arch.daylight', "Daylight Study"), Codicon.lightbulb);
+addU6ePanelItem(RibbonMenus.ArchitectureEnvironment, '2_SolarExposure', 1, 'architecture.sun', localize('u6e.rib.arch.sun', "Solar Exposure"), Codicon.lightbulb);
+addU6ePanelItem(RibbonMenus.ArchitectureEnvironment, '3_RoadNoise', 1, 'architecture.noise', localize('u6e.rib.arch.noise', "Road Noise Study"), Codicon.pulse);
+
+addU6ePanelItem(RibbonMenus.DocumentsDrawings, '1_DrawingReview', 1, 'documents.drawingAutomation', localize('u6e.rib.docs.drawingAutomation', "Drawing Automation Review"), Codicon.wand);
+addU6ePanelItem(RibbonMenus.DocumentsDrawings, '2_DrawingInventory', 1, 'documents.drawingList', localize('u6e.rib.docs.drawingList', "Drawing Inventory"), Codicon.files);
+
+addU6ePanelItem(RibbonMenus.DocumentsSheets, '1_SheetIssue', 1, 'documents.sheetInventory', localize('u6e.rib.docs.sheetInventory', "Sheet Inventory"), Codicon.layout);
+addU6ePanelItem(RibbonMenus.DocumentsSheets, '2_ProjectInformation', 1, 'documents.projectMetadata', localize('u6e.rib.docs.projectMetadata', "Project Metadata"), Codicon.info);
+
+addU6ePanelItem(RibbonMenus.DocumentsSchedules, '1_ClauseTraceability', 1, 'documents.clauseTraceability', localize('u6e.rib.docs.clauseTraceability', "Clause Traceability"), Codicon.book);
+addU6ePanelItem(RibbonMenus.DocumentsSchedules, '2_ScheduleCategories', 1, 'documents.scheduleCategories', localize('u6e.rib.docs.scheduleCategories', "Schedule Categories"), Codicon.listOrdered);
+
+addU6ePanelItem(RibbonMenus.DocumentsReports, '1_CalculationPackages', 1, 'documents.calculationPackage', localize('u6e.rib.docs.calculationPackage', "Calculation Package"), Codicon.report);
+addU6ePanelItem(RibbonMenus.DocumentsReports, '2_WorksheetInventory', 1, 'documents.worksheetInventory', localize('u6e.rib.docs.worksheetInventory', "Worksheet Inventory"), Codicon.symbolNumeric);
+
+addU6ePanelItem(RibbonMenus.StudiesDesign, '1_SpecialStructures', 1, 'studies.specialStructures', localize('u6e.rib.studies.specialStructures', "Special Structures"), Codicon.symbolStructure);
+addU6ePanelItem(RibbonMenus.StudiesDesign, '2_PhaseReview', 1, 'studies.phasingSummary', localize('u6e.rib.studies.phasingSummary', "Phasing Summary"), Codicon.layers);
+
+addU6ePanelItem(RibbonMenus.StudiesEnvironment, '1_SolarAndDaylight', 1, 'studies.daylightSolar', localize('u6e.rib.studies.daylightSolar', "Daylight & Solar Study"), Codicon.lightbulb);
+addU6ePanelItem(RibbonMenus.StudiesEnvironment, '2_EnvironmentStudy', 1, 'studies.noiseStudy', localize('u6e.rib.studies.noiseStudy', "Noise Study"), Codicon.pulse);
+
+addU6ePanelItem(RibbonMenus.StudiesSite, '1_SitePlanning', 1, 'studies.plotPlanning', localize('u6e.rib.studies.plotPlanning', "Plot Planning"), Codicon.compass);
+addU6ePanelItem(RibbonMenus.StudiesSite, '2_TerrainReview', 1, 'studies.terrain', localize('u6e.rib.studies.terrain', "Terrain Mesh"), Codicon.globe);
+
+addU6ePanelItem(RibbonMenus.StudiesVerification, '1_BatchVerification', 1, 'studies.batchCheck', localize('u6e.rib.studies.batchCheck', "Batch Check"), Codicon.checkAll);
+addU6ePanelItem(RibbonMenus.StudiesVerification, '2_VerificationCases', 1, 'studies.verificationCases', localize('u6e.rib.studies.verificationCases', "Verification Cases"), Codicon.listFlat);
+addU6ePanelItem(RibbonMenus.StudiesVerification, '3_VerificationStatus', 1, 'studies.verificationStatus', localize('u6e.rib.studies.verificationStatus', "Verification Status"), Codicon.verified);
+addU6ePanelItem(RibbonMenus.StudiesVerification, '4_VerificationRun', 1, 'studies.verificationRun', localize('u6e.rib.studies.verificationRun', "Run Verification"), Codicon.play);
+
+addU6ePanelItem(RibbonMenus.ExportsFabrication, '1_FabricationPreview', 1, 'exports.fabricationPreview', localize('u6e.rib.exports.fabricationPreview', "Fabrication Preview"), Codicon.tools);
+addU6ePanelItem(RibbonMenus.ExportsFabrication, '2_FabricationSchedules', 1, 'exports.bbsReconciliation', localize('u6e.rib.exports.bbsReconciliation', "Bar Schedule Reconciliation"), Codicon.listOrdered);
+
+addU6ePanelItem(RibbonMenus.ExportsArchive, '1_ArchiveReview', 1, 'exports.archiveInspection', localize('u6e.rib.exports.archiveInspection', "Archive Inspection"), Codicon.archive);
+addU6ePanelItem(RibbonMenus.ExportsArchive, '2_StructuralValidation', 1, 'exports.structuralIfcCheck', localize('u6e.rib.exports.structuralIfcCheck', "Structural IFC Check"), Codicon.checklist);
+addU6ePanelItem(RibbonMenus.ExportsArchive, '3_FormatValidation', 1, 'exports.formatMatrix', localize('u6e.rib.exports.formatMatrix', "Export Format Matrix"), Codicon.export);
+addSubmenu(RibbonMenus.ExportsArchive, '1_ArchiveReview', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive');
+addItem(RibbonMenus.ExportsArchive, '3_FormatValidation', 2, 'saengine.settings.validateAll', localize('set.rib.valAll', "Validate All Parts"), Codicon.checkAll, 'small', { precondition: projectOpen });
+
+// Rehome the existing exchange actions without changing their command IDs.
+addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 1, 'saengine.export.e2kOptions', localize('rib.out.e2kOptions', "ETABS .e2k Options..."), Codicon.export, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 2, 'saengine.export.s2k', localize('rib.out.s2k', "SAP2000 .s2k"), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 3, 'saengine.export.std', localize('rib.out.std', "STAAD .std"), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 1, 'saengine.export.saf', localize('rib.out.saf', "SAF (.xlsx)"), Codicon.table, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 2, 'saengine.export.cis2', localize('rib.out.cis2', "CIS/2"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 3, 'saengine.export.sdnf', localize('rib.out.sdnf', "SDNF Steel"), Codicon.tools, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '3_ExchangeGuides', 1, 'saengine.export.detailingNote', localize('rib.out.detailingNote', "Steel Detailing Guide"), Codicon.info, 'small');
+
+//#endregion
 //#region Tab 15: Foundations (Substructure — 6 contextual tabs)
 
 // Shallow & Raft
@@ -892,7 +1069,7 @@ addItem(RibbonMenus.Output, '1_Exports', 2, 'saengine.exports.revealFolder', loc
 addItem(RibbonMenus.Output, '1_Exports', 3, 'saengine.exports.refresh', localize('rib.out.refresh', "Refresh"), Codicon.refresh, 'small', { precondition: projectOpen });
 
 // The floor plan's Output tab shows only drawing exports; project-wide exports stay in the Exports window.
-for (const outputGroup of ['1_Exports', '2_IFC', '4_Exchange', '5_BOQAndReports']) {
+for (const outputGroup of ['1_Exports', '2_IFC', '5_BOQAndReports']) {
 	registerRibbonGroupWhen(RibbonMenus.Output, outputGroup, EXPORTS_WHEN);
 }
 
@@ -904,21 +1081,14 @@ addItem(RibbonMenus.Output, '3_BIMAndCAD', 1, 'saengine.floorPlan.exportDxf', lo
 addItem(RibbonMenus.Output, '3_BIMAndCAD', 2, 'saengine.revit.exportUi', localize('rib.out.revitExport', "Export for Revit"), Codicon.sync, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Output, '3_BIMAndCAD', 3, 'saengine.revit.importUi', localize('rib.out.revitImport', "Import from Revit..."), Codicon.cloudDownload, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Output, '4_Exchange', 1, 'saengine.export.e2kOptions', localize('rib.out.e2kOptions', "ETABS .e2k Options..."), Codicon.export, 'large', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 2, 'saengine.export.s2k', localize('rib.out.s2k', "SAP2000 .s2k"), Codicon.export, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 3, 'saengine.export.std', localize('rib.out.std', "STAAD .std"), Codicon.export, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 4, 'saengine.export.saf', localize('rib.out.saf', "SAF (.xlsx)"), Codicon.table, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 5, 'saengine.export.cis2', localize('rib.out.cis2', "CIS/2"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 6, 'saengine.export.sdnf', localize('rib.out.sdnf', "SDNF Steel"), Codicon.tools, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.Output, '4_Exchange', 7, 'saengine.export.detailingNote', localize('rib.out.detailingNote', "Steel Detailing Guide"), Codicon.info, 'small');
-
 addItem(RibbonMenus.Output, '5_BOQAndReports', 1, 'saengine.boq.exportXlsx', localize('rib.out.boqXlsx', "BOQ Excel"), Codicon.table, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Output, '5_BOQAndReports', 2, 'saengine.boq.exportCsv', localize('rib.out.boqCsv', "BOQ CSV"), Codicon.fileCode, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Output, '5_BOQAndReports', 3, 'saengine.report.exportWord', localize('rib.out.wordReport', "Word Report"), Codicon.fileText, 'small', { precondition: projectOpen });
 
 addItem(RibbonMenus.Output, '6_WebAndArchive', 1, 'saengine.export.webViewer', localize('rib.out.webViewer', "Web Viewer"), Codicon.browser, 'large', { precondition: projectOpen });
-addSubmenu(RibbonMenus.Output, '6_WebAndArchive', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive');
+addSubmenu(RibbonMenus.Output, '6_WebAndArchive', 2, RibbonSubmenus.OutputArchive, localize('rib.out.archive', "Archive .civil"), Codicon.archive, 'large', true, 'saengine.project.exportArchive', FLOOR_PLAN_WHEN);
 addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 1, 'saengine.project.exportArchive', localize('rib.out.exportArchive', "Export Project (.civil)..."), Codicon.archive, { precondition: projectOpen });
+addSubItem(RibbonSubmenus.OutputArchive, '1_arc', 2, 'saengine.project.openArchive', localize('rib.out.openArchive', "Inspect / Open Archive..."), Codicon.folderOpened, { when: EXPORTS_WHEN });
 
 //#endregion
 

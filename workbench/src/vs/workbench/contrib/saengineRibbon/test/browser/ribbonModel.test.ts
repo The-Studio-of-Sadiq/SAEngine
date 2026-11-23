@@ -32,6 +32,7 @@ import {
 	computeCollapsedRibbonGroups,
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
+	getRibbonGroupWhen,
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
 	packRibbonColumns,
@@ -173,7 +174,7 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
 			[
-				'home', 'project', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'settings', 'settingsLoads', 'settingsHazard', 'settingsChecks', 'settingsOverrides', 'library', 'librarySections', 'libraryObjects', 'libraryChecks', 'plan', 'architecture', 'bim3d', 'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign', 'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems', 'mepFire', 'mepFireSystems', 'mepSystems', 'analyze', 'results', 'design', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'documents', 'studies', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output',
+				'home', 'project', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'settings', 'settingsLoads', 'settingsHazard', 'settingsChecks', 'settingsOverrides', 'library', 'librarySections', 'libraryObjects', 'libraryChecks', 'plan', 'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment', 'bim3d', 'bimExchange', 'bimFabrication', 'bimStudies', 'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign', 'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems', 'mepFire', 'mepFireSystems', 'mepSystems', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive',
 			]
 		);
 		const home = RIBBON_TABS.find(t => t.id === 'home');
@@ -207,8 +208,8 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structureModeler), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.structure), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.cad), ['home', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.architecture), ['home', 'architecture']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.architecture), ['home', 'architecture', 'architectureRooms', 'architectureExchange', 'architectureEnvironment']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d', 'bimExchange', 'bimFabrication', 'bimStudies']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mepCoordination', 'mepIssues']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.data'), ['home', 'mepCoordination', 'mepIssues']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.results'), ['home', 'mepCoordination', 'mepIssues']);
@@ -225,33 +226,49 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.data'), ['home', 'mepFire', 'mepFireSystems']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.results'), ['home', 'mepFire', 'mepFireSystems']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.systems'), ['home', 'mepSystems']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
 
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.substructure), ['home', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.boq), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.rates), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.exports), ['home', 'output']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.drawingPreview), ['home', 'documents']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate), ['home', 'documents']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet), ['home', 'documents']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.officeTools), ['home', 'studies']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.studies), ['home', 'studies']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.graph), ['home', 'studies']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.exports), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.drawingPreview), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.worksheet), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.officeTools), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.studies), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.graph), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.overview), ['home', 'project']);
 		assert.deepStrictEqual(visibleIds(''), ['home', 'project']);
 
-		// U3 data panels show the contextual tabs of their owning part.
+		// Data panels show the contextual tabs of their owning part.
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), resolveDataPanelSubView('saengine.mep.electrical.boards')), ['home', 'mepElectrical', 'mepPowerSystems']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'documentsSchedules', 'documentsReports']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design', 'femLoads', 'femSeismic', 'femWind', 'femNonlinear', 'femServiceability']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.u6e.bim.rebarCages', 'bim3d')), ['home', 'bim3d', 'bimExchange', 'bimFabrication', 'bimStudies']);
+	});
+
+	test('Every U6e ribbon tab has at least two groups', () => {
+		const menus: readonly MenuId[] = [
+			RibbonMenus.FemLoads, RibbonMenus.FemSeismic, RibbonMenus.FemWind, RibbonMenus.FemNonlinear, RibbonMenus.FemServiceability,
+			RibbonMenus.BimExchange, RibbonMenus.BimFabrication, RibbonMenus.BimStudies,
+			RibbonMenus.ArchitectureRooms, RibbonMenus.ArchitectureExchange, RibbonMenus.ArchitectureEnvironment,
+			RibbonMenus.DocumentsDrawings, RibbonMenus.DocumentsSheets, RibbonMenus.DocumentsSchedules, RibbonMenus.DocumentsReports,
+			RibbonMenus.StudiesDesign, RibbonMenus.StudiesEnvironment, RibbonMenus.StudiesSite, RibbonMenus.StudiesVerification,
+			RibbonMenus.ExportsExchange, RibbonMenus.ExportsFabrication, RibbonMenus.ExportsArchive,
+		];
+		for (const menuId of menus) {
+			const groups = [...new Set(MenuRegistry.getMenuItems(menuId).map(item => item.group).filter((group): group is string => !!group))];
+			assert.ok(groups.length >= 2, `Expected at least 2 groups in ${menuId.id}, got ${groups.length}`);
+		}
 	});
 
 	test('Every MEP discipline tab has at least 2 groups and has no duplicate command ids across ribbon tabs', () => {
@@ -284,6 +301,10 @@ suite('SAEngine - ribbon model', () => {
 					if (item.when && !ribbonContext.contextMatchesRules(item.when)) {
 						continue;
 					}
+					const groupWhen = item.group ? getRibbonGroupWhen(menuId, item.group) : undefined;
+					if (groupWhen && !ribbonContext.contextMatchesRules(groupWhen)) {
+						continue;
+					}
 					if (isIMenuItem(item)) {
 						const tabs = occurrences.get(item.command.id) ?? [];
 						tabs.push(tabId);
@@ -303,8 +324,9 @@ suite('SAEngine - ribbon model', () => {
 		};
 		const windows: [string, string][] = [
 			[SAENGINE_EDITOR_IDS.floorPlan, ''], [SAENGINE_EDITOR_IDS.cad, ''], [SAENGINE_EDITOR_IDS.soil, ''],
-			[SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.substructure, ''],
+			[SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.femResults, 'fem.charts'], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.substructure, ''],
 			[SAENGINE_EDITOR_IDS.boq, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.overview, ''], [SAENGINE_EDITOR_IDS.settings, 'settings.project'], [SAENGINE_EDITOR_IDS.library, ''],
+			[SAENGINE_EDITOR_IDS.codePacks, 'settings.packages'], [SAENGINE_EDITOR_IDS.sectionDesigner, ''], [SAENGINE_EDITOR_IDS.rates, ''], [SAENGINE_EDITOR_IDS.drawingPreview, ''], [SAENGINE_EDITOR_IDS.studies, ''],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.coordination'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.results'],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.plumbing'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.results'],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.hvac'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.results'],
