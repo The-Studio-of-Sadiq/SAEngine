@@ -752,7 +752,9 @@ export type EngineMethod =
 	// `office/status` / `office/cancel` `{id}`, `office/info` `{server, token}`; visual programs
 	// `graph/nodeTypes`, `graph/list`, `graph/create`, `graph/check`, `graph/run`; design studies
 	// `studies/list|start|status|cancel|apply`; `drawings/automate` `{projectRoot, sheets?, actions}`.
-	| L12EngineMethod;
+	| L12EngineMethod
+	| MepServiceMethod
+	| 'mep/report' | 'mep/checkIds' | 'mep/plumbingReport' | 'mep/plumbingOccupancies';
 
 /** Alpha 9 L11: the methods of `saengine.rpc.office` (see its module notes for their params). */
 export type OfficeMethod =

@@ -41,6 +41,7 @@ import {
 	registerRibbonItemHint,
 	resolveActiveTabForEditor,
 	resolveDataPanelPart,
+	resolveDataPanelSubView,
 	resolveEditorToolbarTargetTab,
 	RIBBON_TABS,
 	RibbonMenus,
@@ -168,12 +169,16 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(getRibbonCustomGroups('home'), previousHomeCustomGroups);
 	});
 
-	test('RIBBON_TABS defines Home, Project, and 18 contextual engineering tabs', () => {
+	test('RIBBON_TABS defines Home, Project, and contextual engineering tabs', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
 			[
 				'home', 'project', 'soil', 'soilTests', 'settings', 'library', 'plan',
-				'architecture', 'bim3d', 'mep', 'analyze', 'results', 'design', 'foundations', 'boq',
+				'architecture', 'bim3d',
+				'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign',
+				'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems',
+				'mepFire', 'mepFireSystems', 'mepSystems',
+				'analyze', 'results', 'design', 'foundations', 'boq',
 				'documents', 'studies', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output',
 			]
 		);
@@ -210,7 +215,22 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.cad), ['home', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.architecture), ['home', 'architecture']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.building, '', 'bim.3d'), ['home', 'bim3d']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mep']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination'), ['home', 'mepCoordination', 'mepIssues']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.data'), ['home', 'mepCoordination', 'mepIssues']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.coordination.results'), ['home', 'mepCoordination', 'mepIssues']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing'), ['home', 'mepPlumbing', 'mepPlumbingDesign']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.data'), ['home', 'mepPlumbing', 'mepPlumbingDesign']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.plumbing.results'), ['home', 'mepPlumbing', 'mepPlumbingDesign']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac'), ['home', 'mepHvac', 'mepHvacAnalysis']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.data'), ['home', 'mepHvac', 'mepHvacAnalysis']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.hvac.results'), ['home', 'mepHvac', 'mepHvacAnalysis']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical'), ['home', 'mepElectrical', 'mepPowerSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.data'), ['home', 'mepElectrical', 'mepPowerSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.electrical.results'), ['home', 'mepElectrical', 'mepPowerSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire'), ['home', 'mepFire', 'mepFireSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.data'), ['home', 'mepFire', 'mepFireSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.results'), ['home', 'mepFire', 'mepFireSystems']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.systems'), ['home', 'mepSystems']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'results', 'design']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'analyze', 'results', 'design']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'analyze', 'results', 'design']);
@@ -232,7 +252,7 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(''), ['home', 'project']);
 
 		// U3 data panels show the contextual tabs of their owning part.
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), 'mep.electrical'), ['home', 'mep']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), resolveDataPanelSubView('saengine.mep.electrical.boards')), ['home', 'mepElectrical', 'mepPowerSystems']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output']);
@@ -240,16 +260,24 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'design']);
 	});
 
-	test('MEP coordination shows only its groups and has no duplicate command ids across ribbon tabs', () => {
-		const context = contextFor({
-			[ActiveEditorContext.key]: SAENGINE_EDITOR_IDS.mep,
-			[SAENGINE_SUB_VIEW_CONTEXT]: 'mep.coordination',
-		});
-		const visibleGroups = MenuRegistry.getMenuItems(RibbonMenus.MEP)
-			.filter(item => !item.when || context.contextMatchesRules(item.when))
-			.map(item => item.group)
-			.filter((group): group is string => !!group);
-		assert.deepStrictEqual([...new Set(visibleGroups)], ['1_Coordination']);
+	test('Every MEP discipline tab has at least 2 groups and has no duplicate command ids across ribbon tabs', () => {
+		const mepMenus: readonly MenuId[] = [
+			RibbonMenus.MepCoordination,
+			RibbonMenus.MepIssues,
+			RibbonMenus.MepPlumbing,
+			RibbonMenus.MepPlumbingDesign,
+			RibbonMenus.MepHvac,
+			RibbonMenus.MepHvacAnalysis,
+			RibbonMenus.MepElectrical,
+			RibbonMenus.MepPowerSystems,
+			RibbonMenus.MepFire,
+			RibbonMenus.MepFireSystems,
+			RibbonMenus.MepSystems,
+		];
+		for (const menuId of mepMenus) {
+			const groups = [...new Set(MenuRegistry.getMenuItems(menuId).map(item => item.group).filter((group): group is string => !!group))];
+			assert.ok(groups.length >= 2, `Expected at least 2 groups in ${menuId.id}, got ${groups.length}`);
+		}
 
 		const duplicateIdsFor = (ribbonContext: Pick<IContextKeyService, 'contextMatchesRules'>) => {
 			const occurrences = new Map<string, string[]>();
@@ -279,11 +307,16 @@ suite('SAEngine - ribbon model', () => {
 				.map(([commandId, tabs]) => `${commandId} (${tabs.join(', ')})`)
 				.sort();
 		};
-		assert.deepStrictEqual(duplicateIdsFor(context), []);
 		const windows: [string, string][] = [
 			[SAENGINE_EDITOR_IDS.floorPlan, ''], [SAENGINE_EDITOR_IDS.cad, ''], [SAENGINE_EDITOR_IDS.soil, ''],
 			[SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.substructure, ''],
 			[SAENGINE_EDITOR_IDS.boq, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.overview, ''],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.coordination'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.results'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.plumbing'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.results'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.hvac'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.results'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.electrical'], [SAENGINE_EDITOR_IDS.mep, 'mep.electrical.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.electrical.results'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.fire'], [SAENGINE_EDITOR_IDS.mep, 'mep.fire.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.fire.results'],
+			[SAENGINE_EDITOR_IDS.mep, 'mep.systems'],
 		];
 		assert.deepStrictEqual(windows.map(([editorId, subView]) => duplicateIdsFor(contextFor({
 			[ActiveEditorContext.key]: editorId,

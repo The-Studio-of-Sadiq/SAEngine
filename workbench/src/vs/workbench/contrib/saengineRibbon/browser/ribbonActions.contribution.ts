@@ -28,8 +28,6 @@ const runAllRunning = ContextKeyExpr.has('saengineRunAllRunning');
 const developerMode = ContextKeyExpr.has('saengineDeveloperMode');
 const aiRunning = ContextKeyExpr.has('saengineAiRunning');
 const aiEditsAllowed = ContextKeyExpr.has('saengineAiEditsAllowed');
-const mepDisciplineWhen = (discipline: 'coordination' | 'plumbing' | 'hvac' | 'electrical' | 'fire'): ContextKeyExpression =>
-	subViewWhen(`mep.${discipline}`, `mep.${discipline}.data`, `mep.${discipline}.results`);
 const liveCoEditing = ContextKeyExpr.has('saengineLiveCoEditing');
 const relayHosted = ContextKeyExpr.has('saengineCoEditingRelayHosted');
 
@@ -121,12 +119,33 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['Visibility', localize('ribbon.grp.visibility', "Hide / Isolate")],
 	['RenderAndStudies', localize('ribbon.grp.renderStudies', "Render & Studies")],
 	// MEP
-	['Coordination', localize('ribbon.grp.coordination', "Coordination")],
-	['Plumbing', localize('ribbon.grp.plumbing', "Plumbing")],
-	['HVAC', localize('ribbon.grp.hvac', "HVAC")],
-	['Electrical', localize('ribbon.grp.electrical', "Electrical")],
-	['FireAndSystems', localize('ribbon.grp.fireSystems', "Fire")],
-	['Systems', localize('ribbon.grp.systems', "Systems")],
+	['Clashes', localize('ribbon.grp.clashes', "Clashes")],
+	['Openings', localize('ribbon.grp.openings', "Openings & Loads")],
+	['BCF', localize('ribbon.grp.bcf', "BCF")],
+	['ModelChecks', localize('ribbon.grp.modelChecks', "Model Checks")],
+	['Occupancies', localize('ribbon.grp.occupancies', "Occupancies")],
+	['Branches', localize('ribbon.grp.branches', "Branches")],
+	['HotAndGas', localize('ribbon.grp.hotAndGas', "Hot & Gas")],
+	['DrainageAndRainwater', localize('ribbon.grp.drainageAndRainwater', "Drainage & Rainwater")],
+	['SepticAndSoakWell', localize('ribbon.grp.septicAndSoakWell', "Septic & Soak Well")],
+	['PumpsAndHydraulics', localize('ribbon.grp.pumpsAndHydraulics', "Pumps & Hydraulics")],
+	['HvacSummary', localize('ribbon.grp.hvacSummary', "HVAC Report")],
+	['DuctOpenings', localize('ribbon.grp.ductOpenings', "Duct Coordination")],
+	['AirDistribution', localize('ribbon.grp.airDistribution', "Air Distribution")],
+	['Envelope', localize('ribbon.grp.envelope', "Envelope")],
+	['ElectricalUses', localize('ribbon.grp.electricalUses', "Load Densities")],
+	['DemandAndRooms', localize('ribbon.grp.demandAndRooms', "Demand & Rooms")],
+	['Distribution', localize('ribbon.grp.distribution', "Distribution")],
+	['Lighting', localize('ribbon.grp.lighting', "Lighting")],
+	['SupplyAndProtection', localize('ribbon.grp.supplyAndProtection', "Supply & Protection")],
+	['FireHydraulics', localize('ribbon.grp.fireHydraulics', "Hydraulics & Supports")],
+	['FireSleeves', localize('ribbon.grp.fireSleeves', "Fire Coordination")],
+	['Suppression', localize('ribbon.grp.suppression', "Suppression")],
+	['Detection', localize('ribbon.grp.detection', "Detection")],
+	['WaterSupply', localize('ribbon.grp.waterSupply', "Water Supply")],
+	['Requirements', localize('ribbon.grp.requirements', "Requirements")],
+	['SystemBrowser', localize('ribbon.grp.systemBrowser', "System Browser")],
+	['Fabrication', localize('ribbon.grp.fabrication', "Fabrication")],
 	// Analyze / Results / Design
 	['Solver', localize('ribbon.grp.solver', "Solver")],
 	['Advanced', localize('ribbon.grp.advanced', "Advanced")],
@@ -464,36 +483,77 @@ addItem(RibbonMenus.Library, '4_Sections', 1, 'saengine.section.new', localize('
 
 //#endregion
 
-//#region Tab 11: MEP
+//#region Tab 11: MEP (discipline-scoped tabs)
 
-addItem(RibbonMenus.MEP, '1_Coordination', 2, 'saengine.mep.editor.suggestSleeves', localize('rib.mep.suggestSleeves', "Suggest Sleeves"), Codicon.wand, 'large', { precondition: projectOpen, when: mepDisciplineWhen('coordination') });
-addItem(RibbonMenus.MEP, '1_Coordination', 3, 'saengine.mep.editor.importIfc', localize('rib.mep.importIfc', "Import MEP IFC"), Codicon.cloudDownload, 'small', { precondition: projectOpen, when: mepDisciplineWhen('coordination') });
+// Coordination
+addItem(RibbonMenus.MepCoordination, '1_Clashes', 1, 'saengine.mep.editor.importIfc', localize('rib.mep.importIfc', "Import MEP IFC"), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepCoordination, '1_Clashes', 2, 'saengine.mep.editor.suggestSleeves', localize('rib.mep.suggestSleeves', "Suggest Sleeves"), Codicon.wand, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepCoordination, '1_Clashes', 3, 'saengine.mep.editor.runClashTests', localize('rib.mep.runClashTests', "Run Clash Tests"), Codicon.runAll, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepCoordination, '1_Clashes', 4, 'saengine.mep.editor.recompute', localize('rib.mep.checkAgain', "Check Again"), Codicon.refresh, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepCoordination, '2_Openings', 1, 'saengine.mep.coordination.openings', localize('rib.mep.openingChecks', "Opening Checks"), Codicon.circleLargeOutline, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepCoordination, '2_Openings', 2, 'saengine.mep.editor.addExternalModel', localize('rib.mep.addExternalModel', "Add External IFC"), Codicon.add, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.MEP, '2_Plumbing', 2, 'saengine.mep.plumbing.hotWater', localize('rib.mep.hotWater', "Hot Water"), Codicon.beaker, 'small', { precondition: projectOpen, when: mepDisciplineWhen('plumbing') });
-addItem(RibbonMenus.MEP, '2_Plumbing', 3, 'saengine.mep.plumbing.gas', localize('rib.mep.gas', "Gas & Medical Gas"), Codicon.flame, 'small', { precondition: projectOpen, when: mepDisciplineWhen('plumbing') });
+// Issues
+addItem(RibbonMenus.MepIssues, '1_BCF', 1, 'saengine.mep.editor.exportBcf', localize('rib.mep.exportBcf', "Export BCF..."), Codicon.export, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepIssues, '1_BCF', 2, 'saengine.mep.editor.importBcf', localize('rib.mep.importBcf', "Import BCF..."), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepIssues, '2_ModelChecks', 1, 'saengine.mep.coordination.checkIds', localize('rib.mep.checkIds', "Check IDS"), Codicon.checklist, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepIssues, '2_ModelChecks', 2, 'saengine.mep.editor.addIdsFile', localize('rib.mep.addIdsFile', "Add IDS File..."), Codicon.newFile, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.MEP, '3_HVAC', 2, 'saengine.mep.hvac.roomLoads', localize('rib.mep.roomLoads', "Room Loads"), Codicon.dashboard, 'small', { precondition: projectOpen, when: mepDisciplineWhen('hvac') });
-addItem(RibbonMenus.MEP, '3_HVAC', 3, 'saengine.mep.hvac.heatingLoads', localize('rib.mep.heatingLoads', "Heating Loads"), Codicon.flame, 'small', { precondition: projectOpen, when: mepDisciplineWhen('hvac') });
-addItem(RibbonMenus.MEP, '3_HVAC', 4, 'saengine.mep.hvac.ductPressure', localize('rib.mep.ductPressure', "Duct Pressure"), Codicon.compass, 'small', { precondition: projectOpen, when: mepDisciplineWhen('hvac') });
-addItem(RibbonMenus.MEP, '3_HVAC', 5, 'saengine.mep.hvac.routeDucts', localize('rib.mep.routeDucts', "Route Ducts"), Codicon.wand, 'small', { precondition: projectOpen, when: mepDisciplineWhen('hvac') });
+// Plumbing
+addItem(RibbonMenus.MepPlumbing, '1_Occupancies', 1, 'saengine.mep.plumbing.occupancies', localize('rib.mep.plumbingOccupancies', "Water Occupancies"), Codicon.book, 'large');
+addItem(RibbonMenus.MepPlumbing, '2_Branches', 1, 'saengine.mep.plumbing.branches', localize('rib.mep.plumbingBranches', "Wet-Room Branches"), Codicon.gitBranch, 'large', { precondition: projectOpen });
 
-addItem(RibbonMenus.MEP, '4_Electrical', 2, 'saengine.mep.electrical.boards', localize('rib.mep.boards', "Boards & Circuits"), Codicon.circuitBoard, 'small', { precondition: projectOpen, when: mepDisciplineWhen('electrical') });
-addItem(RibbonMenus.MEP, '4_Electrical', 3, 'saengine.mep.electrical.cables', localize('rib.mep.cables', "Cable Sizing"), Codicon.plug, 'small', { precondition: projectOpen, when: mepDisciplineWhen('electrical') });
-addItem(RibbonMenus.MEP, '4_Electrical', 4, 'saengine.mep.electrical.voltageDrop', localize('rib.mep.voltageDrop', "Voltage Drop"), Codicon.pulse, 'small', { precondition: projectOpen, when: mepDisciplineWhen('electrical') });
-addItem(RibbonMenus.MEP, '4_Electrical', 5, 'saengine.mep.electrical.shortCircuit', localize('rib.mep.shortCircuit', "Short Circuit"), Codicon.symbolEvent, 'small', { precondition: projectOpen, when: mepDisciplineWhen('electrical') });
-addItem(RibbonMenus.MEP, '4_Electrical', 6, 'saengine.mep.electrical.lighting', localize('rib.mep.lighting', "Lighting"), Codicon.lightbulb, 'small', { precondition: projectOpen, when: mepDisciplineWhen('electrical') });
+// Plumbing Design
+addItem(RibbonMenus.MepPlumbingDesign, '1_HotAndGas', 1, 'saengine.mep.plumbing.hotWater', localize('rib.mep.hotWater', "Hot Water"), Codicon.beaker, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPlumbingDesign, '1_HotAndGas', 2, 'saengine.mep.plumbing.gas', localize('rib.mep.gas', "Gas & Medical Gas"), Codicon.flame, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPlumbingDesign, '2_DrainageAndRainwater', 1, 'saengine.mep.plumbing.drainage', localize('rib.mep.drainage', "Sanitary Drainage"), Codicon.arrowDown, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPlumbingDesign, '2_DrainageAndRainwater', 2, 'saengine.mep.plumbing.rainwater', localize('rib.mep.rainwater', "Rainwater & Harvesting"), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPlumbingDesign, '3_SepticAndSoakWell', 1, 'saengine.mep.plumbing.septic', localize('rib.mep.septic', "Septic & Soak Well"), Codicon.database, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPlumbingDesign, '4_PumpsAndHydraulics', 1, 'saengine.mep.plumbing.hydraulics', localize('rib.mep.hydraulics', "Pumps & Hydraulics"), Codicon.pulse, 'large', { precondition: projectOpen });
 
-addItem(RibbonMenus.MEP, '5_FireAndSystems', 4, 'saengine.mep.fire.sprinklers', localize('rib.mep.sprinklers', "Place Sprinklers"), Codicon.flame, 'small', { precondition: projectOpen, when: mepDisciplineWhen('fire') });
-addItem(RibbonMenus.MEP, '5_FireAndSystems', 5, 'saengine.mep.fire.alarm', localize('rib.mep.alarm', "Fire Alarm"), Codicon.warning, 'small', { precondition: projectOpen, when: mepDisciplineWhen('fire') });
-addItem(RibbonMenus.MEP, '6_Systems', 1, 'saengine.office.fabrication', localize('rib.mep.fabrication', "MEP Fabrication"), Codicon.tools, 'small', { precondition: projectOpen, when: subViewWhen('mep.systems') });
+// HVAC
+addItem(RibbonMenus.MepHvac, '1_HvacSummary', 1, 'saengine.mep.hvac.summary', localize('rib.mep.hvacSummary', "HVAC Summary"), Codicon.output, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvac, '1_HvacSummary', 2, 'saengine.mep.editor.cancelHvacLoads', localize('rib.mep.cancelHvacLoads', "Cancel Load Run"), Codicon.debugStop, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvac, '2_DuctOpenings', 1, 'saengine.mep.hvac.openingsCheck', localize('rib.mep.ductOpeningsCheck', "Duct Openings Audit"), Codicon.circleLargeOutline, 'large', { precondition: projectOpen });
 
-// Each MEP sub-window shows only its own discipline's group (the Project tree picks the discipline).
-registerRibbonGroupWhen(RibbonMenus.MEP, '1_Coordination', mepDisciplineWhen('coordination'));
-registerRibbonGroupWhen(RibbonMenus.MEP, '2_Plumbing', mepDisciplineWhen('plumbing'));
-registerRibbonGroupWhen(RibbonMenus.MEP, '3_HVAC', mepDisciplineWhen('hvac'));
-registerRibbonGroupWhen(RibbonMenus.MEP, '4_Electrical', mepDisciplineWhen('electrical'));
-registerRibbonGroupWhen(RibbonMenus.MEP, '5_FireAndSystems', mepDisciplineWhen('fire'));
-registerRibbonGroupWhen(RibbonMenus.MEP, '6_Systems', subViewWhen('mep.systems'));
+// HVAC Analysis
+addItem(RibbonMenus.MepHvacAnalysis, '1_Loads', 1, 'saengine.mep.hvac.roomLoads', localize('rib.mep.roomLoads', "Room Loads"), Codicon.dashboard, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvacAnalysis, '1_Loads', 2, 'saengine.mep.hvac.heatingLoads', localize('rib.mep.heatingLoads', "Heating Loads"), Codicon.flame, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvacAnalysis, '2_AirDistribution', 1, 'saengine.mep.hvac.ductPressure', localize('rib.mep.ductPressure', "Duct Pressure"), Codicon.compass, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvacAnalysis, '2_AirDistribution', 2, 'saengine.mep.hvac.routeDucts', localize('rib.mep.routeDucts', "Route Ducts"), Codicon.wand, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepHvacAnalysis, '3_Envelope', 1, 'saengine.mep.hvac.constructions', localize('rib.mep.hvacConstructions', "Constructions"), Codicon.layers, 'large');
+addItem(RibbonMenus.MepHvacAnalysis, '3_Envelope', 2, 'saengine.mep.hvac.tables', localize('rib.mep.hvacTables', "Design Tables"), Codicon.table, 'large');
+
+// Electrical
+addItem(RibbonMenus.MepElectrical, '1_ElectricalUses', 1, 'saengine.mep.electrical.uses', localize('rib.mep.electricalUses', "Electrical Uses"), Codicon.book, 'large');
+addItem(RibbonMenus.MepElectrical, '2_DemandAndRooms', 1, 'saengine.mep.electrical.demand', localize('rib.mep.electricalDemand', "Demand Schedule"), Codicon.graph, 'large', { precondition: projectOpen });
+
+// Power Systems
+addItem(RibbonMenus.MepPowerSystems, '1_Distribution', 1, 'saengine.mep.electrical.boards', localize('rib.mep.boards', "Boards & Circuits"), Codicon.circuitBoard, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '1_Distribution', 2, 'saengine.mep.electrical.cables', localize('rib.mep.cables', "Cable Sizing"), Codicon.plug, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '1_Distribution', 3, 'saengine.mep.electrical.voltageDrop', localize('rib.mep.voltageDrop', "Voltage Drop"), Codicon.pulse, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '1_Distribution', 4, 'saengine.mep.electrical.shortCircuit', localize('rib.mep.shortCircuit', "Short Circuit"), Codicon.symbolEvent, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '2_Lighting', 1, 'saengine.mep.electrical.lighting', localize('rib.mep.lighting', "Lighting Design"), Codicon.lightbulb, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '3_SupplyAndProtection', 1, 'saengine.mep.electrical.supply', localize('rib.mep.electricalSupply', "Substation & Generator"), Codicon.zap, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '3_SupplyAndProtection', 2, 'saengine.mep.electrical.lightning', localize('rib.mep.electricalLightning', "Lightning Protection"), Codicon.shield, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepPowerSystems, '3_SupplyAndProtection', 3, 'saengine.mep.electrical.risers', localize('rib.mep.electricalRisers', "Risers & Trays"), Codicon.arrowUp, 'small', { precondition: projectOpen });
+
+// Fire
+addItem(RibbonMenus.MepFire, '1_FireHydraulics', 1, 'saengine.mep.fire.hydraulics', localize('rib.mep.fireHydraulics', "Fire Hydraulics"), Codicon.pulse, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepFire, '2_FireSleeves', 1, 'saengine.mep.fire.openingsCheck', localize('rib.mep.fireSleevesAudit', "Fire Sleeves Audit"), Codicon.circleLargeOutline, 'large', { precondition: projectOpen });
+
+// Fire Systems
+addItem(RibbonMenus.MepFireSystems, '1_Suppression', 1, 'saengine.mep.fire.sprinklers', localize('rib.mep.sprinklers', "Place Sprinklers"), Codicon.flame, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepFireSystems, '2_Detection', 1, 'saengine.mep.fire.alarm', localize('rib.mep.alarm', "Fire Alarm"), Codicon.warning, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepFireSystems, '3_WaterSupply', 1, 'saengine.mep.fire.proposals', localize('rib.mep.fireProposals', "Water Supply Proposals"), Codicon.database, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepFireSystems, '4_Requirements', 1, 'saengine.mep.fire.requirements', localize('rib.mep.fireRequirements', "Code Requirements"), Codicon.checklist, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepFireSystems, '4_Requirements', 2, 'saengine.mep.fire.chapter', localize('rib.mep.fireChapter', "Fire Report Chapter"), Codicon.fileText, 'small');
+
+// Systems
+addItem(RibbonMenus.MepSystems, '1_SystemBrowser', 1, 'saengine.mep.systems.summary', localize('rib.mep.systemsSummary', "Systems Summary"), Codicon.typeHierarchy, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.MepSystems, '1_SystemBrowser', 2, 'saengine.mep.editor.recomputeSystems', localize('rib.mep.recomputeSystems', "Check Systems"), Codicon.refresh, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepSystems, '1_SystemBrowser', 3, 'saengine.mep.editor.exportSystemBcf', localize('rib.mep.exportSystemBcf', "Export Warnings to BCF..."), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.MepSystems, '2_Fabrication', 1, 'saengine.office.fabrication', localize('rib.mep.fabrication', "MEP Fabrication"), Codicon.tools, 'large', { precondition: projectOpen });
 
 //#endregion
 

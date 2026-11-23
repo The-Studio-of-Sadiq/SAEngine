@@ -63,6 +63,7 @@ import {
 	packRibbonColumns,
 	resolveActiveTabForEditor,
 	resolveDataPanelPart,
+	resolveDataPanelSubView,
 	resolveEditorToolbarTargetTab,
 	RIBBON_TABS,
 	RibbonButtonSize,
@@ -271,7 +272,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			const panelId = activeId === SAENGINE_EDITOR_IDS.dataPanel ? this.activeDataPanelId() : undefined;
 			const panelPart = panelId ? resolveDataPanelPart(panelId, getEngineDataPanel(panelId)?.part) : '';
 
-			const subView = this.activeSubView(activeId, sectionPane);
+			const subView = this.activeSubView(activeId, sectionPane, panelId);
 			const subViewChanged = subView !== this.lastSubView;
 			this.lastSubView = subView;
 
@@ -282,8 +283,8 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			});
 
 			const contextEditorId = this.contextKeyService.getContextKeyValue<string>(ActiveEditorContext.key) ?? activeId;
-			const editorKey = contextEditorId === SAENGINE_EDITOR_IDS.dataPanel && panelPart
-				? `${contextEditorId}:${panelPart}`
+			const editorKey = contextEditorId === SAENGINE_EDITOR_IDS.dataPanel && (subView || panelPart)
+				? `${contextEditorId}:${subView || panelPart}`
 				: contextEditorId;
 			const editorChanged = editorKey !== this.lastEditorKey;
 			this.lastEditorKey = editorKey;
@@ -310,11 +311,12 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}
 	}
 
-	private activeSubView(editorId: string, pane: IPartSectionPane | undefined): string {
+	private activeSubView(editorId: string, pane: IPartSectionPane | undefined, panelId?: string): string {
 		if (pane?.ribbonSubView) {
 			return pane.ribbonSubView;
 		}
 		switch (editorId) {
+			case SAENGINE_EDITOR_IDS.dataPanel: return resolveDataPanelSubView(panelId);
 			case SAENGINE_EDITOR_IDS.floorPlan: return 'plan.plan';
 			case SAENGINE_EDITOR_IDS.grids: return 'plan.grids';
 			case SAENGINE_EDITOR_IDS.membersTable: return 'plan.members';

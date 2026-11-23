@@ -85,7 +85,17 @@ export type RibbonTabId =
 	| 'plan'
 	| 'architecture'
 	| 'bim3d'
-	| 'mep'
+	| 'mepCoordination'
+	| 'mepIssues'
+	| 'mepPlumbing'
+	| 'mepPlumbingDesign'
+	| 'mepHvac'
+	| 'mepHvacAnalysis'
+	| 'mepElectrical'
+	| 'mepPowerSystems'
+	| 'mepFire'
+	| 'mepFireSystems'
+	| 'mepSystems'
 	| 'analyze'
 	| 'results'
 	| 'design'
@@ -115,7 +125,17 @@ export const RibbonMenus = {
 	Plan: MenuId.for('SaengineRibbon.Plan'),
 	Architecture: MenuId.for('SaengineRibbon.Architecture'),
 	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
-	MEP: MenuId.for('SaengineRibbon.MEP'),
+	MepCoordination: MenuId.for('SaengineRibbon.MepCoordination'),
+	MepIssues: MenuId.for('SaengineRibbon.MepIssues'),
+	MepPlumbing: MenuId.for('SaengineRibbon.MepPlumbing'),
+	MepPlumbingDesign: MenuId.for('SaengineRibbon.MepPlumbingDesign'),
+	MepHvac: MenuId.for('SaengineRibbon.MepHvac'),
+	MepHvacAnalysis: MenuId.for('SaengineRibbon.MepHvacAnalysis'),
+	MepElectrical: MenuId.for('SaengineRibbon.MepElectrical'),
+	MepPowerSystems: MenuId.for('SaengineRibbon.MepPowerSystems'),
+	MepFire: MenuId.for('SaengineRibbon.MepFire'),
+	MepFireSystems: MenuId.for('SaengineRibbon.MepFireSystems'),
+	MepSystems: MenuId.for('SaengineRibbon.MepSystems'),
 	Analyze: MenuId.for('SaengineRibbon.Analyze'),
 	Results: MenuId.for('SaengineRibbon.Results'),
 	Design: MenuId.for('SaengineRibbon.Design'),
@@ -151,6 +171,10 @@ function allOf(exprs: readonly [ContextKeyExpression, ...ContextKeyExpression[]]
 
 export function subViewWhen(...subViews: readonly [string, ...string[]]): ContextKeyExpression {
 	return anyOf([SubViewContext.isEqualTo(subViews[0]), ...subViews.slice(1).map(subView => SubViewContext.isEqualTo(subView))]);
+}
+
+export function mepDisciplineWhen(discipline: 'coordination' | 'plumbing' | 'hvac' | 'electrical' | 'fire'): ContextKeyExpression {
+	return subViewWhen(`mep.${discipline}`, `mep.${discipline}.data`, `mep.${discipline}.results`);
 }
 
 export function editorWhen(editorIds: readonly [string, ...string[]], dataPanelPart?: string): ContextKeyExpression {
@@ -245,6 +269,12 @@ export const PLAN_SUB_WHEN = editorWhen([
 export const ARCHITECTURE_WHEN = editorWhen([SAENGINE_EDITOR_IDS.architecture], 'architecture');
 export const BIM_WHEN = editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d');
 export const MEP_WHEN = editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep');
+const MEP_COORDINATION_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('coordination')]);
+const MEP_PLUMBING_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('plumbing')]);
+const MEP_HVAC_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('hvac')]);
+const MEP_ELECTRICAL_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('electrical')]);
+const MEP_FIRE_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('fire')]);
+const MEP_SYSTEMS_WHEN = allOf([MEP_WHEN, subViewWhen('mep.systems')]);
 export const FEM_WHEN = editorWhen([
 	SAENGINE_EDITOR_IDS.femModel,
 	SAENGINE_EDITOR_IDS.femResults,
@@ -324,18 +354,81 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: allOf([BIM_WHEN, subViewWhen('bim.3d', 'bim.additions', 'bim.summary')]),
 	},
 	{
-		id: 'mep',
-		label: localize('ribbon.tab.mep', "MEP"),
-		menuId: RibbonMenus.MEP,
+		id: 'mepCoordination',
+		label: localize('ribbon.tab.mepCoordination', "Coordination"),
+		menuId: RibbonMenus.MepCoordination,
 		contextual: true,
-		when: allOf([MEP_WHEN, subViewWhen(
-			'mep.coordination', 'mep.coordination.data', 'mep.coordination.results',
-			'mep.plumbing', 'mep.plumbing.data', 'mep.plumbing.results',
-			'mep.hvac', 'mep.hvac.data', 'mep.hvac.results',
-			'mep.electrical', 'mep.electrical.data', 'mep.electrical.results',
-			'mep.fire', 'mep.fire.data', 'mep.fire.results',
-			'mep.systems'
-		)]),
+		when: MEP_COORDINATION_WHEN,
+	},
+	{
+		id: 'mepIssues',
+		label: localize('ribbon.tab.mepIssues', "Issues"),
+		menuId: RibbonMenus.MepIssues,
+		contextual: true,
+		when: MEP_COORDINATION_WHEN,
+	},
+	{
+		id: 'mepPlumbing',
+		label: localize('ribbon.tab.mepPlumbing', "Plumbing"),
+		menuId: RibbonMenus.MepPlumbing,
+		contextual: true,
+		when: MEP_PLUMBING_WHEN,
+	},
+	{
+		id: 'mepPlumbingDesign',
+		label: localize('ribbon.tab.mepPlumbingDesign', "Plumbing Design"),
+		menuId: RibbonMenus.MepPlumbingDesign,
+		contextual: true,
+		when: MEP_PLUMBING_WHEN,
+	},
+	{
+		id: 'mepHvac',
+		label: localize('ribbon.tab.mepHvac', "HVAC"),
+		menuId: RibbonMenus.MepHvac,
+		contextual: true,
+		when: MEP_HVAC_WHEN,
+	},
+	{
+		id: 'mepHvacAnalysis',
+		label: localize('ribbon.tab.mepHvacAnalysis', "HVAC Analysis"),
+		menuId: RibbonMenus.MepHvacAnalysis,
+		contextual: true,
+		when: MEP_HVAC_WHEN,
+	},
+	{
+		id: 'mepElectrical',
+		label: localize('ribbon.tab.mepElectrical', "Electrical"),
+		menuId: RibbonMenus.MepElectrical,
+		contextual: true,
+		when: MEP_ELECTRICAL_WHEN,
+	},
+	{
+		id: 'mepPowerSystems',
+		label: localize('ribbon.tab.mepPowerSystems', "Power Systems"),
+		menuId: RibbonMenus.MepPowerSystems,
+		contextual: true,
+		when: MEP_ELECTRICAL_WHEN,
+	},
+	{
+		id: 'mepFire',
+		label: localize('ribbon.tab.mepFire', "Fire"),
+		menuId: RibbonMenus.MepFire,
+		contextual: true,
+		when: MEP_FIRE_WHEN,
+	},
+	{
+		id: 'mepFireSystems',
+		label: localize('ribbon.tab.mepFireSystems', "Fire Systems"),
+		menuId: RibbonMenus.MepFireSystems,
+		contextual: true,
+		when: MEP_FIRE_WHEN,
+	},
+	{
+		id: 'mepSystems',
+		label: localize('ribbon.tab.mepSystems', "Systems"),
+		menuId: RibbonMenus.MepSystems,
+		contextual: true,
+		when: MEP_SYSTEMS_WHEN,
 	},
 	{
 		id: 'analyze',
@@ -458,6 +551,25 @@ export function resolveDataPanelPart(panelId: string | undefined, descriptorPart
 		case 'materials':
 		case 'objects': return 'library';
 		default: return descriptorPart ?? '';
+	}
+}
+
+/** Maps a U3 data panel id to the MEP discipline sub-view so MEP panels keep their discipline tabs. */
+export function resolveDataPanelSubView(panelId: string | undefined): string {
+	if (!panelId?.startsWith('saengine.mep.')) {
+		return '';
+	}
+	const segment = panelId.slice('saengine.mep.'.length).split('.')[0];
+	switch (segment) {
+		case 'coordination':
+		case 'plumbing':
+		case 'hvac':
+		case 'electrical':
+		case 'fire':
+		case 'systems':
+			return `mep.${segment}`;
+		default:
+			return '';
 	}
 }
 
