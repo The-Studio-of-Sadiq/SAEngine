@@ -45,7 +45,6 @@ import { propertySheet } from '../../saengineModel/browser/modelData.js';
 import { openOwner } from '../../saengineModel/browser/projectDocuments.js';
 import { formatPropertyValue, propertyLink, renderPropertySheet, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { createModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { RibbonSegmentedModel, RibbonSelectModel, RibbonToggleModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
@@ -317,15 +316,12 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 	protected createBody(body: HTMLElement): void {
 		const frame = this.frame;
 
-		// The model view's Plan | 3D | Analysis switch, before the building model's own views.
-		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commands, '3d'))));
 		const viewsControl = this.viewsControl = this._register(new RibbonSegmentedModel({
 			id: 'saengine.building.views',
 			ariaLabel: localize('building.viewsAria', "Building model view"),
 			items: VIEWS.map(v => ({ id: v.view, label: v.label, icon: v.icon })),
 			selectedId: this.view,
 		}));
-		this._register(frame.addViewControl(viewsControl));
 		this._register(viewsControl.onDidSelect(id => {
 			this.showView(id as View);
 			this.render();

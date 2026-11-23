@@ -123,7 +123,7 @@ export class BoqEditor extends EditorPane {
 	private readonly pill = this._register(new MutableDisposable());
 
 	private readonly updateAction = this._register(new Action('saengine.boq.measure', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
-	private readonly updateAgainAction = this._register(new Action('saengine.boq.editor.updateAgain', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
+	private readonly updateAgainAction = this._register(new Action('saengine.boq.measure', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
 	private readonly excelAction = this._register(new Action('saengine.boq.exportXlsx', localize('boq.exportXlsx', "Export Excel..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportXlsx()));
 	private readonly exportAction = this._register(new Action('saengine.boq.exportCsv', localize('boq.exportCsv', "Export CSV..."), undefined, true, () => this.exportCsv()));
 	private readonly ratesAction = this._register(new Action('saengine.boq.editRates', localize('boq.editRates', "Edit Schedule of Rates"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editRates')));
@@ -654,7 +654,7 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private async openAsJson(): Promise<void> {
+	async openAsJson(): Promise<void> {
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
 		if (resource) {
 			await this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } }, this.group);

@@ -42,6 +42,7 @@ import { FloorPlanEditorInput, FloorPlanEditorInputSerializer } from './floorPla
 import './floorPlanTable.js';
 import './floorPlanTables.js';
 import './cadDraftRibbon.contribution.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(CadEditorPane, CadEditorInput.EDITOR_ID, localize('cadEditor', "CAD Drawing")),
@@ -95,6 +96,7 @@ class CadEditorResolverContribution extends Disposable implements IWorkbenchCont
 		));
 
 		// The project's floor plan opens as the plan view of its building model.
+		this._register(registerPartEditor(FLOOR_PLAN_PART.id, FloorPlanEditorInput.EDITOR_ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${FLOOR_PLAN_PART.mainFile}`,
 			{
@@ -177,7 +179,6 @@ registerAction2(class extends Action2 {
 			icon: Codicon.terminal,
 			f1: true,
 			precondition: ActiveEditorContext.isEqualTo(FloorPlanEditor.ID),
-			menu: { id: RibbonMenus.Plan, group: '3_Loads', order: 5 },
 		});
 	}
 
@@ -188,7 +189,6 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-registerRibbonItemHint('saengine.floorPlan.toggleCommandLine', { size: 'small', label: localize('plan.rib.cmdLine', "Command Line") }, RibbonMenus.Plan);
 
 /** Shows or hides the floor plan's grid lines (the grid stays; snapping to it still works). */
 registerAction2(class extends Action2 {
@@ -453,17 +453,6 @@ registerPlanCommand('saengine.floorPlan.underlay.remove', localize2('plan.rib.re
 registerPlanCommand('saengine.floorPlan.workbook.export', localize2('plan.rib.expXlsxTitle', "Export Floor Plan to Excel..."), localize('plan.rib.expXlsx', "Export Excel"), Codicon.export, RibbonMenus.Plan, '5_ModelData', 4, 'small', e => e.exportWorkbook());
 registerPlanCommand('saengine.floorPlan.workbook.import', localize2('plan.rib.impXlsxTitle', "Import Floor Plan from Excel..."), localize('plan.rib.impXlsx', "Import Excel"), Codicon.cloudDownload, RibbonMenus.Plan, '5_ModelData', 5, 'small', e => e.importWorkbook());
 
-MenuRegistry.appendMenuItem(RibbonMenus.Plan, {
-	group: '5_ModelData',
-	order: 6,
-	command: {
-		id: 'saengine.floorPlan.exportDxf',
-		title: localize('plan.rib.exportDxf', "Export DXF"),
-		icon: Codicon.fileCode,
-		precondition: projectOpen,
-	},
-});
-registerRibbonItemHint('saengine.floorPlan.exportDxf', { size: 'small', label: localize('plan.rib.exportDxf', "Export DXF") }, RibbonMenus.Plan);
 
 function registerArchCommand(
 	id: string,

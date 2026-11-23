@@ -235,12 +235,12 @@ export class SubstructureEditor extends EditorPane {
 	private readonly addTieAction = this._register(new Action('saengine.substructure.addTieBeam', localize('sub.addTie', "Add Tie Beam between the Two Selected Foundations"), ThemeIcon.asClassName(Codicon.dash), true, async () => this.addTieBeam()));
 	private readonly sizeAction = this._register(new Action('saengine.substructure.sizeAll', localize('sub.size', "Size Footings"), ThemeIcon.asClassName(Codicon.wand), true, () => this.sizeAll()));
 	private readonly migrateAction = this._register(new Action('saengine.substructure.importFootings', localize('sub.migrate', "Import Footings from the Building Model"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.migrate()));
-	private readonly deleteAction = this._register(new Action('saengine.substructure.editor.delete', localize('sub.delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteSelection()));
+	private readonly deleteAction = this._register(new Action('saengine.substructure.delete', localize('sub.delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), false, async () => this.deleteSelection()));
 	private readonly addStripAction = this._register(new Action('saengine.substructure.addStrip', localize('sub.addStrip', "Add Strip Footing along the Selected Columns"), undefined, true, async () => this.addStrip()));
 	private readonly addPileTypeAction = this._register(new Action('saengine.substructure.addPileType', localize('sub.addPileType', "Add Pile Type"), undefined, true, async () => this.addPileType()));
 	private readonly selectAllAction = this._register(new Action('saengine.substructure.selectUncovered', localize('sub.selectColumns', "Select Columns without a Foundation"), undefined, true, async () => this.selectUncovered()));
-	private readonly recomputeAction = this._register(new Action('saengine.substructure.editor.recompute', localize('sub.recompute', "Check the Foundations Again"), undefined, true, () => this.computeReport()));
-	private readonly saveAndCheckAction = this._register(new Action('saengine.substructure.editor.saveAndCheck', localize('sub.saveAndCheck', "Save and Check"), ThemeIcon.asClassName(Codicon.checkAll), true, () => this.saveAndCheck()));
+	private readonly recomputeAction = this._register(new Action('saengine.substructure.recompute', localize('sub.recompute', "Check the Foundations Again"), undefined, true, () => this.computeReport()));
+	private readonly saveAndCheckAction = this._register(new Action('saengine.substructure.saveAndCheck', localize('sub.saveAndCheck', "Save and Check"), ThemeIcon.asClassName(Codicon.checkAll), true, () => this.saveAndCheck()));
 	private readonly openTextAction = this._register(new Action('saengine.substructure.editor.openText', localize('sub.openText', "Open as Text"), undefined, true, () => this.openAsText()));
 	private readonly pileGridAction = this._register(new Action('saengine.substructure.pileGrid', localize('sub.pileGrid', "Pile Grid"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.editPileGrid()));
 	private readonly placePilesAction = this._register(new Action('saengine.substructure.placePiles', localize('sub.placePiles', "Place Piles (click a grid crossing or a point, drag a box over crossings)"), ThemeIcon.asClassName(Codicon.circleFilled), true, async () => this.setTool(this.tool === 'pile' ? 'select' : 'pile')));
@@ -1947,12 +1947,56 @@ export class SubstructureEditor extends EditorPane {
 	}
 
 	/** Alpha 9 L8: adds a drawn slope and shows it in the data view. */
-	private addSlope(): void {
+	addSlope(): void {
 		const document = this.document;
 		if (!document) {
 			return;
 		}
 		document.slopes = [...(document.slopes ?? []), newSlope(document, this.context)];
+		this.view = 'data';
+		this.changed(true);
+	}
+
+	/** Adds a retaining wall and shows it in the data view. */
+	addRetainingWall(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		document.retainingWalls = [...(document.retainingWalls ?? []), newRetainingWall(document, this.context)];
+		this.view = 'data';
+		this.changed(true);
+	}
+
+	/** Adds an excavation entry and shows it in the data view. */
+	addExcavation(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		document.excavations = [...(document.excavations ?? []), newExcavation(document, this.context)];
+		this.view = 'data';
+		this.changed(true);
+	}
+
+	/** Adds a ground-bearing slab and shows it in the data view. */
+	addGroundSlab(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		document.groundSlabs.push(newGroundSlab(document, this.context));
+		this.view = 'data';
+		this.changed(true);
+	}
+
+	/** Adds a machine block foundation and shows it in the data view. */
+	addMachineFoundation(): void {
+		const document = this.document;
+		if (!document) {
+			return;
+		}
+		document.machineFoundations = [...(document.machineFoundations ?? []), newMachineFoundation(document, this.context)];
 		this.view = 'data';
 		this.changed(true);
 	}

@@ -31,6 +31,15 @@ export const DataPanelPartContext = new RawContextKey<string>(
 	localize('saengine.dataPanelPart', "The engineering domain of the active SAEngine U3 data panel")
 );
 
+/** Context key identifying the active sub-view of an SAEngine editor. */
+export const SAENGINE_SUB_VIEW_CONTEXT = 'saengineSubView';
+
+export const SubViewContext = new RawContextKey<string>(
+	SAENGINE_SUB_VIEW_CONTEXT,
+	'',
+	localize('saengine.subView', "The active sub-view of the active SAEngine editor")
+);
+
 /** SAEngine editor pane IDs used in contextual ribbon `when` rules (plain strings: no cross-contrib imports). */
 export const SAENGINE_EDITOR_IDS = {
 	soil: 'workbench.editor.saengine.soil',
@@ -70,23 +79,78 @@ export type RibbonTabId =
 	| 'home'
 	| 'project'
 	| 'soil'
+	| 'soilTests'
+	| 'soilBearing'
+	| 'soilSeismic'
+	| 'soilEarth'
+	| 'soilSite'
 	| 'settings'
+	| 'settingsLoads'
+	| 'settingsHazard'
+	| 'settingsChecks'
+	| 'settingsOverrides'
 	| 'library'
+	| 'librarySections'
+	| 'libraryObjects'
+	| 'libraryChecks'
 	| 'plan'
-	| 'draft'
-	| 'annotate'
-	| 'blocksParametric'
 	| 'architecture'
+	| 'architectureRooms'
+	| 'architectureExchange'
+	| 'architectureEnvironment'
 	| 'bim3d'
-	| 'mep'
+	| 'bimExchange'
+	| 'bimFabrication'
+	| 'bimStudies'
+	| 'mepCoordination'
+	| 'mepIssues'
+	| 'mepPlumbing'
+	| 'mepPlumbingDesign'
+	| 'mepHvac'
+	| 'mepHvacAnalysis'
+	| 'mepElectrical'
+	| 'mepPowerSystems'
+	| 'mepFire'
+	| 'mepFireSystems'
+	| 'mepSystems'
 	| 'analyze'
 	| 'results'
 	| 'design'
+	| 'femLoads'
+	| 'femSeismic'
+	| 'femWind'
+	| 'femNonlinear'
+	| 'femServiceability'
 	| 'foundations'
+	| 'foundationsPiles'
+	| 'foundationsPileAnalysis'
+	| 'foundationsRetaining'
+	| 'foundationsSpecial'
+	| 'foundationsReport'
 	| 'boq'
-	| 'output'
+	| 'boqCosting'
+	| 'boqSchedule'
+	| 'boqTakeoff'
 	| 'documents'
-	| 'studies';
+	| 'documentsDrawings'
+	| 'documentsSheets'
+	| 'documentsSchedules'
+	| 'documentsReports'
+	| 'studies'
+	| 'studiesDesign'
+	| 'studiesEnvironment'
+	| 'studiesSite'
+	| 'studiesVerification'
+	| 'draft'
+	| 'insert'
+	| 'annotate'
+	| 'parametric'
+	| 'view'
+	| 'manage'
+	| 'output'
+	| 'exportsExchange'
+	| 'exportsFabrication'
+	| 'exportsArchive';
 
 /**
  * MenuId per ribbon tab. Other contributions add buttons via `registerAction2` or
@@ -96,23 +160,78 @@ export const RibbonMenus = {
 	Home: MenuId.for('SaengineRibbon.Home'),
 	Project: MenuId.for('SaengineRibbon.Project'),
 	Soil: MenuId.for('SaengineRibbon.Soil'),
+	SoilTests: MenuId.for('SaengineRibbon.SoilTests'),
+	SoilBearing: MenuId.for('SaengineRibbon.SoilBearing'),
+	SoilSeismic: MenuId.for('SaengineRibbon.SoilSeismic'),
+	SoilEarth: MenuId.for('SaengineRibbon.SoilEarth'),
+	SoilSite: MenuId.for('SaengineRibbon.SoilSite'),
 	Settings: MenuId.for('SaengineRibbon.Settings'),
+	SettingsLoads: MenuId.for('SaengineRibbon.SettingsLoads'),
+	SettingsHazard: MenuId.for('SaengineRibbon.SettingsHazard'),
+	SettingsChecks: MenuId.for('SaengineRibbon.SettingsChecks'),
+	SettingsOverrides: MenuId.for('SaengineRibbon.SettingsOverrides'),
 	Library: MenuId.for('SaengineRibbon.Library'),
+	LibrarySections: MenuId.for('SaengineRibbon.LibrarySections'),
+	LibraryObjects: MenuId.for('SaengineRibbon.LibraryObjects'),
+	LibraryChecks: MenuId.for('SaengineRibbon.LibraryChecks'),
 	Plan: MenuId.for('SaengineRibbon.Plan'),
-	Draft: MenuId.for('SaengineRibbon.Draft'),
-	Annotate: MenuId.for('SaengineRibbon.Annotate'),
-	BlocksParametric: MenuId.for('SaengineRibbon.BlocksParametric'),
 	Architecture: MenuId.for('SaengineRibbon.Architecture'),
+	ArchitectureRooms: MenuId.for('SaengineRibbon.ArchitectureRooms'),
+	ArchitectureExchange: MenuId.for('SaengineRibbon.ArchitectureExchange'),
+	ArchitectureEnvironment: MenuId.for('SaengineRibbon.ArchitectureEnvironment'),
 	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
-	MEP: MenuId.for('SaengineRibbon.MEP'),
+	BimExchange: MenuId.for('SaengineRibbon.BimExchange'),
+	BimFabrication: MenuId.for('SaengineRibbon.BimFabrication'),
+	BimStudies: MenuId.for('SaengineRibbon.BimStudies'),
+	MepCoordination: MenuId.for('SaengineRibbon.MepCoordination'),
+	MepIssues: MenuId.for('SaengineRibbon.MepIssues'),
+	MepPlumbing: MenuId.for('SaengineRibbon.MepPlumbing'),
+	MepPlumbingDesign: MenuId.for('SaengineRibbon.MepPlumbingDesign'),
+	MepHvac: MenuId.for('SaengineRibbon.MepHvac'),
+	MepHvacAnalysis: MenuId.for('SaengineRibbon.MepHvacAnalysis'),
+	MepElectrical: MenuId.for('SaengineRibbon.MepElectrical'),
+	MepPowerSystems: MenuId.for('SaengineRibbon.MepPowerSystems'),
+	MepFire: MenuId.for('SaengineRibbon.MepFire'),
+	MepFireSystems: MenuId.for('SaengineRibbon.MepFireSystems'),
+	MepSystems: MenuId.for('SaengineRibbon.MepSystems'),
 	Analyze: MenuId.for('SaengineRibbon.Analyze'),
 	Results: MenuId.for('SaengineRibbon.Results'),
 	Design: MenuId.for('SaengineRibbon.Design'),
+	FemLoads: MenuId.for('SaengineRibbon.FemLoads'),
+	FemSeismic: MenuId.for('SaengineRibbon.FemSeismic'),
+	FemWind: MenuId.for('SaengineRibbon.FemWind'),
+	FemNonlinear: MenuId.for('SaengineRibbon.FemNonlinear'),
+	FemServiceability: MenuId.for('SaengineRibbon.FemServiceability'),
 	Foundations: MenuId.for('SaengineRibbon.Foundations'),
+	FoundationsPiles: MenuId.for('SaengineRibbon.FoundationsPiles'),
+	FoundationsPileAnalysis: MenuId.for('SaengineRibbon.FoundationsPileAnalysis'),
+	FoundationsRetaining: MenuId.for('SaengineRibbon.FoundationsRetaining'),
+	FoundationsSpecial: MenuId.for('SaengineRibbon.FoundationsSpecial'),
+	FoundationsReport: MenuId.for('SaengineRibbon.FoundationsReport'),
 	BOQ: MenuId.for('SaengineRibbon.BOQ'),
-	Output: MenuId.for('SaengineRibbon.Output'),
+	BOQCosting: MenuId.for('SaengineRibbon.BOQCosting'),
+	BOQSchedule: MenuId.for('SaengineRibbon.BOQSchedule'),
+	BOQTakeoff: MenuId.for('SaengineRibbon.BOQTakeoff'),
 	Documents: MenuId.for('SaengineRibbon.Documents'),
+	DocumentsDrawings: MenuId.for('SaengineRibbon.DocumentsDrawings'),
+	DocumentsSheets: MenuId.for('SaengineRibbon.DocumentsSheets'),
+	DocumentsSchedules: MenuId.for('SaengineRibbon.DocumentsSchedules'),
+	DocumentsReports: MenuId.for('SaengineRibbon.DocumentsReports'),
 	Studies: MenuId.for('SaengineRibbon.Studies'),
+	StudiesDesign: MenuId.for('SaengineRibbon.StudiesDesign'),
+	StudiesEnvironment: MenuId.for('SaengineRibbon.StudiesEnvironment'),
+	StudiesSite: MenuId.for('SaengineRibbon.StudiesSite'),
+	StudiesVerification: MenuId.for('SaengineRibbon.StudiesVerification'),
+	ExportsExchange: MenuId.for('SaengineRibbon.ExportsExchange'),
+	ExportsFabrication: MenuId.for('SaengineRibbon.ExportsFabrication'),
+	ExportsArchive: MenuId.for('SaengineRibbon.ExportsArchive'),
+	Insert: MenuId.for('SaengineRibbon.Insert'),
+	Draft: MenuId.for('SaengineRibbon.Draft'),
+	Annotate: MenuId.for('SaengineRibbon.Annotate'),
+	Parametric: MenuId.for('SaengineRibbon.Parametric'),
+	View: MenuId.for('SaengineRibbon.View'),
+	Manage: MenuId.for('SaengineRibbon.Manage'),
+	Output: MenuId.for('SaengineRibbon.Output'),
 } as const;
 
 export interface IRibbonTabDescriptor {
@@ -132,7 +251,15 @@ function allOf(exprs: readonly [ContextKeyExpression, ...ContextKeyExpression[]]
 	return ContextKeyExpr.and(...exprs) ?? exprs[0];
 }
 
-function editorWhen(editorIds: readonly [string, ...string[]], dataPanelPart?: string): ContextKeyExpression {
+export function subViewWhen(...subViews: readonly [string, ...string[]]): ContextKeyExpression {
+	return anyOf([SubViewContext.isEqualTo(subViews[0]), ...subViews.slice(1).map(subView => SubViewContext.isEqualTo(subView))]);
+}
+
+export function mepDisciplineWhen(discipline: 'coordination' | 'plumbing' | 'hvac' | 'electrical' | 'fire'): ContextKeyExpression {
+	return subViewWhen(`mep.${discipline}`, `mep.${discipline}.data`, `mep.${discipline}.results`);
+}
+
+export function editorWhen(editorIds: readonly [string, ...string[]], dataPanelPart?: string): ContextKeyExpression {
 	const checks: [ContextKeyExpression, ...ContextKeyExpression[]] = [
 		ActiveEditorContext.isEqualTo(editorIds[0]),
 		...editorIds.slice(1).map(id => ActiveEditorContext.isEqualTo(id)),
@@ -202,20 +329,58 @@ const NOT_SPECIALIZED_PANEL = allOf([
 	...SPECIALIZED_PANEL_PARTS.slice(1).map(part => DataPanelPartContext.notEqualsTo(part)),
 ]);
 
-const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
+export const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
 	ActiveEditorContext.notEqualsTo(SPECIALIZED_EDITOR_IDS[0]),
 	...SPECIALIZED_EDITOR_IDS.slice(1).map(id => ActiveEditorContext.notEqualsTo(id)),
 	anyOf([ActiveEditorContext.notEqualsTo(SAENGINE_EDITOR_IDS.dataPanel), NOT_SPECIALIZED_PANEL]),
 ]);
 
-const DRAFT_WHEN = editorWhen([SAENGINE_EDITOR_IDS.floorPlan, SAENGINE_EDITOR_IDS.cad]);
-const FEM_WHEN = editorWhen([
+export const FLOOR_PLAN_WHEN = ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.floorPlan);
+export const CAD_ONLY_WHEN = ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.cad);
+export const DRAFT_WHEN = editorWhen([SAENGINE_EDITOR_IDS.floorPlan, SAENGINE_EDITOR_IDS.cad]);
+export const SOIL_WHEN = editorWhen([SAENGINE_EDITOR_IDS.soil], 'soil');
+export const SETTINGS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.settings, SAENGINE_EDITOR_IDS.codePacks], 'settings');
+export const LIBRARY_WHEN = editorWhen([SAENGINE_EDITOR_IDS.library, SAENGINE_EDITOR_IDS.sectionDesigner], 'library');
+export const PLAN_SUB_WHEN = editorWhen([
+	SAENGINE_EDITOR_IDS.floorPlan,
+	SAENGINE_EDITOR_IDS.grids,
+	SAENGINE_EDITOR_IDS.membersTable,
+	SAENGINE_EDITOR_IDS.structureModeler,
+	SAENGINE_EDITOR_IDS.structure,
+], 'plan');
+export const ARCHITECTURE_WHEN = editorWhen([SAENGINE_EDITOR_IDS.architecture], 'architecture');
+export const BIM_WHEN = editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d');
+const BIM_RIBBON_WHEN = allOf([
+	BIM_WHEN,
+	anyOf([subViewWhen('bim.3d', 'bim.additions', 'bim.summary'), ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.dataPanel)]),
+]);
+export const MEP_WHEN = editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep');
+const MEP_COORDINATION_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('coordination')]);
+const MEP_PLUMBING_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('plumbing')]);
+const MEP_HVAC_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('hvac')]);
+const MEP_ELECTRICAL_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('electrical')]);
+const MEP_FIRE_WHEN = allOf([MEP_WHEN, mepDisciplineWhen('fire')]);
+const MEP_SYSTEMS_WHEN = allOf([MEP_WHEN, subViewWhen('mep.systems')]);
+export const FEM_WHEN = editorWhen([
 	SAENGINE_EDITOR_IDS.femModel,
 	SAENGINE_EDITOR_IDS.femResults,
 	SAENGINE_EDITOR_IDS.femCfdWind,
 	SAENGINE_EDITOR_IDS.femDesignProposal,
 	SAENGINE_EDITOR_IDS.femStrutAndTie,
 ], 'fem');
+export const FOUNDATIONS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.substructure], 'foundations');
+export const BOQ_WHEN = editorWhen([SAENGINE_EDITOR_IDS.boq, SAENGINE_EDITOR_IDS.rates], 'boq');
+export const EXPORTS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.exports], 'output');
+export const DOCUMENTS_WHEN = editorWhen([
+	SAENGINE_EDITOR_IDS.drawingPreview,
+	SAENGINE_EDITOR_IDS.reportTemplate,
+	SAENGINE_EDITOR_IDS.worksheet,
+], 'documents');
+export const STUDIES_WHEN = editorWhen([
+	SAENGINE_EDITOR_IDS.officeTools,
+	SAENGINE_EDITOR_IDS.studies,
+	SAENGINE_EDITOR_IDS.graph,
+], 'studies');
 
 export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	{ id: 'home', label: localize('ribbon.tab.home', "Home"), menuId: RibbonMenus.Home },
@@ -227,80 +392,248 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	},
 	{
 		id: 'soil',
-		label: localize('ribbon.tab.soil', "Soil Report"),
+		label: localize('ribbon.tab.soil', "Investigation"),
 		menuId: RibbonMenus.Soil,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.soil], 'soil'),
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilTests',
+		label: localize('ribbon.tab.soilTests', "Lab Tests"),
+		menuId: RibbonMenus.SoilTests,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilBearing',
+		label: localize('ribbon.tab.soilBearing', "Bearing & Settlement"),
+		menuId: RibbonMenus.SoilBearing,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilSeismic',
+		label: localize('ribbon.tab.soilSeismic', "Seismic & Liquefaction"),
+		menuId: RibbonMenus.SoilSeismic,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilEarth',
+		label: localize('ribbon.tab.soilEarth', "Earth Pressure & Chemistry"),
+		menuId: RibbonMenus.SoilEarth,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilSite',
+		label: localize('ribbon.tab.soilSite', "Site & GIS"),
+		menuId: RibbonMenus.SoilSite,
+		contextual: true,
+		when: SOIL_WHEN,
 	},
 	{
 		id: 'settings',
-		label: localize('ribbon.tab.settings', "Settings"),
+		label: localize('ribbon.tab.settings', "Code & Packs"),
 		menuId: RibbonMenus.Settings,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.settings, SAENGINE_EDITOR_IDS.codePacks], 'settings'),
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsLoads',
+		label: localize('ribbon.tab.settingsLoads', "Loads"),
+		menuId: RibbonMenus.SettingsLoads,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsHazard',
+		label: localize('ribbon.tab.settingsHazard', "Seismic & Wind"),
+		menuId: RibbonMenus.SettingsHazard,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsChecks',
+		label: localize('ribbon.tab.settingsChecks', "Checks"),
+		menuId: RibbonMenus.SettingsChecks,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsOverrides',
+		label: localize('ribbon.tab.settingsOverrides', "Overrides"),
+		menuId: RibbonMenus.SettingsOverrides,
+		contextual: true,
+		when: SETTINGS_WHEN,
 	},
 	{
 		id: 'library',
-		label: localize('ribbon.tab.library', "Library"),
+		label: localize('ribbon.tab.library', "Materials"),
 		menuId: RibbonMenus.Library,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.library, SAENGINE_EDITOR_IDS.sectionDesigner], 'library'),
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'librarySections',
+		label: localize('ribbon.tab.librarySections', "Sections"),
+		menuId: RibbonMenus.LibrarySections,
+		contextual: true,
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'libraryObjects',
+		label: localize('ribbon.tab.libraryObjects', "Object Types"),
+		menuId: RibbonMenus.LibraryObjects,
+		contextual: true,
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'libraryChecks',
+		label: localize('ribbon.tab.libraryChecks', "Modifiers & Checks"),
+		menuId: RibbonMenus.LibraryChecks,
+		contextual: true,
+		when: LIBRARY_WHEN,
 	},
 	{
 		id: 'plan',
-		label: localize('ribbon.tab.plan', "Plan"),
+		label: localize('ribbon.tab.plan', "Structure"),
 		menuId: RibbonMenus.Plan,
 		contextual: true,
-		when: editorWhen([
-			SAENGINE_EDITOR_IDS.floorPlan,
-			SAENGINE_EDITOR_IDS.grids,
-			SAENGINE_EDITOR_IDS.membersTable,
-			SAENGINE_EDITOR_IDS.structureModeler,
-			SAENGINE_EDITOR_IDS.structure,
-		], 'plan'),
-	},
-	{
-		id: 'draft',
-		label: localize('ribbon.tab.draft', "Draft"),
-		menuId: RibbonMenus.Draft,
-		contextual: true,
-		contextualTag: localize('ribbon.tab.draftTag', "CAD"),
-		when: DRAFT_WHEN,
-	},
-	{
-		id: 'annotate',
-		label: localize('ribbon.tab.annotate', "Annotate"),
-		menuId: RibbonMenus.Annotate,
-		contextual: true,
-		when: DRAFT_WHEN,
-	},
-	{
-		id: 'blocksParametric',
-		label: localize('ribbon.tab.blocksParametric', "Blocks & Parametric"),
-		menuId: RibbonMenus.BlocksParametric,
-		contextual: true,
-		when: DRAFT_WHEN,
+		when: PLAN_SUB_WHEN,
 	},
 	{
 		id: 'architecture',
 		label: localize('ribbon.tab.architecture', "Architecture"),
 		menuId: RibbonMenus.Architecture,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.architecture], 'architecture'),
+		when: ARCHITECTURE_WHEN,
+	},
+	{
+		id: 'architectureRooms',
+		label: localize('ribbon.tab.architectureRooms', "Rooms & Schedules"),
+		menuId: RibbonMenus.ArchitectureRooms,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
+	},
+	{
+		id: 'architectureExchange',
+		label: localize('ribbon.tab.architectureExchange', "Import & Export"),
+		menuId: RibbonMenus.ArchitectureExchange,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
+	},
+	{
+		id: 'architectureEnvironment',
+		label: localize('ribbon.tab.architectureEnvironment', "Environment"),
+		menuId: RibbonMenus.ArchitectureEnvironment,
+		contextual: true,
+		when: ARCHITECTURE_WHEN,
 	},
 	{
 		id: 'bim3d',
 		label: localize('ribbon.tab.bim3d', "3D View"),
 		menuId: RibbonMenus.Bim3D,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.building], 'bim3d'),
+		when: BIM_RIBBON_WHEN,
 	},
 	{
-		id: 'mep',
-		label: localize('ribbon.tab.mep', "MEP"),
-		menuId: RibbonMenus.MEP,
+		id: 'bimExchange',
+		label: localize('ribbon.tab.bimExchange', "IFC & Exchange"),
+		menuId: RibbonMenus.BimExchange,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.mep], 'mep'),
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'bimFabrication',
+		label: localize('ribbon.tab.bimFabrication', "Rebar & Fabrication"),
+		menuId: RibbonMenus.BimFabrication,
+		contextual: true,
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'bimStudies',
+		label: localize('ribbon.tab.bimStudies', "Studies"),
+		menuId: RibbonMenus.BimStudies,
+		contextual: true,
+		when: BIM_RIBBON_WHEN,
+	},
+	{
+		id: 'mepCoordination',
+		label: localize('ribbon.tab.mepCoordination', "Coordination"),
+		menuId: RibbonMenus.MepCoordination,
+		contextual: true,
+		when: MEP_COORDINATION_WHEN,
+	},
+	{
+		id: 'mepIssues',
+		label: localize('ribbon.tab.mepIssues', "Issues"),
+		menuId: RibbonMenus.MepIssues,
+		contextual: true,
+		when: MEP_COORDINATION_WHEN,
+	},
+	{
+		id: 'mepPlumbing',
+		label: localize('ribbon.tab.mepPlumbing', "Plumbing"),
+		menuId: RibbonMenus.MepPlumbing,
+		contextual: true,
+		when: MEP_PLUMBING_WHEN,
+	},
+	{
+		id: 'mepPlumbingDesign',
+		label: localize('ribbon.tab.mepPlumbingDesign', "Plumbing Design"),
+		menuId: RibbonMenus.MepPlumbingDesign,
+		contextual: true,
+		when: MEP_PLUMBING_WHEN,
+	},
+	{
+		id: 'mepHvac',
+		label: localize('ribbon.tab.mepHvac', "HVAC"),
+		menuId: RibbonMenus.MepHvac,
+		contextual: true,
+		when: MEP_HVAC_WHEN,
+	},
+	{
+		id: 'mepHvacAnalysis',
+		label: localize('ribbon.tab.mepHvacAnalysis', "HVAC Analysis"),
+		menuId: RibbonMenus.MepHvacAnalysis,
+		contextual: true,
+		when: MEP_HVAC_WHEN,
+	},
+	{
+		id: 'mepElectrical',
+		label: localize('ribbon.tab.mepElectrical', "Electrical"),
+		menuId: RibbonMenus.MepElectrical,
+		contextual: true,
+		when: MEP_ELECTRICAL_WHEN,
+	},
+	{
+		id: 'mepPowerSystems',
+		label: localize('ribbon.tab.mepPowerSystems', "Power Systems"),
+		menuId: RibbonMenus.MepPowerSystems,
+		contextual: true,
+		when: MEP_ELECTRICAL_WHEN,
+	},
+	{
+		id: 'mepFire',
+		label: localize('ribbon.tab.mepFire', "Fire"),
+		menuId: RibbonMenus.MepFire,
+		contextual: true,
+		when: MEP_FIRE_WHEN,
+	},
+	{
+		id: 'mepFireSystems',
+		label: localize('ribbon.tab.mepFireSystems', "Fire Systems"),
+		menuId: RibbonMenus.MepFireSystems,
+		contextual: true,
+		when: MEP_FIRE_WHEN,
+	},
+	{
+		id: 'mepSystems',
+		label: localize('ribbon.tab.mepSystems', "Systems"),
+		menuId: RibbonMenus.MepSystems,
+		contextual: true,
+		when: MEP_SYSTEMS_WHEN,
 	},
 	{
 		id: 'analyze',
@@ -324,47 +657,250 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 		when: FEM_WHEN,
 	},
 	{
+		id: 'femLoads',
+		label: localize('ribbon.tab.femLoads', "Loads & Combinations"),
+		menuId: RibbonMenus.FemLoads,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femSeismic',
+		label: localize('ribbon.tab.femSeismic', "Seismic"),
+		menuId: RibbonMenus.FemSeismic,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femWind',
+		label: localize('ribbon.tab.femWind', "Wind"),
+		menuId: RibbonMenus.FemWind,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femNonlinear',
+		label: localize('ribbon.tab.femNonlinear', "Nonlinear & Stability"),
+		menuId: RibbonMenus.FemNonlinear,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
+		id: 'femServiceability',
+		label: localize('ribbon.tab.femServiceability', "Serviceability"),
+		menuId: RibbonMenus.FemServiceability,
+		contextual: true,
+		when: FEM_WHEN,
+	},
+	{
 		id: 'foundations',
-		label: localize('ribbon.tab.foundations', "Foundations"),
+		label: localize('ribbon.tab.foundations', "Shallow & Raft"),
 		menuId: RibbonMenus.Foundations,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.substructure], 'foundations'),
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsPiles',
+		label: localize('ribbon.tab.foundationsPiles', "Piles"),
+		menuId: RibbonMenus.FoundationsPiles,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsPileAnalysis',
+		label: localize('ribbon.tab.foundationsPileAnalysis', "Pile Analysis"),
+		menuId: RibbonMenus.FoundationsPileAnalysis,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsRetaining',
+		label: localize('ribbon.tab.foundationsRetaining', "Retaining & Excavation"),
+		menuId: RibbonMenus.FoundationsRetaining,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsSpecial',
+		label: localize('ribbon.tab.foundationsSpecial', "Slabs & Machine"),
+		menuId: RibbonMenus.FoundationsSpecial,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsReport',
+		label: localize('ribbon.tab.foundationsReport', "Detailing & Report"),
+		menuId: RibbonMenus.FoundationsReport,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
 	},
 	{
 		id: 'boq',
-		label: localize('ribbon.tab.boq', "BOQ"),
+		label: localize('ribbon.tab.boq', "Quantities"),
 		menuId: RibbonMenus.BOQ,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.boq, SAENGINE_EDITOR_IDS.rates], 'boq'),
+		when: BOQ_WHEN,
 	},
 	{
-		id: 'output',
-		label: localize('ribbon.tab.output', "Output"),
-		menuId: RibbonMenus.Output,
+		id: 'boqCosting',
+		label: localize('ribbon.tab.boqCosting', "Rates & Costing"),
+		menuId: RibbonMenus.BOQCosting,
 		contextual: true,
-		when: editorWhen([SAENGINE_EDITOR_IDS.exports], 'output'),
+		when: BOQ_WHEN,
+	},
+	{
+		id: 'boqSchedule',
+		label: localize('ribbon.tab.boqSchedule', "Construction Schedule"),
+		menuId: RibbonMenus.BOQSchedule,
+		contextual: true,
+		when: BOQ_WHEN,
+	},
+	{
+		id: 'boqTakeoff',
+		label: localize('ribbon.tab.boqTakeoff', "Takeoff"),
+		menuId: RibbonMenus.BOQTakeoff,
+		contextual: true,
+		when: BOQ_WHEN,
 	},
 	{
 		id: 'documents',
 		label: localize('ribbon.tab.documents', "Documents"),
 		menuId: RibbonMenus.Documents,
 		contextual: true,
-		when: editorWhen([
-			SAENGINE_EDITOR_IDS.drawingPreview,
-			SAENGINE_EDITOR_IDS.reportTemplate,
-			SAENGINE_EDITOR_IDS.worksheet,
-		], 'documents'),
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsDrawings',
+		label: localize('ribbon.tab.documentsDrawings', "Drawings"),
+		menuId: RibbonMenus.DocumentsDrawings,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsSheets',
+		label: localize('ribbon.tab.documentsSheets', "Sheets & Issue"),
+		menuId: RibbonMenus.DocumentsSheets,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsSchedules',
+		label: localize('ribbon.tab.documentsSchedules', "Schedules & Keynotes"),
+		menuId: RibbonMenus.DocumentsSchedules,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
+	},
+	{
+		id: 'documentsReports',
+		label: localize('ribbon.tab.documentsReports', "Reports & Worksheets"),
+		menuId: RibbonMenus.DocumentsReports,
+		contextual: true,
+		when: DOCUMENTS_WHEN,
 	},
 	{
 		id: 'studies',
 		label: localize('ribbon.tab.studies', "Studies"),
 		menuId: RibbonMenus.Studies,
 		contextual: true,
-		when: editorWhen([
-			SAENGINE_EDITOR_IDS.officeTools,
-			SAENGINE_EDITOR_IDS.studies,
-			SAENGINE_EDITOR_IDS.graph,
-		], 'studies'),
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesDesign',
+		label: localize('ribbon.tab.studiesDesign', "Design Studies"),
+		menuId: RibbonMenus.StudiesDesign,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesEnvironment',
+		label: localize('ribbon.tab.studiesEnvironment', "Environment"),
+		menuId: RibbonMenus.StudiesEnvironment,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesSite',
+		label: localize('ribbon.tab.studiesSite', "Site & Terrain"),
+		menuId: RibbonMenus.StudiesSite,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'studiesVerification',
+		label: localize('ribbon.tab.studiesVerification', "Verification"),
+		menuId: RibbonMenus.StudiesVerification,
+		contextual: true,
+		when: STUDIES_WHEN,
+	},
+	{
+		id: 'draft',
+		label: localize('ribbon.tab.draft', "Draft"),
+		menuId: RibbonMenus.Draft,
+		contextual: true,
+		contextualTag: localize('ribbon.tab.draftTag', "CAD"),
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'insert',
+		label: localize('ribbon.tab.insert', "Insert"),
+		menuId: RibbonMenus.Insert,
+		contextual: true,
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'annotate',
+		label: localize('ribbon.tab.annotate', "Annotate"),
+		menuId: RibbonMenus.Annotate,
+		contextual: true,
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'parametric',
+		label: localize('ribbon.tab.parametric', "Parametric"),
+		menuId: RibbonMenus.Parametric,
+		contextual: true,
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'view',
+		label: localize('ribbon.tab.view', "View"),
+		menuId: RibbonMenus.View,
+		contextual: true,
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'manage',
+		label: localize('ribbon.tab.manage', "Manage"),
+		menuId: RibbonMenus.Manage,
+		contextual: true,
+		when: DRAFT_WHEN,
+	},
+	{
+		id: 'output',
+		label: localize('ribbon.tab.output', "Output"),
+		menuId: RibbonMenus.Output,
+		contextual: true,
+		when: anyOf([EXPORTS_WHEN, DRAFT_WHEN]),
+	},
+	{
+		id: 'exportsExchange',
+		label: localize('ribbon.tab.exportsExchange', "Exchange"),
+		menuId: RibbonMenus.ExportsExchange,
+		contextual: true,
+		when: EXPORTS_WHEN,
+	},
+	{
+		id: 'exportsFabrication',
+		label: localize('ribbon.tab.exportsFabrication', "Fabrication"),
+		menuId: RibbonMenus.ExportsFabrication,
+		contextual: true,
+		when: EXPORTS_WHEN,
+	},
+	{
+		id: 'exportsArchive',
+		label: localize('ribbon.tab.exportsArchive', "Archive & Validation"),
+		menuId: RibbonMenus.ExportsArchive,
+		contextual: true,
+		when: EXPORTS_WHEN,
 	},
 ];
 
@@ -391,6 +927,25 @@ export function resolveDataPanelPart(panelId: string | undefined, descriptorPart
 	}
 }
 
+/** Maps a U3 data panel id to the MEP discipline sub-view so MEP panels keep their discipline tabs. */
+export function resolveDataPanelSubView(panelId: string | undefined): string {
+	if (!panelId?.startsWith('saengine.mep.')) {
+		return '';
+	}
+	const segment = panelId.slice('saengine.mep.'.length).split('.')[0];
+	switch (segment) {
+		case 'coordination':
+		case 'plumbing':
+		case 'hvac':
+		case 'electrical':
+		case 'fire':
+		case 'systems':
+			return `mep.${segment}`;
+		default:
+			return '';
+	}
+}
+
 /** Returns the ribbon tabs whose `when` rule matches the current context key state. */
 export function getVisibleRibbonTabs(
 	contextKeyService: Pick<IContextKeyService, 'contextMatchesRules'>,
@@ -407,19 +962,42 @@ export function resolveActiveTabForEditor(
 	editorKey: string,
 	visibleTabs: readonly IRibbonTabDescriptor[],
 	rememberedByEditor: ReadonlyMap<string, RibbonTabId>,
+	subView = '',
 ): RibbonTabId {
 	const remembered = rememberedByEditor.get(editorKey);
 	if (remembered && visibleTabs.some(tab => tab.id === remembered)) {
 		return remembered;
+	}
+	if (editorKey === SAENGINE_EDITOR_IDS.floorPlan) {
+		return 'home';
+	}
+	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'results')) {
+		return 'results';
+	}
+	if (subView === 'fem.design' && visibleTabs.some(t => t.id === 'design')) {
+		return 'design';
 	}
 	return visibleTabs.find(tab => tab.contextual)?.id ?? visibleTabs[0]?.id ?? 'home';
 }
 
 /**
  * Picks the ribbon tab where an active editor publishes its toolbar groups ("View", "<Editor name>", "Help"):
- * its first contextual tab, or the Project tab (avoiding Home unless no other tab is visible).
+ * its first contextual tab, or the Project tab (avoiding Home unless on Floor Plan or no other tab is visible).
  */
-export function resolveEditorToolbarTargetTab(visibleTabs: readonly IRibbonTabDescriptor[]): RibbonTabId {
+export function resolveEditorToolbarTargetTab(
+	visibleTabs: readonly IRibbonTabDescriptor[],
+	editorKey = '',
+	subView = '',
+): RibbonTabId {
+	if (editorKey === SAENGINE_EDITOR_IDS.floorPlan) {
+		return 'home';
+	}
+	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'results')) {
+		return 'results';
+	}
+	if (subView === 'fem.design' && visibleTabs.some(t => t.id === 'design')) {
+		return 'design';
+	}
 	return visibleTabs.find(tab => tab.contextual)?.id
 		?? visibleTabs.find(tab => tab.id !== 'home')?.id
 		?? visibleTabs[0]?.id
@@ -507,6 +1085,33 @@ export function registerRibbonGroupLabel(groupKey: string, label: string): IDisp
 
 export function getRibbonGroupLabel(groupKey: string): string | undefined {
 	return groupLabels.get(groupKey);
+}
+
+const groupWhens = new Map<string, ContextKeyExpression>();
+
+function groupWhenKey(menuId: MenuId, rawGroup: string): string {
+	return `${menuId.id}::${rawGroup}`;
+}
+
+/**
+ * Shows a tab's group only while `when` holds (e.g. the MEP tab's Plumbing group only in the
+ * Plumbing sub-window), so a sub-window's ribbon carries its own commands only.
+ */
+export function registerRibbonGroupWhen(menuId: MenuId, rawGroup: string, when: ContextKeyExpression): IDisposable {
+	const key = groupWhenKey(menuId, rawGroup);
+	groupWhens.set(key, when);
+	registryChangeEmitter.fire();
+	return toDisposable(() => {
+		if (groupWhens.get(key) === when) {
+			groupWhens.delete(key);
+			registryChangeEmitter.fire();
+		}
+	});
+}
+
+/** The visibility rule of a tab's group, if one was registered. */
+export function getRibbonGroupWhen(menuId: MenuId, rawGroup: string): ContextKeyExpression | undefined {
+	return groupWhens.get(groupWhenKey(menuId, rawGroup));
 }
 
 /** Registers a collapse priority for a group key (smaller values collapse first when space is tight). */

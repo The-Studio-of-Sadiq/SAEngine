@@ -46,8 +46,12 @@ function formatScalar(value: unknown): string {
 	if (typeof value === 'boolean') {
 		return value ? 'Yes' : 'No';
 	}
-	if (typeof value === 'number' || typeof value === 'string') {
-		return String(value);
+	if (typeof value === 'number') {
+		// Engine floats (17.255999999999997) read as 17.256.
+		return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
+	}
+	if (typeof value === 'string') {
+		return value;
 	}
 	return JSON.stringify(value);
 }
@@ -62,7 +66,7 @@ function registerMepPanel(descriptor: IEngineDataPanelDescriptor): void {
 				category,
 				icon: descriptor.icon,
 				f1: true,
-				precondition: projectOpen,
+				precondition: descriptor.requiresProject === false ? undefined : projectOpen,
 			});
 		}
 
@@ -72,7 +76,7 @@ function registerMepPanel(descriptor: IEngineDataPanelDescriptor): void {
 	});
 }
 
-function openMepSectionAction(section: 'electrical' | 'hvac' | 'fire' | 'plumbing', label: string): readonly IDataPanelAction[] {
+function openMepSectionAction(section: 'coordination' | 'electrical' | 'hvac' | 'fire' | 'plumbing' | 'systems', label: string): readonly IDataPanelAction[] {
 	return [{
 		id: `openMep.${section}`,
 		label,
@@ -1533,6 +1537,1869 @@ registerMepPanel({
 					],
 					rows: medRows,
 					emptyMessage: localize('u3.mep.gas.noMedGas', "No medical gas outlets or clinical rooms configured in 07 MEP."),
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+//#endregion
+
+//#region Coordination Panels (2)
+
+function formatOpeningSize(o: IJsonBag): string {
+	const diameter = num(o.diameter);
+	if (diameter !== undefined) {
+		return `Ø${diameter} mm`;
+	}
+	const width = num(o.width);
+	const height = num(o.height);
+	return width !== undefined && height !== undefined ? `${width}×${height} mm` : '–';
+}
+
+registerMepPanel({
+	id: 'saengine.mep.coordination.openings',
+	title: localize('u3.mep.openings.title', "MEP Opening Checks & Equipment Loads"),
+	part: 'mep',
+	icon: Codicon.circleLargeOutline,
+	help: localize('u3.mep.openings.help', "Evaluates structural beam, slab and wall openings/sleeves, equipment floor loads by story, and MEP IFC clash checks."),
+	secondaryActions: openMepSectionAction('coordination', localize('u3.mep.openings.openSec', "Open MEP Coordination")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/report', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const openings = asArray(raw.openings).map(asBag);
+		const equipment = asArray(raw.equipment).map(asBag);
+		const stories = asArray(raw.stories).map(asBag);
+		const clashes = asArray(raw.clashes).map(asBag);
+
+		const openingRows: DataPanelRow[] = openings.map(o => {
+			const checked = o.checked !== false;
+			const strengthChecked = checked && (typeof o.strengthChecked === 'boolean' ? o.strengthChecked : true);
+			const ok = !checked || o.ok !== false;
+			const status = !checked ? 'OK' : !ok ? 'Fail' : !strengthChecked ? 'Warn' : 'Pass';
+			return {
+				id: str(o.id),
+				host: str(o.host, '–'),
+				check: str(o.check, '–'),
+				utilisation: num(o.utilisation) ?? '–',
+				strengthChecked: strengthChecked ? 'Yes' : 'No',
+				status,
+				note: str(o.note, '–'),
+			};
+		});
+
+		const equipmentRows: DataPanelRow[] = equipment.map(e => {
+			const onGrade = e.onGrade === true;
+			const applied = typeof e.applied === 'boolean' ? e.applied : !onGrade;
+			return {
+				id: str(e.id),
+				discipline: str(e.discipline, 'coordination'),
+				kind: str(e.kind, '–'),
+				story: str(e.story, '–'),
+				operatingWeight: num(e.operatingWeight) ?? 0,
+				load: num(e.load ?? e.operatingWeight) ?? 0,
+				pressure: num(e.pressure) ?? '–',
+				host: str(e.host, '–'),
+				status: onGrade ? 'OK' : applied ? 'Pass' : 'Warn',
+				note: str(e.note, '–'),
+			};
+		});
+
+		const storyRows: DataPanelRow[] = stories.map(s => ({
+			story: str(s.story),
+			count: num(s.count) ?? 0,
+			load: num(s.load) ?? 0,
+			onGrade: num(s.onGrade) ?? 0,
+			notApplied: num(s.notApplied) ?? 0,
+			note: str(s.note, '–'),
+		}));
+
+		const clashRows: DataPanelRow[] = clashes.map(c => ({
+			id: str(c.id, '–'),
+			discipline: str(c.discipline, '–'),
+			element: str(c.mepName || c.mep || c.mepElement, '–'),
+			structural: str(c.structural || c.structuralElement, '–'),
+			kind: str(c.kind, 'hard'),
+			story: str(c.story, '–'),
+			size: num(c.size) ?? '–',
+			opening: str(c.opening, '–'),
+			status: c.status === 'coordinated' ? 'Pass' : 'Warn',
+			note: str(c.note, '–'),
+		}));
+
+		const failingOpenings = openingRows.filter(r => r.status === 'Fail').length;
+		const openClashes = clashes.filter(c => c.status !== 'coordinated' && c.kind !== 'clearance').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.openings.mOpenings', "Openings"), value: String(openingRows.length) },
+				{ label: localize('u3.mep.openings.mFailing', "Failing Openings"), value: String(failingOpenings), tone: failingOpenings ? 'fail' : 'ok' },
+				{ label: localize('u3.mep.openings.mEquip', "Equipment"), value: String(equipmentRows.length) },
+				{ label: localize('u3.mep.openings.mClashes', "Open Clashes"), value: String(openClashes), tone: openClashes ? 'warn' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'openings',
+					title: localize('u3.mep.openings.openingsTab', "Opening Checks"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.openings.colOId', "Opening") },
+						{ key: 'host', title: localize('u3.mep.openings.colHost', "Host") },
+						{ key: 'check', title: localize('u3.mep.openings.colCheck', "Check") },
+						{ key: 'utilisation', title: localize('u3.mep.openings.colUtil', "Utilisation"), type: 'number', align: 'right' },
+						{ key: 'strengthChecked', title: localize('u3.mep.openings.colStrength', "Strength Checked") },
+						{ key: 'status', title: localize('u3.mep.openings.colStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.openings.colNote', "Note") },
+					],
+					rows: openingRows,
+					emptyMessage: localize('u3.mep.openings.noOpenings', "No sleeves or openings defined in 07 MEP yet."),
+				},
+				{
+					id: 'equipment',
+					title: localize('u3.mep.openings.equipTab', "Equipment Loads"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.openings.colEId', "Equipment") },
+						{ key: 'discipline', title: localize('u3.mep.openings.colEDisc', "Discipline") },
+						{ key: 'kind', title: localize('u3.mep.openings.colEKind', "Kind") },
+						{ key: 'story', title: localize('u3.mep.openings.colEStory', "Story") },
+						{ key: 'operatingWeight', title: localize('u3.mep.openings.colEOp', "Weight [kN]"), type: 'number', align: 'right' },
+						{ key: 'load', title: localize('u3.mep.openings.colELoad', "Applied [kN]"), type: 'number', align: 'right' },
+						{ key: 'pressure', title: localize('u3.mep.openings.colEPress', "Pressure [kPa]"), type: 'number', align: 'right' },
+						{ key: 'host', title: localize('u3.mep.openings.colEHost', "Host") },
+						{ key: 'status', title: localize('u3.mep.openings.colEStatus', "Placement"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.openings.colENote', "Note") },
+					],
+					rows: equipmentRows,
+				},
+				{
+					id: 'stories',
+					title: localize('u3.mep.openings.storiesTab', "Story Load Summary"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.openings.colSStory', "Story") },
+						{ key: 'count', title: localize('u3.mep.openings.colSCount', "Items"), type: 'number', align: 'right' },
+						{ key: 'load', title: localize('u3.mep.openings.colSLoad', "On Frame [kN]"), type: 'number', align: 'right' },
+						{ key: 'onGrade', title: localize('u3.mep.openings.colSGrade', "On Grade [kN]"), type: 'number', align: 'right' },
+						{ key: 'notApplied', title: localize('u3.mep.openings.colSOff', "Off Slab [kN]"), type: 'number', align: 'right' },
+						{ key: 'note', title: localize('u3.mep.openings.colSNote', "Note") },
+					],
+					rows: storyRows,
+				},
+				{
+					id: 'clashes',
+					title: localize('u3.mep.openings.clashesTab', "MEP Clashes"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.openings.colCId', "Clash") },
+						{ key: 'discipline', title: localize('u3.mep.openings.colCDisc', "Discipline") },
+						{ key: 'element', title: localize('u3.mep.openings.colCMep', "MEP Element") },
+						{ key: 'structural', title: localize('u3.mep.openings.colCStruct', "Structural") },
+						{ key: 'kind', title: localize('u3.mep.openings.colCKind', "Kind") },
+						{ key: 'story', title: localize('u3.mep.openings.colCStory', "Story") },
+						{ key: 'size', title: localize('u3.mep.openings.colCSize', "Size [mm]"), type: 'number', align: 'right' },
+						{ key: 'opening', title: localize('u3.mep.openings.colCOpen', "Opening") },
+						{ key: 'status', title: localize('u3.mep.openings.colCStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.openings.colCNote', "Note") },
+					],
+					rows: clashRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.coordination.checkIds',
+	title: localize('u3.mep.ids.title', "IDS Specification Checks"),
+	part: 'mep',
+	icon: Codicon.checklist,
+	help: localize('u3.mep.ids.help', "Validates SAEngine and external IFC models against buildingSMART IDS files via IfcTester and reports failing specifications and elements."),
+	secondaryActions: openMepSectionAction('coordination', localize('u3.mep.ids.openSec', "Open MEP Coordination")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/checkIds', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const results = asArray(raw.results).map(asBag);
+		const counts = asBag(raw.counts);
+		const specRows: DataPanelRow[] = [];
+		const failureRows: DataPanelRow[] = [];
+
+		for (const entry of results) {
+			const ids = str(entry.ids);
+			const model = str(entry.model);
+			for (const spec of asArray(entry.specifications).map(asBag)) {
+				const specName = str(spec.name);
+				const failed = num(spec.failed) ?? 0;
+				const passed = spec.status === true && failed === 0;
+				specRows.push({
+					ids,
+					model,
+					name: specName,
+					applicable: num(spec.applicable) ?? 0,
+					failed,
+					status: passed ? 'Pass' : 'Fail',
+					description: str(spec.description, '–'),
+				});
+				for (const f of asArray(spec.failures).map(asBag)) {
+					failureRows.push({
+						ids,
+						model,
+						specification: specName,
+						globalId: str(f.globalId),
+						elementName: str(f.name, '–'),
+						ifcClass: str(f.class, '–'),
+						reason: str(f.reason, '–'),
+					});
+				}
+			}
+		}
+
+		const passedSpecs = specRows.filter(r => r.status === 'Pass').length;
+		const failedSpecs = specRows.filter(r => r.status === 'Fail').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.ids.mSpecs', "Specifications"), value: String(specRows.length) },
+				{ label: localize('u3.mep.ids.mPassed', "Passed"), value: String(passedSpecs), tone: passedSpecs ? 'ok' : 'neutral' },
+				{ label: localize('u3.mep.ids.mFailed', "Failed"), value: String(failedSpecs), tone: failedSpecs ? 'fail' : 'ok' },
+				{ label: localize('u3.mep.ids.mOpen', "Open Issues"), value: String(num(counts.open) ?? 0) },
+			],
+			tables: [
+				{
+					id: 'specifications',
+					title: localize('u3.mep.ids.specsTab', "Specifications"),
+					columns: [
+						{ key: 'ids', title: localize('u3.mep.ids.colIds', "IDS File") },
+						{ key: 'model', title: localize('u3.mep.ids.colModel', "IFC Model") },
+						{ key: 'name', title: localize('u3.mep.ids.colSpec', "Specification") },
+						{ key: 'applicable', title: localize('u3.mep.ids.colApp', "Applicable"), type: 'number', align: 'right' },
+						{ key: 'failed', title: localize('u3.mep.ids.colFail', "Failed"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.ids.colStatus', "Status"), type: 'status' },
+						{ key: 'description', title: localize('u3.mep.ids.colDesc', "Description") },
+					],
+					rows: specRows,
+					emptyMessage: localize('u3.mep.ids.noSpecs', "No IDS files configured in coordination yet (add an .ids file in 07 MEP Data)."),
+				},
+				{
+					id: 'failures',
+					title: localize('u3.mep.ids.failTab', "Failing Elements"),
+					columns: [
+						{ key: 'ids', title: localize('u3.mep.ids.colFIds', "IDS File") },
+						{ key: 'model', title: localize('u3.mep.ids.colFModel', "IFC Model") },
+						{ key: 'specification', title: localize('u3.mep.ids.colFSpec', "Specification") },
+						{ key: 'globalId', title: localize('u3.mep.ids.colFGuid', "GlobalId") },
+						{ key: 'elementName', title: localize('u3.mep.ids.colFName', "Element") },
+						{ key: 'ifcClass', title: localize('u3.mep.ids.colFClass', "IFC Class") },
+						{ key: 'reason', title: localize('u3.mep.ids.colFReason', "Reason") },
+					],
+					rows: failureRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+//#endregion
+
+//#region Additional Plumbing Panels (6)
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.occupancies',
+	title: localize('u3.mep.plbOcc.title', "Water Consumption Occupancies"),
+	part: 'mep',
+	requiresProject: false,
+	icon: Codicon.book,
+	help: localize('u3.mep.plbOcc.help', "Displays code-pack domestic water consumption rates (full facility and restricted lpcd) by building occupancy category."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbOcc.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingOccupancies', {}));
+		const rows: DataPanelRow[] = asArray(raw.occupancies).map(asBag).map(o => ({
+			label: str(o.label),
+			group: str(o.group, '–'),
+			lpcd: num(o.lpcd) ?? '–',
+			restricted: num(o.restricted) ?? '–',
+			unit: str(o.unit, 'lpcd'),
+			table: str(o.table, '–'),
+			source: str(o.source, '–'),
+		}));
+		const tablesCount = new Set(rows.map(r => str(r.table)).filter(v => v && v !== '–')).size;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbOcc.mCount', "Occupancies"), value: String(rows.length) },
+				{ label: localize('u3.mep.plbOcc.mTables', "Code Tables"), value: String(tablesCount) },
+			],
+			tables: [{
+				id: 'occupancies',
+				title: localize('u3.mep.plbOcc.tab', "Water Consumption Rates"),
+				columns: [
+					{ key: 'label', title: localize('u3.mep.plbOcc.colLabel', "Occupancy") },
+					{ key: 'group', title: localize('u3.mep.plbOcc.colGroup', "Group") },
+					{ key: 'lpcd', title: localize('u3.mep.plbOcc.colFull', "Full [L/day]"), type: 'number', align: 'right' },
+					{ key: 'restricted', title: localize('u3.mep.plbOcc.colRest', "Restricted [L/day]"), type: 'number', align: 'right' },
+					{ key: 'unit', title: localize('u3.mep.plbOcc.colUnit', "Basis") },
+					{ key: 'table', title: localize('u3.mep.plbOcc.colTable', "Table") },
+					{ key: 'source', title: localize('u3.mep.plbOcc.colSource', "Reference") },
+				],
+				rows,
+			}],
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.branches',
+	title: localize('u3.mep.plbBr.title', "Wet-Room Supply & Drainage Branches"),
+	part: 'mep',
+	icon: Codicon.gitBranch,
+	help: localize('u3.mep.plbBr.help', "Traces horizontal supply and drainage branch runs from risers/stacks to architectural wet rooms and flags structural beam crossings."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbBr.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingReport', {
+			projectRoot: ctx.project!.root.fsPath,
+			designs: false,
+		}));
+		const rooms = asBag(raw.rooms);
+		const branches = asArray(rooms.branches).map(asBag);
+		const wetRooms = asArray(rooms.wetRooms).map(asBag);
+
+		const branchRows: DataPanelRow[] = branches.map(b => {
+			const beams = asStrings(b.beams);
+			return {
+				story: str(b.story),
+				room: str(b.label || b.room),
+				system: str(b.system),
+				riser: str(b.riser, '–'),
+				length: num(b.length) ?? 0,
+				beamCount: beams.length,
+				beams: beams.join(', ') || '–',
+			};
+		});
+
+		const wetRoomRows: DataPanelRow[] = wetRooms.map(w => ({
+			id: str(w.id),
+			story: str(w.story),
+			name: str(w.name),
+			kind: str(w.kind, '–'),
+			area: num(w.area) ?? 0,
+		}));
+
+		const totalCrossings = branchRows.reduce((acc, r) => acc + (num(r.beamCount) ?? 0), 0);
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbBr.mBranches', "Branch Runs"), value: String(branchRows.length) },
+				{ label: localize('u3.mep.plbBr.mRooms', "Wet Rooms"), value: String(wetRoomRows.length) },
+				{ label: localize('u3.mep.plbBr.mBeams', "Beam Crossings"), value: String(totalCrossings), tone: totalCrossings ? 'warn' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'branches',
+					title: localize('u3.mep.plbBr.branchesTab', "Riser-to-Room Branches"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.plbBr.colStory', "Story") },
+						{ key: 'room', title: localize('u3.mep.plbBr.colRoom', "Wet Room") },
+						{ key: 'system', title: localize('u3.mep.plbBr.colSys', "System") },
+						{ key: 'riser', title: localize('u3.mep.plbBr.colRiser', "Riser / Stack") },
+						{ key: 'length', title: localize('u3.mep.plbBr.colLen', "Length [m]"), type: 'number', align: 'right' },
+						{ key: 'beamCount', title: localize('u3.mep.plbBr.colCross', "Crossings"), type: 'number', align: 'right' },
+						{ key: 'beams', title: localize('u3.mep.plbBr.colBeams', "Beams Crossed") },
+					],
+					rows: branchRows,
+					emptyMessage: localize('u3.mep.plbBr.empty', "No wet-room branches computed yet (add architectural wet rooms and plumbing risers)."),
+				},
+				{
+					id: 'wetRooms',
+					title: localize('u3.mep.plbBr.roomsTab', "Wet Rooms"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.plbBr.colWId', "Room") },
+						{ key: 'story', title: localize('u3.mep.plbBr.colWStory', "Story") },
+						{ key: 'name', title: localize('u3.mep.plbBr.colWName', "Name") },
+						{ key: 'kind', title: localize('u3.mep.plbBr.colWKind', "Kind") },
+						{ key: 'area', title: localize('u3.mep.plbBr.colWArea', "Area [m²]"), type: 'number', align: 'right' },
+					],
+					rows: wetRoomRows,
+				},
+			],
+			notes: [...asStrings(rooms.notes), ...asStrings(raw.notes)],
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.drainage',
+	title: localize('u3.mep.plbDrn.title', "Sanitary Drainage Stacks & Building Drains"),
+	part: 'mep',
+	icon: Codicon.arrowDown,
+	help: localize('u3.mep.plbDrn.help', "Sizes soil, waste, combined and vent stacks plus horizontal building drains by drainage fixture units (DFU) and slope."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbDrn.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingReport', {
+			projectRoot: ctx.project!.root.fsPath,
+			designs: false,
+		}));
+		const rawStacks = asArray(raw.stacks).map(asBag);
+		const fallbackStacks = asArray(raw.risers).map(asBag).filter(r => ['soil', 'waste', 'soilWaste', 'vent'].includes(str(r.system)));
+		const stacks = rawStacks.length ? rawStacks : fallbackStacks;
+		const drains = asArray(raw.drains).map(asBag);
+
+		const stackRows: DataPanelRow[] = stacks.map(s => ({
+			id: str(s.id),
+			system: str(s.system),
+			units: num(s.units) ?? 0,
+			required: num(s.required) ?? '–',
+			diameter: num(s.diameter) ?? '–',
+			status: s.ok === false ? 'Fail' : 'Pass',
+			note: asStrings(s.notes).join('; ') || str(s.note, '–'),
+		}));
+
+		const drainRows: DataPanelRow[] = drains.map(d => {
+			const slope = num(d.slope);
+			const slopeLabel = slope && slope > 0 ? `1/${Math.round(1 / slope)}` : '–';
+			return {
+				name: str(d.name),
+				units: num(d.units) ?? 0,
+				slope: slopeLabel,
+				diameter: num(d.diameter) ?? '–',
+				status: d.ok === false ? 'Fail' : 'Pass',
+				note: str(d.note, '–'),
+			};
+		});
+
+		const totalDfu = drainRows.reduce((sum, r) => sum + (num(r.units) ?? 0), 0);
+		const failing = [...stackRows, ...drainRows].filter(r => r.status === 'Fail').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbDrn.mStacks', "Stacks & Vents"), value: String(stackRows.length) },
+				{ label: localize('u3.mep.plbDrn.mDrains', "Building Drains"), value: String(drainRows.length) },
+				{ label: localize('u3.mep.plbDrn.mDfu', "Total DFU"), value: String(totalDfu) },
+				{ label: localize('u3.mep.plbDrn.mFail', "Failing Checks"), value: String(failing), tone: failing ? 'fail' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'stacks',
+					title: localize('u3.mep.plbDrn.stacksTab', "Soil, Waste & Vent Stacks"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.plbDrn.colSId', "Stack") },
+						{ key: 'system', title: localize('u3.mep.plbDrn.colSSys', "System") },
+						{ key: 'units', title: localize('u3.mep.plbDrn.colSDfu', "Load [DFU]"), type: 'number', align: 'right' },
+						{ key: 'required', title: localize('u3.mep.plbDrn.colSReq', "Required [mm]"), type: 'number', align: 'right' },
+						{ key: 'diameter', title: localize('u3.mep.plbDrn.colSDia', "Provided [mm]"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.plbDrn.colSStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbDrn.colSNote', "Note") },
+					],
+					rows: stackRows,
+					emptyMessage: localize('u3.mep.plbDrn.noStacks', "No soil, waste or vent stacks configured in 07 MEP yet."),
+				},
+				{
+					id: 'drains',
+					title: localize('u3.mep.plbDrn.drainsTab', "Building Drains"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.plbDrn.colDName', "Drain") },
+						{ key: 'units', title: localize('u3.mep.plbDrn.colDDfu', "Load [DFU]"), type: 'number', align: 'right' },
+						{ key: 'slope', title: localize('u3.mep.plbDrn.colDSlope', "Slope") },
+						{ key: 'diameter', title: localize('u3.mep.plbDrn.colDDia', "Diameter [mm]"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.plbDrn.colDStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbDrn.colDNote', "Note") },
+					],
+					rows: drainRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.rainwater',
+	title: localize('u3.mep.plbRain.title', "Rainwater Leaders, Storm Drain & Harvesting"),
+	part: 'mep',
+	icon: Codicon.cloudDownload,
+	help: localize('u3.mep.plbRain.help', "Computes roof drain catchments, leader & gutter sizes, horizontal storm drain diameter, and rainwater harvesting storage."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbRain.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingReport', {
+			projectRoot: ctx.project!.root.fsPath,
+			designs: false,
+		}));
+		const rw = asBag(raw.rainwater);
+		const drains = asArray(rw.drains).map(asBag);
+		const leaders = asArray(rw.leaders).map(asBag);
+		const storm = asBag(rw.stormDrain);
+		const harvest = asBag(rw.harvesting);
+
+		const drainRows: DataPanelRow[] = drains.map(d => ({
+			id: str(d.id || d.drain),
+			story: str(d.story, '–'),
+			area: num(d.area) ?? 0,
+			flow: num(d.flow) ?? 0,
+			leader: num(d.leader) ?? '–',
+			gutter: num(d.gutter) ?? '–',
+			status: d.ok === false ? 'Fail' : 'Pass',
+			note: str(d.source || d.note, '–'),
+		}));
+
+		const leaderRows: DataPanelRow[] = leaders.map(l => ({
+			id: str(l.id),
+			area: num(l.area) ?? 0,
+			required: num(l.required) ?? '–',
+			diameter: num(l.diameter) ?? '–',
+			status: l.ok === false ? 'Fail' : 'Pass',
+			note: asStrings(l.notes).join('; ') || str(l.note, '–'),
+		}));
+
+		const stormRows: DataPanelRow[] = [
+			...(Object.keys(storm).length ? [
+				{ parameter: localize('u3.mep.plbRain.sArea', "Total Roof Catchment"), value: `${num(storm.area) ?? 0} m²` },
+				{ parameter: localize('u3.mep.plbRain.sFlow', "Storm Flow"), value: `${num(storm.flow) ?? 0} L/s` },
+				{ parameter: localize('u3.mep.plbRain.sDia', "Storm Drain Diameter"), value: storm.diameter ? `Ø${str(storm.diameter)} mm` : '–' },
+				{ parameter: localize('u3.mep.plbRain.sNote', "Storm Drain Basis"), value: str(storm.note, '–') },
+			] : []),
+			...(Object.keys(harvest).length ? [
+				{ parameter: localize('u3.mep.plbRain.hReq', "Harvesting Required"), value: formatScalar(harvest.required) },
+				{ parameter: localize('u3.mep.plbRain.hVol', "Harvest Storage Volume"), value: num(harvest.volume) !== undefined ? `${num(harvest.volume)!.toFixed(2)} m³` : '–' },
+				{ parameter: localize('u3.mep.plbRain.hDays', "Storage Days"), value: formatScalar(harvest.days) },
+			] : []),
+		];
+
+		const intensity = num(rw.intensity) ?? 0;
+		const harvestVol = num(harvest.volume);
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbRain.mInt', "Rainfall Intensity"), value: `${intensity.toFixed(1)} mm/h` },
+				{ label: localize('u3.mep.plbRain.mDrains', "Roof Drains"), value: String(drainRows.length) },
+				{ label: localize('u3.mep.plbRain.mLeaders', "Leaders"), value: String(leaderRows.length) },
+				{ label: localize('u3.mep.plbRain.mHarvest', "Harvest Storage"), value: harvestVol !== undefined ? `${harvestVol.toFixed(1)} m³` : '–' },
+			],
+			tables: [
+				{
+					id: 'drains',
+					title: localize('u3.mep.plbRain.drainsTab', "Roof Drains & Catchments"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.plbRain.colDId', "Drain") },
+						{ key: 'story', title: localize('u3.mep.plbRain.colDStory', "Story") },
+						{ key: 'area', title: localize('u3.mep.plbRain.colDArea', "Area [m²]"), type: 'number', align: 'right' },
+						{ key: 'flow', title: localize('u3.mep.plbRain.colDFlow', "Flow [L/s]"), type: 'number', align: 'right' },
+						{ key: 'leader', title: localize('u3.mep.plbRain.colDLeader', "Leader [mm]"), type: 'number', align: 'right' },
+						{ key: 'gutter', title: localize('u3.mep.plbRain.colDGutter', "Gutter [mm]"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.plbRain.colDStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbRain.colDNote', "Source") },
+					],
+					rows: drainRows,
+					emptyMessage: localize('u3.mep.plbRain.noDrains', "No roof drains defined in 07 MEP yet."),
+				},
+				{
+					id: 'leaders',
+					title: localize('u3.mep.plbRain.leadersTab', "Rainwater Leaders"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.plbRain.colLId', "Leader") },
+						{ key: 'area', title: localize('u3.mep.plbRain.colLArea', "Area [m²]"), type: 'number', align: 'right' },
+						{ key: 'required', title: localize('u3.mep.plbRain.colLReq', "Required [mm]"), type: 'number', align: 'right' },
+						{ key: 'diameter', title: localize('u3.mep.plbRain.colLDia', "Provided [mm]"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.plbRain.colLStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbRain.colLNote', "Note") },
+					],
+					rows: leaderRows,
+				},
+				{
+					id: 'storm',
+					title: localize('u3.mep.plbRain.stormTab', "Storm Drain & Harvesting"),
+					columns: [
+						{ key: 'parameter', title: localize('u3.mep.plbRain.colSParam', "Parameter") },
+						{ key: 'value', title: localize('u3.mep.plbRain.colSVal', "Value") },
+					],
+					rows: stormRows,
+				},
+			],
+			notes: [...asStrings(rw.notes), ...asStrings(harvest.notes), ...asStrings(raw.notes)],
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.septic',
+	title: localize('u3.mep.plbSep.title', "Septic Tank, Soak Well & Separations"),
+	part: 'mep',
+	icon: Codicon.database,
+	help: localize('u3.mep.plbSep.help', "Sizes septic tanks, soak wells (seepage pits) using soil percolation estimates, and checks code separation clearances."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbSep.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingReport', {
+			projectRoot: ctx.project!.root.fsPath,
+			designs: false,
+		}));
+		const septic = asBag(raw.septic);
+		const well = asBag(septic.soakWell);
+		const seps = asArray(septic.separations).map(asBag);
+
+		const sizingRows: DataPanelRow[] = [
+			...(Object.keys(septic).length ? [
+				{ item: localize('u3.mep.plbSep.tank', "Septic Tank"), parameter: localize('u3.mep.plbSep.users', "Equivalent Users"), value: formatScalar(septic.persons ?? septic.population), unit: 'persons' },
+				{ item: localize('u3.mep.plbSep.tank', "Septic Tank"), parameter: localize('u3.mep.plbSep.reqVol', "Required Liquid Volume"), value: num(septic.volume) !== undefined ? (num(septic.volume)! / 1000).toFixed(2) : '–', unit: 'm³' },
+				{ item: localize('u3.mep.plbSep.tank', "Septic Tank"), parameter: localize('u3.mep.plbSep.provVol', "Provided Liquid Volume"), value: num(septic.provided) !== undefined ? (num(septic.provided)! / 1000).toFixed(2) : '–', unit: 'm³' },
+				{ item: localize('u3.mep.plbSep.tank', "Septic Tank"), parameter: localize('u3.mep.plbSep.dims', "Inside Length × Width × Depth"), value: `${str(septic.length, '–')} × ${str(septic.width, '–')} × ${str(septic.waterDepth, '–')}`, unit: 'mm' },
+				{ item: localize('u3.mep.plbSep.tank', "Septic Tank"), parameter: localize('u3.mep.plbSep.count', "Tank Count"), value: formatScalar(septic.count), unit: 'nos' },
+			] : []),
+			...(Object.keys(well).length ? [
+				{ item: localize('u3.mep.plbSep.well', "Soak Well"), parameter: localize('u3.mep.plbSep.wCount', "Well Count"), value: formatScalar(well.count), unit: 'nos' },
+				{ item: localize('u3.mep.plbSep.well', "Soak Well"), parameter: localize('u3.mep.plbSep.wDia', "Diameter × Effective Depth"), value: `Ø${str(well.diameter, '–')} × ${str(well.waterDepth, '–')}`, unit: 'mm' },
+				{ item: localize('u3.mep.plbSep.well', "Soak Well"), parameter: localize('u3.mep.plbSep.wPerc', "Soil Percolation Rate"), value: formatScalar(well.percolation), unit: 'min/25mm' },
+				{ item: localize('u3.mep.plbSep.well', "Soak Well"), parameter: localize('u3.mep.plbSep.wAllow', "Effluent Allowance"), value: formatScalar(well.allowance), unit: 'L/m²/day' },
+			] : []),
+		];
+
+		const sepRows: DataPanelRow[] = seps.map(c => ({
+			name: str(c.name),
+			demand: num(c.demand) ?? '–',
+			capacity: num(c.capacity) ?? '–',
+			unit: str(c.unit, 'm'),
+			status: c.ok === false ? 'Fail' : 'Pass',
+			note: str(c.note, '–'),
+		}));
+
+		const failing = sepRows.filter(r => r.status === 'Fail').length;
+		const reqVolM3 = num(septic.volume) !== undefined ? (num(septic.volume)! / 1000).toFixed(2) : '–';
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbSep.mUsers', "Users"), value: str(septic.persons ?? septic.population, '–') },
+				{ label: localize('u3.mep.plbSep.mVol', "Required Volume"), value: reqVolM3 === '–' ? '–' : `${reqVolM3} m³` },
+				{ label: localize('u3.mep.plbSep.mWells', "Soak Wells"), value: str(well.count, '0') },
+				{ label: localize('u3.mep.plbSep.mFail', "Separation Fails"), value: String(failing), tone: failing ? 'fail' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'sizing',
+					title: localize('u3.mep.plbSep.sizingTab', "Septic Tank & Soak Well Sizing"),
+					columns: [
+						{ key: 'item', title: localize('u3.mep.plbSep.colItem', "Component") },
+						{ key: 'parameter', title: localize('u3.mep.plbSep.colParam', "Parameter") },
+						{ key: 'value', title: localize('u3.mep.plbSep.colVal', "Value") },
+						{ key: 'unit', title: localize('u3.mep.plbSep.colUnit', "Unit") },
+					],
+					rows: sizingRows,
+					emptyMessage: localize('u3.mep.plbSep.noSeptic', "Disposal is not set to septic or building population is 0."),
+				},
+				{
+					id: 'separations',
+					title: localize('u3.mep.plbSep.sepTab', "Separation Checks"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.plbSep.colSName', "Check") },
+						{ key: 'demand', title: localize('u3.mep.plbSep.colSDem', "Required"), type: 'number', align: 'right' },
+						{ key: 'capacity', title: localize('u3.mep.plbSep.colSCap', "Provided"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.plbSep.colSUnit', "Unit") },
+						{ key: 'status', title: localize('u3.mep.plbSep.colSStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbSep.colSNote', "Note") },
+					],
+					rows: sepRows,
+				},
+			],
+			notes: [...asStrings(septic.notes), ...asStrings(well.notes), ...asStrings(raw.notes)],
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.plumbing.hydraulics',
+	title: localize('u3.mep.plbHyd.title', "Water Supply Hydraulics & Transfer Pump"),
+	part: 'mep',
+	icon: Codicon.pulse,
+	help: localize('u3.mep.plbHyd.help', "Evaluates WNTR/EPANET floor residual pressures, static head limits, pipe velocities, and transfer pump flow/head/motor sizing."),
+	secondaryActions: openMepSectionAction('plumbing', localize('u3.mep.plbHyd.openSec', "Open MEP Plumbing")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/plumbingReport', {
+			projectRoot: ctx.project!.root.fsPath,
+			designs: false,
+		}));
+		const hyd = asBag(raw.hydraulics);
+		const storage = asBag(raw.storage);
+		const p3Pump = asBag(hyd.pump);
+		const p1Pump = asBag(storage.pump);
+		const floors = asArray(hyd.floors).map(asBag);
+		const checks = asArray(hyd.checks).map(asBag);
+
+		const reqHead = num(hyd.requiredHead) ?? num(asBag(storage.heads).minResidualHead);
+		const floorRows: DataPanelRow[] = floors.map(f => {
+			const head = num(f.head) ?? 0;
+			const req = num(f.required) ?? reqHead ?? 0;
+			const ok = typeof f.pressureOk === 'boolean' ? f.pressureOk : head >= req;
+			return {
+				story: str(f.story),
+				riser: str(f.riser, '–'),
+				elevation: num(f.elevation) ?? 0,
+				head,
+				required: req,
+				status: ok ? 'Pass' : 'Fail',
+			};
+		});
+
+		const flowLpm = num(p3Pump.flow) !== undefined ? Number((num(p3Pump.flow)! * 60).toFixed(1)) : num(p1Pump.flow);
+		const pumpRows: DataPanelRow[] = [
+			...(flowLpm !== undefined ? [{ parameter: localize('u3.mep.plbHyd.pFlow', "Transfer Pump Flow"), value: String(flowLpm), unit: 'L/min' }] : []),
+			...(num(p3Pump.tdh ?? p3Pump.head) !== undefined ? [{ parameter: localize('u3.mep.plbHyd.pHead', "Total Dynamic Head"), value: String(num(p3Pump.tdh ?? p3Pump.head)), unit: 'm' }] : []),
+			...(num(p3Pump.shaftPower ?? p3Pump.power) !== undefined ? [{ parameter: localize('u3.mep.plbHyd.pShaft', "Shaft Power"), value: String(num(p3Pump.shaftPower ?? p3Pump.power)), unit: 'kW' }] : []),
+			...(num(p3Pump.motor) !== undefined ? [{ parameter: localize('u3.mep.plbHyd.pMotor', "Standard Motor Rating"), value: String(num(p3Pump.motor)), unit: 'kW' }] : []),
+			...(str(p3Pump.note || p1Pump.note) ? [{ parameter: localize('u3.mep.plbHyd.pNote', "Note"), value: str(p3Pump.note || p1Pump.note), unit: '' }] : []),
+		];
+
+		const checkRows: DataPanelRow[] = checks.map(c => ({
+			name: str(c.name),
+			demand: num(c.demand) ?? '–',
+			capacity: num(c.capacity) ?? '–',
+			unit: str(c.unit, '-'),
+			status: c.ok === false ? 'Fail' : 'Pass',
+			note: str(c.note, '–'),
+		}));
+
+		const lowFloors = floorRows.filter(r => r.status === 'Fail').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.plbHyd.mFloors', "Floors Checked"), value: String(floorRows.length) },
+				{ label: localize('u3.mep.plbHyd.mLow', "Low-Pressure Floors"), value: String(lowFloors), tone: lowFloors ? 'fail' : 'ok' },
+				{ label: localize('u3.mep.plbHyd.mReqHead', "Min Residual Head"), value: reqHead !== undefined ? `${reqHead.toFixed(1)} m` : '–' },
+				{ label: localize('u3.mep.plbHyd.mPump', "Pump Flow"), value: flowLpm !== undefined ? `${flowLpm} L/min` : '–' },
+			],
+			tables: [
+				{
+					id: 'floors',
+					title: localize('u3.mep.plbHyd.floorsTab', "Residual Head by Floor"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.plbHyd.colStory', "Story") },
+						{ key: 'riser', title: localize('u3.mep.plbHyd.colRiser', "Riser") },
+						{ key: 'elevation', title: localize('u3.mep.plbHyd.colElev', "Elevation [m]"), type: 'number', align: 'right' },
+						{ key: 'head', title: localize('u3.mep.plbHyd.colHead', "Residual [m]"), type: 'number', align: 'right' },
+						{ key: 'required', title: localize('u3.mep.plbHyd.colReq', "Required [m]"), type: 'number', align: 'right' },
+						{ key: 'status', title: localize('u3.mep.plbHyd.colStatus', "Status"), type: 'status' },
+					],
+					rows: floorRows,
+					emptyMessage: localize('u3.mep.plbHyd.noFloors', "No supply risers or overhead tank hydraulic network solved yet."),
+				},
+				{
+					id: 'pump',
+					title: localize('u3.mep.plbHyd.pumpTab', "Transfer Pump Sizing"),
+					columns: [
+						{ key: 'parameter', title: localize('u3.mep.plbHyd.colPParam', "Parameter") },
+						{ key: 'value', title: localize('u3.mep.plbHyd.colPVal', "Value") },
+						{ key: 'unit', title: localize('u3.mep.plbHyd.colPUnit', "Unit") },
+					],
+					rows: pumpRows,
+				},
+				{
+					id: 'checks',
+					title: localize('u3.mep.plbHyd.checksTab', "Hydraulic Checks"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.plbHyd.colCName', "Check") },
+						{ key: 'demand', title: localize('u3.mep.plbHyd.colCDem', "Demand"), type: 'number', align: 'right' },
+						{ key: 'capacity', title: localize('u3.mep.plbHyd.colCCap', "Limit"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.plbHyd.colCUnit', "Unit") },
+						{ key: 'status', title: localize('u3.mep.plbHyd.colCStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.plbHyd.colCNote', "Note") },
+					],
+					rows: checkRows,
+				},
+			],
+			notes: [...asStrings(hyd.notes), ...asStrings(raw.notes)],
+			problems: [...asStrings(hyd.problems), ...asStrings(raw.problems)],
+		};
+	},
+});
+
+//#endregion
+
+//#region Additional HVAC Panels (4)
+
+registerMepPanel({
+	id: 'saengine.mep.hvac.summary',
+	title: localize('u3.mep.hvacSum.title', "HVAC Cooling Loads & Air Summary"),
+	part: 'mep',
+	icon: Codicon.output,
+	help: localize('u3.mep.hvacSum.help', "Summarizes cached EnergyPlus or block cooling loads by story along with duct air-side checks and shafts."),
+	secondaryActions: openMepSectionAction('hvac', localize('u3.mep.hvacSum.openSec', "Open MEP HVAC")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/hvacReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const air = asBag(raw.air);
+		const stories = asArray(raw.stories).map(asBag);
+		const ducts = asArray(air.ducts);
+		const checks = asArray(air.checks).map(asBag);
+
+		const storyRows: DataPanelRow[] = stories.map(s => ({
+			story: str(s.story),
+			area: num(s.area) ?? 0,
+			sensible: num(s.sensible) ?? 0,
+			latent: num(s.latent) ?? 0,
+			total: num(s.total) ?? 0,
+			airflow: num(s.airflow) ?? 0,
+			outdoorAir: num(s.outdoorAir) ?? 0,
+		}));
+
+		const checkRows: DataPanelRow[] = checks.map(c => ({
+			name: str(c.name),
+			demand: num(c.demand) ?? '–',
+			capacity: num(c.capacity) ?? '–',
+			unit: str(c.unit, '-'),
+			status: c.ok === false ? 'Fail' : 'Pass',
+			note: str(c.note, '–'),
+		}));
+
+		const totalKw = num(raw.total) ?? 0;
+		const tons = num(raw.tons) ?? 0;
+		const failing = checkRows.filter(r => r.status === 'Fail').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.hvacSum.mEngine', "Engine"), value: str(raw.engineLabel || raw.engine, '–') },
+				{ label: localize('u3.mep.hvacSum.mTotal', "Total Cooling"), value: `${totalKw.toFixed(1)} kW (${tons.toFixed(1)} TR)`, tone: totalKw > 0 ? 'ok' : 'neutral' },
+				{ label: localize('u3.mep.hvacSum.mDucts', "Duct Segments"), value: String(ducts.length) },
+				{ label: localize('u3.mep.hvacSum.mFail', "Air-Side Fails"), value: String(failing), tone: failing ? 'fail' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'stories',
+					title: localize('u3.mep.hvacSum.storiesTab', "Story Cooling Loads & Airflows"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.hvacSum.colStory', "Story") },
+						{ key: 'area', title: localize('u3.mep.hvacSum.colArea', "Area [m²]"), type: 'number', align: 'right' },
+						{ key: 'sensible', title: localize('u3.mep.hvacSum.colSens', "Sensible [kW]"), type: 'number', align: 'right' },
+						{ key: 'latent', title: localize('u3.mep.hvacSum.colLat', "Latent [kW]"), type: 'number', align: 'right' },
+						{ key: 'total', title: localize('u3.mep.hvacSum.colTot', "Total [kW]"), type: 'number', align: 'right' },
+						{ key: 'airflow', title: localize('u3.mep.hvacSum.colAir', "Supply [m³/s]"), type: 'number', align: 'right' },
+						{ key: 'outdoorAir', title: localize('u3.mep.hvacSum.colOa', "OA [m³/s]"), type: 'number', align: 'right' },
+					],
+					rows: storyRows,
+				},
+				{
+					id: 'checks',
+					title: localize('u3.mep.hvacSum.checksTab', "Air-Side Checks"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.hvacSum.colCName', "Check") },
+						{ key: 'demand', title: localize('u3.mep.hvacSum.colCDem', "Demand"), type: 'number', align: 'right' },
+						{ key: 'capacity', title: localize('u3.mep.hvacSum.colCCap', "Capacity"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.hvacSum.colCUnit', "Unit") },
+						{ key: 'status', title: localize('u3.mep.hvacSum.colCStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.hvacSum.colCNote', "Note") },
+					],
+					rows: checkRows,
+				},
+			],
+			notes: [...asStrings(raw.notes), ...asStrings(air.notes)],
+			problems: [...asStrings(raw.problems), ...asStrings(air.problems)],
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.hvac.openingsCheck',
+	title: localize('u3.mep.hvacOpen.title', "HVAC Duct Openings & Beam Conflicts"),
+	part: 'mep',
+	icon: Codicon.circleLargeOutline,
+	help: localize('u3.mep.hvacOpen.help', "Reports proposed slab/beam openings for HVAC ducts, beam crossings with no passing web opening, and stale duct openings."),
+	secondaryActions: openMepSectionAction('hvac', localize('u3.mep.hvacOpen.openSec', "Open MEP HVAC")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/hvacDuctOpenings', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const openings = asArray(raw.openings).map(asBag);
+		const conflicts = asArray(raw.conflicts).map(asBag);
+		const stale = asArray(raw.stale);
+
+		const openingRows: DataPanelRow[] = openings.map(o => ({
+			id: str(o.id),
+			host: str(o.host),
+			kind: str(o.kind, 'opening'),
+			shape: str(o.shape),
+			size: formatOpeningSize(o),
+			service: str(o.service, '–'),
+		}));
+
+		const conflictRows: DataPanelRow[] = conflicts.map(c => ({
+			duct: str(c.duct || c.id, '–'),
+			beam: str(c.beam || c.host, '–'),
+			note: str(c.note, asStrings(c.options).join('; ') || 'No checked beam web opening fits'),
+		}));
+
+		const staleRows: DataPanelRow[] = stale.map(entry => {
+			if (typeof entry === 'string') {
+				return { id: entry, note: localize('u3.mep.hvacOpen.staleDefault', "Duct moved or removed; opening no longer needed") };
+			}
+			const b = asBag(entry);
+			return { id: str(b.id), note: str(b.note, localize('u3.mep.hvacOpen.staleDefault', "Duct moved or removed; opening no longer needed")) };
+		});
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.hvacOpen.mOpenings', "Proposed Openings"), value: String(openingRows.length) },
+				{ label: localize('u3.mep.hvacOpen.mConflicts', "Beam Conflicts"), value: String(conflictRows.length), tone: conflictRows.length ? 'warn' : 'ok' },
+				{ label: localize('u3.mep.hvacOpen.mStale', "Stale Openings"), value: String(staleRows.length), tone: staleRows.length ? 'warn' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'openings',
+					title: localize('u3.mep.hvacOpen.openingsTab', "Proposed Duct Openings"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.hvacOpen.colId', "Opening") },
+						{ key: 'host', title: localize('u3.mep.hvacOpen.colHost', "Host") },
+						{ key: 'kind', title: localize('u3.mep.hvacOpen.colKind', "Kind") },
+						{ key: 'shape', title: localize('u3.mep.hvacOpen.colShape', "Shape") },
+						{ key: 'size', title: localize('u3.mep.hvacOpen.colSize', "Size") },
+						{ key: 'service', title: localize('u3.mep.hvacOpen.colService', "Service") },
+					],
+					rows: openingRows,
+					emptyMessage: localize('u3.mep.hvacOpen.noOpenings', "No additional duct openings needed or no ducts defined yet."),
+				},
+				{
+					id: 'conflicts',
+					title: localize('u3.mep.hvacOpen.conflictsTab', "Beam Crossing Conflicts"),
+					columns: [
+						{ key: 'duct', title: localize('u3.mep.hvacOpen.colCDuct', "Duct") },
+						{ key: 'beam', title: localize('u3.mep.hvacOpen.colCBeam', "Beam / Host") },
+						{ key: 'note', title: localize('u3.mep.hvacOpen.colCNote', "Resolution Note") },
+					],
+					rows: conflictRows,
+				},
+				{
+					id: 'stale',
+					title: localize('u3.mep.hvacOpen.staleTab', "Stale Openings"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.hvacOpen.colSId', "Opening") },
+						{ key: 'note', title: localize('u3.mep.hvacOpen.colSNote', "Status") },
+					],
+					rows: staleRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.hvac.constructions',
+	title: localize('u3.mep.hvacConst.title', "Envelope Constructions & U-Values"),
+	part: 'mep',
+	requiresProject: false,
+	icon: Codicon.layers,
+	help: localize('u3.mep.hvacConst.help', "Lists built-in wall, roof and glazing thermal assemblies with U-values and solar heat gain coefficients (SHGC)."),
+	secondaryActions: openMepSectionAction('hvac', localize('u3.mep.hvacConst.openSec', "Open MEP HVAC")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/hvacConstructions', {}));
+		const walls: DataPanelRow[] = asArray(raw.wall).map(asBag).map(w => ({
+			key: str(w.key),
+			label: str(w.label),
+			u: num(w.u) ?? 0,
+		}));
+		const roofs: DataPanelRow[] = asArray(raw.roof).map(asBag).map(r => ({
+			key: str(r.key),
+			label: str(r.label),
+			u: num(r.u) ?? 0,
+		}));
+		const glazings: DataPanelRow[] = asArray(raw.glazing).map(asBag).map(g => ({
+			key: str(g.key),
+			label: str(g.label),
+			u: num(g.u) ?? 0,
+			shgc: num(g.shgc) ?? '–',
+		}));
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.hvacConst.mWalls', "Walls"), value: String(walls.length) },
+				{ label: localize('u3.mep.hvacConst.mRoofs', "Roofs"), value: String(roofs.length) },
+				{ label: localize('u3.mep.hvacConst.mGlazing', "Glazing"), value: String(glazings.length) },
+			],
+			tables: [
+				{
+					id: 'walls',
+					title: localize('u3.mep.hvacConst.wallsTab', "Wall Assemblies"),
+					columns: [
+						{ key: 'key', title: localize('u3.mep.hvacConst.colWKey', "Key") },
+						{ key: 'label', title: localize('u3.mep.hvacConst.colWLabel', "Description") },
+						{ key: 'u', title: localize('u3.mep.hvacConst.colWU', "U-Value [W/m²K]"), type: 'number', align: 'right' },
+					],
+					rows: walls,
+				},
+				{
+					id: 'roofs',
+					title: localize('u3.mep.hvacConst.roofsTab', "Roof Assemblies"),
+					columns: [
+						{ key: 'key', title: localize('u3.mep.hvacConst.colRKey', "Key") },
+						{ key: 'label', title: localize('u3.mep.hvacConst.colRLabel', "Description") },
+						{ key: 'u', title: localize('u3.mep.hvacConst.colRU', "U-Value [W/m²K]"), type: 'number', align: 'right' },
+					],
+					rows: roofs,
+				},
+				{
+					id: 'glazing',
+					title: localize('u3.mep.hvacConst.glazingTab', "Glazing Assemblies"),
+					columns: [
+						{ key: 'key', title: localize('u3.mep.hvacConst.colGKey', "Key") },
+						{ key: 'label', title: localize('u3.mep.hvacConst.colGLabel', "Description") },
+						{ key: 'u', title: localize('u3.mep.hvacConst.colGU', "U-Value [W/m²K]"), type: 'number', align: 'right' },
+						{ key: 'shgc', title: localize('u3.mep.hvacConst.colGShgc', "SHGC"), type: 'number', align: 'right' },
+					],
+					rows: glazings,
+				},
+			],
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.hvac.tables',
+	title: localize('u3.mep.hvacTbl.title', "HVAC Weather & Ventilation Design Tables"),
+	part: 'mep',
+	requiresProject: false,
+	icon: Codicon.table,
+	help: localize('u3.mep.hvacTbl.help', "Shows code-pack outdoor cooling design conditions (2% DB/MCWB/range) and ASHRAE 62.1 / BNBC ventilation rates."),
+	secondaryActions: openMepSectionAction('hvac', localize('u3.mep.hvacTbl.openSec', "Open MEP HVAC")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/hvacTables', {}));
+		const cities: DataPanelRow[] = asArray(raw.cities).map(asBag).map(c => ({
+			label: str(c.label),
+			db: num(c.db) ?? 0,
+			wb: num(c.wb) ?? 0,
+			range: num(c.range) ?? 0,
+		}));
+		const uses: DataPanelRow[] = asArray(raw.uses).map(asBag).map(u => ({
+			label: str(u.label),
+			perPerson: num(u.perPerson) ?? '–',
+			perArea: num(u.perArea) ?? '–',
+			density: num(u.density) ?? '–',
+			source: str(u.source, '–'),
+		}));
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.hvacTbl.mCities', "Weather Stations"), value: String(cities.length) },
+				{ label: localize('u3.mep.hvacTbl.mUses', "Ventilation Uses"), value: String(uses.length) },
+			],
+			tables: [
+				{
+					id: 'cities',
+					title: localize('u3.mep.hvacTbl.citiesTab', "Cooling Design Conditions (2%)"),
+					columns: [
+						{ key: 'label', title: localize('u3.mep.hvacTbl.colCity', "Station") },
+						{ key: 'db', title: localize('u3.mep.hvacTbl.colDb', "Dry Bulb [°C]"), type: 'number', align: 'right' },
+						{ key: 'wb', title: localize('u3.mep.hvacTbl.colWb', "MCWB [°C]"), type: 'number', align: 'right' },
+						{ key: 'range', title: localize('u3.mep.hvacTbl.colRange', "Daily Range [°C]"), type: 'number', align: 'right' },
+					],
+					rows: cities,
+				},
+				{
+					id: 'uses',
+					title: localize('u3.mep.hvacTbl.usesTab', "Outdoor Air Ventilation Rates"),
+					columns: [
+						{ key: 'label', title: localize('u3.mep.hvacTbl.colUse', "Occupancy Use") },
+						{ key: 'perPerson', title: localize('u3.mep.hvacTbl.colRp', "Per Person [L/s]"), type: 'number', align: 'right' },
+						{ key: 'perArea', title: localize('u3.mep.hvacTbl.colRa', "Per Area [L/s·m²]"), type: 'number', align: 'right' },
+						{ key: 'density', title: localize('u3.mep.hvacTbl.colDens', "Occupants / 100 m²"), type: 'number', align: 'right' },
+						{ key: 'source', title: localize('u3.mep.hvacTbl.colSrc', "Source") },
+					],
+					rows: uses,
+				},
+			],
+		};
+	},
+});
+
+//#endregion
+
+//#region Additional Electrical Panels (5)
+
+registerMepPanel({
+	id: 'saengine.mep.electrical.uses',
+	title: localize('u3.mep.elecUses.title', "Electrical Load Density Table"),
+	part: 'mep',
+	requiresProject: false,
+	icon: Codicon.book,
+	help: localize('u3.mep.elecUses.help', "Lists code-pack minimum electrical load densities [W/m²] for non-air-conditioned and air-conditioned occupancies."),
+	secondaryActions: openMepSectionAction('electrical', localize('u3.mep.elecUses.openSec', "Open MEP Electrical")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/electricalUses', {}));
+		const rows: DataPanelRow[] = asArray(raw.uses).map(asBag).map(u => ({
+			label: str(u.label),
+			nonAc: num(u.nonAc) ?? '–',
+			ac: num(u.ac) ?? '–',
+			source: str(u.source, '–'),
+		}));
+		return {
+			metrics: [
+				{ label: localize('u3.mep.elecUses.mCount', "Occupancy Categories"), value: String(rows.length) },
+			],
+			tables: [{
+				id: 'uses',
+				title: localize('u3.mep.elecUses.tab', "Minimum Electrical Load Densities"),
+				columns: [
+					{ key: 'label', title: localize('u3.mep.elecUses.colLabel', "Occupancy") },
+					{ key: 'nonAc', title: localize('u3.mep.elecUses.colNonAc', "Non-A/C [W/m²]"), type: 'number', align: 'right' },
+					{ key: 'ac', title: localize('u3.mep.elecUses.colAc', "A/C [W/m²]"), type: 'number', align: 'right' },
+					{ key: 'source', title: localize('u3.mep.elecUses.colSource', "Reference") },
+				],
+				rows,
+			}],
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.electrical.demand',
+	title: localize('u3.mep.elecDem.title', "Electrical Demand Schedule & Plant Rooms"),
+	part: 'mep',
+	icon: Codicon.graph,
+	help: localize('u3.mep.elecDem.help', "Summarizes connected load, diversified maximum demand (kW / kVA), story demand breakdown, and substation/generator room checks."),
+	secondaryActions: openMepSectionAction('electrical', localize('u3.mep.elecDem.openSec', "Open MEP Electrical")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/electricalReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const demand = asBag(raw.demand);
+		const stories = asArray(demand.stories).map(asBag);
+		const rooms = asArray(raw.rooms).map(asBag);
+
+		const storyRows: DataPanelRow[] = stories.map(s => ({
+			story: str(s.story),
+			use: str(s.useLabel || s.use, '–'),
+			area: num(s.area) ?? 0,
+			density: num(s.density) ?? 0,
+			connected: num(s.connected) ?? 0,
+			demand: num(s.demand) ?? 0,
+			kva: num(s.kva) ?? 0,
+		}));
+
+		const roomRows: DataPanelRow[] = rooms.map(r => ({
+			name: str(r.name),
+			demand: num(r.demand) ?? '–',
+			capacity: num(r.capacity) ?? '–',
+			unit: str(r.unit, 'm²'),
+			status: r.ok === false ? 'Fail' : 'Pass',
+			note: str(r.note, '–'),
+		}));
+
+		const roomFails = roomRows.filter(r => r.status === 'Fail').length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.elecDem.mConn', "Connected Load"), value: `${(num(demand.connected) ?? 0).toFixed(1)} kW` },
+				{ label: localize('u3.mep.elecDem.mMax', "Maximum Demand"), value: `${(num(demand.maximumDemand) ?? 0).toFixed(1)} kW (${(num(demand.kva) ?? 0).toFixed(1)} kVA)` },
+				{ label: localize('u3.mep.elecDem.mCurrent', "Line Current (400 V)"), value: `${(num(demand.current) ?? 0).toFixed(0)} A` },
+				{ label: localize('u3.mep.elecDem.mRooms', "Room Check Fails"), value: String(roomFails), tone: roomFails ? 'fail' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'stories',
+					title: localize('u3.mep.elecDem.storiesTab', "Demand by Story"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.elecDem.colStory', "Story") },
+						{ key: 'use', title: localize('u3.mep.elecDem.colUse', "Occupancy") },
+						{ key: 'area', title: localize('u3.mep.elecDem.colArea', "Area [m²]"), type: 'number', align: 'right' },
+						{ key: 'density', title: localize('u3.mep.elecDem.colDens', "Unit Load [W/m²]"), type: 'number', align: 'right' },
+						{ key: 'connected', title: localize('u3.mep.elecDem.colConn', "Connected [kW]"), type: 'number', align: 'right' },
+						{ key: 'demand', title: localize('u3.mep.elecDem.colDem', "Demand [kW]"), type: 'number', align: 'right' },
+						{ key: 'kva', title: localize('u3.mep.elecDem.colKva', "Demand [kVA]"), type: 'number', align: 'right' },
+					],
+					rows: storyRows,
+				},
+				{
+					id: 'rooms',
+					title: localize('u3.mep.elecDem.roomsTab', "Electrical Room Checks"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.elecDem.colRName', "Room Check") },
+						{ key: 'demand', title: localize('u3.mep.elecDem.colRDem', "Required"), type: 'number', align: 'right' },
+						{ key: 'capacity', title: localize('u3.mep.elecDem.colRCap', "Provided"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.elecDem.colRUnit', "Unit") },
+						{ key: 'status', title: localize('u3.mep.elecDem.colRStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.elecDem.colRNote', "Note") },
+					],
+					rows: roomRows,
+				},
+			],
+			notes: [...asStrings(raw.notes), ...asStrings(demand.notes)],
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.electrical.supply',
+	title: localize('u3.mep.elecSup.title', "Substation, Transformers, Generator & UPS"),
+	part: 'mep',
+	icon: Codicon.zap,
+	help: localize('u3.mep.elecSup.help', "Evaluates substation transformer rating, standby diesel generator and fuel tank sizing, UPS capacity, and proposed heavy equipment."),
+	secondaryActions: openMepSectionAction('electrical', localize('u3.mep.elecSup.openSec', "Open MEP Electrical")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/electricalReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const supply = asBag(raw.supply);
+		const tx = asBag(supply.transformers);
+		const gen = asBag(supply.generator);
+		const ups = asBag(supply.ups);
+		const proposed = asArray(raw.equipment).map(asBag);
+
+		const sourceRows: DataPanelRow[] = [
+			...(Object.keys(tx).length ? [{
+				source: localize('u3.mep.elecSup.tx', "Transformers"),
+				required: num(tx.required) ?? '–',
+				provided: num(tx.total) ?? '–',
+				unit: 'kVA',
+				note: `${str(tx.count, '0')} × ${str(tx.rating, '–')} kVA${tx.substationArea ? `; substation ${str(tx.substationArea)} m²` : ''}`,
+			}] : []),
+			...(Object.keys(gen).length && num(gen.kva) ? [{
+				source: localize('u3.mep.elecSup.gen', "Standby Generator"),
+				required: num(gen.required) ?? '–',
+				provided: num(gen.kva) ?? '–',
+				unit: 'kVA',
+				note: `Fuel ${str(gen.fuel, '–')} L (${str(gen.fuelHours, '–')} h)${gen.roomArea ? `; room ${str(gen.roomArea)} m²` : ''}`,
+			}] : []),
+			...(Object.keys(ups).length && num(ups.kva) ? [{
+				source: localize('u3.mep.elecSup.ups', "UPS & Battery"),
+				required: num(ups.load) !== undefined ? Number((num(ups.load)! / 0.9).toFixed(1)) : '–',
+				provided: num(ups.kva) ?? '–',
+				unit: 'kVA',
+				note: `${str(ups.autonomy, '15')} min autonomy; UPS ${str(ups.upsWeight, '–')} kN, battery ${str(ups.batteryWeight, '–')} kN`,
+			}] : []),
+		];
+
+		const proposedRows: DataPanelRow[] = proposed.map(e => ({
+			id: str(e.id),
+			kind: str(e.kind),
+			name: str(e.name, '–'),
+			story: str(e.story, '–'),
+			rating: num(e.rating) ?? '–',
+			operatingWeight: num(e.operatingWeight) ?? 0,
+			size: `${str(e.length, '–')}×${str(e.width, '–')} mm`,
+		}));
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.elecSup.mVolt', "Supply Voltage"), value: str(supply.voltage, '0.4kV') },
+				{ label: localize('u3.mep.elecSup.mTx', "Transformers"), value: num(tx.count) ? `${str(tx.count)} × ${str(tx.rating)} kVA` : 'None' },
+				{ label: localize('u3.mep.elecSup.mGen', "Generator"), value: num(gen.kva) ? `${str(gen.kva)} kVA` : 'None' },
+				{ label: localize('u3.mep.elecSup.mUps', "UPS"), value: num(ups.kva) ? `${str(ups.kva)} kVA` : 'None' },
+			],
+			tables: [
+				{
+					id: 'sources',
+					title: localize('u3.mep.elecSup.sourcesTab', "Power Supply Equipment Sizing"),
+					columns: [
+						{ key: 'source', title: localize('u3.mep.elecSup.colSource', "Source") },
+						{ key: 'required', title: localize('u3.mep.elecSup.colReq', "Required"), type: 'number', align: 'right' },
+						{ key: 'provided', title: localize('u3.mep.elecSup.colProv', "Provided"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.elecSup.colUnit', "Unit") },
+						{ key: 'note', title: localize('u3.mep.elecSup.colNote', "Details") },
+					],
+					rows: sourceRows,
+				},
+				{
+					id: 'proposed',
+					title: localize('u3.mep.elecSup.propTab', "Proposed Equipment Loads"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.elecSup.colPId', "ID") },
+						{ key: 'kind', title: localize('u3.mep.elecSup.colPKind', "Kind") },
+						{ key: 'name', title: localize('u3.mep.elecSup.colPName', "Name") },
+						{ key: 'story', title: localize('u3.mep.elecSup.colPStory', "Story") },
+						{ key: 'rating', title: localize('u3.mep.elecSup.colPRating', "Rating"), type: 'number', align: 'right' },
+						{ key: 'operatingWeight', title: localize('u3.mep.elecSup.colPWeight', "Weight [kN]"), type: 'number', align: 'right' },
+						{ key: 'size', title: localize('u3.mep.elecSup.colPSize', "Footprint") },
+					],
+					rows: proposedRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.electrical.lightning',
+	title: localize('u3.mep.elecLightn.title', "Lightning Protection & Earthing"),
+	part: 'mep',
+	icon: Codicon.shield,
+	help: localize('u3.mep.elecLightn.help', "Evaluates lightning risk index, IEC/BNBC protection level, roof air terminals, structural down-conductor columns, and earthing resistance limits."),
+	secondaryActions: openMepSectionAction('electrical', localize('u3.mep.elecLightn.openSec', "Open MEP Electrical")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/electricalReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const ltg = asBag(raw.lightning);
+		const risk = asBag(ltg.risk);
+		const earth = asBag(ltg.earth);
+		const downConductors = asArray(ltg.downConductors).map(asBag);
+		const airTerminals = asArray(ltg.airTerminals);
+
+		const dcRows: DataPanelRow[] = downConductors.map((dc, i) => {
+			const cols = asStrings(dc.columns);
+			return {
+				id: str(dc.id || `DC${i + 1}`),
+				column: cols[0] ?? str(dc.column, '–'),
+				columns: cols.join(' -> ') || '–',
+				foundation: str(dc.foundation, '–'),
+				testBox: num(dc.testBox) ?? '–',
+				conductor: str(dc.conductor, '–'),
+			};
+		});
+
+		const summaryRows: DataPanelRow[] = Object.keys(ltg).length ? [
+			{ parameter: localize('u3.mep.elecLightn.pLevel', "Protection Level"), value: str(ltg.level, '–') },
+			{ parameter: localize('u3.mep.elecLightn.pDecision', "Risk Decision"), value: str(risk.decision, '–') },
+			{ parameter: localize('u3.mep.elecLightn.pRisk', "Total Risk Index"), value: formatScalar(risk.total) },
+			{ parameter: localize('u3.mep.elecLightn.pEarth', "Earthing Arrangement"), value: str(earth.arrangement || ltg.earthing, '–') },
+			{ parameter: localize('u3.mep.elecLightn.pRes', "Max Earth Resistance"), value: num(earth.limit) !== undefined ? `${num(earth.limit)} Ω` : '–' },
+			{ parameter: localize('u3.mep.elecLightn.pClear', "Separation Clearance"), value: num(earth.clearance) !== undefined ? `${num(earth.clearance)!.toFixed(2)} m` : '–' },
+		] : [];
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.elecLightn.mRisk', "Risk Index"), value: formatScalar(risk.total) },
+				{ label: localize('u3.mep.elecLightn.mDecision', "Decision"), value: str(risk.decision, '–'), tone: risk.decision === 'required' ? 'warn' : 'ok' },
+				{ label: localize('u3.mep.elecLightn.mDown', "Down Conductors"), value: String(dcRows.length) },
+				{ label: localize('u3.mep.elecLightn.mAir', "Air Terminals"), value: String(airTerminals.length) },
+			],
+			tables: [
+				{
+					id: 'downConductors',
+					title: localize('u3.mep.elecLightn.dcTab', "Down-Conductor Columns"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.elecLightn.colId', "ID") },
+						{ key: 'column', title: localize('u3.mep.elecLightn.colBase', "Base Column") },
+						{ key: 'columns', title: localize('u3.mep.elecLightn.colChain', "Continuous Stack") },
+						{ key: 'foundation', title: localize('u3.mep.elecLightn.colFound', "Foundation Electrode") },
+						{ key: 'testBox', title: localize('u3.mep.elecLightn.colTest', "Test Box [mm]"), type: 'number', align: 'right' },
+						{ key: 'conductor', title: localize('u3.mep.elecLightn.colCond', "Conductor") },
+					],
+					rows: dcRows,
+				},
+				{
+					id: 'summary',
+					title: localize('u3.mep.elecLightn.sumTab', "Lightning & Earthing Parameters"),
+					columns: [
+						{ key: 'parameter', title: localize('u3.mep.elecLightn.colParam', "Parameter") },
+						{ key: 'value', title: localize('u3.mep.elecLightn.colVal', "Value") },
+					],
+					rows: summaryRows,
+				},
+			],
+			notes: [...asStrings(ltg.structuralNotes), ...asStrings(ltg.notes), ...asStrings(raw.notes)],
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.electrical.risers',
+	title: localize('u3.mep.elecRisers.title', "Electrical Risers & Cable Tray Crossings"),
+	part: 'mep',
+	icon: Codicon.arrowUp,
+	help: localize('u3.mep.elecRisers.help', "Sizes rising mains and busbars, evaluates cable tray beam crossings and headroom, and lists required structural openings."),
+	secondaryActions: openMepSectionAction('electrical', localize('u3.mep.elecRisers.openSec', "Open MEP Electrical")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/electricalReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const risers = asArray(raw.risers).map(asBag);
+		const trays = asArray(raw.trays).map(asBag);
+		const openings = asArray(raw.openings);
+
+		const riserRows: DataPanelRow[] = risers.map(r => {
+			const w = num(r.width);
+			const d = num(r.depth);
+			const size = w !== undefined && d !== undefined ? `${Math.round(w)}×${Math.round(d)} mm` : '–';
+			return {
+				id: str(r.id),
+				kind: str(r.kind, '–'),
+				current: num(r.current) ?? 0,
+				rating: num(r.rating) ?? '–',
+				size,
+				status: r.ok === false ? 'Fail' : 'Pass',
+				note: asStrings(r.notes).join('; ') || '–',
+			};
+		});
+
+		const trayRows: DataPanelRow[] = trays.map(t => {
+			const below = t.passesBelow === true;
+			const fits = t.fits !== false;
+			return {
+				tray: str(t.tray || t.id),
+				beam: str(t.beam, '–'),
+				passesBelow: below ? 'Yes' : 'No',
+				fits: fits ? 'Yes' : 'No',
+				status: below || fits ? 'Pass' : 'Fail',
+			};
+		});
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.elecRisers.mRisers', "Risers"), value: String(riserRows.length) },
+				{ label: localize('u3.mep.elecRisers.mTrays', "Tray Crossings"), value: String(trayRows.length) },
+				{ label: localize('u3.mep.elecRisers.mOpen', "Missing Openings"), value: String(openings.length), tone: openings.length ? 'warn' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'risers',
+					title: localize('u3.mep.elecRisers.risersTab', "Electrical Risers"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.elecRisers.colId', "Riser") },
+						{ key: 'kind', title: localize('u3.mep.elecRisers.colKind', "Kind") },
+						{ key: 'current', title: localize('u3.mep.elecRisers.colCurr', "Current [A]"), type: 'number', align: 'right' },
+						{ key: 'rating', title: localize('u3.mep.elecRisers.colRat', "Rating [A]"), type: 'number', align: 'right' },
+						{ key: 'size', title: localize('u3.mep.elecRisers.colSize', "Dimensions") },
+						{ key: 'status', title: localize('u3.mep.elecRisers.colStatus', "Status"), type: 'status' },
+						{ key: 'note', title: localize('u3.mep.elecRisers.colNote', "Note") },
+					],
+					rows: riserRows,
+				},
+				{
+					id: 'trays',
+					title: localize('u3.mep.elecRisers.traysTab', "Cable Tray Beam Crossings"),
+					columns: [
+						{ key: 'tray', title: localize('u3.mep.elecRisers.colTTray', "Tray") },
+						{ key: 'beam', title: localize('u3.mep.elecRisers.colTBeam', "Beam") },
+						{ key: 'passesBelow', title: localize('u3.mep.elecRisers.colTBelow', "Passes Below") },
+						{ key: 'fits', title: localize('u3.mep.elecRisers.colTFits', "Web Opening Fits") },
+						{ key: 'status', title: localize('u3.mep.elecRisers.colTStatus', "Status"), type: 'status' },
+					],
+					rows: trayRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+//#endregion
+
+//#region Additional Fire Protection Panels (4)
+
+registerMepPanel({
+	id: 'saengine.mep.fire.proposals',
+	title: localize('u3.mep.fireProp.title', "Fire Water Supply Proposals"),
+	part: 'mep',
+	icon: Codicon.database,
+	help: localize('u3.mep.fireProp.help', "Computes proposed fire water storage tanks and main/standby/jockey fire pump sets for the project."),
+	secondaryActions: openMepSectionAction('fire', localize('u3.mep.fireProp.openSec', "Open MEP Fire")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/fireProposals', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const tanks = asArray(raw.tanks).map(asBag);
+		const pumps = asArray(raw.pumps).map(asBag);
+
+		const tankRows: DataPanelRow[] = tanks.map(t => ({
+			id: str(t.id),
+			kind: str(t.kind),
+			length: num(t.length) ?? 0,
+			width: num(t.width) ?? 0,
+			waterDepth: num(t.waterDepth) ?? 0,
+			freeboard: num(t.freeboard) ?? 0,
+			compartments: num(t.compartments) ?? 1,
+			construction: str(t.construction, 'rc'),
+		}));
+
+		const pumpRows: DataPanelRow[] = pumps.map(p => ({
+			id: str(p.id),
+			duty: str(p.duty),
+			story: str(p.story, '–'),
+			flow: num(p.flow) ?? 0,
+			head: num(p.head) ?? 0,
+			power: num(p.power) ?? 0,
+			operatingWeight: num(p.operatingWeight) ?? 0,
+			size: `${str(p.length, '–')}×${str(p.width, '–')}×${str(p.height, '–')} mm`,
+		}));
+
+		const mainPump = pumps.find(p => p.duty === 'main');
+		return {
+			metrics: [
+				{ label: localize('u3.mep.fireProp.mTanks', "Proposed Tanks"), value: String(tankRows.length) },
+				{ label: localize('u3.mep.fireProp.mPumps', "Proposed Pumps"), value: String(pumpRows.length) },
+				{ label: localize('u3.mep.fireProp.mMain', "Main Pump Duty"), value: mainPump ? `${num(mainPump.flow) ?? 0} L/min @ ${num(mainPump.head) ?? 0} m` : '–' },
+			],
+			tables: [
+				{
+					id: 'tanks',
+					title: localize('u3.mep.fireProp.tanksTab', "Proposed Fire Tanks"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.fireProp.colTId', "Tank") },
+						{ key: 'kind', title: localize('u3.mep.fireProp.colTKind', "Kind") },
+						{ key: 'length', title: localize('u3.mep.fireProp.colTLen', "Length [mm]"), type: 'number', align: 'right' },
+						{ key: 'width', title: localize('u3.mep.fireProp.colTWid', "Width [mm]"), type: 'number', align: 'right' },
+						{ key: 'waterDepth', title: localize('u3.mep.fireProp.colTDepth', "Depth [mm]"), type: 'number', align: 'right' },
+						{ key: 'freeboard', title: localize('u3.mep.fireProp.colTFree', "Freeboard [mm]"), type: 'number', align: 'right' },
+						{ key: 'compartments', title: localize('u3.mep.fireProp.colTComp', "Compartments"), type: 'number', align: 'right' },
+						{ key: 'construction', title: localize('u3.mep.fireProp.colTConst', "Construction") },
+					],
+					rows: tankRows,
+					emptyMessage: localize('u3.mep.fireProp.noTanks', "Existing tanks satisfy fire demand or no fire stories configured yet."),
+				},
+				{
+					id: 'pumps',
+					title: localize('u3.mep.fireProp.pumpsTab', "Proposed Fire Pumps"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.fireProp.colPId', "Pump") },
+						{ key: 'duty', title: localize('u3.mep.fireProp.colPDuty', "Duty") },
+						{ key: 'story', title: localize('u3.mep.fireProp.colPStory', "Story") },
+						{ key: 'flow', title: localize('u3.mep.fireProp.colPFlow', "Flow [L/min]"), type: 'number', align: 'right' },
+						{ key: 'head', title: localize('u3.mep.fireProp.colPHead', "Head [m]"), type: 'number', align: 'right' },
+						{ key: 'power', title: localize('u3.mep.fireProp.colPPower', "Power [kW]"), type: 'number', align: 'right' },
+						{ key: 'operatingWeight', title: localize('u3.mep.fireProp.colPWeight', "Weight [kN]"), type: 'number', align: 'right' },
+						{ key: 'size', title: localize('u3.mep.fireProp.colPSize', "Dimensions") },
+					],
+					rows: pumpRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.fire.requirements',
+	title: localize('u3.mep.fireReq.title', "Fire Protection Code Requirements"),
+	part: 'mep',
+	icon: Codicon.checklist,
+	help: localize('u3.mep.fireReq.help', "Evaluates required active fire systems (hydrants, sprinklers, alarm, extinguishers), occupancy hazard classification, and clauses."),
+	secondaryActions: openMepSectionAction('fire', localize('u3.mep.fireReq.openSec', "Open MEP Fire")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/fireReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const req = asBag(raw.requirements);
+		const systems = asArray(req.systems).map(asBag);
+		const rules = asArray(req.rules).map(asBag);
+		const stories = asArray(raw.stories).map(asBag);
+		const checks = asArray(raw.checks).map(asBag);
+
+		const systemRows: DataPanelRow[] = systems.map(s => ({
+			label: str(s.label || s.system),
+			status: str(s.status),
+			provided: s.provided ? 'Yes' : 'No',
+			reasons: asStrings(s.reasons).join(' · ') || '–',
+		}));
+
+		const storyRows: DataPanelRow[] = stories.map(s => {
+			const spr = asBag(s.sprinklers);
+			return {
+				story: str(s.story),
+				occupancy: str(s.occupancy, '–'),
+				group: str(s.group, '–'),
+				hazard: str(s.hazard, '–'),
+				area: num(s.area) ?? 0,
+				sprinklered: s.sprinklered ? 'Yes' : 'No',
+				heads: num(spr.heads) ?? '–',
+				extinguishers: num(s.extinguishers) ?? '–',
+				callPoints: num(s.callPoints) ?? '–',
+				detectors: num(s.detectors) ?? '–',
+			};
+		});
+
+		const ruleRows: DataPanelRow[] = rules.map(r => ({
+			group: str(r.group),
+			clause: str(r.clause),
+			text: str(r.text),
+		}));
+
+		const requiredCount = systems.filter(s => s.status === 'required').length;
+		const failing = checks.filter(c => c.ok === false).length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.fireReq.mReq', "Required Systems"), value: String(requiredCount) },
+				{ label: localize('u3.mep.fireReq.mHigh', "Building Class"), value: req.highRise ? localize('u3.mep.fireReq.highRise', "High-Rise") : localize('u3.mep.fireReq.standard', "Standard") },
+				{ label: localize('u3.mep.fireReq.mStories', "Stories"), value: String(storyRows.length) },
+				{ label: localize('u3.mep.fireReq.mFail', "Failing Checks"), value: String(failing), tone: failing ? 'fail' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'systems',
+					title: localize('u3.mep.fireReq.systemsTab', "Required Fire Protection Systems"),
+					columns: [
+						{ key: 'label', title: localize('u3.mep.fireReq.colSystem', "System") },
+						{ key: 'status', title: localize('u3.mep.fireReq.colStatus', "Requirement") },
+						{ key: 'provided', title: localize('u3.mep.fireReq.colProvided', "Designed") },
+						{ key: 'reasons', title: localize('u3.mep.fireReq.colReason', "Clauses & Basis") },
+					],
+					rows: systemRows,
+				},
+				{
+					id: 'stories',
+					title: localize('u3.mep.fireReq.storiesTab', "Floor Classifications & Devices"),
+					columns: [
+						{ key: 'story', title: localize('u3.mep.fireReq.colFStory', "Story") },
+						{ key: 'occupancy', title: localize('u3.mep.fireReq.colFOcc', "Occupancy") },
+						{ key: 'group', title: localize('u3.mep.fireReq.colFGroup', "Group") },
+						{ key: 'hazard', title: localize('u3.mep.fireReq.colFHaz', "Hazard") },
+						{ key: 'area', title: localize('u3.mep.fireReq.colFArea', "Area [m²]"), type: 'number', align: 'right' },
+						{ key: 'sprinklered', title: localize('u3.mep.fireReq.colFSpr', "Sprinklered") },
+						{ key: 'heads', title: localize('u3.mep.fireReq.colFHeads', "Heads"), type: 'number', align: 'right' },
+						{ key: 'extinguishers', title: localize('u3.mep.fireReq.colFExt', "Extinguishers"), type: 'number', align: 'right' },
+						{ key: 'callPoints', title: localize('u3.mep.fireReq.colFMcp', "Call Points"), type: 'number', align: 'right' },
+						{ key: 'detectors', title: localize('u3.mep.fireReq.colFDet', "Detectors"), type: 'number', align: 'right' },
+					],
+					rows: storyRows,
+				},
+				{
+					id: 'rules',
+					title: localize('u3.mep.fireReq.rulesTab', "Applicable Code Clauses"),
+					columns: [
+						{ key: 'group', title: localize('u3.mep.fireReq.colRGrp', "Group") },
+						{ key: 'clause', title: localize('u3.mep.fireReq.colRClause', "Clause") },
+						{ key: 'text', title: localize('u3.mep.fireReq.colRText', "Requirement") },
+					],
+					rows: ruleRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.fire.hydraulics',
+	title: localize('u3.mep.fireHyd.title', "Fire Water Demand, Hydraulics & Supports"),
+	part: 'mep',
+	icon: Codicon.pulse,
+	help: localize('u3.mep.fireHyd.help', "Reports fire water demand, reservoir volume, standpipe/sprinkler hydraulic pump duty, hanger support loads, and test pressures."),
+	secondaryActions: openMepSectionAction('fire', localize('u3.mep.fireHyd.openSec', "Open MEP Fire")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/fireReport', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const demand = asBag(raw.demand);
+		const hyd = asBag(raw.hydraulics);
+		const pumps = asArray(raw.pumps).map(asBag);
+		const supports = asArray(raw.supports).map(asBag);
+		const tests = asArray(raw.testPressures).map(asBag);
+		const checks = asArray(raw.checks).map(asBag);
+
+		const pumpRows: DataPanelRow[] = pumps.map(p => ({
+			duty: str(p.duty),
+			label: str(p.label || p.duty),
+			flow: num(p.flow) ?? 0,
+			head: num(p.head) ?? 0,
+			power: num(p.power) ?? 0,
+			count: num(p.count) ?? 1,
+			operatingWeight: num(p.operatingWeight) ?? 0,
+		}));
+
+		const supportRows: DataPanelRow[] = supports.map(s => ({
+			size: num(s.size) ?? '–',
+			kind: str(s.kind),
+			spacing: num(s.spacing) ?? '–',
+			load: num(s.load) ?? 0,
+			basis: str(s.basis, '–'),
+		}));
+
+		const testRows: DataPanelRow[] = tests.map(t => ({
+			system: str(t.system),
+			pressure: num(t.pressure) ?? 0,
+			note: str(t.note, '–'),
+		}));
+
+		const checkRows: DataPanelRow[] = checks.map(c => ({
+			name: str(c.name),
+			demand: num(c.demand) ?? '–',
+			capacity: num(c.capacity) ?? '–',
+			unit: str(c.unit, '-'),
+			status: c.ok === false ? 'Fail' : 'Pass',
+			clause: str(c.clause, '–'),
+			note: str(c.note, '–'),
+		}));
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.fireHyd.mFlow', "Fire Water Flow"), value: `${num(demand.flow) ?? 0} L/min` },
+				{ label: localize('u3.mep.fireHyd.mVol', "Reservoir"), value: `${num(demand.volume) ?? 0} m³` },
+				{ label: localize('u3.mep.fireHyd.mHead', "Pump Head"), value: num(hyd.pumpHead) !== undefined ? `${num(hyd.pumpHead)!.toFixed(1)} m` : '–' },
+				{ label: localize('u3.mep.fireHyd.mVel', "Max Velocity"), value: num(hyd.maxVelocity) !== undefined ? `${num(hyd.maxVelocity)!.toFixed(2)} m/s` : '–' },
+			],
+			tables: [
+				{
+					id: 'pumps',
+					title: localize('u3.mep.fireHyd.pumpsTab', "Fire Pump Sets"),
+					columns: [
+						{ key: 'duty', title: localize('u3.mep.fireHyd.colPDuty', "Duty") },
+						{ key: 'label', title: localize('u3.mep.fireHyd.colPLabel', "Description") },
+						{ key: 'flow', title: localize('u3.mep.fireHyd.colPFlow', "Flow [L/min]"), type: 'number', align: 'right' },
+						{ key: 'head', title: localize('u3.mep.fireHyd.colPHead', "Head [m]"), type: 'number', align: 'right' },
+						{ key: 'power', title: localize('u3.mep.fireHyd.colPPow', "Power [kW]"), type: 'number', align: 'right' },
+						{ key: 'count', title: localize('u3.mep.fireHyd.colPCount', "Sets"), type: 'number', align: 'right' },
+						{ key: 'operatingWeight', title: localize('u3.mep.fireHyd.colPWeight', "Weight [kN]"), type: 'number', align: 'right' },
+					],
+					rows: pumpRows,
+				},
+				{
+					id: 'supports',
+					title: localize('u3.mep.fireHyd.suppTab', "Pipe Hanger & Support Loads"),
+					columns: [
+						{ key: 'size', title: localize('u3.mep.fireHyd.colSSize', "Pipe [mm]"), type: 'number', align: 'right' },
+						{ key: 'kind', title: localize('u3.mep.fireHyd.colSKind', "Kind") },
+						{ key: 'spacing', title: localize('u3.mep.fireHyd.colSSpace', "Spacing [m]"), type: 'number', align: 'right' },
+						{ key: 'load', title: localize('u3.mep.fireHyd.colSLoad', "Load [kN]"), type: 'number', align: 'right' },
+						{ key: 'basis', title: localize('u3.mep.fireHyd.colSBasis', "Basis") },
+					],
+					rows: supportRows,
+				},
+				{
+					id: 'tests',
+					title: localize('u3.mep.fireHyd.testsTab', "Hydrostatic Test Pressures"),
+					columns: [
+						{ key: 'system', title: localize('u3.mep.fireHyd.colTSys', "System") },
+						{ key: 'pressure', title: localize('u3.mep.fireHyd.colTPress', "Pressure [kPa]"), type: 'number', align: 'right' },
+						{ key: 'note', title: localize('u3.mep.fireHyd.colTNote', "Note") },
+					],
+					rows: testRows,
+				},
+				{
+					id: 'checks',
+					title: localize('u3.mep.fireHyd.checksTab', "Fire Code Checks"),
+					columns: [
+						{ key: 'name', title: localize('u3.mep.fireHyd.colCName', "Check") },
+						{ key: 'demand', title: localize('u3.mep.fireHyd.colCDem', "Demand"), type: 'number', align: 'right' },
+						{ key: 'capacity', title: localize('u3.mep.fireHyd.colCCap', "Capacity"), type: 'number', align: 'right' },
+						{ key: 'unit', title: localize('u3.mep.fireHyd.colCUnit', "Unit") },
+						{ key: 'status', title: localize('u3.mep.fireHyd.colCStatus', "Status"), type: 'status' },
+						{ key: 'clause', title: localize('u3.mep.fireHyd.colCClause', "Clause") },
+						{ key: 'note', title: localize('u3.mep.fireHyd.colCNote', "Note") },
+					],
+					rows: checkRows,
+				},
+			],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+registerMepPanel({
+	id: 'saengine.mep.fire.openingsCheck',
+	title: localize('u3.mep.fireOpen.title', "Fire Sleeves & Penetrations Audit"),
+	part: 'mep',
+	icon: Codicon.circleLargeOutline,
+	help: localize('u3.mep.fireOpen.help', "Lists slab and beam sleeves still missing for fire risers and main runs."),
+	secondaryActions: openMepSectionAction('fire', localize('u3.mep.fireOpen.openSec', "Open MEP Fire")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/fireOpenings', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const openings = asArray(raw.openings).map(asBag);
+		const rows: DataPanelRow[] = openings.map(o => ({
+			id: str(o.id),
+			host: str(o.host),
+			kind: str(o.kind, 'sleeve'),
+			shape: str(o.shape),
+			size: formatOpeningSize(o),
+			service: str(o.service, '–'),
+		}));
+
+		return {
+			metrics: [
+				{ label: localize('u3.mep.fireOpen.mMissing', "Missing Sleeves"), value: String(rows.length), tone: rows.length ? 'warn' : 'ok' },
+			],
+			tables: [{
+				id: 'openings',
+				title: localize('u3.mep.fireOpen.tab', "Missing Fire Sleeves"),
+				columns: [
+					{ key: 'id', title: localize('u3.mep.fireOpen.colId', "Sleeve") },
+					{ key: 'host', title: localize('u3.mep.fireOpen.colHost', "Host") },
+					{ key: 'kind', title: localize('u3.mep.fireOpen.colKind', "Kind") },
+					{ key: 'shape', title: localize('u3.mep.fireOpen.colShape', "Shape") },
+					{ key: 'size', title: localize('u3.mep.fireOpen.colSize', "Size") },
+					{ key: 'service', title: localize('u3.mep.fireOpen.colService', "Service") },
+				],
+				rows,
+				emptyMessage: localize('u3.mep.fireOpen.none', "All fire risers and mains already have sleeves or shafts."),
+			}],
+			notes: asStrings(raw.notes),
+			problems: asStrings(raw.problems),
+		};
+	},
+});
+
+//#endregion
+
+//#region Systems Panel (1)
+
+registerMepPanel({
+	id: 'saengine.mep.systems.summary',
+	title: localize('u3.mep.sys.title', "MEP Systems & Connectivity Summary"),
+	part: 'mep',
+	icon: Codicon.typeHierarchy,
+	help: localize('u3.mep.sys.help', "Summarizes logical MEP systems derived from connectors, critical path lengths, flow/load totals, and connectivity warnings."),
+	secondaryActions: openMepSectionAction('systems', localize('u3.mep.sys.openSec', "Open System Browser")),
+	run: async ctx => {
+		const raw = asBag(await ctx.engineRequest('mep/systems', {
+			projectRoot: ctx.project!.root.fsPath,
+		}));
+		const summary = asBag(raw.summary);
+		const systems = asArray(raw.systems).map(asBag);
+		const issues = asArray(raw.issues).map(asBag);
+
+		const systemRows: DataPanelRow[] = systems.map(s => ({
+			id: str(s.id),
+			name: str(s.name),
+			classification: str(s.classificationLabel || s.classification),
+			domain: str(s.domain),
+			elementCount: num(s.elementCount) ?? 0,
+			airFlowLps: num(s.airFlowLps) ?? '–',
+			waterFlowLps: num(s.waterFlowLps) ?? '–',
+			fixtureUnits: num(s.fixtureUnits) ?? '–',
+			electricalLoadKw: num(s.electricalLoadKw) ?? '–',
+			criticalPathLength: num(s.criticalPathLength) ?? 0,
+			warnings: num(s.warnings) ?? 0,
+		}));
+
+		const issueRows: DataPanelRow[] = issues.map(i => ({
+			id: str(i.id),
+			severity: i.severity === 'error' ? 'Fail' : 'Warn',
+			kind: str(i.kind),
+			story: str(i.story, '–'),
+			elements: asStrings(i.elements).join(', ') || '–',
+			message: str(i.message),
+		}));
+
+		const warnCount = num(summary.issues) ?? issueRows.length;
+		return {
+			metrics: [
+				{ label: localize('u3.mep.sys.mSystems', "Systems"), value: String(num(summary.systems) ?? systemRows.length) },
+				{ label: localize('u3.mep.sys.mElements', "Elements"), value: String(num(summary.elements) ?? 0) },
+				{ label: localize('u3.mep.sys.mConns', "Connections"), value: String(num(summary.connections) ?? 0) },
+				{ label: localize('u3.mep.sys.mWarnings', "Warnings"), value: String(warnCount), tone: warnCount ? 'warn' : 'ok' },
+			],
+			tables: [
+				{
+					id: 'systems',
+					title: localize('u3.mep.sys.systemsTab', "Derived MEP Systems"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.sys.colId', "System") },
+						{ key: 'name', title: localize('u3.mep.sys.colName', "Name") },
+						{ key: 'classification', title: localize('u3.mep.sys.colClass', "Classification") },
+						{ key: 'domain', title: localize('u3.mep.sys.colDomain', "Domain") },
+						{ key: 'elementCount', title: localize('u3.mep.sys.colElems', "Elements"), type: 'number', align: 'right' },
+						{ key: 'airFlowLps', title: localize('u3.mep.sys.colAir', "Air [L/s]"), type: 'number', align: 'right' },
+						{ key: 'waterFlowLps', title: localize('u3.mep.sys.colWater', "Water [L/s]"), type: 'number', align: 'right' },
+						{ key: 'fixtureUnits', title: localize('u3.mep.sys.colFu', "FU"), type: 'number', align: 'right' },
+						{ key: 'electricalLoadKw', title: localize('u3.mep.sys.colKw', "Power [kW]"), type: 'number', align: 'right' },
+						{ key: 'criticalPathLength', title: localize('u3.mep.sys.colCrit', "Critical Path [m]"), type: 'number', align: 'right' },
+						{ key: 'warnings', title: localize('u3.mep.sys.colWarn', "Warnings"), type: 'number', align: 'right' },
+					],
+					rows: systemRows,
+				},
+				{
+					id: 'issues',
+					title: localize('u3.mep.sys.issuesTab', "Connectivity Warnings"),
+					columns: [
+						{ key: 'id', title: localize('u3.mep.sys.colIId', "Issue") },
+						{ key: 'severity', title: localize('u3.mep.sys.colISev', "Severity"), type: 'status' },
+						{ key: 'kind', title: localize('u3.mep.sys.colIKind', "Kind") },
+						{ key: 'story', title: localize('u3.mep.sys.colIStory', "Story") },
+						{ key: 'elements', title: localize('u3.mep.sys.colIElems', "Elements") },
+						{ key: 'message', title: localize('u3.mep.sys.colIMsg', "Message") },
+					],
+					rows: issueRows,
+					emptyMessage: localize('u3.mep.sys.noIssues', "No connector or system warnings found."),
 				},
 			],
 			notes: asStrings(raw.notes),

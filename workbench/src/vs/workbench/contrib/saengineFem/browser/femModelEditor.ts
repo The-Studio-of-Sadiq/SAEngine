@@ -43,7 +43,6 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { createModelViewSwitch } from '../../saengineProject/browser/modelView.js';
 import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
@@ -830,9 +829,6 @@ export class FemModelEditor extends EditorPane {
 		}));
 		frame.element.classList.add('saengine-fem-model-editor');
 		frame.setTitle(localize('femEditor.title', "Analysis Model"));
-		// The model view's Plan | 3D | Analysis switch; the View picker shows the analysis model's plans and elevations.
-		this._register(frame.addViewControl(this._register(createModelViewSwitch(this.commandService, 'analysis'))));
-
 		const view = append(frame.main, $('.fem-view'));
 		this.viewport = append(view, $('.viewport', { tabIndex: 0 }));
 		this.viewTools = this._register(this.instantiationService.createInstance(ViewerTools, {

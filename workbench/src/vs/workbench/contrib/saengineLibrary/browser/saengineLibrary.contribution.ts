@@ -26,17 +26,22 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { MATERIALS_SCHEMA, OBJECTS_SCHEMA } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { BimStudies, RenderPreset } from '../../saengineOffice/browser/bimStudies.js';
-import { registerRibbonItemHint, RibbonMenus } from '../../saengineRibbon/browser/ribbonRegistry.js';
+import { registerRibbonItemHint, RibbonMenus, subViewWhen } from '../../saengineRibbon/browser/ribbonRegistry.js';
 import { BuildingEditor } from './buildingEditor.js';
 import { GridsEditor } from './gridsEditor.js';
 import { SettingsEditor } from './settingsEditor.js';
 import { StructureEditor } from './structureEditor.js';
 import { JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditor } from './libraryEditor.js';
+
+const BIM_3D_SUB_VIEW = subViewWhen('bim.3d');
 import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from './libraryEditorInput.js';
 import { humanize } from './schemaForm.js';
 import './codePacks.contribution.js';
 import './sectionDesigner.contribution.js';
+import './settingsDataPanels.contribution.js';
+import './libraryDataPanels.contribution.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(LibraryEditor, LibraryEditorInput.EDITOR_ID, localize('libraryEditor', "SAEngine Library Editor")),
@@ -116,6 +121,9 @@ class LibraryEditorResolverContribution extends Disposable implements IWorkbench
 			const part = partById(kind);
 			if (!part?.mainFile) {
 				continue;
+			}
+			if (kind !== 'floorPlan' && kind !== 'structure') {
+				this._register(registerPartEditor(kind, EDITOR_IDS[kind]));
 			}
 			this._register(editorResolverService.registerEditor(
 				`**/${part.mainFile}`,
@@ -259,7 +267,7 @@ function registerBuildingStudyCommand(
 	registerRibbonItemHint(id, { size }, RibbonMenus.Bim3D);
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id, title, icon, menu: { id: RibbonMenus.Bim3D, group, order } });
+			super({ id, title, icon, menu: { id: RibbonMenus.Bim3D, group, order, when: BIM_3D_SUB_VIEW } });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const notificationService = accessor.get(INotificationService);
@@ -309,7 +317,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Library, {
 	submenu: LibraryAddMaterialSubmenu,
 	title: localize2('rib.lib.addMaterialSub', "Add Material"),
 	icon: Codicon.add,
-	group: '2_AddMaterial',
+	group: '1_AddMaterial',
 	order: 1,
 });
 for (const [index, category] of ((MATERIALS_SCHEMA.$defs?.Category?.enum ?? []) as string[]).entries()) {
@@ -329,12 +337,12 @@ for (const [index, category] of ((MATERIALS_SCHEMA.$defs?.Category?.enum ?? []) 
 }
 
 const LibraryAddObjectSubmenu = MenuId.for('saengine.ribbon.library.addObject');
-registerRibbonItemHint(LibraryAddObjectSubmenu.id, { size: 'large' }, RibbonMenus.Library);
-MenuRegistry.appendMenuItem(RibbonMenus.Library, {
+registerRibbonItemHint(LibraryAddObjectSubmenu.id, { size: 'large' }, RibbonMenus.LibraryObjects);
+MenuRegistry.appendMenuItem(RibbonMenus.LibraryObjects, {
 	submenu: LibraryAddObjectSubmenu,
 	title: localize2('rib.lib.addObjectSub', "Add Object Type"),
 	icon: Codicon.add,
-	group: '3_AddObject',
+	group: '1_AddObject',
 	order: 1,
 });
 for (const [index, kind] of ((OBJECTS_SCHEMA.$defs?.Kind?.enum ?? []) as string[]).entries()) {
@@ -353,14 +361,12 @@ for (const [index, kind] of ((OBJECTS_SCHEMA.$defs?.Kind?.enum ?? []) as string[
 	});
 }
 
-registerRibbonItemHint('saengine.library.cmd.duplicate', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.duplicate',
 			title: localize2('rib.lib.duplicate', "Duplicate"),
 			icon: Codicon.copy,
-			menu: { id: RibbonMenus.Library, group: '1_Switch', order: 3 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -368,14 +374,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.delete', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.delete',
 			title: localize2('rib.lib.delete', "Delete"),
 			icon: Codicon.trash,
-			menu: { id: RibbonMenus.Library, group: '1_Switch', order: 4 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -383,14 +387,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.stiffnessModifiers', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.stiffnessModifiers',
 			title: localize2('rib.lib.stiffness', "Stiffness Modifiers"),
 			icon: Codicon.settings,
-			menu: { id: RibbonMenus.Library, group: '4_Sections', order: 2 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -398,14 +400,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.import', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.import',
 			title: localize2('rib.lib.import', "Import JSON..."),
 			icon: Codicon.cloudDownload,
-			menu: { id: RibbonMenus.Library, group: '5_Exchange', order: 1 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -413,14 +413,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.export', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.export',
 			title: localize2('rib.lib.export', "Export JSON..."),
 			icon: Codicon.export,
-			menu: { id: RibbonMenus.Library, group: '5_Exchange', order: 2 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -436,7 +434,7 @@ registerAction2(class extends Action2 {
 			id: 'saengine.bim.cmd.rebuild',
 			title: localize2('rib.bim.rebuild', "Rebuild BIM"),
 			icon: Codicon.refresh,
-			menu: { id: RibbonMenus.Bim3D, group: '1_Section', order: 1 },
+			menu: { id: RibbonMenus.Bim3D, group: '1_Section', order: 1, when: BIM_3D_SUB_VIEW },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -451,7 +449,7 @@ registerAction2(class extends Action2 {
 			id: 'saengine.bim.cmd.fit',
 			title: localize2('rib.bim.fit', "Zoom to Fit"),
 			icon: Codicon.screenFull,
-			menu: { id: RibbonMenus.Bim3D, group: '1_Section', order: 2 },
+			menu: { id: RibbonMenus.Bim3D, group: '1_Section', order: 2, when: BIM_3D_SUB_VIEW },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -468,6 +466,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	group: '1_Section',
 	order: 3,
 	isSplitButton: true,
+	when: BIM_3D_SUB_VIEW,
 });
 for (const [order, id, label, run] of [
 	[1, 'saengine.bim.section.toggle', localize2('rib.bim.secToggle', "Toggle Section Box"), (p: BuildingEditor) => p.viewerTools?.toggleSectionBox()],
@@ -482,7 +481,7 @@ for (const [order, id, label, run] of [
 ] as const) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id, title: label, icon: Codicon.symbolMisc, menu: { id: Bim3DSectionSubmenu, group: '1_section', order } });
+			super({ id, title: label, icon: Codicon.symbolMisc, menu: { id: Bim3DSectionSubmenu, group: '1_section', order, when: BIM_3D_SUB_VIEW } });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const pane = await activeBuildingEditor(accessor);
@@ -502,6 +501,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	group: '2_Measure',
 	order: 1,
 	isSplitButton: true,
+	when: BIM_3D_SUB_VIEW,
 });
 for (const [order, id, label, run] of [
 	[1, 'saengine.bim.measure.toggle', localize2('rib.bim.measToggle', "Measure Tool"), (p: BuildingEditor) => p.viewerTools?.toggleMeasurePanel()],
@@ -513,7 +513,7 @@ for (const [order, id, label, run] of [
 ] as const) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id, title: label, icon: Codicon.symbolRuler, menu: { id: Bim3DMeasureSubmenu, group: '1_measure', order } });
+			super({ id, title: label, icon: Codicon.symbolRuler, menu: { id: Bim3DMeasureSubmenu, group: '1_measure', order, when: BIM_3D_SUB_VIEW } });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const pane = await activeBuildingEditor(accessor);
@@ -532,6 +532,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	icon: Codicon.eyeClosed,
 	group: '3_Visibility',
 	order: 1,
+	when: BIM_3D_SUB_VIEW,
 });
 for (const [order, id, label, run] of [
 	[1, 'saengine.bim.vis.hh', localize2('rib.bim.visHh', "Hide Element (HH)"), (p: BuildingEditor) => p.viewerTools?.hideTemp()],
@@ -546,7 +547,7 @@ for (const [order, id, label, run] of [
 ] as const) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id, title: label, icon: Codicon.eyeClosed, menu: { id: Bim3DVisibilitySubmenu, group: '1_vis', order } });
+			super({ id, title: label, icon: Codicon.eyeClosed, menu: { id: Bim3DVisibilitySubmenu, group: '1_vis', order, when: BIM_3D_SUB_VIEW } });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const pane = await activeBuildingEditor(accessor);
@@ -564,7 +565,7 @@ registerAction2(class extends Action2 {
 			id: 'saengine.bim.vis.reveal',
 			title: localize2('rib.bim.reveal', "Reveal Hidden"),
 			icon: Codicon.lightbulb,
-			menu: { id: RibbonMenus.Bim3D, group: '3_Visibility', order: 2 },
+			menu: { id: RibbonMenus.Bim3D, group: '3_Visibility', order: 2, when: BIM_3D_SUB_VIEW },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -580,6 +581,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	icon: Codicon.colorMode,
 	group: '4_RenderAndStudies',
 	order: 1,
+	when: BIM_3D_SUB_VIEW,
 });
 for (const [order, preset, label] of [
 	[1, 'standard', localize2('rib.bim.presetStd', "Standard")],
@@ -590,7 +592,7 @@ for (const [order, preset, label] of [
 ] as readonly [number, RenderPreset, ReturnType<typeof localize2>][]) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: `saengine.bim.study.render.${preset}`, title: label, icon: Codicon.colorMode, menu: { id: Bim3DRenderSubmenu, group: '1_presets', order } });
+			super({ id: `saengine.bim.study.render.${preset}`, title: label, icon: Codicon.colorMode, menu: { id: Bim3DRenderSubmenu, group: '1_presets', order, when: BIM_3D_SUB_VIEW } });
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			await (await activeBuildingEditor(accessor))?.bimStudies?.setRenderPreset(preset);
@@ -610,16 +612,19 @@ MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	command: { id: 'saengine.bim.exportIfc', title: localize2('rib.bim.exportIfc', "Export IFC"), icon: Codicon.export },
 	group: '5_Export',
 	order: 1,
+	when: BIM_3D_SUB_VIEW,
 });
 registerRibbonItemHint('saengine.bim.exportIfcOptions', { size: 'small' }, RibbonMenus.Bim3D);
 MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	command: { id: 'saengine.bim.exportIfcOptions', title: localize2('rib.bim.exportIfcOpts', "Export IFC Options..."), icon: Codicon.layers },
 	group: '5_Export',
 	order: 2,
+	when: BIM_3D_SUB_VIEW,
 });
 registerRibbonItemHint('saengine.bim.compareIfc', { size: 'small' }, RibbonMenus.Bim3D);
 MenuRegistry.appendMenuItem(RibbonMenus.Bim3D, {
 	command: { id: 'saengine.bim.compareIfc', title: localize2('rib.bim.compareIfc', "Compare IFC..."), icon: Codicon.diff },
 	group: '5_Export',
 	order: 3,
+	when: BIM_3D_SUB_VIEW,
 });

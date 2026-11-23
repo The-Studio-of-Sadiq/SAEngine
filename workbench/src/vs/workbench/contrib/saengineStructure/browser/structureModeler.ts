@@ -57,7 +57,9 @@ import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, E
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
 import { CODES_CODED_GEOMETRY_COMMAND, CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
 
-type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
+export type StructureTool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
+type Tool = StructureTool;
+export type StructureView = ModelerView;
 
 const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ tool: 'select', label: localize('modeler.select', "Select"), icon: Codicon.inspect },
@@ -1339,6 +1341,38 @@ export class StructureModelerEditor extends EditorPane {
 		if (input) {
 			void this.editorService.openEditor({ resource: input.resource, options: { override: LibraryEditorInput.STRUCTURE_EDITOR_ID, pinned: true } }, SIDE_GROUP);
 		}
+	}
+
+	selectTool(tool: Tool): void {
+		this.setTool(tool);
+	}
+
+	selectView(view: ModelerView): void {
+		this.setView(view);
+	}
+
+	fitView(): Promise<void> | undefined {
+		return this.modeler?.fit();
+	}
+
+	openShapeDialog(): void {
+		this.openShape();
+	}
+
+	openImportDialog(): Promise<void> {
+		return this.openImport();
+	}
+
+	openScriptPicker(): Promise<void> {
+		return this.pickScript();
+	}
+
+	openLevelPicker(): Promise<void> {
+		return this.pickLevel();
+	}
+
+	openGridsForm(): void {
+		this.openForm();
 	}
 
 	private computeTheme(): Partial<ModelerTheme> {

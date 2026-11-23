@@ -12,6 +12,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenu, IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -28,6 +29,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPartSectionPane, isPartSectionPane } from '../../../services/saengineProject/common/partSections.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
 import { getEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
 import { frameOfContainer } from '../../saengineProject/browser/modelLayoutModel.js';
@@ -51,6 +53,7 @@ import {
 	getRibbonCustomGroups,
 	getRibbonGroupLabel,
 	getRibbonGroupPriority,
+	getRibbonGroupWhen,
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
 	IRibbonCustomGroup,
@@ -60,12 +63,14 @@ import {
 	packRibbonColumns,
 	resolveActiveTabForEditor,
 	resolveDataPanelPart,
+	resolveDataPanelSubView,
 	resolveEditorToolbarTargetTab,
 	RIBBON_TABS,
 	RibbonButtonSize,
 	RibbonItem,
 	RibbonTabId,
 	SAENGINE_EDITOR_IDS,
+	SubViewContext,
 } from './ribbonRegistry.js';
 
 const RIBBON_TABS_HEIGHT = 26;
@@ -126,13 +131,17 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 	private readonly draftContext: IContextKey<boolean>;
 	private readonly dataPanelPartContext: IContextKey<string>;
+	private readonly subViewContext: IContextKey<string>;
 	private readonly tabContextKeys: ReadonlySet<string>;
+	private readonly activeSubViewPane = this._register(new MutableDisposable<IDisposable>());
 	private readonly lastTabByEditor = new Map<string, RibbonTabId>();
 
 	private tabButtons: HTMLButtonElement[] = [];
 	private activeTabId: RibbonTabId = 'home';
 	private lastEditorKey: string | undefined;
+	private lastSubView = '';
 	private activeFrame: IEditorRibbonFrame | undefined;
+	private activeSectionPane: IPartSectionPane | undefined;
 	private menuBound = false;
 	private syncingEditor = false;
 	private collapsed: boolean;
@@ -171,7 +180,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 		this.collapseBtn.type = 'button';
 
-		const keys = new Set<string>([ActiveEditorContext.key, DataPanelPartContext.key]);
+		const keys = new Set<string>([ActiveEditorContext.key, DataPanelPartContext.key, SubViewContext.key]);
 		for (const tab of RIBBON_TABS) {
 			if (tab.when) {
 				for (const key of tab.when.keys()) {
@@ -182,6 +191,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		this.tabContextKeys = keys;
 		this.draftContext = DraftActiveContext.bindTo(this.contextKeyService);
 		this.dataPanelPartContext = DataPanelPartContext.bindTo(this.contextKeyService);
+		this.subViewContext = SubViewContext.bindTo(this.contextKeyService);
 
 		this.collapsed = this.storageService.getBoolean(STORAGE_COLLAPSED_KEY, StorageScope.PROFILE, false);
 		this.loadTabMemory();
@@ -253,29 +263,39 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		this.syncingEditor = true;
 		try {
 			const activeId = this.editorService.activeEditorPane?.getId() ?? '';
+			const pane = this.editorService.activeEditorPane;
+			const sectionPane = isPartSectionPane(pane) ? pane : undefined;
+			if (sectionPane !== this.activeSectionPane) {
+				this.activeSectionPane = sectionPane;
+				this.activeSubViewPane.value = sectionPane?.onDidChangePartSection(() => this.syncActiveEditor(false));
+			}
 			const panelId = activeId === SAENGINE_EDITOR_IDS.dataPanel ? this.activeDataPanelId() : undefined;
 			const panelPart = panelId ? resolveDataPanelPart(panelId, getEngineDataPanel(panelId)?.part) : '';
+
+			const subView = this.activeSubView(activeId, sectionPane, panelId);
+			const subViewChanged = subView !== this.lastSubView;
+			this.lastSubView = subView;
 
 			this.contextKeyService.bufferChangeEvents(() => {
 				this.draftContext.set(DRAFT_EDITOR_IDS.has(activeId));
 				this.dataPanelPartContext.set(panelPart);
+				this.subViewContext.set(subView);
 			});
 
 			const contextEditorId = this.contextKeyService.getContextKeyValue<string>(ActiveEditorContext.key) ?? activeId;
-			const editorKey = contextEditorId === SAENGINE_EDITOR_IDS.dataPanel && panelPart
-				? `${contextEditorId}:${panelPart}`
+			const editorKey = contextEditorId === SAENGINE_EDITOR_IDS.dataPanel && (subView || panelPart)
+				? `${contextEditorId}:${subView || panelPart}`
 				: contextEditorId;
 			const editorChanged = editorKey !== this.lastEditorKey;
 			this.lastEditorKey = editorKey;
 
 			const tabs = getVisibleRibbonTabs(this.contextKeyService);
 			const nextTab = (autoSwitch && editorChanged) || !tabs.some(t => t.id === this.activeTabId)
-				? resolveActiveTabForEditor(editorKey, tabs, this.lastTabByEditor)
+				? resolveActiveTabForEditor(editorKey, tabs, this.lastTabByEditor, subView)
 				: this.activeTabId;
 			const tabChanged = nextTab !== this.activeTabId;
 			this.activeTabId = nextTab;
 
-			const pane = this.editorService.activeEditorPane;
 			const nextFrame = pane instanceof EditorPane ? frameOfContainer(this.ribbonToolbarService.frames, pane.getContainer()) : undefined;
 			const frameChanged = nextFrame !== this.activeFrame;
 			this.activeFrame = nextFrame;
@@ -283,11 +303,33 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			this.renderTabs(tabs);
 			if (tabChanged) {
 				this.bindActiveTabMenu();
-			} else if (frameChanged) {
+			} else if (frameChanged || subViewChanged) {
 				this.panelScheduler.schedule();
 			}
 		} finally {
 			this.syncingEditor = false;
+		}
+	}
+
+	private activeSubView(editorId: string, pane: IPartSectionPane | undefined, panelId?: string): string {
+		if (pane?.ribbonSubView) {
+			return pane.ribbonSubView;
+		}
+		switch (editorId) {
+			case SAENGINE_EDITOR_IDS.dataPanel: return resolveDataPanelSubView(panelId);
+			case SAENGINE_EDITOR_IDS.floorPlan: return 'plan.plan';
+			case SAENGINE_EDITOR_IDS.grids: return 'plan.grids';
+			case SAENGINE_EDITOR_IDS.membersTable: return 'plan.members';
+			case SAENGINE_EDITOR_IDS.building: return `bim.${pane?.partSection ?? '3d'}`;
+			case SAENGINE_EDITOR_IDS.settings: return `settings.${pane?.partSection ?? 'project'}`;
+			case SAENGINE_EDITOR_IDS.codePacks: return 'settings.packages';
+			case SAENGINE_EDITOR_IDS.femModel:
+				return this.editorService.activeEditor?.resource && basename(this.editorService.activeEditor.resource) === 'pushover.osmodel' ? 'fem.pushover' : 'fem.model';
+			case SAENGINE_EDITOR_IDS.femResults: return 'fem.charts';
+			case SAENGINE_EDITOR_IDS.femDesignProposal:
+			case SAENGINE_EDITOR_IDS.femStrutAndTie: return 'fem.design';
+			case SAENGINE_EDITOR_IDS.femCfdWind: return 'fem.model';
+			default: return '';
 		}
 	}
 
@@ -363,7 +405,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 	private renderTabs(tabs: readonly IRibbonTabDescriptor[] = this.visibleTabs()): void {
 		if (!tabs.some(t => t.id === this.activeTabId)) {
-			this.activeTabId = resolveActiveTabForEditor(this.lastEditorKey ?? '', tabs, this.lastTabByEditor);
+			this.activeTabId = resolveActiveTabForEditor(this.lastEditorKey ?? '', tabs, this.lastTabByEditor, this.lastSubView);
 			this.bindActiveTabMenu();
 		}
 		const activeElement = this.tablist.ownerDocument.activeElement;
@@ -424,6 +466,12 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		}
 		visited.add(menuId.id);
 		for (const item of MenuRegistry.getMenuItems(menuId)) {
+			if (item.group) {
+				const groupWhen = getRibbonGroupWhen(menuId, item.group);
+				if (groupWhen && !this.contextKeyService.contextMatchesRules(groupWhen)) {
+					continue;
+				}
+			}
 			if (item.when && !this.contextKeyService.contextMatchesRules(item.when)) {
 				continue;
 			}
@@ -632,18 +680,23 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 				}
 			}
 			const visibleTabs = this.visibleTabs();
-			const targetTabId = resolveEditorToolbarTargetTab(visibleTabs);
-			const contextualTabs = visibleTabs.filter(t => t.contextual);
-			const dedupeTabs = contextualTabs.length ? contextualTabs : visibleTabs.filter(t => t.id === targetTabId);
+			const targetTabId = resolveEditorToolbarTargetTab(visibleTabs, this.lastEditorKey ?? '', this.lastSubView);
 			const existingCommandIds = new Set<string>();
-			for (const tab of dedupeTabs) {
+			for (const tab of visibleTabs) {
 				this.collectMenuCommandIds(tab.menuId, existingCommandIds);
 			}
 			frameCustomGroups = this.buildEditorFrameGroups(activeFrame, descriptor.id, targetTabId, existingCommandIds);
 		}
 
-		const actions = menu.getActions({ renderShortTitle: true });
-		const groups = buildRibbonGroups(actions, [...getRibbonCustomGroups(descriptor.id), ...frameCustomGroups], {
+		const actions = menu.getActions({ renderShortTitle: true }).filter(([rawGroup]) => {
+			const when = getRibbonGroupWhen(descriptor.menuId, rawGroup);
+			return !when || this.contextKeyService.contextMatchesRules(when);
+		});
+		const customGroups = getRibbonCustomGroups(descriptor.id).filter(group => {
+			const when = getRibbonGroupWhen(descriptor.menuId, group.group);
+			return !when || this.contextKeyService.contextMatchesRules(when);
+		});
+		const groups = buildRibbonGroups(actions, [...customGroups, ...frameCustomGroups], {
 			menuId: descriptor.menuId,
 			hintLookup: getRibbonItemHint,
 			labelLookup: getRibbonGroupLabel,

@@ -1751,6 +1751,8 @@ def create_server() -> JsonRPCServer:
         _register_office(server, method, handler, where)
 
     _register_l12(server)
+    _register_u6d(server)
+    _register_u6e(server)
     return server
 
 
@@ -2130,6 +2132,783 @@ def _register_l12(server: JsonRPCServer) -> None:
             ids=args.get("ids"),
             fast_only=bool(args.get("fastOnly", True)),
             pdf=bool(args.get("pdf", True)),
+        )
+
+
+def _register_u6d(server: JsonRPCServer) -> None:
+    """U6d: JSON-RPC endpoints exposed by Soil, Settings, Library, Substructure and BOQ ribbon panels."""
+
+    @server.feature("soil/analysis")
+    async def _soil_analysis(params: Any) -> dict[str, Any]:
+        _import_soil()
+        return await _in_worker(lambda p: handlers.soil_analysis(_plain(p)["projectRoot"]))(params)
+
+    @server.feature("soil/bearingCheck")
+    async def _soil_bearing_check(params: Any) -> dict[str, Any]:
+        _import_soil()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.soil_bearing_check(
+                args["projectRoot"],
+                x=float(args.get("x") or 0.0),
+                y=float(args.get("y") or 0.0),
+                founding_level=float(
+                    args.get("foundingLevel") if args.get("foundingLevel") is not None else -1500.0
+                ),
+                b=float(args.get("b") or 2000.0),
+                l=float(args.get("l") or 2000.0),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("soil/settlementCheck")
+    async def _soil_settlement_check(params: Any) -> dict[str, Any]:
+        _import_soil()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.soil_settlement_check(
+                args["projectRoot"],
+                borehole=args.get("borehole"),
+                b=float(args.get("b") or 2000.0),
+                l=float(args.get("l") or 2000.0),
+                df=float(args.get("df") if args.get("df") is not None else 1500.0),
+                q=float(args.get("q") or 150.0),
+                foundation=str(args.get("foundation") or "isolated"),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("soil/characteristicBearing")
+    async def _soil_characteristic_bearing(params: Any) -> dict[str, Any]:
+        _import_soil()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.soil_characteristic_bearing(
+                args["projectRoot"],
+                borehole=args.get("borehole"),
+                fak=float(args.get("fak") or 150.0),
+                b=float(args.get("b") or 2.0),
+                l=float(args.get("l") or 2.0),
+                df=float(args.get("df") if args.get("df") is not None else 1.5),
+                q=float(args.get("q") or 150.0),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("soil/earthPressure")
+    def _soil_earth_pressure(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.soil_earth_pressure(
+            args["projectRoot"],
+            borehole=args.get("borehole"),
+            depth_m=float(args.get("depthM") or 6.0),
+            surcharge_kpa=float(
+                args.get("surchargeKpa") if args.get("surchargeKpa") is not None else 10.0
+            ),
+            water_table_m=args.get("waterTableM"),
+            phi_deg=float(args.get("phiDeg") or 30.0),
+            gamma=float(args.get("gamma") or 18.0),
+            kh=float(args.get("kh") or 0.0),
+            beta_deg=float(args.get("betaDeg") or 0.0),
+            delta_deg=float(args.get("deltaDeg") or 0.0),
+        )
+
+    @server.feature("soil/plotPlanning")
+    @_in_worker
+    def _soil_plot_planning(params: Any) -> dict[str, Any]:
+        return handlers.soil_plot_planning(_plain(params)["projectRoot"])
+
+    @server.feature("soil/sourcesCheck")
+    def _soil_sources_check(params: Any) -> dict[str, Any]:
+        return handlers.soil_sources_check(_plain(params)["projectRoot"])
+
+    @server.feature("codes/conformance")
+    def _codes_conformance(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_conformance(args.get("projectRoot"), pack_id=args.get("packId"))
+
+    @server.feature("codes/diff")
+    @_in_worker
+    def _codes_diff(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.codes_diff(
+            args["packA"], args["packB"], project_root=args.get("projectRoot")
+        )
+
+    @server.feature("settings/hazardSummary")
+    def _settings_hazard_summary(params: Any) -> dict[str, Any]:
+        return handlers.settings_hazard_summary(_plain(params)["projectRoot"])
+
+    @server.feature("settings/towns")
+    def _settings_towns(params: Any) -> dict[str, Any]:
+        return handlers.settings_towns((_plain(params) or {}).get("projectRoot"))
+
+    @server.feature("library/materialSummary")
+    def _library_material_summary(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.library_material_summary(
+            args["projectRoot"],
+            fc=float(args.get("fc") or 28.0),
+            mix_ratio=str(args.get("mixRatio") or "1:2:4"),
+        )
+
+    @server.feature("library/objectSections")
+    @_in_worker
+    def _library_object_sections(params: Any) -> dict[str, Any]:
+        return handlers.library_object_sections(_plain(params)["projectRoot"])
+
+    @server.feature("library/designedSections")
+    async def _library_designed_sections(params: Any) -> dict[str, Any]:
+        import concreteproperties.concrete_section  # noqa: F401
+        import sectionproperties.analysis.section  # noqa: F401
+
+        import saengine.library.section_designer  # noqa: F401
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.library_designed_sections(
+                args["projectRoot"],
+                section_id=args.get("sectionId"),
+                capacity=args.get("capacity") is not False,
+                moment_curvature=bool(args.get("momentCurvature")),
+                axial_kn=float(args.get("axialKn") or 0.0),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("library/sheetPiles")
+    def _library_sheet_piles(params: Any) -> dict[str, Any]:
+        args = _plain(params) or {}
+        return handlers.library_sheet_piles(shape=args.get("shape"))
+
+    @server.feature("library/archTypes")
+    def _library_arch_types(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.library_arch_types(args["projectRoot"], category=args.get("category"))
+
+    @server.feature("library/validateAll")
+    def _library_validate_all(params: Any) -> dict[str, Any]:
+        return handlers.library_validate_all(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/pileCapacity")
+    async def _substructure_pile_capacity(params: Any) -> dict[str, Any]:
+        _import_substructure()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.substructure_pile_capacity(
+                args["projectRoot"],
+                kind=str(args.get("kind") or "bored"),
+                head_level_mm=float(
+                    args.get("headLevelMm") if args.get("headLevelMm") is not None else -1500.0
+                ),
+                diameters_mm=args.get("diametersMm"),
+                lengths_m=args.get("lengthsM"),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("substructure/pileLateral")
+    async def _substructure_pile_lateral(params: Any) -> dict[str, Any]:
+        _import_substructure()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.substructure_pile_lateral(
+                args["projectRoot"],
+                borehole=args.get("borehole"),
+                kind=str(args.get("kind") or "bored"),
+                diameter_mm=float(args.get("diameterMm") or 600.0),
+                length_m=float(args.get("lengthM") or 18.0),
+                head_depth_m=float(
+                    args.get("headDepthM") if args.get("headDepthM") is not None else 1.5
+                ),
+                fixity=str(args.get("fixity") or "fixed"),
+                my_knm=float(args.get("myKnm") or 250.0),
+                ep_mpa=float(args.get("epMpa") or 25000.0),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("substructure/pileSettlement")
+    async def _substructure_pile_settlement(params: Any) -> dict[str, Any]:
+        _import_substructure()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.substructure_pile_settlement(
+                args["projectRoot"],
+                borehole=args.get("borehole"),
+                kind=str(args.get("kind") or "bored"),
+                diameter_mm=float(args.get("diameterMm") or 600.0),
+                length_m=float(args.get("lengthM") or 18.0),
+                head_depth_m=float(
+                    args.get("headDepthM") if args.get("headDepthM") is not None else 1.5
+                ),
+                load_kn=float(args.get("loadKn") or 800.0),
+                count=int(args.get("count") or 4),
+                bg_m=float(args.get("bgM") or 2.4),
+                lg_m=float(args.get("lgM") or 2.4),
+                modulus_mpa=float(args.get("modulusMpa") or 25000.0),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("substructure/downdrag")
+    async def _substructure_downdrag(params: Any) -> dict[str, Any]:
+        _import_substructure()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.substructure_downdrag(
+                args["projectRoot"],
+                borehole=args.get("borehole"),
+                kind=str(args.get("kind") or "bored"),
+                diameter_mm=float(args.get("diameterMm") or 600.0),
+                length_m=float(args.get("lengthM") or 18.0),
+                head_depth_m=float(
+                    args.get("headDepthM") if args.get("headDepthM") is not None else 1.5
+                ),
+                sustained_kn=float(args.get("sustainedKn") or 600.0),
+                settling_depth_m=args.get("settlingDepthM"),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("substructure/loadTests")
+    def _substructure_load_tests(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.substructure_load_tests(
+            args["projectRoot"],
+            diameter_mm=float(args.get("diameterMm") or 600.0),
+            length_m=float(args.get("lengthM") or 18.0),
+            ep_mpa=float(args.get("epMpa") or 25000.0),
+            curve_text=args.get("curveText"),
+        )
+
+    @server.feature("substructure/pileDetailing")
+    def _substructure_pile_detailing(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.substructure_pile_detailing(
+            args["projectRoot"],
+            kind=str(args.get("kind") or "bored"),
+            diameter_mm=float(args.get("diameterMm") or 600.0),
+            fc_mpa=float(args.get("fcMpa") or 28.0),
+            fy_mpa=float(args.get("fyMpa") or 420.0),
+            placement=str(args.get("placement") or "tremie"),
+        )
+
+    @server.feature("substructure/basementLoads")
+    def _substructure_basement_loads(params: Any) -> dict[str, Any]:
+        return handlers.substructure_basement_loads(_plain(params)["projectRoot"])
+
+    @server.feature("substructure/embeddedWall")
+    async def _substructure_embedded_wall(params: Any) -> dict[str, Any]:
+        _import_substructure()
+
+        def run(p: Any) -> dict[str, Any]:
+            args = _plain(p)
+            return handlers.substructure_embedded_wall(
+                args["projectRoot"],
+                height_m=float(args.get("heightM") or 5.0),
+                kind=str(args.get("kind") or "cantilever"),
+                support=str(args.get("support") or "free"),
+                prop_depth_m=float(args.get("propDepthM") or 1.5),
+                surcharge_kpa=float(
+                    args.get("surchargeKpa") if args.get("surchargeKpa") is not None else 10.0
+                ),
+                water_table_m=args.get("waterTableM"),
+            )
+
+        return await _in_worker(run)(params)
+
+    @server.feature("substructure/groundSlab")
+    def _substructure_ground_slab(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.substructure_ground_slab(
+            args["projectRoot"],
+            thickness_mm=float(args.get("thicknessMm") or 150.0),
+            fc_mpa=float(args.get("fcMpa") or 25.0),
+            subgrade_kn_m3=float(args.get("subgradeKnM3") or 30000.0),
+            point_load_kn=float(args.get("pointLoadKn") or 50.0),
+            contact_side_mm=float(args.get("contactSideMm") or 150.0),
+            fy_mpa=float(args.get("fyMpa") or 420.0),
+        )
+
+    @server.feature("substructure/limitState")
+    def _substructure_limit_state(params: Any) -> dict[str, Any]:
+        return handlers.substructure_limit_state(_plain(params)["projectRoot"])
+
+    @server.feature("boq/summary")
+    def _boq_summary(params: Any) -> dict[str, Any]:
+        return handlers.boq_summary(_plain(params)["projectRoot"])
+
+    @server.feature("boq/barSchedule")
+    @_in_worker
+    def _boq_bar_schedule(params: Any) -> dict[str, Any]:
+        return handlers.boq_bar_schedule(_plain(params)["projectRoot"])
+
+    @server.feature("boq/scheduleSummary")
+    def _boq_schedule_summary(params: Any) -> dict[str, Any]:
+        return handlers.boq_schedule_summary(_plain(params)["projectRoot"])
+
+    @server.feature("boq/archTakeoff")
+    @_in_worker
+    def _boq_arch_takeoff(params: Any) -> dict[str, Any]:
+        return handlers.boq_arch_takeoff(_plain(params)["projectRoot"])
+
+    @server.feature("boq/precastSchedule")
+    def _boq_precast_schedule(params: Any) -> dict[str, Any]:
+        return handlers.boq_precast_schedule(_plain(params)["projectRoot"])
+
+    @server.feature("boq/takeoffSummary")
+    def _boq_takeoff_summary(params: Any) -> dict[str, Any]:
+        return handlers.boq_takeoff_summary(_plain(params)["projectRoot"])
+
+
+def _register_u6e(server: JsonRPCServer) -> None:
+    """Register the 62 U6e full-ribbon panel endpoints for FEM, BIM, Architecture, Documents,
+    Studies, and Exports."""
+
+    @server.feature("fem/notionalLoads")
+    def _fem_notional_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_notional_loads(
+            args["projectRoot"],
+            method=str(args.get("method") or "directAnalysis"),
+            drift=float(args.get("drift") or 0.0),
+            tau=str(args.get("tau") or "additive"),
+            height_m=float(args.get("heightM") or 0.0),
+        )
+
+    @server.feature("fem/patternLive")
+    def _fem_pattern_live(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_pattern_live(
+            args["projectRoot"],
+            system=str(args.get("system") or "rcSmf"),
+            dead_kpa=float(args.get("deadKpa") or 5.0),
+            live_kpa=float(args.get("liveKpa") or 2.0),
+            adjacent=bool(args.get("adjacent") if args.get("adjacent") is not None else True),
+            alternate=bool(args.get("alternate") if args.get("alternate") is not None else True),
+        )
+
+    @server.feature("fem/snowRainLoads")
+    def _fem_snow_rain_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_snow_rain_loads(args["projectRoot"])
+
+    @server.feature("fem/thermalLoads")
+    def _fem_thermal_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_thermal_loads(
+            args["projectRoot"],
+            uniform=float(args.get("uniform") or 20.0),
+            gradient=float(args.get("gradient") or 0.0),
+            thickness_mm=float(args.get("thicknessMm") or 200.0),
+            e_mpa=float(args.get("eMpa") or 25000.0),
+            alpha=float(args.get("alpha") or 1e-5),
+        )
+
+    @server.feature("fem/floodLoads")
+    def _fem_flood_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_flood_loads(
+            args["projectRoot"],
+            wave_height_m=float(args.get("waveHeightM") or 1.2),
+            still_depth_m=float(args.get("stillDepthM") or 2.0),
+            pile_width_m=float(args.get("pileWidthM") or 0.5),
+            velocity_m_s=float(args.get("velocityMS") or 2.0),
+        )
+
+    @server.feature("fem/stairCraneLoads")
+    def _fem_stair_crane_loads(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_stair_crane_loads(args["projectRoot"])
+
+    @server.feature("fem/loadCombinations")
+    def _fem_load_combinations(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_load_combinations(args["projectRoot"])
+
+    @server.feature("fem/spectralHazard")
+    def _fem_spectral_hazard(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_spectral_hazard(
+            args["projectRoot"],
+            damping=float(args.get("damping") or 0.05),
+        )
+
+    @server.feature("fem/seismicSummary")
+    @_in_worker
+    def _fem_seismic_summary(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_seismic_summary(args["projectRoot"])
+
+    @server.feature("fem/groundMotions")
+    def _fem_ground_motions(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_ground_motions(
+            args["projectRoot"],
+            procedure=str(args.get("procedure") or "linear"),
+        )
+
+    @server.feature("fem/linearTimeHistory")
+    def _fem_linear_time_history(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_linear_time_history(args["projectRoot"])
+
+    @server.feature("fem/irregularities")
+    @_in_worker
+    def _fem_irregularities(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_irregularities(args["projectRoot"])
+
+    @server.feature("fem/torsionalEffects")
+    def _fem_torsional_effects(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_torsional_effects(args["projectRoot"])
+
+    @server.feature("fem/twoLevelSeismic")
+    def _fem_two_level_seismic(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_two_level_seismic(args["projectRoot"])
+
+    @server.feature("fem/floorSpectra")
+    def _fem_floor_spectra(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_floor_spectra(args["projectRoot"])
+
+    @server.feature("fem/isolationDampers")
+    def _fem_isolation_dampers(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_isolation_dampers(args["projectRoot"])
+
+    @server.feature("fem/windSpeedFactors")
+    def _fem_wind_speed_factors(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_wind_speed_factors(
+            args["projectRoot"],
+            height_m=float(args.get("heightM") or 0.0),
+        )
+
+    @server.feature("fem/gustResponse")
+    def _fem_gust_response(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_gust_response(
+            args["projectRoot"],
+            frequency_hz=float(args.get("frequencyHz") or 1.0),
+            damping=float(args.get("damping") or 0.02),
+        )
+
+    @server.feature("fem/peakVelocityPressure")
+    def _fem_peak_velocity_pressure(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_peak_velocity_pressure(args["projectRoot"])
+
+    @server.feature("fem/localPressures")
+    def _fem_local_pressures(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_local_pressures(
+            args["projectRoot"],
+            tributary_area_m2=float(args.get("tributaryAreaM2") or 10.0),
+            parapet_m=float(args.get("parapetM") or 1.0),
+        )
+
+    @server.feature("fem/windComfort")
+    def _fem_wind_comfort(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_wind_comfort(
+            args["projectRoot"],
+            frequency_hz=float(args.get("frequencyHz") or 0.5),
+            damping=float(args.get("damping") or 0.015),
+        )
+
+    @server.feature("fem/openStructures")
+    def _fem_open_structures(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_open_structures(
+            args["projectRoot"],
+            solidity=float(args.get("solidity") or 0.35),
+            width_m=float(args.get("widthM") or 6.0),
+            depth_m=float(args.get("depthM") or 6.0),
+            height_m=float(args.get("heightM") or 15.0),
+        )
+
+    @server.feature("fem/pushoverAnalysis")
+    def _fem_pushover_analysis(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_pushover_analysis(args["projectRoot"])
+
+    @server.feature("fem/nonlinearHistory")
+    def _fem_nonlinear_history(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_nonlinear_history(args["projectRoot"])
+
+    @server.feature("fem/pDeltaBuckling")
+    @_in_worker
+    def _fem_p_delta_buckling(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_p_delta_buckling(args["projectRoot"])
+
+    @server.feature("fem/stagedConstruction")
+    def _fem_staged_construction(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_staged_construction(args["projectRoot"])
+
+    @server.feature("fem/creepShrinkage")
+    def _fem_creep_shrinkage(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_creep_shrinkage(
+            args["projectRoot"],
+            thickness_mm=float(args.get("thicknessMm") or 200.0),
+            humidity=float(args.get("humidity") or 70.0),
+            age_days=float(args.get("ageDays") or 28.0),
+            fck_mpa=float(args.get("fckMpa") or 28.0),
+        )
+
+    @server.feature("fem/ssiSprings")
+    def _fem_ssi_springs(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_ssi_springs(
+            args["projectRoot"],
+            length_m=float(args.get("lengthM") or 2.5),
+            width_m=float(args.get("widthM") or 2.5),
+            depth_m=float(args.get("depthM") or 1.5),
+        )
+
+    @server.feature("fem/swayDrift")
+    def _fem_sway_drift(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_sway_drift(args["projectRoot"])
+
+    @server.feature("fem/floorVibration")
+    def _fem_floor_vibration(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_floor_vibration(
+            args["projectRoot"],
+            fn_hz=float(args.get("fnHz") or 6.0),
+            span_m=float(args.get("spanM") or 6.0),
+            area_m2=float(args.get("areaM2") or 36.0),
+            w_kn=float(args.get("wKn") or 150.0),
+        )
+
+    @server.feature("fem/differentialSettlement")
+    def _fem_differential_settlement(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_differential_settlement(
+            args["projectRoot"],
+            thermal=bool(args.get("thermal") or False),
+        )
+
+    @server.feature("fem/punchingShear")
+    def _fem_punching_shear(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_punching_shear(
+            args["projectRoot"],
+            vu_kn=float(args.get("vuKn") or 350.0),
+            c1_mm=float(args.get("c1Mm") or 400.0),
+            c2_mm=float(args.get("c2Mm") or 400.0),
+            d_mm=float(args.get("dMm") or 180.0),
+            fc_mpa=float(args.get("fcMpa") or 28.0),
+        )
+
+    @server.feature("fem/deflectionCheck")
+    def _fem_deflection_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_deflection_check(
+            args["projectRoot"],
+            ma_knm=float(args.get("maKnm") or 45.0),
+            fc_mpa=float(args.get("fcMpa") or 28.0),
+            b_mm=float(args.get("bMm") or 300.0),
+            h_mm=float(args.get("hMm") or 500.0),
+            span_mm=float(args.get("spanMm") or 6000.0),
+        )
+
+    @server.feature("fem/crackControl")
+    def _fem_crack_control(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_crack_control(
+            args["projectRoot"],
+            exposure=str(args.get("exposure") or "XC3"),
+            moment_knm=float(args.get("momentKnm") or 45.0),
+            b_mm=float(args.get("bMm") or 300.0),
+            h_mm=float(args.get("hMm") or 500.0),
+            bar_mm=float(args.get("barMm") or 16.0),
+            as_mm2=float(args.get("asMm2") or 804.0),
+        )
+
+    @server.feature("fem/torsionDesign")
+    def _fem_torsion_design(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_torsion_design(
+            args["projectRoot"],
+            tu_knm=float(args.get("tuKnm") or 15.0),
+            vu_kn=float(args.get("vuKn") or 120.0),
+            b_mm=float(args.get("bMm") or 300.0),
+            h_mm=float(args.get("hMm") or 500.0),
+            fc_mpa=float(args.get("fcMpa") or 28.0),
+            fy_mpa=float(args.get("fyMpa") or 420.0),
+        )
+
+    @server.feature("fem/capacitySeismicDetailing")
+    def _fem_capacity_seismic_detailing(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_capacity_seismic_detailing(args["projectRoot"])
+
+    @server.feature("fem/fireSteelConnections")
+    def _fem_fire_steel_connections(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.fem_fire_steel_connections(
+            args["projectRoot"],
+            bolt_dia_mm=float(args.get("boltDiaMm") or 20.0),
+            grade=str(args.get("grade") or "8.8"),
+            weld_mm=float(args.get("weldMm") or 6.0),
+            height_m=float(args.get("heightM") or 12.0),
+        )
+
+    @server.feature("bim/syncStamps")
+    def _bim_sync_stamps(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_sync_stamps(args["projectRoot"])
+
+    @server.feature("bim/detailingModel")
+    @_in_worker
+    def _bim_detailing_model(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_detailing_model(args["projectRoot"])
+
+    @server.feature("bim/rebarCages")
+    @_in_worker
+    def _bim_rebar_cages(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_rebar_cages(args["projectRoot"])
+
+    @server.feature("bim/barBendingSchedule")
+    @_in_worker
+    def _bim_bar_bending_schedule(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.bim_bar_bending_schedule(args["projectRoot"])
+
+    @server.feature("architecture/roomsCheck")
+    def _architecture_rooms_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_rooms_check(args["projectRoot"])
+
+    @server.feature("architecture/massingFloors")
+    def _architecture_massing_floors(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_massing_floors(args["projectRoot"])
+
+    @server.feature("architecture/roofCeilingCurtain")
+    def _architecture_roof_ceiling_curtain(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_roof_ceiling_curtain(args["projectRoot"])
+
+    @server.feature("architecture/pointCloudStatus")
+    def _architecture_point_cloud_status(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.architecture_point_cloud_status(
+            args["projectRoot"],
+            path=str(args.get("path") or ""),
+        )
+
+    @server.feature("documents/sheetInventory")
+    def _documents_sheet_inventory(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.documents_sheet_inventory(args["projectRoot"])
+
+    @server.feature("documents/drawingAutomation")
+    def _documents_drawing_automation(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.documents_drawing_automation(args["projectRoot"])
+
+    @server.feature("documents/calculationPackage")
+    def _documents_calculation_package(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.documents_calculation_package(args["projectRoot"])
+
+    @server.feature("documents/clauseTraceability")
+    def _documents_clause_traceability(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.documents_clause_traceability(args["projectRoot"])
+
+    @server.feature("documents/projectMetadata")
+    def _documents_project_metadata(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.documents_project_metadata(args["projectRoot"])
+
+    @server.feature("studies/daylightSolar")
+    @_in_worker
+    def _studies_daylight_solar(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_daylight_solar(
+            args["projectRoot"],
+            day=str(args.get("day") or "2025-06-21"),
+        )
+
+    @server.feature("studies/noiseStudy")
+    @_in_worker
+    def _studies_noise_study(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_noise_study(args["projectRoot"])
+
+    @server.feature("studies/phasingSummary")
+    def _studies_phasing_summary(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_phasing_summary(args["projectRoot"])
+
+    @server.feature("studies/plotPlanning")
+    def _studies_plot_planning(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_plot_planning(args["projectRoot"])
+
+    @server.feature("studies/specialStructures")
+    def _studies_special_structures(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_special_structures(args["projectRoot"])
+
+    @server.feature("studies/batchCheck")
+    def _studies_batch_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_batch_check(args["projectRoot"])
+
+    @server.feature("studies/verificationStatus")
+    def _studies_verification_status(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.studies_verification_status(args["projectRoot"])
+
+    @server.feature("exports/formatMatrix")
+    def _exports_format_matrix(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.exports_format_matrix(args["projectRoot"])
+
+    @server.feature("exports/fabricationPreview")
+    @_in_worker
+    def _exports_fabrication_preview(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.exports_fabrication_preview(args["projectRoot"])
+
+    @server.feature("exports/structuralIfcCheck")
+    def _exports_structural_ifc_check(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.exports_structural_ifc_check(args["projectRoot"])
+
+    @server.feature("exports/archiveInspection")
+    def _exports_archive_inspection(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.exports_archive_inspection(args["projectRoot"])
+
+    @server.feature("exports/bbsReconciliation")
+    @_in_worker
+    def _exports_bbs_reconciliation(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.exports_bbs_reconciliation(
+            args["projectRoot"],
+            tolerance=float(args.get("tolerance") or 0.5),
         )
 
 

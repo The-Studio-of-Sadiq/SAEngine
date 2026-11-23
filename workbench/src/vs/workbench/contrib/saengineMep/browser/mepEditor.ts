@@ -420,7 +420,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.discipline,
 		}));
 		this._register(this.disciplineControl.onDidSelect(id => this.showDiscipline(id as Discipline)));
-		this._register(frame.addViewControl(this.disciplineControl));
 
 		this.storyControl = this._register(new RibbonSelectModel({
 			id: 'saengine.mep.story',
@@ -441,7 +440,6 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			selectedId: this.view,
 		}));
 		this._register(this.viewControl.onDidSelect(id => this.showView(id as View)));
-		this._register(frame.addViewControl(this.viewControl));
 		this.viewElement = append(frame.main, $('.mep-view', { tabIndex: 0 }));
 		this._register(addDisposableListener(this.viewElement, EventType.KEY_DOWN, e => this.onKey(e)));
 		this._register(frame.onDidLayoutMain(() => this.layoutScheduler.schedule()));
@@ -503,12 +501,23 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 
 	/** The discipline or view shown, for the sidebar's entries under MEP. */
 	get partSection(): string | undefined {
-		return this.view === 'systems' ? 'systems' : this.discipline;
+		return this.view === 'systems' ? 'systems' : this.view === 'data' || this.view === 'results' ? this.view : this.discipline;
+	}
+
+	get ribbonSubView(): string {
+		if (this.view === 'systems') {
+			return 'mep.systems';
+		}
+		return `mep.${this.discipline}${this.view === 'data' || this.view === 'results' ? `.${this.view}` : ''}`;
 	}
 
 	/** `section` (from the sidebar) shows that discipline or the System Browser. */
 	private applySection(options: IEditorOptions | undefined): void {
 		const section = sectionOption(options);
+		if ((section === 'data' || section === 'results') && this.document) {
+			this.showView(section);
+			return;
+		}
 		if (section === 'systems' && this.document) {
 			this.showView('systems');
 			return;
@@ -1497,7 +1506,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		return undefined;
 	}
 
-	private async exportSystemIssuesToBcf(): Promise<void> {
+	async exportSystemIssuesToBcf(): Promise<void> {
 		const document = this.document;
 		const report = this.systemsState.report;
 		if (!document || !report?.issues.length) {
@@ -1714,7 +1723,8 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.fireSleevesAction.enabled = !!(fire?.risers.length || fire?.mains.length);
 		this.calculateLoadsAction.enabled = !this.hvacLoads;
 		const discipline = this.discipline;
-		const primary: IAction[] = !usable ? [frame.togglePropertiesAction] : plumbingView ? [
+		const systemsView = this.view === 'systems';
+		const primary: IAction[] = !usable || systemsView ? [frame.togglePropertiesAction] : plumbingView ? [
 			this.addRiserAction, this.addTankAction, this.addDrainAction, this.sizeTanksAction, this.riserSleevesAction, this.deleteAction, frame.togglePropertiesAction,
 		] : discipline === 'hvac' ? [
 			this.addPlantAction, this.drawDuctAction, this.proposePlantAction, this.ductOpeningsAction, this.calculateLoadsAction, this.deleteAction, frame.togglePropertiesAction,
@@ -1726,7 +1736,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			this.addEquipmentAction, this.addSleeveAction, this.addShaftAction, this.importIfcAction, this.suggestAction, this.deleteAction, frame.togglePropertiesAction,
 		];
 		const recompute = plumbingView ? this.recomputePlumbingAction : discipline === 'hvac' ? this.recomputeHvacAction : discipline === 'electrical' ? this.recomputeElectricalAction : discipline === 'fire' ? this.recomputeFireAction : this.recomputeAction;
-		const secondary: IAction[] = usable ? [recompute] : [];
+		const secondary: IAction[] = usable && !systemsView ? [recompute] : [];
 		if (this.developerMode || this.parseError) {
 			if (secondary.length) {
 				secondary.push(new Separator());
@@ -2125,7 +2135,19 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.notificationService.info(parts.join(' '));
 	}
 
-	private async importBcf(): Promise<void> {
+	runClashTests(): Promise<void> {
+		return this.runCoordination(MEP_COORDINATE_COMMAND, 'tests');
+	}
+
+	addExternalModel(): Promise<void> {
+		return this.addCoordinationFile('model');
+	}
+
+	addIdsFile(): Promise<void> {
+		return this.addCoordinationFile('ids');
+	}
+
+	async importBcf(): Promise<void> {
 		const resource = this.resource;
 		const picked = await this.fileDialogService.showOpenDialog({
 			title: localize('coord.importBcfDialog', "Import BCF Issues"),
@@ -2138,7 +2160,7 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		}
 	}
 
-	private async exportBcf(): Promise<void> {
+	async exportBcf(): Promise<void> {
 		this.flush();
 		const request = this.request();
 		const resource = this.resource;
@@ -3606,6 +3628,10 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 		this.flush();
 		this.cancelDrawing(false);
 		this.discipline = discipline;
+		if (this.view === 'systems' || this.view === 'data' || this.view === 'results') {
+			this.view = 'plan';
+			this.viewControl.selectedId = this.view;
+		}
 		this.selection = undefined;
 		this.selectedClash = undefined;
 		this._onDidChangePartSection.fire();
@@ -4776,6 +4802,15 @@ export class MepEditor extends EditorPane implements IPartSectionPane {
 			added.length === 1 ? localize('mep.openingsOne', "Added 1 opening; its checks are in Results.") : localize('mep.openingsMany', "Added {0} openings; their checks are in Results.", added.length),
 			...(answer?.notes ?? []),
 		].join(' '));
+	}
+
+	/** Cancels an active HVAC cooling load calculation if one is running. */
+	cancelLoads(): void {
+		if (this.hvacLoads) {
+			this.hvacLoads.cancel();
+		} else {
+			this.notificationService.info(localize('hvac.noLoadsRunning', "No HVAC cooling load calculation is currently running."));
+		}
 	}
 
 	/**
