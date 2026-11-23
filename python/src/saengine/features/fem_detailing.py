@@ -261,7 +261,7 @@ def slab_detailing(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     """Check slab shrinkage/temperature steel ratio and maximum bar spacing limits."""
     _, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
-        ratio = rc_detailing.shrinkage_ratio(fy)
+        ratio, _ratio_text = rc_detailing.shrinkage_ratio(fy)
         s_max = min(5.0 * values["thicknessMm"], 450.0)
     a_bar = math.pi * (values["barDiaMm"] / 2.0) ** 2
     as_prov = a_bar * (1000.0 / values["providedSpacingMm"])

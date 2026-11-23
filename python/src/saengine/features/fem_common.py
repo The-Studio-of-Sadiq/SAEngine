@@ -375,3 +375,15 @@ def active_pack_name(ctx: FeatureContext) -> str:
 def format_json(data: Any) -> str:
     """Serialize data as formatted JSON."""
     return json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n"
+
+
+def combination_pairs(items: Any) -> list[tuple[str, dict[str, float]]]:
+    """(name, factors) of the engine's combinations: pairs, (name, factors, source) triples or
+    DesignCombination objects."""
+    pairs = []
+    for item in items:
+        if isinstance(item, tuple):
+            pairs.append((str(item[0]), dict(item[1])))
+        else:
+            pairs.append((str(item.name), dict(item.factors)))
+    return pairs

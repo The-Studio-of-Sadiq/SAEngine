@@ -17,6 +17,7 @@ from saengine.features import (
 )
 from saengine.features.fem_common import (
     building_plan_dims_m,
+    combination_pairs,
     load_bim,
     load_objects,
     load_settings,
@@ -246,7 +247,7 @@ def combinations(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     for lbl, grp in groups:
         if cat != "all" and cat not in lbl.lower():
             continue
-        for name, factors in grp:
+        for name, factors in combination_pairs(grp):
             rows.append(
                 {
                     "kind": lbl,
@@ -363,11 +364,11 @@ def combination_generator(ctx: FeatureContext, values: dict[str, Any]) -> dict[s
         service = fem_combos.service_combinations(present)
     rows = [
         {"group": "Strength", "name": n, "equation": " + ".join(f"{f:g}{c}" for c, f in d.items())}
-        for n, d in strength
+        for n, d in combination_pairs(strength)
     ]
     rows += [
         {"group": "Service", "name": n, "equation": " + ".join(f"{f:g}{c}" for c, f in d.items())}
-        for n, d in service
+        for n, d in combination_pairs(service)
     ]
     return result(
         summary={

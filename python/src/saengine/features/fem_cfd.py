@@ -49,24 +49,11 @@ def _domain_dims(
 )
 def fluid_domain(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute wind-tunnel computational fluid domain bounds around the building envelope."""
-    opts = cfd_case.CaseOptions(
-        upstream=values["upstreamH"],
-        downstream=values["downstreamH"],
-        sides=values["sidesH"],
-        above=values["aboveH"],
+    h, bx, by, lx, ly, lz = _domain_dims(
+        ctx, values["upstreamH"], values["downstreamH"], values["sidesH"], values["aboveH"]
     )
-    if ctx.root is not None:
-        env = cfd_service.envelope_of(ctx.root)
-        dom = cfd_case.domain(env, opts)
-        b_min, b_max = dom.boundsMin, dom.boundsMax
-        lx, ly, lz = b_max[0] - b_min[0], b_max[1] - b_min[1], b_max[2] - b_min[2]
-        h = dom.height
-    else:
-        h, bx, by, lx, ly, lz = _domain_dims(
-            ctx, values["upstreamH"], values["downstreamH"], values["sidesH"], values["aboveH"]
-        )
-        b_min = [-values["upstreamH"] * h, -(by / 2.0 + values["sidesH"] * h), 0.0]
-        b_max = [bx + values["downstreamH"] * h, by / 2.0 + values["sidesH"] * h, lz]
+    b_min = [-values["upstreamH"] * h, -(by / 2.0 + values["sidesH"] * h), 0.0]
+    b_max = [bx + values["downstreamH"] * h, by / 2.0 + values["sidesH"] * h, lz]
     rows = [
         {"axis": "X (Streamwise)", "minM": b_min[0], "maxM": b_max[0], "spanM": lx},
         {"axis": "Y (Spanwise)", "minM": b_min[1], "maxM": b_max[1], "spanM": ly},

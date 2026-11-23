@@ -441,11 +441,11 @@ def restart_run(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     steps = cfd_openfoam.install_steps()
     rows = [
         {"field": "OpenFOAM Detected", "value": str(inst.found)},
-        {"field": "Backend", "value": inst.backend or "None"},
-        {"field": "Version / Path", "value": inst.version or inst.binary or "Not installed"},
+        {"field": "Backend", "value": inst.mode or "None"},
+        {"field": "Version / Path", "value": inst.version or inst.distribution or "Not installed"},
     ]
     return result(
-        summary={"openfoamFound": inst.found, "backend": inst.backend or "none"},
+        summary={"openfoamFound": inst.found, "backend": inst.mode or "none"},
         tables=[
             table(
                 "OpenFOAM runtime & restart readiness",

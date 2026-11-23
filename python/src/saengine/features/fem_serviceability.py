@@ -18,6 +18,7 @@ from saengine.features import (
     text,
 )
 from saengine.features.fem_common import (
+    combination_pairs,
     concrete_rebar_defaults,
     export_fem_file,
     load_settings,
@@ -932,7 +933,10 @@ def service_combination(ctx: FeatureContext, values: dict[str, Any]) -> dict[str
     present = {"D", "SD", "L", "Lr", "WX", "WY"}
     with in_force(ctx.root):
         combos = combinations.service_combinations(present)
-    rows = [{"name": n, "factors": ", ".join(f"{v:g}{k}" for k, v in f.items())} for n, f in combos]
+    rows = [
+        {"name": n, "factors": ", ".join(f"{v:g}{k}" for k, v in f.items())}
+        for n, f in combination_pairs(combos)
+    ]
     return result(
         summary={"serviceCombinations": len(rows)},
         tables=[

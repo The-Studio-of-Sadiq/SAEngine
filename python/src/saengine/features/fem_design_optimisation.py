@@ -675,10 +675,10 @@ def discrete_opt(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 
     best = None
     cands = []
-    for sec in steel_sections.all_sections():
-        if sec.area >= values["requiredAreaMm2"] and sec.ix >= values["requiredIxMm4"]:
+    for sec in steel_sections.section_table():
+        if sec.A >= values["requiredAreaMm2"] and sec.Ix >= values["requiredIxMm4"]:
             cands.append(
-                {"name": sec.name, "areaMm2": sec.area, "ixMm4": sec.ix, "massKgPerM": sec.mass}
+                {"name": sec.name, "areaMm2": sec.A, "ixMm4": sec.Ix, "massKgPerM": sec.A * 7850e-6}
             )
     cands.sort(key=lambda r: r["massKgPerM"])
     if cands:

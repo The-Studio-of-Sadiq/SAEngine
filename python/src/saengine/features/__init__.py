@@ -23,6 +23,7 @@ import importlib
 import json
 import math
 import pkgutil
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -264,6 +265,12 @@ def _clean(value: Any) -> Any:
 
 _LOADED = False
 
+# "'NoneType' object has no attribute 'barFactor'" from a code-pack table the pack lacks, or a
+# field missing from the pack's table model ("'PushoverTable' object has no attribute 'method'").
+_PACK_GAP = re.compile(
+    r"'(?:NoneType|[A-Za-z]*Table|Wind|Seismic|Concrete[A-Za-z]*)' object has no attribute '(?P<name>[A-Za-z_]+)'"
+)
+
 
 def load_all() -> None:
     """Imports every module of this package, which registers their features."""
@@ -299,10 +306,30 @@ def run(
             except (TypeError, ValueError):
                 return result(problems=[f"{f.label}: a number is needed."])
     context = FeatureContext(project_root)
+    from saengine.report.clauses import in_force
+
     try:
-        out = found.run(context, merged)
+        # The project's code pack is in force (the default pack without a project): code
+        # values come from it, never from the feature.
+        with in_force(context.root) as pack_problems:
+            out = found.run(context, merged)
     except FeatureInputError as error:
         return result(problems=[str(error)])
+    except AttributeError as error:
+        # An engine method another code pack defines: its table is missing from the active pack.
+        missing = _PACK_GAP.search(str(error))
+        if missing is None:
+            raise
+        return result(
+            problems=[
+                (
+                    f"The active code pack has no data for this method ({missing.group('name')}); "
+                    "it is defined by other code packs. Choose one in Project Settings > Code & Packs."
+                )
+            ]
+        )
+    if pack_problems:
+        out.setdefault("notes", []).extend(pack_problems)
     return _clean(out)
 
 

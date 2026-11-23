@@ -628,7 +628,11 @@ def response_spectrum(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     dt, acc, src = _load_or_parse_series(ctx, values["series"], values["dtS"])
     periods = [0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 3.0]
     sa = spectral_matching.spectrum(dt, acc, periods, values["damping"])
-    sd = spectral_matching.displacements(dt, acc, periods, values["damping"])
+    # The displacement histories, one per period: their peaks are Sd.
+    sd = np.max(
+        np.abs(np.asarray(spectral_matching.displacements(dt, acc, periods, values["damping"]))),
+        axis=1,
+    )
     rows = [
         {"periodS": t, "saG": float(a), "sdMm": float(d) * 9806.65}
         for t, a, d in zip(periods, sa, sd, strict=True)

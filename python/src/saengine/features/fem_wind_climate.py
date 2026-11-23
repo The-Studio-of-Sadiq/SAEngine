@@ -244,15 +244,17 @@ def compare_standards(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     """Compare boundary-layer velocity pressure across open, suburban, and rough exposure profiles."""
     rows = []
     for label, cat in [("Coastal Flat", "D"), ("Open Grassland", "C"), ("Suburban / Urban", "B")]:
-        kz = loads.exposure_coefficient(values["heightM"], cat)
-        qz = (
-            0.613 * kz * ((values["v50Ms"] / 100.0) ** 2) * 10.0
-            if False
-            else 0.000613 * kz * (values["v50Ms"] ** 2)
-        )
+        try:
+            kz = loads.exposure_coefficient(values["heightM"], cat)
+            qz = loads.velocity_pressure(values["heightM"], values["v50Ms"], cat, 1.0)
+        except KeyError:
+            continue  # an exposure the code pack does not define
         rows.append({"exposureClass": label, "kz": kz, "qzKpa": qz})
     return result(
-        summary={"openQzKpa": rows[1]["qzKpa"], "urbanQzKpa": rows[2]["qzKpa"]},
+        summary={
+            "terrainClasses": len(rows),
+            "maxQzKpa": max((r["qzKpa"] for r in rows), default=0.0),
+        },
         tables=[
             table(
                 "Boundary-layer pressure comparison across terrain classes",
