@@ -128,13 +128,21 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `architecture/importDrawing` | **path**, architectureText, **floorPlanText**, options | `architecture_import_drawing` (worker) | Adopts an architect's DWG/DXF plan (walls, doors, windows, room names) onto one story: ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes", "replaced"}}`` or ``{"problems"}``. ``options``: see ``saengine.library.architecture_dxf.import_drawing``. |
 | `architecture/importIfc` | **path**, architectureText, **floorPlanText** | `architecture_import_ifc` (worker) | Adopts an architect's IFC (walls, doors, windows, spaces) into the architecture: ``{"architecture": <json>, "summary": {"adopted", "skipped", "notes"}}`` or ``{"problems"}``. |
 | `architecture/inspectDrawing` | — | `architecture_inspect_drawing` (worker) | An architect's DWG/DXF for the layer-mapping step: its layers (entity counts, block names, sample texts), unit and a preview (``saengine.library.architecture_dxf.inspect_drawing``), or ``{"problems"}``. |
+| `architecture/massingFloors` | **projectRoot** | `architecture_massing_floors` |  |
+| `architecture/pointCloudStatus` | **projectRoot**, path | `architecture_point_cloud_status` |  |
 | `architecture/ramps` | **architectureText**, settingsText | `architecture_ramps` | Every ramp of the architecture checked against the ramp rules of the code pack the settings choose (``saengine.design.ramps.check_ramps``), or ``{"problems"}``. |
+| `architecture/roofCeilingCurtain` | **projectRoot** | `architecture_roof_ceiling_curtain` |  |
+| `architecture/roomsCheck` | **projectRoot** | `architecture_rooms_check` |  |
+| `bim/barBendingSchedule` | **projectRoot** | `bim_bar_bending_schedule` (worker) |  |
+| `bim/detailingModel` | **projectRoot** | `bim_detailing_model` (worker) |  |
 | `bim/diffIfc` | **beforePath**, **afterPath** | `bim_diff_ifc` (worker) |  |
 | `bim/exportIfcFile` | **projectRoot**, schema, includeStructuralAnalysis, includeGeoreferencing, crs, includeConnections, outPath | `bim_export_ifc_file` (worker) |  |
 | `bim/generate` | **floorPlanText**, bimText | `generate_building` | The building model generated from the floor plan, keeping the model's own elements. |
 | `bim/generateFromStructure` | **structureText**, bimText | `generate_building_from_structure` | The building model of a special structure, keeping the model's own elements. |
 | `bim/ifc` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, schema, includeStructuralAnalysis, soilText, crs, projectRoot | `building_ifc` | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
 | `bim/ifcRebar` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, projectRoot, schema, includeStructuralAnalysis, soilText, crs | `building_ifc` (worker) | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
+| `bim/rebarCages` | **projectRoot** | `bim_rebar_cages` (worker) |  |
+| `bim/syncStamps` | **projectRoot** | `bim_sync_stamps` |  |
 | `boq/archTakeoff` | — | `boq_arch_takeoff` (worker) |  |
 | `boq/barSchedule` | — | `boq_bar_schedule` (worker) |  |
 | `boq/compute` | **bimText**, **objectsText**, **materialsText**, substructureText, settingsText, mepText, projectRoot, architectureText | `compute_boq` | The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the substructure, the MEP plinths and sleeves, the plumbing (tanks, pipes, fixtures) and the architecture (brickwork, plaster, finishes, doors and windows): ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where the plumbing tanks' last designs are read from (their bars), and the architecture when ``architecture_text`` is not given. |
@@ -183,6 +191,11 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `design/required` | **outDir**, **projectPath**, options | `design_required` (worker) | The reinforcement every designed element requires (``saengine.design.design_required``), kept beside the results while the project does not change (:mod:`saengine.pipeline.design_mode`). |
 | `design/strutAndTie` | **model**, projectPath | `strut_and_tie` | One strut-and-tie model of a D-region solved and checked (``saengine.design.stm_model.check_model``) with the code pack the project of the analysis model ``project_path`` chooses; ``{"problems"}`` when the model is not valid. |
 | `design/strutAndTieTemplate` | **template**, parameters | `strut_and_tie_template` | A strut-and-tie model to start from (``saengine.design.stm_model.template``), or ``{"error"}``. |
+| `documents/calculationPackage` | **projectRoot** | `documents_calculation_package` |  |
+| `documents/clauseTraceability` | **projectRoot** | `documents_clause_traceability` |  |
+| `documents/drawingAutomation` | **projectRoot** | `documents_drawing_automation` |  |
+| `documents/projectMetadata` | **projectRoot** | `documents_project_metadata` |  |
+| `documents/sheetInventory` | **projectRoot** | `documents_sheet_inventory` |  |
 | `drawings/automate` | — |  |  |
 | `drawings/callout` | **projectRoot**, level, x0, y0, x1, y1, writeFiles, calloutNumber, detailSheetNumber, planScale, detailScale, size | `drawings_callout` (worker) |  |
 | `drawings/dwg` | **projectRoot**, sheets | `drawings_dwg` (worker) | The current sheets as DWG (LibreDWG's dxf2dwg, a separate program): ``{written, folder, problems}``. |
@@ -197,25 +210,67 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `drawings/scopeBoxes` | **projectRoot**, scopeBoxes, writeFiles, saveToSettings, size, scale, prefix | `drawings_scope_boxes` (worker) |  |
 | `export/e2k` | — |  |  |
 | `export/exchange` | — |  |  |
+| `exports/archiveInspection` | **projectRoot** | `exports_archive_inspection` |  |
+| `exports/bbsReconciliation` | **projectRoot**, tolerance | `exports_bbs_reconciliation` (worker) |  |
+| `exports/fabricationPreview` | **projectRoot** | `exports_fabrication_preview` (worker) |  |
+| `exports/formatMatrix` | **projectRoot** | `exports_format_matrix` |  |
+| `exports/structuralIfcCheck` | **projectRoot** | `exports_structural_ifc_check` |  |
 | `fabrication/bvbs` | — |  |  |
 | `fabrication/nc` | — |  |  |
 | `fabrication/shopDrawings` | — |  |  |
+| `fem/capacitySeismicDetailing` | **projectRoot** | `fem_capacity_seismic_detailing` |  |
 | `fem/columnInteraction` | **outDir**, **projectPath**, member | `column_interaction` (worker) | The P-M interaction diagrams of the run's concrete columns with their demand points (worked out once per run by the design checks; ``saengine.fem.member_detail``). |
+| `fem/crackControl` | **projectRoot**, exposure, momentKnm, bMm, hMm, barMm, asMm2 | `fem_crack_control` |  |
+| `fem/creepShrinkage` | **projectRoot**, thicknessMm, humidity, ageDays, fckMpa | `fem_creep_shrinkage` |  |
+| `fem/deflectionCheck` | **projectRoot**, maKnm, fcMpa, bMm, hMm, spanMm | `fem_deflection_check` |  |
 | `fem/derive` | **bimText**, **objectsText**, **materialsText**, **settingsText**, modelFolder, soilText, mepText, substructureText, loadsText, architectureText | `derive_fem` | The analysis model (``model.osmodel`` text) of the building model with the settings' loads. |
+| `fem/differentialSettlement` | **projectRoot**, thermal | `fem_differential_settlement` |  |
 | `fem/existingAssessment` | **outDir**, **projectPath** | `existing_assessment` (worker) | Alpha 9 P4: the assessment of an existing building of a run, with the before and after comparison of its retrofit (``saengine.fem.existing_building.assessment``). |
 | `fem/exportCancel` | — |  |  |
 | `fem/exportProgress` | — |  |  |
 | `fem/exportTables` | **outDir**, **projectPath**, **path**, keys, tables, extra |  |  |
 | `fem/exportXlsx` | **path**, **sheets** | `export_xlsx` (worker) | Result tables written to an Excel workbook (``saengine.fem.table_export``). |
+| `fem/fireSteelConnections` | **projectRoot**, boltDiaMm, grade, weldMm, heightM | `fem_fire_steel_connections` |  |
+| `fem/floodLoads` | **projectRoot**, waveHeightM, stillDepthM, pileWidthM, velocityMS | `fem_flood_loads` |  |
+| `fem/floorSpectra` | **projectRoot** | `fem_floor_spectra` |  |
+| `fem/floorVibration` | **projectRoot**, fnHz, spanM, areaM2, wKn | `fem_floor_vibration` |  |
+| `fem/groundMotions` | **projectRoot**, procedure | `fem_ground_motions` |  |
+| `fem/gustResponse` | **projectRoot**, frequencyHz, damping | `fem_gust_response` |  |
+| `fem/irregularities` | **projectRoot** | `fem_irregularities` (worker) |  |
+| `fem/isolationDampers` | **projectRoot** | `fem_isolation_dampers` |  |
+| `fem/linearTimeHistory` | **projectRoot** | `fem_linear_time_history` |  |
+| `fem/loadCombinations` | **projectRoot** | `fem_load_combinations` |  |
+| `fem/localPressures` | **projectRoot**, tributaryAreaM2, parapetM | `fem_local_pressures` |  |
 | `fem/memberForces` | **outDir**, **projectPath**, **member** | `member_forces` (worker) | A member's section forces and deflection along it for every static case and load combination (the member detail window; ``saengine.fem.member_detail``). |
 | `fem/meshCheck` | — | `mesh_check` (worker) | The mesh convergence check of Run All (``saengine.fem.mesh_check``): the beams' gravity end moments on the project's mesh and on one twice as coarse, written to ``08 FEM/ model.results/mesh-check.json``; ``{"skipped": why}`` when the project needs none, ``{"problems"}`` when it could not be run; ``{"implausible": why}`` when the results are not plausible (:mod:`saengine.fem.results_check`; Run All fails its analysis step). |
+| `fem/nonlinearHistory` | **projectRoot** | `fem_nonlinear_history` |  |
 | `fem/nonlinearStability` | **outDir**, **projectPath**, run | `nonlinear_stability` (worker) | Alpha 9 L4: the nonlinear stability analysis (GMNIA, cables) of the project's settings (``saengine.fem.nonlinear_stability.run_project``) when ``run``, else the last one kept beside the results (``{"available": False, "reason"}`` when none was made). |
+| `fem/notionalLoads` | **projectRoot**, method, drift, tau, heightM | `fem_notional_loads` |  |
+| `fem/openStructures` | **projectRoot**, solidity, widthM, depthM, heightM | `fem_open_structures` |  |
+| `fem/pDeltaBuckling` | **projectRoot** | `fem_p_delta_buckling` (worker) |  |
+| `fem/patternLive` | **projectRoot**, system, deadKpa, liveKpa, adjacent, alternate | `fem_pattern_live` |  |
+| `fem/peakVelocityPressure` | **projectRoot** | `fem_peak_velocity_pressure` |  |
+| `fem/punchingShear` | **projectRoot**, vuKn, c1Mm, c2Mm, dMm, fcMpa | `fem_punching_shear` |  |
+| `fem/pushoverAnalysis` | **projectRoot** | `fem_pushover_analysis` |  |
 | `fem/secondOrder` | **outDir**, **projectPath** | `second_order_summary` (worker) | What the P-Delta analysis of a run changed (``saengine.fem.second_order. drift_amplification`` with the stories, I and Cd): ``{"method": "pDelta", "stiffness", "cases", "notes"}``; ``{"method": "none", "stiffness"}`` for a first-order model. |
 | `fem/seismicDesign` | **outDir**, **projectPath** | `seismic_design` (worker) | The response spectrum design of a run (``saengine.fem.seismic_design.seismic_design``, run=True: the modal-force run is made once per analysis run): its scaling, orthogonal rule, accidental torsion, drifts and combinations; None when the project designs for earthquake from the static cases (``analysis.seismicDesign``). |
+| `fem/seismicSummary` | **projectRoot** | `fem_seismic_summary` (worker) |  |
+| `fem/snowRainLoads` | **projectRoot** | `fem_snow_rain_loads` |  |
+| `fem/spectralHazard` | **projectRoot**, damping | `fem_spectral_hazard` |  |
 | `fem/ssiCompare` | — | `ssi_compare` | Fixed base against soil springs (see ``saengine.fem.ssi_compare.compare``). |
+| `fem/ssiSprings` | **projectRoot**, lengthM, widthM, depthM | `fem_ssi_springs` |  |
+| `fem/stagedConstruction` | **projectRoot** | `fem_staged_construction` |  |
+| `fem/stairCraneLoads` | **projectRoot** | `fem_stair_crane_loads` |  |
 | `fem/storyResponse` | **outDir**, **projectPath** | `story_response` (worker) | The storey response, modal participation, spectrum and curves of a run (the FEM results' charts; ``saengine.fem.story_response``). |
+| `fem/swayDrift` | **projectRoot** | `fem_sway_drift` |  |
 | `fem/table` | **outDir**, **projectPath**, **key**, **table** |  |  |
 | `fem/tableIndex` | **outDir**, **projectPath** |  |  |
+| `fem/thermalLoads` | **projectRoot**, uniform, gradient, thicknessMm, eMpa, alpha | `fem_thermal_loads` |  |
+| `fem/torsionDesign` | **projectRoot**, tuKnm, vuKn, bMm, hMm, fcMpa, fyMpa | `fem_torsion_design` |  |
+| `fem/torsionalEffects` | **projectRoot** | `fem_torsional_effects` |  |
+| `fem/twoLevelSeismic` | **projectRoot** | `fem_two_level_seismic` |  |
+| `fem/windComfort` | **projectRoot**, frequencyHz, damping | `fem_wind_comfort` |  |
+| `fem/windSpeedFactors` | **projectRoot**, heightM | `fem_wind_speed_factors` |  |
 | `graph/check` | — |  |  |
 | `graph/create` | **projectRoot**, name |  |  |
 | `graph/list` | — |  |  |
@@ -327,10 +382,17 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `structure/runScript` | **structureText**, **scriptPath** | `run_script` | Runs a structural model script (see ``saengine.library.script``). |
 | `structure/shapeGeometry` | — | `shape_geometry` | The members, areas and supports of a parametric shape, to preview and insert. |
 | `studies/apply` | — |  |  |
+| `studies/batchCheck` | **projectRoot** | `studies_batch_check` |  |
 | `studies/cancel` | — |  |  |
+| `studies/daylightSolar` | **projectRoot**, day | `studies_daylight_solar` (worker) |  |
 | `studies/list` | — |  |  |
+| `studies/noiseStudy` | **projectRoot** | `studies_noise_study` (worker) |  |
+| `studies/phasingSummary` | **projectRoot** | `studies_phasing_summary` |  |
+| `studies/plotPlanning` | **projectRoot** | `studies_plot_planning` |  |
+| `studies/specialStructures` | **projectRoot** | `studies_special_structures` |  |
 | `studies/start` | — |  |  |
 | `studies/status` | — |  |  |
+| `studies/verificationStatus` | **projectRoot** | `studies_verification_status` |  |
 | `substructure/basementLoads` | — | `substructure_basement_loads` |  |
 | `substructure/design` | — | `substructure_design` (worker) | Run All's foundation step (``saengine.substructure.run.design_foundations``): moves the building model's footings in while the substructure is the placeholder, gives foundations without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as :func:`substructure_report`, with ``sources`` taken after the bars were written (they are part of what was checked), or ``{"problems"}``. |
 | `substructure/downdrag` | **projectRoot**, borehole, settlingDepthM, kind, diameterMm, lengthM, headDepthM, sustainedKn | `substructure_downdrag` |  |
