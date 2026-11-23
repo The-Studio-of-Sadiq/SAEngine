@@ -173,13 +173,7 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(
 			RIBBON_TABS.map(t => t.id),
 			[
-				'home', 'project', 'soil', 'soilTests', 'settings', 'library', 'plan',
-				'architecture', 'bim3d',
-				'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign',
-				'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems',
-				'mepFire', 'mepFireSystems', 'mepSystems',
-				'analyze', 'results', 'design', 'foundations', 'boq',
-				'documents', 'studies', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output',
+				'home', 'project', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite', 'settings', 'settingsLoads', 'settingsHazard', 'settingsChecks', 'settingsOverrides', 'library', 'librarySections', 'libraryObjects', 'libraryChecks', 'plan', 'architecture', 'bim3d', 'mepCoordination', 'mepIssues', 'mepPlumbing', 'mepPlumbingDesign', 'mepHvac', 'mepHvacAnalysis', 'mepElectrical', 'mepPowerSystems', 'mepFire', 'mepFireSystems', 'mepSystems', 'analyze', 'results', 'design', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff', 'documents', 'studies', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output',
 			]
 		);
 		const home = RIBBON_TABS.find(t => t.id === 'home');
@@ -202,11 +196,11 @@ suite('SAEngine - ribbon model', () => {
 			[SAENGINE_SUB_VIEW_CONTEXT]: subView,
 		})).map(t => t.id);
 
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil', 'soilTests']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.soil), ['home', 'soil', 'soilTests', 'soilBearing', 'soilSeismic', 'soilEarth', 'soilSite']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.settings, '', 'settings.project'), ['home', 'settings', 'settingsLoads', 'settingsHazard', 'settingsChecks', 'settingsOverrides']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.codePacks, '', 'settings.packages'), ['home', 'settings', 'settingsLoads', 'settingsHazard', 'settingsChecks', 'settingsOverrides']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.library), ['home', 'library', 'librarySections', 'libraryObjects', 'libraryChecks']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.sectionDesigner), ['home', 'library', 'librarySections', 'libraryObjects', 'libraryChecks']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.floorPlan), ['home', 'plan', 'draft', 'insert', 'annotate', 'parametric', 'view', 'manage', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.grids), ['home', 'plan']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.membersTable), ['home', 'plan']);
@@ -238,9 +232,9 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'analyze', 'results', 'design']);
 
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.substructure), ['home', 'foundations']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.boq), ['home', 'boq']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.rates), ['home', 'boq']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.substructure), ['home', 'foundations', 'foundationsPiles', 'foundationsPileAnalysis', 'foundationsRetaining', 'foundationsSpecial', 'foundationsReport']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.boq), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.rates), ['home', 'boq', 'boqCosting', 'boqSchedule', 'boqTakeoff']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.exports), ['home', 'output']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.drawingPreview), ['home', 'documents']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.reportTemplate), ['home', 'documents']);
@@ -310,7 +304,7 @@ suite('SAEngine - ribbon model', () => {
 		const windows: [string, string][] = [
 			[SAENGINE_EDITOR_IDS.floorPlan, ''], [SAENGINE_EDITOR_IDS.cad, ''], [SAENGINE_EDITOR_IDS.soil, ''],
 			[SAENGINE_EDITOR_IDS.femModel, 'fem.model'], [SAENGINE_EDITOR_IDS.building, 'bim.3d'], [SAENGINE_EDITOR_IDS.substructure, ''],
-			[SAENGINE_EDITOR_IDS.boq, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.overview, ''],
+			[SAENGINE_EDITOR_IDS.boq, ''], [SAENGINE_EDITOR_IDS.exports, ''], [SAENGINE_EDITOR_IDS.architecture, ''], [SAENGINE_EDITOR_IDS.overview, ''], [SAENGINE_EDITOR_IDS.settings, 'settings.project'], [SAENGINE_EDITOR_IDS.library, ''],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.coordination'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.coordination.results'],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.plumbing'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.plumbing.results'],
 			[SAENGINE_EDITOR_IDS.mep, 'mep.hvac'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.data'], [SAENGINE_EDITOR_IDS.mep, 'mep.hvac.results'],

@@ -135,9 +135,15 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `bim/generateFromStructure` | **structureText**, bimText | `generate_building_from_structure` | The building model of a special structure, keeping the model's own elements. |
 | `bim/ifc` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, schema, includeStructuralAnalysis, soilText, crs, projectRoot | `building_ifc` | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
 | `bim/ifcRebar` | **bimText**, **objectsText**, materialsText, substructureText, settingsText, mepText, architectureText, name, projectRoot, schema, includeStructuralAnalysis, soilText, crs | `building_ifc` (worker) | The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``. |
+| `boq/archTakeoff` | — | `boq_arch_takeoff` (worker) |  |
+| `boq/barSchedule` | — | `boq_bar_schedule` (worker) |  |
 | `boq/compute` | **bimText**, **objectsText**, **materialsText**, substructureText, settingsText, mepText, projectRoot, architectureText | `compute_boq` | The bill of quantities (``10 BOQ/boq.json`` text) of the building model, the substructure, the MEP plinths and sleeves, the plumbing (tanks, pipes, fixtures) and the architecture (brickwork, plaster, finishes, doors and windows): ``{"text", "notes"}``, or ``{"problems"}`` when an input has errors. ``project_root``: where the plumbing tanks' last designs are read from (their bars), and the architecture when ``architecture_text`` is not given. |
 | `boq/cost` | **boqText**, ratesText, carbonText | `cost_boq` | The bill priced by the schedule of rates, with its embodied carbon (``saengine.boq.costing``): ``{"costing", "sampleRates"}`` or ``{"problems"}``. |
 | `boq/exportXlsx` | **path**, **boqText**, ratesText, carbonText, settingsText, title | `export_boq_xlsx` (worker) | The bill, its costing and embodied carbon written to an Excel workbook (``saengine.boq.workbook``); ``settings_text``: the project settings, for the display units of the bill (C13; SI without). |
+| `boq/precastSchedule` | — | `boq_precast_schedule` |  |
+| `boq/scheduleSummary` | — | `boq_schedule_summary` |  |
+| `boq/summary` | — | `boq_summary` |  |
+| `boq/takeoffSummary` | — | `boq_takeoff_summary` |  |
 | `boq/templates` | — | `boq_templates` | The texts a project's ``10 BOQ/rates.json`` and ``carbon-factors.json`` start from: the sample schedule (made-up rates) and the carbon factors shipped. |
 | `cad/cleanDxf` | — |  |  |
 | `cad/convertDwg` | **path**, cache | `convert_dwg` (worker) | A DWG drawing as DXF (``saengine.library.dwg``): ``{"ok", "dxf", "warnings", "cached"}``, or ``{"ok": False, "code", "message"}`` (``code`` ``"no-converter"`` or ``"failed"``). |
@@ -156,6 +162,8 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `codes/choices` | **id**, root | `codes_choices` | The entries of the Project Settings lists (towns, area uses, structural systems, site classes) under the pack ``pack_id`` (:func:`saengine.library.settings.pack_choices`): ``{id, name, choices: {list: [{id, label}]}}``. |
 | `codes/codedGeometry` | **package**, **file**, values, root, memberType | `codes_coded_geometry` (worker) | The geometry of a coded structure template (:func:`saengine.codes.coded.coded_geometry`), to preview and insert like a built-in shape's; ``{problems}`` when it cannot be made. |
 | `codes/combinations` | **settingsText**, root | `codes_combinations` | W4A-2: the strength combinations the code pack the settings choose (unsaved edits included, ``settings_text``; with the project's overrides) generates for the project (:func:`saengine.library.settings.project_strength_combinations`): ``{id, name, combinations, fromPack}``, ``fromPack`` whether the settings' combinations are those already; or a refusal. |
+| `codes/conformance` | projectRoot, packId | `codes_conformance` |  |
+| `codes/diff` | **packA**, **packB**, projectRoot | `codes_diff` (worker) |  |
 | `codes/install` | **path**, root, scope, replace | `codes_install` (worker) | Copies a pack folder or .zip into the user's packs or the project's: its info. ``replace``: an installed package of the same id and scope is replaced (an update). |
 | `codes/list` | root, kind | `codes_list` | Every code pack found (built-in, the user's, the project's), shadowed ones included. |
 | `codes/new` | **id**, extends, dest, root, name, scope | `codes_new` | Writes a new pack's skeleton (:func:`saengine.codes.template.new_pack`) into ``dest``, else the user's packs or the project's (``scope``): ``{path}`` of its folder. |
@@ -216,10 +224,16 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `hazard/lookup` | settingsText, consent, soilText, root, latitude, longitude, provider | `hazard_lookup` (worker) | Alpha 9 C22: asks the provider for the site's hazard values (only the coordinates and the code parameters are sent; refused without ``consent`` true). The answer's values and the record to keep (``saengine.gis.hazard_lookup.lookup``); nothing is written. |
 | `hazard/offers` | settingsText, soilText, root, latitude, longitude | `hazard_offers` | Alpha 9 C22: the hazard services of the project's code pack and the exact query each would be sent for the site (no network; ``saengine.gis.hazard_lookup.offers``). |
 | `import/structural` | **path**, **destParent**, name, overwrite | `import_structural` (worker) | A new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file (``saengine.importers.project.import_structural``): ``{root, name, format, report, problems, files}``, or ``{error, problems}`` when the file cannot be imported. |
+| `library/archTypes` | **projectRoot**, category | `library_arch_types` |  |
 | `library/check` | **kind**, **text**, materialsText, settingsText | `check_library` |  |
+| `library/designedSections` | **projectRoot**, sectionId, capacity, momentCurvature, axialKn | `library_designed_sections` |  |
 | `library/generateBuilding` | **spec**, **destParent**, name, site, overwrite | `new_building` (worker) | Integrator glue: a new building project from a grid and storeys (``saengine.project.new_building.create_building``, the generator of ``saengine.library.generator``): ``{root, name, notes, summary, settingsPatch, files}``, or ``{error}`` when the spec is not valid or the folder holds files already. ``site``: the soil report's site the new project starts with (its plot, the grid aligned with it). |
 | `library/limits` | — | `library_limits` | The input guardrails with the code pack in force's limits (U2): ``{rules}``. |
+| `library/materialSummary` | **projectRoot**, fc, mixRatio | `library_material_summary` |  |
+| `library/objectSections` | — | `library_object_sections` (worker) |  |
+| `library/sheetPiles` | shape | `library_sheet_piles` |  |
 | `library/steelSections` | — | `steel_sections` | SAEngine's standard steel section table (``saengine.library.steel_sections``). |
+| `library/validateAll` | — | `library_validate_all` |  |
 | `mep/checkIds` | **projectRoot**, mepText | `mep_check_ids` (worker) | Checks the models against the coordination's IDS files (``saengine.mep.ids``): ``{"coordination", "results", "counts", "notes"}`` or ``{"problems"}`` (also when IfcTester is not installed). |
 | `mep/coordinate` | **projectRoot**, mepText, tests | `mep_coordinate` (worker) | Runs the clash tests and merges their clashes into the coordination issues (``saengine.mep.coordination.coordinate``), or ``{"problems"}``. |
 | `mep/electricalCableSize` | projectRoot, nominalVoltage, mode, designCurrentA, lengthM, phases, installationMethod, insulation, conductor, ambientC, groupedCircuits, vdLimitPct | `electrical_cable_size` (worker) |  |
@@ -277,6 +291,8 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `saengine/info` | — | `info` | Versions of the backend stack, for the workbench's runtime check. |
 | `saengine/jobs` | — |  |  |
 | `section/analyse` | **text**, materialsText, projectRoot, capacity, surface, momentCurvature, contourAt |  |  |
+| `settings/hazardSummary` | — | `settings_hazard_summary` |  |
+| `settings/towns` | — | `settings_towns` |  |
 | `share/connect` | **projectRoot**, **location**, author | `share_connect` (worker) | Shares the project at a shared folder or git server address, then syncs. |
 | `share/disconnect` | **projectRoot** | `share_disconnect` (worker) | Stops syncing this copy. |
 | `share/heartbeat` | **projectRoot**, user, part, leaving | `share_heartbeat` (worker) | Keeps (or with ``leaving`` ends) this engineer's presence: ``{available, people}``. |
@@ -286,17 +302,24 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `share/sync` | **projectRoot**, author, resolutions, user | `share_sync` (worker) | Saves, fetches, merges per part file and sends: ``{state, received, sent, conflicts}``. |
 | `share/unlock` | **projectRoot**, **part**, user, force | `share_unlock` (worker) | Releases (or with ``force`` breaks) the lock of a part: ``{released, was}``. |
 | `soil/allowableBearing` | **soilText**, settingsText, **x**, **y**, **foundingLevel**, **b**, **l** | `allowable_bearing` (worker) | Net allowable bearing pressure of a footing (see ``saengine.soil.allowable_bearing``). |
+| `soil/analysis` | — | `soil_analysis` |  |
+| `soil/bearingCheck` | **projectRoot**, x, y, foundingLevel, b, l | `soil_bearing_check` |  |
+| `soil/characteristicBearing` | **projectRoot**, borehole, fak, b, l, df, q | `soil_characteristic_bearing` |  |
+| `soil/earthPressure` | **projectRoot**, borehole, waterTableM, depthM, surchargeKpa, phiDeg, gamma, kh, betaDeg, deltaDeg | `soil_earth_pressure` |  |
 | `soil/export` | **path**, **soilText** | `export_soil` | Writes the soil report's boreholes as AGS4 (.ags) or DIGGS (.xml): ``{"path", "notes"}`` or ``{"problems"}`` (alpha 9 L8). |
 | `soil/gisExport` | **projectRoot**, **format**, **outPath** | `gis_export` (worker) | The site, boreholes and building outline as GeoJSON or GeoPackage (WGS 84). |
 | `soil/gisImport` | **path**, soilText | `gis_import` (worker) | The soil report with a GeoJSON or GeoPackage file's boreholes and boundary merged in. |
 | `soil/import` | **path**, soilText | `import_soil` | The soil report with the boreholes of a CSV or Excel file merged in: ``{"text", "notes"}`` or ``{"problems"}``. |
 | `soil/location` | soilText, bimText, settingsText | `soil_location` (worker) | Where the site, the boreholes and the building are (``saengine.gis.site.soil_location``). |
 | `soil/plotCheck` | soilText, floorPlanText, objectsText | `plot_check` (worker) | The plot and its buildable envelope in project mm, and the floor plan's members outside them (``saengine.gis.plot.encroachments``): ``{plot, envelope, warnings, problems}``. |
+| `soil/plotPlanning` | — | `soil_plot_planning` (worker) |  |
 | `soil/qgisCommand` | **program**, **filePath** | `qgis_command` | The program and arguments that open ``file_path`` in QGIS (a .bat launcher through cmd.exe, its last argument to pass verbatim), or ``{problems}`` for a path cmd.exe would interpret. |
 | `soil/qgisProgram` | — | `qgis_program` (worker) | The launcher of an installed QGIS, or None (QGIS is not bundled). |
 | `soil/report` | **soilText**, settingsText | `soil_report` (worker) | Everything computed from the soil report (see ``saengine.soil.soil_report``), with the site class of the settings resolved as the analysis uses it. |
 | `soil/settlement` | **soilText**, **borehole**, **b**, **l**, **df**, **q** | `soil_settlement` | Settlement of a footing at a borehole under a net pressure. |
+| `soil/settlementCheck` | **projectRoot**, borehole, b, l, df, q, foundation | `soil_settlement_check` |  |
 | `soil/sources` | soilText, settingsText | `soil_sources` | Where the site class and the allowable bearing pressure come from, for Project Settings. |
+| `soil/sourcesCheck` | — | `soil_sources_check` |  |
 | `soil/template` | — | `soil_template` | Writes the borehole import template (.csv or .xlsx): ``{"path"}`` or ``{"problems"}``. |
 | `special/structures` | **projectPath**, run | `special_structures` (worker) | Alpha 9 L9: the project's bridges and special structures (Project Settings): computed anew and kept when ``run`` (``saengine.special.project.run_project``), else the last run kept beside the analysis model (``{"available": False, "configured", "reason"}`` without one). ``project_path``: any file of the project (the analysis model). |
 | `structure/importGeometry` | **path**, objectsText, options | `import_geometry` (worker) | The geometry of a DXF, IFC or Rhino file, typed with the options and object types. |
@@ -308,9 +331,19 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `studies/list` | — |  |  |
 | `studies/start` | — |  |  |
 | `studies/status` | — |  |  |
+| `substructure/basementLoads` | — | `substructure_basement_loads` |  |
 | `substructure/design` | — | `substructure_design` (worker) | Run All's foundation step (``saengine.substructure.run.design_foundations``): moves the building model's footings in while the substructure is the placeholder, gives foundations without bars the minimum mesh (``summary["barsAdded"]``) and checks them. The same answer as :func:`substructure_report`, with ``sources`` taken after the bars were written (they are part of what was checked), or ``{"problems"}``. |
+| `substructure/downdrag` | **projectRoot**, borehole, settlingDepthM, kind, diameterMm, lengthM, headDepthM, sustainedKn | `substructure_downdrag` |  |
+| `substructure/embeddedWall` | **projectRoot**, waterTableM, heightM, kind, support, propDepthM, surchargeKpa | `substructure_embedded_wall` |  |
 | `substructure/ensure` | — | `substructure_ensure` | Writes the building model's footings into ``substructure.json`` while it is still the placeholder (``saengine.substructure.handover.ensure_migrated``). |
+| `substructure/groundSlab` | **projectRoot**, thicknessMm, fcMpa, subgradeKnM3, pointLoadKn, contactSideMm, fyMpa | `substructure_ground_slab` |  |
+| `substructure/limitState` | — | `substructure_limit_state` |  |
+| `substructure/loadTests` | **projectRoot**, curveText, diameterMm, lengthM, epMpa | `substructure_load_tests` |  |
 | `substructure/migrate` | — | `substructure_migrate` | The saved substructure with the building model's footings added (nothing is written): ``{"substructure", "notes", "count"}`` or ``{"problems"}``. |
+| `substructure/pileCapacity` | **projectRoot**, diametersMm, lengthsM, kind, headLevelMm | `substructure_pile_capacity` |  |
+| `substructure/pileDetailing` | **projectRoot**, kind, diameterMm, fcMpa, fyMpa, placement | `substructure_pile_detailing` |  |
+| `substructure/pileLateral` | **projectRoot**, borehole, kind, diameterMm, lengthM, headDepthM, fixity, myKnm, epMpa | `substructure_pile_lateral` |  |
+| `substructure/pileSettlement` | **projectRoot**, borehole, kind, diameterMm, lengthM, headDepthM, loadKn, count, bgM, lgM, modulusMpa | `substructure_pile_settlement` |  |
 | `substructure/report` | — | `substructure_report` (worker) | The design checks of the project's saved substructure (see ``saengine.substructure.substructure_report``), or ``{"problems"}`` when a part of the project cannot be read. |
 | `substructure/size` | **projectRoot**, columns, substructureText | `substructure_size` (worker) | Footings proposed for ``columns`` (default: the columns without a foundation) from the reactions and the soil report, with the editor's substructure ``substructure_text`` when given: ``{"foundations", "designs", "notes"}`` or ``{"problems"}``. |
 | `verification/cases` | — | `verification_cases` |  |

@@ -39,6 +39,8 @@ import { LibraryEditorInput, LibraryEditorInputSerializer, LibraryKind } from '.
 import { humanize } from './schemaForm.js';
 import './codePacks.contribution.js';
 import './sectionDesigner.contribution.js';
+import './settingsDataPanels.contribution.js';
+import './libraryDataPanels.contribution.js';
 import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -315,7 +317,7 @@ MenuRegistry.appendMenuItem(RibbonMenus.Library, {
 	submenu: LibraryAddMaterialSubmenu,
 	title: localize2('rib.lib.addMaterialSub', "Add Material"),
 	icon: Codicon.add,
-	group: '2_AddMaterial',
+	group: '1_AddMaterial',
 	order: 1,
 });
 for (const [index, category] of ((MATERIALS_SCHEMA.$defs?.Category?.enum ?? []) as string[]).entries()) {
@@ -335,12 +337,12 @@ for (const [index, category] of ((MATERIALS_SCHEMA.$defs?.Category?.enum ?? []) 
 }
 
 const LibraryAddObjectSubmenu = MenuId.for('saengine.ribbon.library.addObject');
-registerRibbonItemHint(LibraryAddObjectSubmenu.id, { size: 'large' }, RibbonMenus.Library);
-MenuRegistry.appendMenuItem(RibbonMenus.Library, {
+registerRibbonItemHint(LibraryAddObjectSubmenu.id, { size: 'large' }, RibbonMenus.LibraryObjects);
+MenuRegistry.appendMenuItem(RibbonMenus.LibraryObjects, {
 	submenu: LibraryAddObjectSubmenu,
 	title: localize2('rib.lib.addObjectSub', "Add Object Type"),
 	icon: Codicon.add,
-	group: '3_AddObject',
+	group: '1_AddObject',
 	order: 1,
 });
 for (const [index, kind] of ((OBJECTS_SCHEMA.$defs?.Kind?.enum ?? []) as string[]).entries()) {
@@ -359,14 +361,12 @@ for (const [index, kind] of ((OBJECTS_SCHEMA.$defs?.Kind?.enum ?? []) as string[
 	});
 }
 
-registerRibbonItemHint('saengine.library.cmd.duplicate', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.duplicate',
 			title: localize2('rib.lib.duplicate', "Duplicate"),
 			icon: Codicon.copy,
-			menu: { id: RibbonMenus.Library, group: '1_Switch', order: 3 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -374,14 +374,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.delete', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.delete',
 			title: localize2('rib.lib.delete', "Delete"),
 			icon: Codicon.trash,
-			menu: { id: RibbonMenus.Library, group: '1_Switch', order: 4 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -389,14 +387,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.stiffnessModifiers', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.stiffnessModifiers',
 			title: localize2('rib.lib.stiffness', "Stiffness Modifiers"),
 			icon: Codicon.settings,
-			menu: { id: RibbonMenus.Library, group: '4_Sections', order: 2 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -404,14 +400,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.import', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.import',
 			title: localize2('rib.lib.import', "Import JSON..."),
 			icon: Codicon.cloudDownload,
-			menu: { id: RibbonMenus.Library, group: '5_Exchange', order: 1 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -419,14 +413,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerRibbonItemHint('saengine.library.cmd.export', { size: 'small' }, RibbonMenus.Library);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'saengine.library.cmd.export',
 			title: localize2('rib.lib.export', "Export JSON..."),
 			icon: Codicon.export,
-			menu: { id: RibbonMenus.Library, group: '5_Exchange', order: 2 },
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {

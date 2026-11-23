@@ -80,8 +80,19 @@ export type RibbonTabId =
 	| 'project'
 	| 'soil'
 	| 'soilTests'
+	| 'soilBearing'
+	| 'soilSeismic'
+	| 'soilEarth'
+	| 'soilSite'
 	| 'settings'
+	| 'settingsLoads'
+	| 'settingsHazard'
+	| 'settingsChecks'
+	| 'settingsOverrides'
 	| 'library'
+	| 'librarySections'
+	| 'libraryObjects'
+	| 'libraryChecks'
 	| 'plan'
 	| 'architecture'
 	| 'bim3d'
@@ -100,7 +111,15 @@ export type RibbonTabId =
 	| 'results'
 	| 'design'
 	| 'foundations'
+	| 'foundationsPiles'
+	| 'foundationsPileAnalysis'
+	| 'foundationsRetaining'
+	| 'foundationsSpecial'
+	| 'foundationsReport'
 	| 'boq'
+	| 'boqCosting'
+	| 'boqSchedule'
+	| 'boqTakeoff'
 	| 'documents'
 	| 'studies'
 	| 'draft'
@@ -120,8 +139,19 @@ export const RibbonMenus = {
 	Project: MenuId.for('SaengineRibbon.Project'),
 	Soil: MenuId.for('SaengineRibbon.Soil'),
 	SoilTests: MenuId.for('SaengineRibbon.SoilTests'),
+	SoilBearing: MenuId.for('SaengineRibbon.SoilBearing'),
+	SoilSeismic: MenuId.for('SaengineRibbon.SoilSeismic'),
+	SoilEarth: MenuId.for('SaengineRibbon.SoilEarth'),
+	SoilSite: MenuId.for('SaengineRibbon.SoilSite'),
 	Settings: MenuId.for('SaengineRibbon.Settings'),
+	SettingsLoads: MenuId.for('SaengineRibbon.SettingsLoads'),
+	SettingsHazard: MenuId.for('SaengineRibbon.SettingsHazard'),
+	SettingsChecks: MenuId.for('SaengineRibbon.SettingsChecks'),
+	SettingsOverrides: MenuId.for('SaengineRibbon.SettingsOverrides'),
 	Library: MenuId.for('SaengineRibbon.Library'),
+	LibrarySections: MenuId.for('SaengineRibbon.LibrarySections'),
+	LibraryObjects: MenuId.for('SaengineRibbon.LibraryObjects'),
+	LibraryChecks: MenuId.for('SaengineRibbon.LibraryChecks'),
 	Plan: MenuId.for('SaengineRibbon.Plan'),
 	Architecture: MenuId.for('SaengineRibbon.Architecture'),
 	Bim3D: MenuId.for('SaengineRibbon.Bim3D'),
@@ -140,7 +170,15 @@ export const RibbonMenus = {
 	Results: MenuId.for('SaengineRibbon.Results'),
 	Design: MenuId.for('SaengineRibbon.Design'),
 	Foundations: MenuId.for('SaengineRibbon.Foundations'),
+	FoundationsPiles: MenuId.for('SaengineRibbon.FoundationsPiles'),
+	FoundationsPileAnalysis: MenuId.for('SaengineRibbon.FoundationsPileAnalysis'),
+	FoundationsRetaining: MenuId.for('SaengineRibbon.FoundationsRetaining'),
+	FoundationsSpecial: MenuId.for('SaengineRibbon.FoundationsSpecial'),
+	FoundationsReport: MenuId.for('SaengineRibbon.FoundationsReport'),
 	BOQ: MenuId.for('SaengineRibbon.BOQ'),
+	BOQCosting: MenuId.for('SaengineRibbon.BOQCosting'),
+	BOQSchedule: MenuId.for('SaengineRibbon.BOQSchedule'),
+	BOQTakeoff: MenuId.for('SaengineRibbon.BOQTakeoff'),
 	Documents: MenuId.for('SaengineRibbon.Documents'),
 	Studies: MenuId.for('SaengineRibbon.Studies'),
 	Insert: MenuId.for('SaengineRibbon.Insert'),
@@ -306,29 +344,106 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	},
 	{
 		id: 'soil',
-		label: localize('ribbon.tab.soil', "Soil Report"),
+		label: localize('ribbon.tab.soil', "Investigation"),
 		menuId: RibbonMenus.Soil,
 		contextual: true,
 		when: SOIL_WHEN,
 	},
 	{
 		id: 'soilTests',
-		label: localize('ribbon.tab.soilTests', "Tests"),
+		label: localize('ribbon.tab.soilTests', "Lab Tests"),
 		menuId: RibbonMenus.SoilTests,
 		contextual: true,
 		when: SOIL_WHEN,
 	},
 	{
+		id: 'soilBearing',
+		label: localize('ribbon.tab.soilBearing', "Bearing & Settlement"),
+		menuId: RibbonMenus.SoilBearing,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilSeismic',
+		label: localize('ribbon.tab.soilSeismic', "Seismic & Liquefaction"),
+		menuId: RibbonMenus.SoilSeismic,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilEarth',
+		label: localize('ribbon.tab.soilEarth', "Earth Pressure & Chemistry"),
+		menuId: RibbonMenus.SoilEarth,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
+		id: 'soilSite',
+		label: localize('ribbon.tab.soilSite', "Site & GIS"),
+		menuId: RibbonMenus.SoilSite,
+		contextual: true,
+		when: SOIL_WHEN,
+	},
+	{
 		id: 'settings',
-		label: localize('ribbon.tab.settings', "Settings"),
+		label: localize('ribbon.tab.settings', "Code & Packs"),
 		menuId: RibbonMenus.Settings,
 		contextual: true,
 		when: SETTINGS_WHEN,
 	},
 	{
+		id: 'settingsLoads',
+		label: localize('ribbon.tab.settingsLoads', "Loads"),
+		menuId: RibbonMenus.SettingsLoads,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsHazard',
+		label: localize('ribbon.tab.settingsHazard', "Seismic & Wind"),
+		menuId: RibbonMenus.SettingsHazard,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsChecks',
+		label: localize('ribbon.tab.settingsChecks', "Checks"),
+		menuId: RibbonMenus.SettingsChecks,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
+		id: 'settingsOverrides',
+		label: localize('ribbon.tab.settingsOverrides', "Overrides"),
+		menuId: RibbonMenus.SettingsOverrides,
+		contextual: true,
+		when: SETTINGS_WHEN,
+	},
+	{
 		id: 'library',
-		label: localize('ribbon.tab.library', "Library"),
+		label: localize('ribbon.tab.library', "Materials"),
 		menuId: RibbonMenus.Library,
+		contextual: true,
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'librarySections',
+		label: localize('ribbon.tab.librarySections', "Sections"),
+		menuId: RibbonMenus.LibrarySections,
+		contextual: true,
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'libraryObjects',
+		label: localize('ribbon.tab.libraryObjects', "Object Types"),
+		menuId: RibbonMenus.LibraryObjects,
+		contextual: true,
+		when: LIBRARY_WHEN,
+	},
+	{
+		id: 'libraryChecks',
+		label: localize('ribbon.tab.libraryChecks', "Modifiers & Checks"),
+		menuId: RibbonMenus.LibraryChecks,
 		contextual: true,
 		when: LIBRARY_WHEN,
 	},
@@ -453,15 +568,71 @@ export const RIBBON_TABS: readonly IRibbonTabDescriptor[] = [
 	},
 	{
 		id: 'foundations',
-		label: localize('ribbon.tab.foundations', "Foundations"),
+		label: localize('ribbon.tab.foundations', "Shallow & Raft"),
 		menuId: RibbonMenus.Foundations,
 		contextual: true,
 		when: FOUNDATIONS_WHEN,
 	},
 	{
+		id: 'foundationsPiles',
+		label: localize('ribbon.tab.foundationsPiles', "Piles"),
+		menuId: RibbonMenus.FoundationsPiles,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsPileAnalysis',
+		label: localize('ribbon.tab.foundationsPileAnalysis', "Pile Analysis"),
+		menuId: RibbonMenus.FoundationsPileAnalysis,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsRetaining',
+		label: localize('ribbon.tab.foundationsRetaining', "Retaining & Excavation"),
+		menuId: RibbonMenus.FoundationsRetaining,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsSpecial',
+		label: localize('ribbon.tab.foundationsSpecial', "Slabs & Machine"),
+		menuId: RibbonMenus.FoundationsSpecial,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
+		id: 'foundationsReport',
+		label: localize('ribbon.tab.foundationsReport', "Detailing & Report"),
+		menuId: RibbonMenus.FoundationsReport,
+		contextual: true,
+		when: FOUNDATIONS_WHEN,
+	},
+	{
 		id: 'boq',
-		label: localize('ribbon.tab.boq', "BOQ"),
+		label: localize('ribbon.tab.boq', "Quantities"),
 		menuId: RibbonMenus.BOQ,
+		contextual: true,
+		when: BOQ_WHEN,
+	},
+	{
+		id: 'boqCosting',
+		label: localize('ribbon.tab.boqCosting', "Rates & Costing"),
+		menuId: RibbonMenus.BOQCosting,
+		contextual: true,
+		when: BOQ_WHEN,
+	},
+	{
+		id: 'boqSchedule',
+		label: localize('ribbon.tab.boqSchedule', "Construction Schedule"),
+		menuId: RibbonMenus.BOQSchedule,
+		contextual: true,
+		when: BOQ_WHEN,
+	},
+	{
+		id: 'boqTakeoff',
+		label: localize('ribbon.tab.boqTakeoff', "Takeoff"),
+		menuId: RibbonMenus.BOQTakeoff,
 		contextual: true,
 		when: BOQ_WHEN,
 	},

@@ -754,7 +754,28 @@ export type EngineMethod =
 	// `studies/list|start|status|cancel|apply`; `drawings/automate` `{projectRoot, sheets?, actions}`.
 	| L12EngineMethod
 	| MepServiceMethod
+	| U6dEngineMethod
 	| 'mep/report' | 'mep/checkIds' | 'mep/plumbingReport' | 'mep/plumbingOccupancies';
+
+/** U6d: existing and thin domain endpoints exposed by Soil, Settings, Library, Substructure and BOQ ribbon panels. */
+export type U6dEngineMethod =
+	| 'soil/report' | 'soil/allowableBearing' | 'soil/settlement' | 'soil/sources'
+	| 'soil/analysis' | 'soil/bearingCheck' | 'soil/settlementCheck'
+	| 'soil/characteristicBearing' | 'soil/earthPressure' | 'soil/plotPlanning' | 'soil/sourcesCheck'
+	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/combinations' | 'codes/areaLoads'
+	| 'codes/values' | 'codes/validate' | 'codes/templates' | 'codes/checkTemplate' | 'codes/trust'
+	| 'codes/codedGeometry' | 'codes/conformance' | 'codes/diff'
+	| 'hazard/offers' | 'hazard/lookup'
+	| 'settings/hazardSummary' | 'settings/towns'
+	| 'library/check' | 'library/materialSummary' | 'library/objectSections'
+	| 'library/designedSections' | 'library/sheetPiles' | 'library/archTypes' | 'library/validateAll'
+	| 'substructure/report' | 'substructure/design' | 'substructure/size'
+	| 'substructure/pileCapacity' | 'substructure/pileLateral' | 'substructure/pileSettlement'
+	| 'substructure/downdrag' | 'substructure/loadTests' | 'substructure/pileDetailing'
+	| 'substructure/basementLoads' | 'substructure/embeddedWall' | 'substructure/groundSlab'
+	| 'substructure/limitState'
+	| 'boq/summary' | 'boq/barSchedule' | 'boq/scheduleSummary'
+	| 'boq/archTakeoff' | 'boq/precastSchedule' | 'boq/takeoffSummary';
 
 /** Alpha 9 L11: the methods of `saengine.rpc.office` (see its module notes for their params). */
 export type OfficeMethod =

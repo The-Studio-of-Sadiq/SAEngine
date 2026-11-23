@@ -46,8 +46,12 @@ function formatScalar(value: unknown): string {
 	if (typeof value === 'boolean') {
 		return value ? 'Yes' : 'No';
 	}
-	if (typeof value === 'number' || typeof value === 'string') {
-		return String(value);
+	if (typeof value === 'number') {
+		// Engine floats (17.255999999999997) read as 17.256.
+		return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
+	}
+	if (typeof value === 'string') {
+		return value;
 	}
 	return JSON.stringify(value);
 }

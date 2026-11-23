@@ -88,24 +88,48 @@ const GROUP_LABELS: readonly [string, string][] = [
 	// Soil Report
 	['Boreholes', localize('ribbon.grp.boreholes', "Boreholes")],
 	['Views', localize('ribbon.grp.views', "Views")],
-	['Tests', localize('ribbon.grp.tests', "Tests & Bearing")],
+	['InvestigationChecks', localize('ribbon.grp.invChecks', "Investigation Checks")],
+	['Tests', localize('ribbon.grp.tests', "Tests & Samples")],
+	['LabReports', localize('ribbon.grp.labReports', "Lab & SPT Reports")],
+	['Bearing', localize('ribbon.grp.bearing', "Bearing Capacity")],
+	['Settlement', localize('ribbon.grp.settlement', "Settlement & Sources")],
+	['SeismicClassification', localize('ribbon.grp.seismicClass', "Site Classification")],
+	['LiquefactionAndSoils', localize('ribbon.grp.liqSoils', "Liquefaction & Special Soils")],
+	['EarthPressure', localize('ribbon.grp.earthPressure', "Lateral Earth Pressure")],
+	['Chemistry', localize('ribbon.grp.chemistry', "Chemistry & Durability")],
+	['SiteAndPlanning', localize('ribbon.grp.sitePlanning', "Site & Planning")],
+	['GisExchange', localize('ribbon.grp.gisExchange', "GIS Exchange")],
 	['Export', localize('ribbon.grp.export', "Export")],
 	['Settings', localize('ribbon.grp.settings', "Settings")],
 	// Settings
+	['CodePack', localize('ribbon.grp.codePack', "Code Pack")],
+	['PackAuthoring', localize('ribbon.grp.packAuthoring', "Authoring & Trust")],
+	['Packages', localize('ribbon.grp.packages', "Packages")],
+	['AreaAndChoices', localize('ribbon.grp.areaChoices', "Area Loads & Choices")],
+	['Combinations', localize('ribbon.grp.combinations', "Load Combinations")],
+	['HazardParameters', localize('ribbon.grp.hazardParams', "Hazard Parameters")],
+	['OnlineHazard', localize('ribbon.grp.onlineHazard', "Online Hazard Lookup")],
+	['Validation', localize('ribbon.grp.validation', "Project Validation")],
+	['Conformance', localize('ribbon.grp.conformance', "Conformance & Limits")],
+	['CodeTables', localize('ribbon.grp.codeTables', "Code Tables & Overrides")],
+	['FallbacksAndTemplates', localize('ribbon.grp.fallbacksTemplates', "Fallbacks & Templates")],
 	['ProjectAndSite', localize('ribbon.grp.projectSite', "Project & Site")],
 	['Loads', localize('ribbon.grp.loads', "Loads")],
 	['Engineering', localize('ribbon.grp.engineering', "Engineering")],
 	['Outputs', localize('ribbon.grp.outputs', "Outputs")],
-	['Packages', localize('ribbon.grp.packages', "Packages")],
 	// Library
 	['Switch', localize('ribbon.grp.switch', "Library")],
 	['AddMaterial', localize('ribbon.grp.addMaterial', "Materials")],
-	['AddObject', localize('ribbon.grp.addObject', "Object Types")],
-	['Sections', localize('ribbon.grp.sections', "Sections & Stiffness")],
+	['Edit', localize('ribbon.grp.edit', "Edit")],
 	['Exchange', localize('ribbon.grp.exchange', "Exchange")],
+	['Sections', localize('ribbon.grp.sections', "Designed Sections")],
+	['Catalogues', localize('ribbon.grp.catalogues', "Standard Catalogues")],
+	['AddObject', localize('ribbon.grp.addObject', "Object Types")],
+	['Components', localize('ribbon.grp.components', "Architecture & Bars")],
+	['Modifiers', localize('ribbon.grp.modifiers', "Stiffness Modifiers")],
+	['Checks', localize('ribbon.grp.checks', "Checks")],
 	// Plan
 	['Place', localize('ribbon.grp.place', "Place")],
-	['Edit', localize('ribbon.grp.edit', "Edit")],
 	['Underlay', localize('ribbon.grp.underlay', "Underlay")],
 	['ModelData', localize('ribbon.grp.modelData', "Model & Data")],
 	// Architecture
@@ -158,11 +182,27 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['Standards', localize('ribbon.grp.standards', "Standards")],
 	// Foundations
 	['Shallow', localize('ribbon.grp.shallow', "Shallow Foundations")],
+	['Sizing', localize('ribbon.grp.sizing', "Sizing")],
+	['Geotechnical', localize('ribbon.grp.geotechnical', "Geotechnical")],
 	['Piles', localize('ribbon.grp.piles', "Piles & Caps")],
-	['GradeBeams', localize('ribbon.grp.gradeBeams', "Grade Beams & Tools")],
+	['GradeBeams', localize('ribbon.grp.gradeBeams', "Grade Beams")],
+	['PileDetailing', localize('ribbon.grp.pileDetailing', "Detailing & Tests")],
+	['AxialCapacity', localize('ribbon.grp.axialCapacity', "Axial Capacity")],
+	['LateralAndSettlement', localize('ribbon.grp.lateralSettlement', "Lateral & Settlement")],
+	['RetainingElements', localize('ribbon.grp.retainingElements', "Add Elements")],
+	['RetainingAnalysis', localize('ribbon.grp.retainingAnalysis', "Wall & Excavation Analysis")],
+	['SpecialElements', localize('ribbon.grp.specialElements', "Add Special Foundations")],
+	['SpecialAnalysis', localize('ribbon.grp.specialAnalysis', "Slab & Dynamic Checks")],
+	['Actions', localize('ribbon.grp.actions', "Actions")],
 	['Design', localize('ribbon.grp.design', "Design")],
 	// BOQ
+	['Measure', localize('ribbon.grp.measure', "Measure")],
 	['RatesAndCarbon', localize('ribbon.grp.ratesCarbon', "Rates & Carbon")],
+	['CostAnalysis', localize('ribbon.grp.costAnalysis', "Cost & Value Analysis")],
+	['Programme', localize('ribbon.grp.programme', "4D Programme")],
+	['RatesAndScheduleExport', localize('ribbon.grp.schedExport', "Productivity & Export")],
+	['SpecialTakeoff', localize('ribbon.grp.specialTakeoff', "Architectural & Precast")],
+	['PdfTakeoff', localize('ribbon.grp.pdfTakeoff', "2D PDF Takeoff")],
 	// Documents
 	['Drawings', localize('ribbon.grp.drawings', "Drawings")],
 	['Annotation', localize('ribbon.grp.annotation', "Annotation")],
@@ -318,6 +358,7 @@ function addNestedSubmenu(
 	submenu: MenuId,
 	title: string,
 	icon: ThemeIcon,
+	when?: ContextKeyExpression,
 ): void {
 	MenuRegistry.appendMenuItem(parentMenuId, {
 		group,
@@ -325,6 +366,7 @@ function addNestedSubmenu(
 		submenu,
 		title,
 		icon,
+		when,
 	});
 }
 
@@ -457,24 +499,147 @@ addItem(RibbonMenus.Project, '8_SettingsAndHelp', 7, 'saengine.diagnostics.creat
 
 //#endregion
 
-//#region Tab 3: Soil Report (cross-part settings link; domain commands registered in saengineSoil)
+//#region Tab 3: Soil Report (6 contextual tabs)
 
+// Investigation
+addItem(RibbonMenus.Soil, '1_Boreholes', 1, 'saengine.soil.addBorehole', localize('soil.rib.add', "Add Borehole"), Codicon.add, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 2, 'saengine.soil.importFile', localize('soil.rib.import', "Import"), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 3, 'saengine.soil.saveTemplate', localize('soil.rib.template', "Template"), Codicon.notebookTemplate, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 4, 'saengine.soil.editBorehole', localize('soil.rib.edit', "Edit Borehole"), Codicon.edit, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 5, 'saengine.soil.duplicateBorehole', localize('soil.rib.duplicate', "Duplicate"), Codicon.copy, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 6, 'saengine.soil.deleteBorehole', localize('soil.rib.delete', "Delete"), Codicon.trash, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '1_Boreholes', 7, 'saengine.soil.toggleExcludeBearing', localize('soil.rib.exclude', "Exclude Bearing"), Codicon.circleSlash, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Soil, '2_Views', 5, 'saengine.soil.viewStrata3d', localize('soil.rib.strata3d', "3D Strata"), Codicon.symbolNamespace, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '2_Views', 6, 'saengine.soil.toggleFence', localize('soil.rib.fence', "All Boreholes"), Codicon.splitHorizontal, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Soil, '3_InvestigationChecks', 1, 'saengine.soil.investigationCheck', localize('soil.rib.invCheck', "Investigation Check"), Codicon.checklist, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Soil, '3_InvestigationChecks', 2, 'saengine.soil.stratigraphySummary', localize('soil.rib.strat3d', "3D Stratigraphy"), Codicon.layers, 'large', { precondition: projectOpen });
+
+// Lab Tests
+addItem(RibbonMenus.SoilTests, '1_Tests', 1, 'saengine.soil.editSpt', localize('soil.rib.spt', "SPT & Samples"), Codicon.listFlat, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilTests, '1_Tests', 2, 'saengine.soil.editLabTests', localize('soil.rib.lab', "Lab Tests"), Codicon.beaker, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.SoilTests, '1_Tests', 3, 'saengine.soil.recompute', localize('soil.rib.recompute', "Recompute"), Codicon.refresh, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.SoilTests, '2_LabReports', 1, 'saengine.soil.sptProfile', localize('soil.rib.sptProf', "SPT Profile"), Codicon.listFlat, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilTests, '2_LabReports', 2, 'saengine.soil.labSummary', localize('soil.rib.labSum', "USCS & Lab Summary"), Codicon.beaker, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilTests, '2_LabReports', 3, 'saengine.soil.pileParams', localize('soil.rib.pilePar', "Pile Parameters"), Codicon.arrowDown, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.SoilTests, '3_Exchange', 1, 'saengine.soil.exportAgs4', localize('soil.rib.ags', "Export AGS4"), Codicon.cloudUpload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilTests, '3_Exchange', 2, 'saengine.soil.exportDiggs', localize('soil.rib.diggs', "Export DIGGS"), Codicon.fileCode, 'small', { precondition: projectOpen });
+
+// Bearing & Settlement
+addItem(RibbonMenus.SoilBearing, '1_Bearing', 1, 'saengine.soil.bearingCalc', localize('soil.rib.bearingCalc', "Bearing Calculator"), Codicon.dashboard, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilBearing, '1_Bearing', 2, 'saengine.soil.bearingTable', localize('soil.rib.bearingTab', "Bearing Table"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilBearing, '1_Bearing', 3, 'saengine.soil.bearingOverride', localize('soil.rib.bearing', "Bearing Override"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.SoilBearing, '2_Settlement', 1, 'saengine.soil.settlementCalc', localize('soil.rib.settCalc', "Settlement Calculator"), Codicon.graphLine, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilBearing, '2_Settlement', 2, 'saengine.soil.characteristicBearing', localize('soil.rib.charBearing', "Characteristic Bearing"), Codicon.symbolRuler, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.SoilBearing, '2_Settlement', 3, 'saengine.soil.sources', localize('soil.rib.sources', "Active Sources"), Codicon.info, 'small', { precondition: projectOpen });
+
+// Seismic & Liquefaction
+addItem(RibbonMenus.SoilSeismic, '1_SeismicClassification', 1, 'saengine.soil.siteClass', localize('soil.rib.siteClass', "Site Class Report"), Codicon.pulse, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSeismic, '1_SeismicClassification', 2, 'saengine.soil.siteResponse', localize('soil.rib.siteResp', "1D Site Response"), Codicon.lightbulb, 'small');
+
+addItem(RibbonMenus.SoilSeismic, '2_LiquefactionAndSoils', 1, 'saengine.soil.liquefaction', localize('soil.rib.liq', "Liquefaction Screening"), Codicon.warning, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSeismic, '2_LiquefactionAndSoils', 2, 'saengine.soil.specialSoils', localize('soil.rib.special', "Problem & Special Soils"), Codicon.shield, 'large', { precondition: projectOpen });
+
+// Earth Pressure & Chemistry
+addItem(RibbonMenus.SoilEarth, '1_EarthPressure', 1, 'saengine.soil.earthPressure', localize('soil.rib.earth', "Earth Pressure Profile"), Codicon.arrowBoth, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilEarth, '2_Chemistry', 1, 'saengine.soil.chemistry', localize('soil.rib.chem', "Chemistry & Durability"), Codicon.beaker, 'large', { precondition: projectOpen });
+
+// Site & GIS
+addItem(RibbonMenus.SoilSite, '1_SiteAndPlanning', 1, 'saengine.soil.locationSummary', localize('soil.rib.loc', "Site & Nearest Town"), Codicon.location, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSite, '1_SiteAndPlanning', 2, 'saengine.soil.plotCompliance', localize('soil.rib.plot', "Plot & Planning Check"), Codicon.layout, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSite, '1_SiteAndPlanning', 3, 'saengine.soil.terrainProfile', localize('soil.rib.terrain', "Cut & Fill Terrain"), Codicon.compass, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.SoilSite, '2_GisExchange', 1, 'saengine.soil.importGis', localize('soil.rib.impGis', "Import GIS"), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSite, '2_GisExchange', 2, 'saengine.soil.exportGeoJson', localize('soil.rib.geojson', "GeoJSON"), Codicon.globe, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSite, '2_GisExchange', 3, 'saengine.soil.exportGeoPackage', localize('soil.rib.gpkg', "GeoPackage"), Codicon.package, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.SoilSite, '2_GisExchange', 4, 'saengine.soil.openInQgis', localize('soil.rib.qgis', "Open in QGIS"), Codicon.linkExternal, 'small', { precondition: projectOpen });
 
 //#endregion
 
-//#region Tab 4: Settings (Project Settings & Code Packs)
+//#region Tab 4: Settings (Project Settings & Code Packs — 5 contextual tabs)
 
-addItem(RibbonMenus.Settings, '4_Outputs', 3, 'saengine.settings.resetDefaults', localize('rib.set.reset', "Reset to Defaults"), Codicon.discard, 'small', { precondition: projectOpen });
+// Code & Packs
+addItem(RibbonMenus.Settings, '1_CodePack', 1, 'saengine.settings.codePackInfo', localize('set.rib.packInfo', "Active Pack Info"), Codicon.book, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Settings, '1_CodePack', 2, 'saengine.settings.installedPacks', localize('set.rib.installed', "Installed Packages"), Codicon.package, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Settings, '1_CodePack', 3, 'saengine.settings.packTemplates', localize('set.rib.templates', "Pack Templates"), Codicon.files, 'small', { precondition: projectOpen });
 
-addItem(RibbonMenus.Settings, '5_Packages', 1, 'saengine.packages.show', localize('rib.set.packages', "Packages"), Codicon.package, 'large', { when: subViewWhen('settings.packages') });
-addItem(RibbonMenus.Settings, '5_Packages', 3, 'saengine.codePacks.new', localize('rib.set.newCodePack', "New Code Pack"), Codicon.newFile, 'small', { when: subViewWhen('settings.packages') });
-addItem(RibbonMenus.Settings, '5_Packages', 4, 'saengine.codePacks.install', localize('rib.set.installPkg', "Install Package"), Codicon.cloudDownload, 'small', { when: subViewWhen('settings.packages') });
+addItem(RibbonMenus.Settings, '2_PackAuthoring', 1, 'saengine.settings.diffPacks', localize('set.rib.diff', "Compare Packs"), Codicon.diff, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Settings, '2_PackAuthoring', 2, 'saengine.settings.validatePack', localize('set.rib.validatePack', "Validate Pack"), Codicon.checklist, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Settings, '2_PackAuthoring', 3, 'saengine.settings.checkTemplate', localize('set.rib.checkTpl', "Check .civil Archive"), Codicon.archive, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Settings, '2_PackAuthoring', 4, 'saengine.settings.trustAudit', localize('set.rib.trust', "Hooks & Trust"), Codicon.shield, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Settings, '3_Packages', 1, 'saengine.packages.show', localize('rib.set.packages', "Packages"), Codicon.package, 'large', { when: subViewWhen('settings.packages') });
+addItem(RibbonMenus.Settings, '3_Packages', 2, 'saengine.codePacks.new', localize('rib.set.newCodePack', "New Code Pack"), Codicon.newFile, 'small', { when: subViewWhen('settings.packages') });
+addItem(RibbonMenus.Settings, '3_Packages', 3, 'saengine.codePacks.install', localize('rib.set.installPkg', "Install Package"), Codicon.cloudDownload, 'small', { when: subViewWhen('settings.packages') });
+
+// Loads
+addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 1, 'saengine.settings.areaLoads', localize('set.rib.areaLoads', "Area Loads Audit"), Codicon.layers, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 2, 'saengine.settings.packChoices', localize('set.rib.choices', "Occupancies & Systems"), Codicon.listFlat, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.SettingsLoads, '2_Combinations', 1, 'saengine.settings.combinationsPreview', localize('set.rib.combos', "Load Combinations"), Codicon.symbolOperator, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsLoads, '2_Combinations', 2, 'saengine.settings.resetDefaults', localize('rib.set.reset', "Reset to Defaults"), Codicon.discard, 'small', { precondition: projectOpen });
+
+// Seismic & Wind
+addItem(RibbonMenus.SettingsHazard, '1_HazardParameters', 1, 'saengine.settings.hazardSummary', localize('set.rib.hazard', "Derived Seismic & Wind"), Codicon.pulse, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsHazard, '1_HazardParameters', 2, 'saengine.settings.townCatalogue', localize('set.rib.towns', "Town Hazard Table"), Codicon.globe, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.SettingsHazard, '2_OnlineHazard', 1, 'saengine.settings.hazardOffers', localize('set.rib.offers', "Hazard Providers"), Codicon.cloudDownload, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsHazard, '2_OnlineHazard', 2, 'saengine.settings.hazardLookup', localize('set.rib.lookup', "Fetch Hazard Values"), Codicon.globe, 'large', { precondition: projectOpen });
+
+// Checks
+addItem(RibbonMenus.SettingsChecks, '1_Validation', 1, 'saengine.settings.validateAll', localize('set.rib.valAll', "Validate All Parts"), Codicon.checkAll, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsChecks, '1_Validation', 2, 'saengine.settings.checkSettings', localize('set.rib.chkSet', "Check Settings"), Codicon.pass, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.SettingsChecks, '2_Conformance', 1, 'saengine.settings.conformance', localize('set.rib.conf', "Pack Conformance"), Codicon.verified, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsChecks, '2_Conformance', 2, 'saengine.settings.guardrails', localize('set.rib.guard', "Guardrail Limits"), Codicon.law, 'large', { precondition: projectOpen });
+
+// Overrides
+addItem(RibbonMenus.SettingsOverrides, '1_CodeTables', 1, 'saengine.settings.codeValues', localize('set.rib.codeVals', "Browse Code Tables"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsOverrides, '1_CodeTables', 2, 'saengine.settings.activeOverrides', localize('set.rib.over', "Overrides Audit"), Codicon.edit, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.SettingsOverrides, '2_FallbacksAndTemplates', 1, 'saengine.settings.packFallbacks', localize('set.rib.fall', "Practice Fallbacks"), Codicon.info, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.SettingsOverrides, '2_FallbacksAndTemplates', 2, 'saengine.settings.codedGeometry', localize('set.rib.coded', "Coded Templates"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
 
 //#endregion
 
-//#region Tab 5: Library (Materials, Object Types, Section Designer; editor actions in saengineLibrary)
+//#region Tab 5: Library (Materials, Sections, Object Types, Modifiers & Checks — 4 contextual tabs)
 
-addItem(RibbonMenus.Library, '4_Sections', 1, 'saengine.section.new', localize('rib.lib.sectionDesigner', "Section Designer"), Codicon.symbolRuler, 'large', { precondition: projectOpen });
+// Materials (LibraryAddMaterialSubmenu registered in saengineLibrary under 1_AddMaterial)
+addItem(RibbonMenus.Library, '1_AddMaterial', 2, 'saengine.library.materialSummary', localize('lib.rib.matSum', "Materials Summary"), Codicon.beaker, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Library, '1_AddMaterial', 3, 'saengine.library.concreteCalc', localize('lib.rib.concCalc', "Concrete & Mix Calc"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Library, '2_Edit', 1, 'saengine.library.cmd.duplicate', localize('rib.lib.duplicate', "Duplicate"), Codicon.copy, 'small');
+addItem(RibbonMenus.Library, '2_Edit', 2, 'saengine.library.cmd.delete', localize('rib.lib.delete', "Delete"), Codicon.trash, 'small');
+
+addItem(RibbonMenus.Library, '3_Exchange', 1, 'saengine.library.cmd.import', localize('rib.lib.import', "Import JSON..."), Codicon.cloudDownload, 'small');
+addItem(RibbonMenus.Library, '3_Exchange', 2, 'saengine.library.cmd.export', localize('rib.lib.export', "Export JSON..."), Codicon.export, 'small');
+
+// Sections
+addItem(RibbonMenus.LibrarySections, '1_Sections', 1, 'saengine.section.new', localize('rib.lib.sectionDesigner', "Section Designer"), Codicon.symbolRuler, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.LibrarySections, '1_Sections', 2, 'saengine.library.designedSections', localize('lib.rib.desSec', "Designed Sections"), Codicon.symbolRuler, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.LibrarySections, '1_Sections', 3, 'saengine.library.sectionCapacity', localize('lib.rib.secCap', "P-M & M-κ Analysis"), Codicon.graphLine, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.LibrarySections, '2_Catalogues', 1, 'saengine.library.steelCatalogue', localize('lib.rib.steel', "Steel Catalogue"), Codicon.library, 'large');
+addItem(RibbonMenus.LibrarySections, '2_Catalogues', 2, 'saengine.library.sheetPiles', localize('lib.rib.sheetPiles', "Sheet Pile Catalogue"), Codicon.layoutPanel, 'small');
+addItem(RibbonMenus.LibrarySections, '2_Catalogues', 3, 'saengine.library.profileProperties', localize('lib.rib.profProps', "Profile Properties"), Codicon.symbolField, 'small', { precondition: projectOpen });
+
+// Object Types (LibraryAddObjectSubmenu registered in saengineLibrary under 1_AddObject)
+addItem(RibbonMenus.LibraryObjects, '1_AddObject', 2, 'saengine.library.objectSchedule', localize('lib.rib.objSched', "Object Types Summary"), Codicon.symbolClass, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.LibraryObjects, '2_Components', 1, 'saengine.library.archTypes', localize('lib.rib.archTypes', "Architectural Types"), Codicon.typeHierarchy, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.LibraryObjects, '2_Components', 2, 'saengine.library.components', localize('lib.rib.comp', "Parametric Components"), Codicon.extensions, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.LibraryObjects, '2_Components', 3, 'saengine.library.barSizes', localize('lib.rib.bars', "Code Rebar Sizes"), Codicon.listOrdered, 'small', { precondition: projectOpen });
+
+// Modifiers & Checks
+addItem(RibbonMenus.LibraryChecks, '1_Modifiers', 1, 'saengine.library.cmd.stiffnessModifiers', localize('rib.lib.stiffness', "Stiffness Modifiers"), Codicon.settings, 'large');
+addItem(RibbonMenus.LibraryChecks, '1_Modifiers', 2, 'saengine.library.modifiersAudit', localize('lib.rib.modsAudit', "Modifiers Audit"), Codicon.settings, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.LibraryChecks, '2_Checks', 1, 'saengine.library.checkAll', localize('lib.rib.checkAll', "Validate Libraries"), Codicon.checklist, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.LibraryChecks, '2_Checks', 2, 'saengine.library.limits', localize('lib.rib.limits', "Guardrail Limits"), Codicon.law, 'large', { precondition: projectOpen });
 
 //#endregion
 
@@ -616,17 +781,108 @@ addItem(RibbonMenus.Design, '2_Detailing', 3, 'saengine.fem.strutAndTie', locali
 
 //#endregion
 
-//#region Tab 15: Foundations (cross-part settings link; domain commands registered in saengineSubstructure)
+//#region Tab 15: Foundations (Substructure — 6 contextual tabs)
 
+// Shallow & Raft
+addItem(RibbonMenus.Foundations, '1_Shallow', 1, 'saengine.substructure.addFooting', localize('fdn.rib.addFooting', "Add Footing"), Codicon.add, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '1_Shallow', 2, 'saengine.substructure.addRaft', localize('fdn.rib.addRaft', "Add Raft"), Codicon.primitiveSquare, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '1_Shallow', 3, 'saengine.substructure.addStrip', localize('fdn.rib.addStrip', "Strip Footing"), Codicon.layoutPanel, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '1_Shallow', 4, 'saengine.substructure.addTieBeam', localize('fdn.rib.addTie', "Add Tie Beam"), Codicon.dash, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '1_Shallow', 5, 'saengine.substructure.selectUncovered', localize('fdn.rib.uncovered', "Uncovered Columns"), Codicon.selection, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Foundations, '2_Sizing', 1, 'saengine.substructure.sizeAll', localize('fdn.rib.sizeAll', "Size Footings"), Codicon.wand, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '2_Sizing', 2, 'saengine.substructure.importFootings', localize('fdn.rib.import', "Import Footings"), Codicon.cloudDownload, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '2_Sizing', 3, 'saengine.substructure.recompute', localize('fdn.rib.recompute', "Check Again"), Codicon.refresh, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.Foundations, '3_Geotechnical', 1, 'saengine.substructure.sizeSummary', localize('fdn.rib.sizeSum', "Sizing Summary"), Codicon.symbolRuler, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.Foundations, '3_Geotechnical', 2, 'saengine.substructure.piledRaft', localize('fdn.rib.piledRaft', "Piled Raft"), Codicon.lightbulb, 'small');
+
+// Piles
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 1, 'saengine.substructure.addPileCap', localize('fdn.rib.addCap', "Add Pile Cap"), Codicon.circleLargeOutline, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 2, 'saengine.substructure.placePiles', localize('fdn.rib.placePiles', "Place Piles"), Codicon.circleFilled, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 3, 'saengine.substructure.pileGrid', localize('fdn.rib.pileGrid', "Pile Grid"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 4, 'saengine.substructure.pileGroup', localize('fdn.rib.pileGroup', "Pile Group"), Codicon.location, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 5, 'saengine.substructure.makeCap', localize('fdn.rib.makeCap', "Make Cap"), Codicon.package, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '1_Piles', 6, 'saengine.substructure.addPileType', localize('fdn.rib.addPileType', "Add Pile Type"), Codicon.newFile, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsPiles, '2_GradeBeams', 1, 'saengine.substructure.gradeBeam', localize('fdn.rib.gradeBeam', "Draw Grade Beam"), Codicon.arrowBoth, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '2_GradeBeams', 2, 'saengine.substructure.connectBeams', localize('fdn.rib.connect', "Connect Beams"), Codicon.gitMerge, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsPiles, '3_PileDetailing', 1, 'saengine.substructure.pileDetailing', localize('fdn.rib.pileDet', "Pile Detailing & Mix"), Codicon.checklist, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPiles, '3_PileDetailing', 2, 'saengine.substructure.pileLoadTests', localize('fdn.rib.loadTests', "Pile Load Tests"), Codicon.beaker, 'large', { precondition: projectOpen });
+
+// Pile Analysis
+addItem(RibbonMenus.FoundationsPileAnalysis, '1_AxialCapacity', 1, 'saengine.substructure.pileCapacity', localize('fdn.rib.pcap', "Single-Pile Capacity"), Codicon.arrowDown, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPileAnalysis, '1_AxialCapacity', 2, 'saengine.substructure.downdrag', localize('fdn.rib.downdrag', "Downdrag & Uplift"), Codicon.triangleDown, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsPileAnalysis, '2_LateralAndSettlement', 1, 'saengine.substructure.pileLateral', localize('fdn.rib.plat', "Lateral & Broms Hu"), Codicon.arrowRight, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPileAnalysis, '2_LateralAndSettlement', 2, 'saengine.substructure.pileSettlement', localize('fdn.rib.psett', "Group Settlement"), Codicon.graphLine, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsPileAnalysis, '2_LateralAndSettlement', 3, 'saengine.substructure.pileGroupInteraction', localize('fdn.rib.grpInt', "Group Interaction"), Codicon.lightbulb, 'small');
+
+// Retaining & Excavation
+addItem(RibbonMenus.FoundationsRetaining, '1_RetainingElements', 1, 'saengine.substructure.addRetainingWall', localize('fdn.rib.addRetWall', "Add Retaining Wall"), Codicon.layoutSidebarLeft, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsRetaining, '1_RetainingElements', 2, 'saengine.substructure.addExcavation', localize('fdn.rib.addExc', "Add Excavation"), Codicon.debugPause, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsRetaining, '1_RetainingElements', 3, 'saengine.substructure.addSlope', localize('fdn.rib.addSlope', "Add Slope"), Codicon.graph, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsRetaining, '2_RetainingAnalysis', 1, 'saengine.substructure.embeddedWall', localize('fdn.rib.embWall', "Embedded Wall Check"), Codicon.shield, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsRetaining, '2_RetainingAnalysis', 2, 'saengine.substructure.basementLoads', localize('fdn.rib.baseLoads', "Basement Loads (H)"), Codicon.layers, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsRetaining, '2_RetainingAnalysis', 3, 'saengine.substructure.excavationReport', localize('fdn.rib.excRep', "Retaining & Exc. Audit"), Codicon.checklist, 'small', { precondition: projectOpen });
+
+// Slabs & Machine
+addItem(RibbonMenus.FoundationsSpecial, '1_SpecialElements', 1, 'saengine.substructure.addGroundSlab', localize('fdn.rib.addGSlab', "Add Slab on Grade"), Codicon.browser, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsSpecial, '1_SpecialElements', 2, 'saengine.substructure.addMachine', localize('fdn.rib.addMachine', "Add Machine Block"), Codicon.settingsGear, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsSpecial, '2_SpecialAnalysis', 1, 'saengine.substructure.groundSlabCalc', localize('fdn.rib.gslabCalc', "Slab on Grade Calc"), Codicon.symbolNumeric, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsSpecial, '2_SpecialAnalysis', 2, 'saengine.substructure.machineReport', localize('fdn.rib.machRep', "Machine & Slab Checks"), Codicon.pulse, 'large', { precondition: projectOpen });
+
+// Detailing & Report
+
+addItem(RibbonMenus.FoundationsReport, '2_Actions', 1, 'saengine.substructure.saveAndCheck', localize('fdn.rib.saveCheck', "Save & Check"), Codicon.checkAll, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsReport, '2_Actions', 2, 'saengine.substructure.delete', localize('fdn.rib.delete', "Delete Selected"), Codicon.trash, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.FoundationsReport, '3_Report', 1, 'saengine.substructure.designSummary', localize('fdn.rib.repSum', "Substructure Report"), Codicon.report, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FoundationsReport, '3_Report', 2, 'saengine.substructure.limitState', localize('fdn.rib.limState', "Limit State Factors"), Codicon.law, 'large', { precondition: projectOpen });
 
 //#endregion
 
-//#region Tab 16: BOQ (cross-part links; domain commands registered in saengineBoq)
+//#region Tab 16: BOQ (Bill of Quantities & Schedule of Rates — 4 contextual tabs)
 
-addItem(RibbonMenus.BOQ, '2_RatesAndCarbon', 1, 'saengine.boq.editRates', localize('rib.boq.rates', "Schedule of Rates"), Codicon.symbolNumeric, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.BOQ, '2_RatesAndCarbon', 2, 'saengine.boq.editCarbon', localize('rib.boq.carbon', "Carbon Factors"), Codicon.globe, 'small', { precondition: projectOpen });
-addItem(RibbonMenus.BOQ, '4_Export', 1, 'saengine.boq.exportXlsx', localize('rib.boq.xlsx', "Export Excel"), Codicon.table, 'large', { precondition: projectOpen });
-addItem(RibbonMenus.BOQ, '4_Export', 2, 'saengine.boq.exportCsv', localize('rib.boq.csv', "Export CSV"), Codicon.fileCode, 'small', { precondition: projectOpen });
+// Quantities
+addItem(RibbonMenus.BOQ, '1_Measure', 1, 'saengine.boq.measure', localize('boq.rib.measure', "Measure / Update"), Codicon.refresh, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '1_Measure', 2, 'saengine.boq.summary', localize('boq.rib.summary', "BOQ Summary"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '1_Measure', 3, 'saengine.boq.rebarSchedule', localize('boq.rib.bbs', "Rebar Schedule"), Codicon.listOrdered, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '1_Measure', 4, 'saengine.boq.conventions', localize('boq.rib.conv', "Estimating Rules"), Codicon.book, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.BOQ, '2_Views', 1, 'saengine.boq.toggleImperial', localize('boq.rib.imperial', "Feet Units"), Codicon.symbolRuler, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '2_Views', 2, 'saengine.boq.expandAll', localize('boq.rib.expand', "Expand All"), Codicon.expandAll, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '2_Views', 3, 'saengine.boq.collapseAll', localize('boq.rib.collapse', "Collapse All"), Codicon.collapseAll, 'small', { precondition: projectOpen });
+
+addItem(RibbonMenus.BOQ, '3_Export', 1, 'saengine.boq.exportXlsx', localize('rib.boq.xlsx', "Export Excel"), Codicon.table, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQ, '3_Export', 2, 'saengine.boq.exportCsv', localize('rib.boq.csv', "Export CSV"), Codicon.fileCode, 'small', { precondition: projectOpen });
+
+// Rates & Costing
+addItem(RibbonMenus.BOQCosting, '1_RatesAndCarbon', 1, 'saengine.boq.editRates', localize('rib.boq.rates', "Schedule of Rates"), Codicon.symbolNumeric, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQCosting, '1_RatesAndCarbon', 2, 'saengine.boq.editCarbon', localize('rib.boq.carbon', "Carbon Factors"), Codicon.globe, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQCosting, '1_RatesAndCarbon', 3, 'saengine.boq.rateTemplates', localize('boq.rib.rateTpl', "Sample Rates"), Codicon.library, 'small');
+
+addItem(RibbonMenus.BOQCosting, '2_CostAnalysis', 1, 'saengine.boq.costReport', localize('boq.rib.costRep', "Cost & Carbon Report"), Codicon.pieChart, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQCosting, '2_CostAnalysis', 2, 'saengine.boq.phaseBill', localize('boq.rib.phaseBill', "Phased BOQ"), Codicon.splitHorizontal, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.BOQCosting, '2_CostAnalysis', 3, 'saengine.boq.costOptimise', localize('boq.rib.optimise', "Cost Optimisation"), Codicon.sparkle, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.BOQCosting, '2_CostAnalysis', 4, 'saengine.boq.compareOptions', localize('boq.rib.compare', "Compare Versions"), Codicon.diff, 'small', { precondition: projectOpen });
+
+// Construction Schedule
+addItem(RibbonMenus.BOQSchedule, '1_Programme', 1, 'saengine.boq.generateSchedule', localize('boq.rib.genSched', "Generate 4D Programme"), Codicon.calendar, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQSchedule, '1_Programme', 2, 'saengine.boq.scheduleSummary', localize('boq.rib.schedSum', "Critical Path Audit"), Codicon.checklist, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.BOQSchedule, '2_RatesAndScheduleExport', 1, 'saengine.boq.productivityRates', localize('boq.rib.prod', "Crew Productivity"), Codicon.dashboard, 'large');
+addItem(RibbonMenus.BOQSchedule, '2_RatesAndScheduleExport', 2, 'saengine.boq.exportSchedule', localize('boq.rib.expSched', "Export Schedule"), Codicon.export, 'large', { precondition: projectOpen });
+
+// Takeoff
+addItem(RibbonMenus.BOQTakeoff, '1_SpecialTakeoff', 1, 'saengine.boq.archTakeoff', localize('boq.rib.arch', "Architectural Takeoff"), Codicon.home, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQTakeoff, '1_SpecialTakeoff', 2, 'saengine.boq.precastSchedule', localize('boq.rib.precast', "Precast Piece Schedule"), Codicon.symbolStructure, 'large', { precondition: projectOpen });
+
+addItem(RibbonMenus.BOQTakeoff, '2_PdfTakeoff', 1, 'saengine.boq.takeoffSummary', localize('boq.rib.takeoffSum', "2D PDF Takeoff"), Codicon.filePdf, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.BOQTakeoff, '2_PdfTakeoff', 2, 'saengine.boq.pdfCalibrate', localize('boq.rib.calibrate', "Calibrate PDF Scale"), Codicon.compass, 'large', { precondition: projectOpen });
 
 //#endregion
 
