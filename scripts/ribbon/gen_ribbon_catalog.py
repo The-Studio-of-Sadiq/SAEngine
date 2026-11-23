@@ -17,6 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = Path(__file__).parent / "ribbon_catalog.json"
+# The built features (python -m saengine.features.export): their buttons open input panels.
+FEATURES = Path(__file__).parent / "features.json"
 OUT = ROOT / "workbench/src/vs/workbench/contrib/saengineRibbon/browser/ribbonCatalog.generated.ts"
 
 # The part a scope's planned features belong to (PROJECT_PARTS ids; others show no part line).
@@ -313,8 +315,40 @@ def ts_string(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def feature_literal(nls: str, built: dict) -> str:
+    """The TypeScript of a built feature: its help and its localized fields."""
+    fields = []
+    for f in built["fields"]:
+        parts = [
+            f"key: '{f['key']}'",
+            f"label: localize('{nls}.f.{f['key']}', {ts_string(f['label'])})",
+            f"type: '{f['type']}'",
+            f"defaultValue: {json.dumps(f['default'])}",
+        ]
+        if f.get("options"):
+            opts = ", ".join(
+                f"{{ value: {json.dumps(o['value'])}, "
+                f"label: localize('{nls}.f.{f['key']}.{slug(str(o['value']))}', {ts_string(o['label'])}) }}"
+                for o in f["options"]
+            )
+            parts.append(f"options: [{opts}]")
+        for bound in ("min", "max"):
+            if f.get(bound) is not None:
+                parts.append(f"{bound}: {f[bound]}")
+        if f.get("help"):
+            parts.append(f"help: localize('{nls}.f.{f['key']}.h', {ts_string(f['help'])})")
+        fields.append("{ " + ", ".join(parts) + " }")
+    help_ts = f"localize('{nls}.h', {ts_string(built.get('help') or built['title'])})"
+    return f"{{ help: {help_ts}, fields: [{', '.join(fields)}] }}"
+
+
 def main() -> None:
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    features = (
+        {f["id"]: f for f in json.loads(FEATURES.read_text(encoding="utf-8"))}
+        if FEATURES.is_file()
+        else {}
+    )
     scopes: dict[str, str] = catalog["scopes"]
     lines = [
         "/*---------------------------------------------------------------------------------------------",
@@ -365,6 +399,24 @@ def main() -> None:
         "\treadonly size: 'large' | 'small';",
         "\t/** A Codicon name. */",
         "\treadonly icon: string;",
+        "\t/** The built feature behind the button (saengine.features): its panel's inputs. */",
+        "\treadonly feature?: ICatalogFeature;",
+        "}",
+        "",
+        "export interface ICatalogField {",
+        "\treadonly key: string;",
+        "\treadonly label: string;",
+        "\treadonly type: 'number' | 'text' | 'select' | 'checkbox';",
+        "\treadonly defaultValue: string | number | boolean;",
+        "\treadonly options?: readonly { readonly value: string; readonly label: string }[];",
+        "\treadonly min?: number;",
+        "\treadonly max?: number;",
+        "\treadonly help?: string;",
+        "}",
+        "",
+        "export interface ICatalogFeature {",
+        "\treadonly help: string;",
+        "\treadonly fields: readonly ICatalogField[];",
         "}",
         "",
         "export interface ICatalogGroup {",
@@ -412,9 +464,13 @@ def main() -> None:
             size = "large" if button["size"] == "large" and large < 2 else "small"
             large += size == "large"
             nls = f"ribbonCatalog.{tab}.{slug(button['label'])}"
+            built = features.get(bid[len("saengine.catalog.") :]) if not command else None
+            feature_ts = f", feature: {feature_literal(nls, built)}" if built else ""
+            planned = "false" if command or built else "true"
             lines.append(
-                f"\t\t{{ id: '{bid}', planned: {'false' if command else 'true'}, label: localize('{nls}', {ts_string(button['label'])}), "
-                f"description: localize('{nls}.d', {ts_string(button['description'])}), size: '{size}', icon: '{icon_for(button['label'], scopes[tab])}' }},"
+                f"\t\t{{ id: '{bid}', planned: {planned}, label: localize('{nls}', {ts_string(button['label'])}), "
+                f"description: localize('{nls}.d', {ts_string(button['description'])}), size: '{size}', "
+                f"icon: '{icon_for(button['label'], scopes[tab])}'{feature_ts} }},"
             )
             total += 1
         lines.append("\t] },")

@@ -1,0 +1,257 @@
+[
+ {
+  "id": "soilBearing.ultimateBearing",
+  "title": "Ultimate Bearing Capacity",
+  "part": "soil",
+  "help": "The general bearing capacity equation for a footing, with its factors and the allowable pressure.",
+  "requiresProject": false,
+  "fields": [
+   {
+    "key": "width",
+    "label": "Footing width B [m]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.1
+   },
+   {
+    "key": "length",
+    "label": "Footing length L [m]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.1
+   },
+   {
+    "key": "depth",
+    "label": "Founding depth Df [m]",
+    "type": "number",
+    "default": 1.5,
+    "min": 0
+   },
+   {
+    "key": "cohesion",
+    "label": "Cohesion c [kPa]",
+    "type": "number",
+    "default": 0.0,
+    "min": 0
+   },
+   {
+    "key": "phi",
+    "label": "Friction angle φ [°]",
+    "type": "number",
+    "default": 30.0,
+    "min": 0,
+    "max": 50
+   },
+   {
+    "key": "gamma",
+    "label": "Unit weight γ [kN/m³]",
+    "type": "number",
+    "default": 18.0,
+    "min": 1
+   },
+   {
+    "key": "fs",
+    "label": "Factor of safety",
+    "type": "number",
+    "default": 3.0,
+    "min": 1
+   }
+  ]
+ },
+ {
+  "id": "soilEarth.activePressure",
+  "title": "Active Earth Pressure",
+  "part": "soil",
+  "help": "Active pressure of a wall free to move away from the soil (cantilever retaining walls).",
+  "requiresProject": false,
+  "fields": [
+   {
+    "key": "height",
+    "label": "Retained height [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.1
+   },
+   {
+    "key": "gamma",
+    "label": "Soil unit weight [kN/m³]",
+    "type": "number",
+    "default": 18.0,
+    "min": 1
+   },
+   {
+    "key": "phi",
+    "label": "Friction angle φ' [°]",
+    "type": "number",
+    "default": 30.0,
+    "min": 0,
+    "max": 50
+   },
+   {
+    "key": "cohesion",
+    "label": "Effective cohesion c' [kPa]",
+    "type": "number",
+    "default": 0.0,
+    "min": 0
+   },
+   {
+    "key": "water",
+    "label": "Water table below top [m]",
+    "type": "number",
+    "default": 100.0,
+    "min": 0,
+    "help": "Deeper than the wall: no water."
+   },
+   {
+    "key": "surcharge",
+    "label": "Uniform surcharge [kPa]",
+    "type": "number",
+    "default": 10.0,
+    "min": 0
+   }
+  ]
+ },
+ {
+  "id": "soilEarth.atRestPressure",
+  "title": "At-Rest Earth Pressure",
+  "part": "soil",
+  "help": "At-rest pressure of a wall that does not move (basement walls, propped walls, tanks).",
+  "requiresProject": false,
+  "fields": [
+   {
+    "key": "height",
+    "label": "Retained height [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.1
+   },
+   {
+    "key": "gamma",
+    "label": "Soil unit weight [kN/m³]",
+    "type": "number",
+    "default": 18.0,
+    "min": 1
+   },
+   {
+    "key": "phi",
+    "label": "Friction angle φ' [°]",
+    "type": "number",
+    "default": 30.0,
+    "min": 0,
+    "max": 50
+   },
+   {
+    "key": "cohesion",
+    "label": "Effective cohesion c' [kPa]",
+    "type": "number",
+    "default": 0.0,
+    "min": 0
+   },
+   {
+    "key": "water",
+    "label": "Water table below top [m]",
+    "type": "number",
+    "default": 100.0,
+    "min": 0,
+    "help": "Deeper than the wall: no water."
+   },
+   {
+    "key": "surcharge",
+    "label": "Uniform surcharge [kPa]",
+    "type": "number",
+    "default": 10.0,
+    "min": 0
+   }
+  ]
+ },
+ {
+  "id": "soilEarth.passivePressure",
+  "title": "Passive Earth Pressure",
+  "part": "soil",
+  "help": "Passive resistance of soil pushed by the wall (toe resistance, anchor blocks).",
+  "requiresProject": false,
+  "fields": [
+   {
+    "key": "height",
+    "label": "Retained height [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.1
+   },
+   {
+    "key": "gamma",
+    "label": "Soil unit weight [kN/m³]",
+    "type": "number",
+    "default": 18.0,
+    "min": 1
+   },
+   {
+    "key": "phi",
+    "label": "Friction angle φ' [°]",
+    "type": "number",
+    "default": 30.0,
+    "min": 0,
+    "max": 50
+   },
+   {
+    "key": "cohesion",
+    "label": "Effective cohesion c' [kPa]",
+    "type": "number",
+    "default": 0.0,
+    "min": 0
+   },
+   {
+    "key": "water",
+    "label": "Water table below top [m]",
+    "type": "number",
+    "default": 100.0,
+    "min": 0,
+    "help": "Deeper than the wall: no water."
+   },
+   {
+    "key": "surcharge",
+    "label": "Uniform surcharge [kPa]",
+    "type": "number",
+    "default": 10.0,
+    "min": 0
+   }
+  ]
+ },
+ {
+  "id": "soilEarth.surchargePressure",
+  "title": "Surcharge Pressure",
+  "part": "soil",
+  "help": "Lateral pressure on a rigid wall from a strip load behind it (elastic, Boussinesq doubled).",
+  "requiresProject": false,
+  "fields": [
+   {
+    "key": "height",
+    "label": "Wall height [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.1
+   },
+   {
+    "key": "load",
+    "label": "Strip load [kPa]",
+    "type": "number",
+    "default": 20.0,
+    "min": 0
+   },
+   {
+    "key": "offset",
+    "label": "Distance from wall to load [m]",
+    "type": "number",
+    "default": 1.0,
+    "min": 0
+   },
+   {
+    "key": "width",
+    "label": "Load width [m]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.1
+   }
+  ]
+ }
+]

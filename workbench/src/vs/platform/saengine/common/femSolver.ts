@@ -756,6 +756,8 @@ export type EngineMethod =
 	| MepServiceMethod
 	| U6dEngineMethod
 	| U6eEngineMethod
+	// The ribbon buttons' features (saengine.features): `features/list`, `features/run` `{id, projectRoot, values}`.
+	| 'features/list' | 'features/run'
 	| 'mep/report' | 'mep/checkIds' | 'mep/plumbingReport' | 'mep/plumbingOccupancies';
 
 /** U6d: existing and thin domain endpoints exposed by Soil, Settings, Library, Substructure and BOQ ribbon panels. */
