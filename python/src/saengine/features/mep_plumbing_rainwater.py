@@ -791,17 +791,33 @@ def tankSize(ctx: FeatureContext, values: dict) -> dict:
                 else Building()
             )
             res = rainwater.harvesting(mep.plumbing, bldg, float(values["population"]))
+            engine_notes = [str(n) for n in res.get("notes") or []]
+            if res.get("required") is None and res.get("plotArea") is None:
+                # The engine needs the plot area to decide; say so rather than a table of blanks.
+                raise FeatureInputError(
+                    "; ".join(engine_notes) or "Enter the plot area in 07 MEP (plumbing) first."
+                )
+            rows = [
+                {"item": str(k), "value": str(v)}
+                for k, v in res.items()
+                if k != "notes" and v is not None and not isinstance(v, (dict, list))
+            ]
             return result(
-                summary={k: v for k, v in res.items() if isinstance(v, (int, float, str, bool))},
+                summary={
+                    k: v
+                    for k, v in res.items()
+                    if v is not None and isinstance(v, (int, float, str, bool))
+                },
                 tables=[
                     table(
                         "Project rainwater harvesting tank sizing",
                         [("item", "Parameter"), ("value", "Value")],
-                        [{"item": str(k), "value": str(v)} for k, v in res.items()],
+                        rows,
                     )
                 ],
                 notes=[
-                    "Computed from 07 MEP/mep.json plumbing catchments via saengine.plumbing.rainwater.harvesting."
+                    *engine_notes,
+                    "Computed from 07 MEP/mep.json plumbing catchments by the rainwater engine.",
                 ],
             )
     yield_m3 = float(values["catchmentAreaM2"]) * 0.85 * float(values["annualRainfallMm"]) / 1000.0
