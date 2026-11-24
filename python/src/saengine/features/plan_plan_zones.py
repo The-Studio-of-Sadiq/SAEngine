@@ -639,12 +639,12 @@ def one_way_distribution(ctx: FeatureContext, values: dict) -> dict:
     transverse = (
         values["panelLongSpanM"] if values["direction"] == "short" else values["panelShortSpanM"]
     )
-    line = values["areaLoadKpa"] * transverse / 2
+    line = values["areaLoadKpa"] * span / 2
     return result(
         summary={
             "spanDirection": values["direction"],
             "spanM": span,
-            "tributaryWidthM": transverse / 2,
+            "tributaryWidthM": span / 2,
             "lineLoadKnPerMPerSupport": line,
             "totalPanelLoadKn": values["areaLoadKpa"] * span * transverse,
         }

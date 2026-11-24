@@ -802,7 +802,8 @@ def time_settlement_curve(ctx: FeatureContext, values: dict[str, Any]) -> dict[s
     """Compute time-settlement progression using Terzaghi 1D consolidation degree U(Tv)."""
     cv, hdr = values["cvM2Yr"], values["drainagePathM"]
     s0, sc = values["immediateMm"], values["consolidationMm"]
-    times = [0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, values["maxYears"]]
+    max_yr = values["maxYears"]
+    times = [t for t in (0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0) if t <= max_yr] + [max_yr]
     rows = []
     for t in sorted(set(times)):
         tv = cv * t / (hdr**2)

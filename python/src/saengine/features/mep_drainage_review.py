@@ -65,7 +65,7 @@ def septic_tank(ctx: FeatureContext, v: dict) -> dict:
 )
 def drainage_field(ctx: FeatureContext, v: dict) -> dict:
     """Estimate soakage trench length using entered percolation-test rate and width."""
-    application_rate = 0.2 * (v["percolationRate"] + 1)
+    application_rate = 600.0 / v["percolationRate"]
     area = v["dailyEffluent"] * 1000 / application_rate
     length = area / v["trenchWidth"]
     return result(
@@ -181,11 +181,11 @@ def lift_station(ctx: FeatureContext, v: dict) -> dict:
         )
     active = (
         v["inflow"]
-        * v["pumpCapacity"]
-        / (v["pumpCapacity"] - v["inflow"])
+        * (v["pumpCapacity"] - v["inflow"])
+        / v["pumpCapacity"]
         * v["cycleMinutes"]
         * 60
-        / 4000
+        / 1000
     )
     return result(
         {

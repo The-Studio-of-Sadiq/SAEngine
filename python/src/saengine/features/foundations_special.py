@@ -1299,7 +1299,8 @@ def anchor_bolts(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
         }
         for c in checks
     ]
-    max_util = max((c.get("utilisation", 0.0) for c in checks), default=0.0)
+    strength_checks = [c for c in checks if c.get("unit") != "mm"]
+    max_util = max((c.get("utilisation", 0.0) for c in strength_checks), default=0.0)
     return result(
         summary={
             "maxUtilisation": max_util,

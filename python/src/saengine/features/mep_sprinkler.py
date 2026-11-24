@@ -185,7 +185,7 @@ def pressure_loss(ctx: FeatureContext, v: dict) -> dict:
     """Estimate straight-pipe friction loss using Darcy-Weisbach."""
     d, q = v["diameterMm"] / 1000, v["flowLs"] / 1000
     velocity = q / (math.pi * d**2 / 4)
-    loss = v["frictionFactor"] * v["lengthM"] / d * 1000 * velocity**2 / (2 * 9.80665)
+    loss = v["frictionFactor"] * v["lengthM"] / d * velocity**2 / (2 * 9.80665)
     return result(
         {"velocityMs": velocity, "lossHeadM": loss, "pressureLossKpa": loss * 9.80665},
         notes=["Darcy-Weisbach for a full circular pipe; fittings and elevation are excluded."],
@@ -559,7 +559,7 @@ def spare_heads(ctx: FeatureContext, v: dict) -> dict:
 )
 def balancing_valve_set(ctx: FeatureContext, v: dict) -> dict:
     """Estimate the valve pressure drop at measured flow using a metric Kv relation."""
-    drop = (v["measuredFlowLs"] * 3.6 / v["valveCv"]) ** 2
+    drop = (v["measuredFlowLs"] * 3.6 / v["valveCv"]) ** 2 * 100
     return result(
         {
             "flowErrorPercent": (v["measuredFlowLs"] - v["designFlowLs"]) / v["designFlowLs"] * 100

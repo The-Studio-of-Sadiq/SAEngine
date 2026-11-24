@@ -258,12 +258,10 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         velocity = displacement = 0.0
         max_disp = 0.0
         for ag in series:
-            excess = ag - math.copysign(ky, ag) if abs(ag) > ky else 0.0
-            velocity += excess * G * dt
-            if velocity * excess < 0:
-                velocity = 0.0
-            displacement += velocity * dt
-            max_disp = max(max_disp, abs(displacement))
+            if velocity > 0 or ag > ky:
+                velocity = max(0.0, velocity + (ag - ky) * G * dt)
+                displacement += velocity * dt
+                max_disp = max(max_disp, displacement)
         return result(
             summary={
                 "newmarkDisplacementMm": max_disp * 1000,
@@ -461,11 +459,11 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         root = math.sqrt(
             max(0.0, math.sin(phi) * math.sin(phi - theta) / max(math.cos(theta), 1e-9))
         )
-        kae = math.cos(phi - theta) ** 2 / (math.cos(theta) * (1 + root) ** 2)
+        kae = math.cos(phi - theta) ** 2 / (math.cos(theta) ** 2 * (1 + root) ** 2)
         ka = math.tan(math.pi / 4 - phi / 2) ** 2
-        h, gamma = values["heightM"], values["gammaKnM3"]
+        h, gamma, kv = values["heightM"], values["gammaKnM3"], values["kv"]
         static = 0.5 * ka * gamma * h**2
-        seismic = 0.5 * (kae - ka) * gamma * h**2
+        seismic = 0.5 * ((1 - kv) * kae - ka) * gamma * h**2
         zw = values["waterTableM"]
         rows = []
         for i in range(11):
@@ -474,7 +472,7 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
                 {
                     "depthM": z,
                     "staticSoilKpa": ka * gamma * z,
-                    "seismicIncrementKpa": (kae - ka) * gamma * z,
+                    "seismicIncrementKpa": ((1 - kv) * kae - ka) * gamma * z,
                     "waterKpa": G * max(0, z - zw),
                 }
             )

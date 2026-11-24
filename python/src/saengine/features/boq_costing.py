@@ -99,7 +99,10 @@ def rate_build_up(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
 )
 def labour_rates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute crew daily cost, hourly rate, and unit labour cost from gang composition and productivity."""
-    raw = parse_csv_rows(values["crewCsv"])
+    raw = parse_csv_rows(
+        values["crewCsv"],
+        default_headers=("trade", "count", "daily_wage", "hours_per_day"),
+    )
     rows = []
     tot_daily = 0.0
     tot_heads = 0

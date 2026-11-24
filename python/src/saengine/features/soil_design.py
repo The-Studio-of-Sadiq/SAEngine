@@ -190,11 +190,7 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         resisting = values["verticalLoadKn"] * values["baseWidthM"] / 2
         overturning = values["horizontalLoadKn"] * values["loadHeightM"]
         fs = resisting / overturning if overturning else math.inf
-        e = (
-            (overturning - resisting) / values["verticalLoadKn"]
-            if values["verticalLoadKn"]
-            else math.inf
-        )
+        e = overturning / values["verticalLoadKn"] if values["verticalLoadKn"] else math.inf
         return result(
             summary={
                 "resistingMomentKnM": resisting,

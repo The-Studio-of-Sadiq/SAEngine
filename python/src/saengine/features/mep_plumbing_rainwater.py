@@ -139,7 +139,7 @@ def downpipe(ctx: FeatureContext, values: dict) -> dict:
     area = float(values["catchmentAreaM2"])
     rain = float(values["rainfallMmPerHr"])
     c_eff = float(values["runoffCoeff"])
-    flow_lps = float(rainwater.flow(area * c_eff, rain))
+    flow_lps = float(rainwater.flow(area * c_eff, rain)) / 60.0
     diam_mm = int(rainwater.leader_size(area * c_eff, rain))
     return result(
         summary={"runoffFlowLps": round(flow_lps, 2), "leaderDiameterMm": diam_mm},
@@ -289,10 +289,10 @@ def gutterSize(ctx: FeatureContext, values: dict) -> dict:
 
     area = float(values["catchmentAreaM2"])
     rain = float(values["rainfallMmPerHr"])
-    # rainwater.gutter_size takes slope in 1:N denominator or %? Let's pass 100/slope% if > 5, wait slope=10 means 1% = 10mm/m!
-    slope_mm_per_m = float(values["slopePct"]) * 10.0
+    raw_slope = float(values["slopePct"]) * 10.0
+    slope_mm_per_m = max((s for s in (5, 10, 20, 40) if s <= raw_slope), default=5)
     width_mm = int(rainwater.gutter_size(area, rain, slope=slope_mm_per_m))
-    flow_lps = float(rainwater.flow(area, rain))
+    flow_lps = float(rainwater.flow(area, rain)) / 60.0
     return result(
         summary={"gutterWidthMm": width_mm, "peakFlowLps": round(flow_lps, 2)},
         tables=[

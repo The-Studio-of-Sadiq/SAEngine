@@ -202,7 +202,7 @@ def hand_calculations(ctx: FeatureContext, values: dict) -> dict:
     moment = w * span_m**2 / 8
     reaction = w * span_m / 2
     span_mm = span_m * 1000
-    deflection = 5 * (w / 1000) * span_mm**4 / (384 * values["elasticModulus"] * values["inertia"])
+    deflection = 5 * w * span_mm**4 / (384 * values["elasticModulus"] * values["inertia"])
     return result(
         summary={
             "maximumMomentKnM": moment,

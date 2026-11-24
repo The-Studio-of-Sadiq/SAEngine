@@ -305,7 +305,8 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         area = math.pi * d**2 / 4
         tributary = s**2 if s > 0 else 0
         ar = area / tributary
-        improvement = n / (1 + (n - 1) * ar)
+        improvement = 1 + (n - 1) * ar
+        stress_ratio = n / improvement
         cu = values["soilCuKpa"]
         column_capacity = (1 + math.sin(math.radians(values["columnPhiDeg"]))) / (
             1 - math.sin(math.radians(values["columnPhiDeg"]))
@@ -314,7 +315,7 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         return result(
             summary={
                 "areaReplacementRatio": ar,
-                "stressConcentrationRatio": improvement,
+                "stressConcentrationRatio": stress_ratio,
                 "estimatedCompositeCapacityKpa": composite,
                 "targetPressureKpa": values["targetPressureKpa"],
                 "targetMet": composite >= values["targetPressureKpa"],

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from saengine.design import rc
 from saengine.design.bars import (
     beam_flexure_need,
     beam_shear_need,
@@ -89,8 +90,8 @@ def pad_footing(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
         total_serv = p_serv + self_wt
         sp = shallow.soil_pressure(
             total_serv * 1e3,
-            (mx_s / total_serv) * 1e3 if total_serv > 0 else 0.0,
             (my_s / total_serv) * 1e3 if total_serv > 0 else 0.0,
+            (mx_s / total_serv) * 1e3 if total_serv > 0 else 0.0,
             l_m * 1e3,
             b_m * 1e3,
         )
@@ -255,29 +256,41 @@ def combined_footing(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     pu1, pu2 = p1 * lf, p2 * lf
     pu_tot = pu1 + pu2
     q_u_avg = pu_tot / length
-    # Sample shear and moment along the beam strip
+    # Sample shear and moment along the beam strip, plus exact column discontinuities.
     stations = 40
     max_hog = 0.0
     max_sag = 0.0
     max_v = 0.0
     rows = []
-    for i in range(stations + 1):
-        x = length * i / stations
-        # Linear net soil reaction per m: w(x) = q_u_avg * (1 + 12*ecc*(x - L/2)/L^2)
-        w0 = q_u_avg * (1.0 - 6.0 * ecc / length)
-        w1 = q_u_avg * (1.0 + 6.0 * ecc / length)
+    w0 = q_u_avg * (1.0 - 6.0 * ecc / length)
+    w1 = q_u_avg * (1.0 + 6.0 * ecc / length)
+
+    def _actions(x: float, include_col1: bool, include_col2: bool) -> tuple[float, float]:
         wx = w0 + (w1 - w0) * (x / length)
         v_soil = 0.5 * (w0 + wx) * x
         m_soil = w0 * x**2 / 2.0 + (wx - w0) * x**2 / 6.0
-        v_col = (pu1 if x >= x1 else 0.0) + (pu2 if x >= x2 else 0.0)
+        v_col = (pu1 if include_col1 else 0.0) + (pu2 if include_col2 else 0.0)
         m_col = (pu1 * (x - x1) if x >= x1 else 0.0) + (pu2 * (x - x2) if x >= x2 else 0.0)
-        vx = v_soil - v_col
-        mx = m_soil - m_col  # positive = tension at top (hogging between columns)
+        return v_soil - v_col, m_soil - m_col
+
+    for i in range(stations + 1):
+        x = length * i / stations
+        vx, mx = _actions(x, x >= x1, x >= x2)
         max_hog = max(max_hog, mx)
         max_sag = max(max_sag, -mx)
         max_v = max(max_v, abs(vx))
         if i % 8 == 0:
             rows.append({"xM": x, "shearKn": vx, "momentKnm": mx})
+    for x_col, c1_before, c2_before in (
+        (x1, False, False),
+        (x1, True, False),
+        (x2, True, False),
+        (x2, True, True),
+    ):
+        vx, mx = _actions(x_col, c1_before, c2_before)
+        max_hog = max(max_hog, mx)
+        max_sag = max(max_sag, -mx)
+        max_v = max(max_v, abs(vx))
 
     d_mm = h_mm - 75.0 - 16.0
     with in_force(ctx.root):
@@ -651,7 +664,7 @@ def one_way_shear(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     cant = max(0.0, (l_mm - c1) / 2.0 - d_mm)
     area_m2 = (l_mm / 1000.0) * (b_mm / 1000.0)
     sp = shallow.soil_pressure(
-        values["puKn"] * 1e3, 0.0, (values["muKnm"] / values["puKn"]) * 1e3, l_mm, b_mm
+        values["puKn"] * 1e3, (values["muKnm"] / values["puKn"]) * 1e3, 0.0, l_mm, b_mm
     )
     q_edge = sp.qmax * 1e3  # kPa
     q_d = q_edge - (sp.qmax - sp.qmin) * 1e3 * (cant / l_mm)
@@ -922,7 +935,9 @@ def raft_thickness(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
             if values["location"] == "interior"
             else (30.0 if values["location"] == "edge" else 20.0)
         )
-        phi_vc_stress = shallow.punching_stress(c1, c2, d_trial, b0, alpha_s, fc)
+        phi_vc_stress = rc.value("PHI_SHEAR") * shallow.punching_stress(
+            c1, c2, d_trial, b0, alpha_s, fc
+        )
         phi_vc_kn = phi_vc_stress * b0 * d_trial / 1e3
 
     stiff_h = max(300.0, values["maxSpanM"] * 1000.0 / 12.0)

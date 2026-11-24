@@ -469,8 +469,11 @@ def bolt_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     v_per = values["vuKn"] * 1e3 / n
     t_per = values["tuKn"] * 1e3 / n
     with in_force(ctx.root):
-        v_cap = sc.bolt_shear_capacity(values["grade"], d, round(values["shearPlanes"])) / 1e3
-        t_cap, _ = sc.bolt_tension_capacity(values["grade"], d, v_per)
+        n_planes = round(values["shearPlanes"])
+        v_cap = sc.bolt_shear_capacity(values["grade"], d, n_planes) / 1e3
+        ab = math.pi * d**2 / 4.0
+        frv_mpa = v_per / (max(1, n_planes) * ab)
+        t_cap, _ = sc.bolt_tension_capacity(values["grade"], d, frv_mpa)
         t_cap /= 1e3
         lc = max(5.0, values["edgeDistMm"] - sc.hole_diameter(d) / 2.0)
         brg_cap = sc.bearing_capacity(d, values["plateThickMm"], values["plateFuMpa"], lc) / 1e3

@@ -194,7 +194,6 @@ def storage_tank(ctx: FeatureContext, values: dict) -> dict:
         max(values["designFlowLps"] - values["replenishmentLps"], 0)
         * values["durationMinutes"]
         * 60
-        * 1000
     )
     gross_m3 = net_l / values["usableFraction"] / 1000
     return result(

@@ -149,8 +149,10 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
         r = values["cavityRadiusMm"] / 1000
         delta_v = values["volumeIncrementCm3"] * 1e-6
         delta_p = values["pressureIncrementKpa"] * 1000
+        # Cylindrical cavity radial strain dr/r = dV/(2*pi*r^3) for unit-radius cell length L=r;
+        # Lamé G = dp/(2*strain), so E = 2*(1+nu)*G = (1+nu)*dp/strain.
         strain = delta_v / (2 * math.pi * r**3)
-        modulus = (1 + values["poissonRatio"]) * delta_p / (2 * strain) / 1e6
+        modulus = (1 + values["poissonRatio"]) * delta_p / strain / 1e6
         return result(
             summary={"pressuremeterModulusMpa": modulus},
             tables=[
@@ -193,10 +195,42 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
             ],
         )
 
-    report = require_report(ctx)
     if fid == "soil.depthRuler":
+        depth_m = values.get("depthM", 5.0)
+        report = ctx.soil()
+        if report is None:
+            steps = 5
+            rows = [
+                {
+                    "borehole": values.get("boreholeId") or "-",
+                    "depthM": depth_m * i / steps,
+                    "soilType": None,
+                    "uscs": None,
+                    "description": "Depth scale tick",
+                    "layerTopM": None,
+                    "layerBottomM": None,
+                }
+                for i in range(steps + 1)
+            ]
+            return result_rows(
+                "Depth ruler",
+                [
+                    ("borehole", "Borehole"),
+                    ("depthM", "Depth", "m"),
+                    ("soilType", "Soil type"),
+                    ("uscs", "USCS"),
+                    ("description", "Description"),
+                    ("layerTopM", "Layer top", "m"),
+                    ("layerBottomM", "Layer bottom", "m"),
+                ],
+                rows,
+                summary={"depthM": depth_m, "boreholeId": values.get("boreholeId") or None},
+                notes=[
+                    "Depth is measured down from ground level; open a project to match borehole strata."
+                ],
+            )
         bh = borehole(report, values.get("boreholeId") or None)
-        depth_mm = values.get("depthM", 5.0) * 1000
+        depth_mm = depth_m * 1000
         layer = next((layer for layer in bh.layers if layer.top <= depth_mm < layer.bottom), None)
         if layer is None:
             raise FeatureInputError(
@@ -228,6 +262,8 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
             summary={"depthM": depth_mm / 1000, "boreholeId": bh.id},
             notes=["Depth is measured down from the borehole ground level."],
         )
+
+    report = require_report(ctx)
     if fid == "soil.graphicLogStyle":
         counts: dict[str, int] = {}
         for bh in report.boreholes:

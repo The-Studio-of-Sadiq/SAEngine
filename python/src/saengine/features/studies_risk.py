@@ -324,10 +324,7 @@ def distribution_type(ctx: FeatureContext, values: dict) -> dict:
     else:
         mean, variance = mode, ((high - low) / 6) ** 2
         quantiles = [
-            mean
-            + math.sqrt(variance)
-            * math.sqrt(2)
-            * _normal_quantile(i / (int(values["samples"]) - 1))
+            mean + math.sqrt(variance) * _normal_quantile(i / (int(values["samples"]) - 1))
             for i in range(int(values["samples"]))
         ]
     return result(

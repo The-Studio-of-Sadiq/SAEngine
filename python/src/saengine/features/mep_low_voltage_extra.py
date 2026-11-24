@@ -686,8 +686,8 @@ def upsSizing(ctx: FeatureContext, values: dict) -> dict:
 
     kw = float(values["criticalLoadKw"])
     autonomy = float(values["autonomyMin"])
-    res = supply.ups(kw, autonomy)
-    req_kva = float(res.get("kva", kw / float(values["loadPf"])))
+    res = supply.ups(kw, autonomy) or {}
+    req_kva = kw / float(values["loadPf"])
     batt_vah = kw * 1000.0 * (autonomy / 60.0) / 0.88
     batt_ah = batt_vah / float(values["dcBusV"])
     return result(
