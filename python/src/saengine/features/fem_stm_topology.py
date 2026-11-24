@@ -18,6 +18,7 @@ from saengine.features import (
     table,
     text,
 )
+from saengine.features.fem_common import load_stm_file
 from saengine.features.fem_stm_common import (
     geometry,
     next_id,
@@ -743,7 +744,8 @@ def strut_boundaries(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def fixity_envelope(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Evaluate whether an internal joint remains inside its allowed positional envelope."""
-    model = working_model(ctx, v)
+    models = load_stm_file(ctx)
+    model = models[0] if models else working_model(ctx, v, kind="dappedEnd")
     node = next((n for n in model.nodes if n.id == v["nodeId"]), None)
     if node is None:
         raise FeatureInputError(f"No node {v['nodeId']!r} exists.")
