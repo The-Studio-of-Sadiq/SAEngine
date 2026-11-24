@@ -282,21 +282,80 @@ def model_scale(ctx: FeatureContext, values: dict) -> dict:
         select(
             "targetUnits", "Output units", [("m", "Metres"), ("mm", "Millimetres"), ("ft", "Feet")]
         ),
-        number("value", "Coordinate value", 1000),
+        number("coordinate", "Coordinate length", 1000.0),
     ],
     requires_project=False,
 )
 def coordinate_units(ctx: FeatureContext, values: dict) -> dict:
-    """Convert a linear site coordinate between millimetres, metres and international feet."""
+    """Convert linear coordinates between mm, m and ft and summarize project grid bounds."""
     factors = {"mm": 0.001, "m": 1.0, "ft": 0.3048}
-    converted = values["value"] * factors[values["sourceUnits"]] / factors[values["targetUnits"]]
+    src = float(values["coordinate"])
+    converted = src * factors[values["sourceUnits"]] / factors[values["targetUnits"]]
+    rows = [
+        {
+            "item": "Input coordinate",
+            "source": f"{src:g} {values['sourceUnits']}",
+            "target": f"{converted:.4g} {values['targetUnits']}",
+        }
+    ]
+    if ctx.root is not None:
+        raw_plan = ctx.raw("floorPlan")
+        if isinstance(raw_plan, dict):
+            grids = raw_plan.get("grids") or {}
+            if isinstance(grids, dict):
+                xs = [
+                    float(g["position"])
+                    for g in (grids.get("x") or [])
+                    if isinstance(g, dict) and "position" in g
+                ]
+                ys = [
+                    float(g["position"])
+                    for g in (grids.get("y") or [])
+                    if isinstance(g, dict) and "position" in g
+                ]
+            else:
+                xs = [
+                    float(g["position"])
+                    for g in grids
+                    if isinstance(g, dict) and g.get("axis") == "X" and "position" in g
+                ]
+                ys = [
+                    float(g["position"])
+                    for g in grids
+                    if isinstance(g, dict) and g.get("axis") == "Y" and "position" in g
+                ]
+            if xs and ys:
+                span_x_m = (max(xs) - min(xs)) * 0.001
+                span_y_m = (max(ys) - min(ys)) * 0.001
+                rows.append(
+                    {
+                        "item": "Project X grid span",
+                        "source": f"{span_x_m * 1000.0:g} mm",
+                        "target": f"{span_x_m / factors[values['targetUnits']]:.4g} {values['targetUnits']}",
+                    }
+                )
+                rows.append(
+                    {
+                        "item": "Project Y grid span",
+                        "source": f"{span_y_m * 1000.0:g} mm",
+                        "target": f"{span_y_m / factors[values['targetUnits']]:.4g} {values['targetUnits']}",
+                    }
+                )
     return result(
         summary={
-            "sourceValue": values["value"],
+            "sourceCoordinate": src,
             "sourceUnits": values["sourceUnits"],
-            "convertedValue": converted,
+            "convertedCoordinate": converted,
             "targetUnits": values["targetUnits"],
-        }
+        },
+        tables=[
+            table(
+                "Coordinate unit conversion",
+                [("item", "Item"), ("source", "Source"), ("target", "Converted")],
+                rows,
+            )
+        ],
+        notes=["Exact conversion factors: 1 mm = 0.001 m, 1 ft = 0.3048 m."],
     )
 
 

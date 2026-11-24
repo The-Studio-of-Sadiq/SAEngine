@@ -1083,13 +1083,20 @@ def reconcile_report(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     requires_project=True,
 )
 def audit_pack(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Bundle priced BOQ, rate schedule, carbon factors, and source stamps into an audit JSON pack."""
+    """Bundle priced BOQ, rate coverage, duplicate checks, and carbon factors into an audit JSON pack."""
     bill, rates, carbon, costing = price_project_bill(ctx)
+    missing_rates = [li.code for li in costing.lines if li.status in ("no rate item", "not rated")]
+    codes = [str(it.get("code", "")) for it in bill["items"]]
+    duplicate_codes = sorted({c for c in codes if codes.count(c) > 1})
+    coverage_pct = (len(costing.lines) - len(missing_rates)) / max(1, len(costing.lines)) * 100.0
     pack = {
         "source": bill.get("source"),
         "currency": rates.currency,
         "total": costing.total,
         "carbonTotal": costing.carbonTotal,
+        "rateCoveragePct": round(coverage_pct, 1),
+        "missingRateCodes": missing_rates,
+        "duplicateCodes": duplicate_codes,
         "groups": costing.groups,
         "parts": costing.parts,
         "rateScheduleName": rates.name,
@@ -1100,6 +1107,8 @@ def audit_pack(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
         summary={
             "currency": rates.currency,
             "totalValue": costing.total,
+            "rateCoveragePct": round(coverage_pct, 1),
+            "missingRates": len(missing_rates),
             "auditPackPath": str(target),
         },
         tables=[
@@ -1107,7 +1116,14 @@ def audit_pack(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
                 "Audit pack contents",
                 [("section", "Section"), ("detail", "Included data")],
                 [
-                    {"section": "Bill & source hashes", "detail": f"{len(bill['items'])} items"},
+                    {
+                        "section": "Bill & source hashes",
+                        "detail": f"{len(bill['items'])} items ({len(duplicate_codes)} duplicate codes)",
+                    },
+                    {
+                        "section": "Rate coverage",
+                        "detail": f"{coverage_pct:.1f}% ({len(missing_rates)} unpriced)",
+                    },
                     {
                         "section": "Costing rollup",
                         "detail": f"{costing.total:,.2f} {rates.currency}",

@@ -168,32 +168,38 @@ def createZone(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsZoning.diversityFactor",
     "Diversity Factor",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("connectedTotalKw", "Sum of connected zone loads", 450.0, unit="kW", min=1.0),
+        number("coincidentPeakKw", "Block coincident peak load", 315.0, unit="kW", min=0.5),
+    ],
+    requires_project=False,
 )
 def diversityFactor(ctx: FeatureContext, values: dict) -> dict:
-    """Diversity Factor: Diversity."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate system diversity & coincidence factors separating block central plant from terminal totals."""
+    conn = float(values["connectedTotalKw"])
+    coin = float(values["coincidentPeakKw"])
+    coinc_factor = coin / conn
+    div_factor = conn / coin
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "coincidenceFactor": round(coinc_factor, 3),
+            "diversityFactor": round(div_factor, 3),
+            "plantReductionPct": round((1.0 - coinc_factor) * 100.0, 1),
         },
         tables=[
             table(
-                "Diversity Factor",
-                [("item", "Item"), ("value", "Value")],
+                "Zone load diversity metrics",
+                [("metric", "Metric"), ("value", "Value")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"metric": "Sum of individual zone peaks [kW]", "value": conn},
+                    {"metric": "Coincident central plant peak [kW]", "value": coin},
+                    {"metric": "Coincidence factor (Peak / Sum)", "value": round(coinc_factor, 3)},
+                    {"metric": "Diversity factor (Sum / Peak)", "value": round(div_factor, 3)},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Apply coincidence factor for central chillers/transformers while keeping un-diversified zone terminal sizing."
         ],
     )
 
@@ -314,32 +320,55 @@ def internalPartitions(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsZoning.loadByZone",
     "Load By Zone",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
+    fields=[
+        number("coolingWPerM2", "Fallback specific cooling intensity", 110.0, unit="W/m²", min=10.0)
+    ],
     requires_project=True,
 )
 def loadByZone(ctx: FeatureContext, values: dict) -> dict:
-    """Load By Zone: Report."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Aggregate storey/zone cooling, lighting, and ventilation loads from 07 MEP/mep.json."""
+    if ctx.root is None:
+        raise FeatureInputError("Open a project with 07 MEP/mep.json to compute loads by zone.")
+    raw = ctx.raw("mep")
+    if not isinstance(raw, dict):
+        raise FeatureInputError("Missing 07 MEP/mep.json in project.")
+    stories = (raw.get("hvac") or {}).get("stories") or []
+    rows = []
+    tot_kw = 0.0
+    for i, st in enumerate(stories):
+        if not isinstance(st, dict):
+            continue
+        area = float(st.get("areaM2", st.get("area", 200.0)) or 200.0)
+        q_kw = float(st.get("coolingKw", area * float(values["coolingWPerM2"]) / 1000.0))
+        tot_kw += q_kw
+        rows.append(
+            {
+                "zone": str(st.get("story") or st.get("name") or f"Zone {i + 1}"),
+                "use": str(st.get("use", "officeSpace")),
+                "areaM2": round(area, 1),
+                "loadKw": round(q_kw, 2),
+                "wPerM2": round(q_kw * 1000.0 / max(1.0, area), 1),
+            }
+        )
+    if not rows:
+        raise FeatureInputError("No HVAC storey zones found in 07 MEP/mep.json.")
     return result(
-        summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
-        },
+        summary={"zoneCount": len(rows), "totalConnectedKw": round(tot_kw, 1)},
         tables=[
             table(
-                "Load By Zone",
-                [("item", "Item"), ("value", "Value")],
+                "MEP zone load breakdown",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("zone", "Story / Zone"),
+                    ("use", "Use"),
+                    ("areaM2", "Area", "m²"),
+                    ("loadKw", "Load", "kW"),
+                    ("wPerM2", "W/m²"),
                 ],
+                rows,
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Reads hvac.stories from 07 MEP/mep.json and computes per-zone cooling density W/m²."
         ],
     )
 
@@ -398,33 +427,63 @@ def occupancyLink(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsZoning.peakLoadShift",
     "Peak Load Shift",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("dayPeakKw", "On-peak chiller cooling power demand", 180.0, unit="kW", min=5.0),
+        number(
+            "shiftFraction",
+            "Fraction shifted to thermal storage / precooling",
+            0.35,
+            min=0.05,
+            max=0.80,
+        ),
+        number("peakHours", "Daily peak tariff window duration", 6.0, unit="h", min=1.0, max=12.0),
+        number("chillerCop", "Day vs night chiller effective COP", 4.2, min=1.5, max=7.0),
+    ],
+    requires_project=False,
 )
 def peakLoadShift(ctx: FeatureContext, values: dict) -> dict:
-    """Peak Load Shift: Diversity."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Size thermal energy storage capacity and on-peak kW demand shave from load shifting."""
+    shifted_kw_th = (
+        float(values["dayPeakKw"]) * float(values["shiftFraction"]) * float(values["chillerCop"])
+    )
+    tes_kwh_th = shifted_kw_th * float(values["peakHours"])
+    shaved_elec_kw = float(values["dayPeakKw"]) * float(values["shiftFraction"])
+    new_peak_kw = float(values["dayPeakKw"]) - shaved_elec_kw
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "shavedDemandKw": round(shaved_elec_kw, 1),
+            "newOnPeakKw": round(new_peak_kw, 1),
+            "thermalStorageKwh": round(tes_kwh_th, 0),
         },
         tables=[
             table(
-                "Peak Load Shift",
-                [("item", "Item"), ("value", "Value")],
+                "Peak load shifting & thermal storage sizing",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Baseline electrical chiller peak",
+                        "value": values["dayPeakKw"],
+                        "unit": "kW",
+                    },
+                    {
+                        "item": "Shaved on-peak electrical demand",
+                        "value": round(shaved_elec_kw, 1),
+                        "unit": "kW",
+                    },
+                    {
+                        "item": "Remaining daytime electrical peak",
+                        "value": round(new_peak_kw, 1),
+                        "unit": "kW",
+                    },
+                    {
+                        "item": "Required chilled-water / ice TES",
+                        "value": round(tes_kwh_th, 0),
+                        "unit": "kWh_th",
+                    },
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=["Thermal storage capacity = Shifted cooling rate x Peak window hours."],
     )
 
 

@@ -20,6 +20,7 @@ from saengine.features import (
 )
 from saengine.features.materials_common import (
     find_material,
+    load_materials,
     material_strength_mpa,
     materials_or_default,
     parse_csv_rows,
@@ -611,21 +612,39 @@ def export_mapping(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     "Translate Density",
     part="materials",
     fields=[
-        number("value", "Input density / unit weight", 2400.0, min=0.01),
+        number("density", "Input density / unit weight", 2400.0, min=0.01),
         select(
             "fromUnit",
             "Input unit",
             [("kg_m3", "kg/m3"), ("kN_m3", "kN/m3"), ("g_cm3", "g/cm3"), ("pcf", "lb/ft3 (pcf)")],
             "kg_m3",
         ),
+        text("materialId", "Optional project material ID (blank = use input)", ""),
     ],
     requires_project=False,
 )
 def translate_density(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Translate unit mass and unit weight across kg/m3, kN/m3, g/cm3, and lb/ft3."""
-    val = values["value"]
+    val = float(values["density"])
+    unit_key = values["fromUnit"]
+    mat_id = values.get("materialId", "").strip()
+    source_note = "Uses standard gravity g = 9.80665 m/s2."
+    if mat_id and ctx.root is not None:
+        lib = load_materials(ctx)
+        if lib is not None:
+            mat = find_material(lib, mat_id)
+            if mat is None:
+                raise FeatureInputError(
+                    f"Material {mat_id!r} not found in 03 Materials/materials.json."
+                )
+            dens = getattr(mat, "density", None)
+            if dens is None or float(dens) <= 0:
+                raise FeatureInputError(f"Material {mat_id!r} has no positive density defined.")
+            val = float(dens)
+            unit_key = "kg_m3"
+            source_note = f"Loaded density {val:g} kg/m3 from material {mat.id}; g = 9.80665 m/s2."
     to_kg_m3 = {"kg_m3": 1.0, "kN_m3": 1000.0 / 9.80665, "g_cm3": 1000.0, "pcf": 16.018463}[
-        values["fromUnit"]
+        unit_key
     ]
     kg_m3 = val * to_kg_m3
     kn_m3 = kg_m3 * 9.80665 / 1000.0
@@ -636,16 +655,16 @@ def translate_density(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
         tables=[
             table(
                 "Density unit translation",
-                [("unit", "Unit"), ("value", "Value")],
+                [("unit", "Unit"), ("converted", "Value")],
                 [
-                    {"unit": "kg/m3", "value": kg_m3},
-                    {"unit": "kN/m3", "value": kn_m3},
-                    {"unit": "g/cm3", "value": g_cm3},
-                    {"unit": "lb/ft3", "value": pcf},
+                    {"unit": "kg/m3", "converted": kg_m3},
+                    {"unit": "kN/m3", "converted": kn_m3},
+                    {"unit": "g/cm3", "converted": g_cm3},
+                    {"unit": "lb/ft3", "converted": pcf},
                 ],
             )
         ],
-        notes=["Uses standard gravity g = 9.80665 m/s2."],
+        notes=[source_note],
     )
 
 

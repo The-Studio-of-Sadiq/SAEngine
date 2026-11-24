@@ -634,15 +634,73 @@ def draw_floor(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def floor_types(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Prepare a floor build-up definition for slab, screed and finish layers."""
-    payload = {"id": values["floorTypeId"], "thickness": values["thickness"], "kind": "floor"}
-    path = write_json(ctx, "floor-type.json", payload)
+    """Build a layered floor build-up definition and calculate unit area weight."""
+    import json
+
+    if ctx.root is None:
+        raise FeatureInputError("Open a project before defining floor types.")
+    type_id = values["floorTypeId"].strip()
+    if not type_id:
+        raise FeatureInputError("Enter a floor type id.")
+    total_mm = float(values["thickness"])
+    finish_mm = min(15.0, round(total_mm * 0.1, 1))
+    screed_mm = min(40.0, round(max(0.0, total_mm - finish_mm) * 0.25, 1))
+    structural_mm = max(0.0, round(total_mm - finish_mm - screed_mm, 1))
+    layers = [
+        {"layer": "Finish", "thicknessMm": finish_mm, "unitWeightKnM3": 21.0},
+        {"layer": "Screed", "thicknessMm": screed_mm, "unitWeightKnM3": 20.4},
+        {"layer": "Structural slab", "thicknessMm": structural_mm, "unitWeightKnM3": 24.0},
+    ]
+    for item in layers:
+        item["weightKnM2"] = round(item["thicknessMm"] / 1000.0 * item["unitWeightKnM3"], 3)
+    area_weight = round(sum(item["weightKnM2"] for item in layers), 3)
+    raw_objects = ctx.raw("objects")
+    slab_types = (
+        [
+            o.get("id", "")
+            for o in raw_objects.get("objects", [])
+            if isinstance(o, dict) and str(o.get("kind", "")).lower() == "slab"
+        ]
+        if isinstance(raw_objects, dict) and isinstance(raw_objects.get("objects"), list)
+        else []
+    )
+    catalogue_path = ctx.root / "11 Exports" / "Architecture" / "floor-types.json"
+    catalogue: dict[str, Any] = {}
+    if catalogue_path.is_file():
+        try:
+            loaded = json.loads(catalogue_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                catalogue = loaded
+        except (OSError, ValueError):
+            catalogue = {}
+    catalogue[type_id] = {
+        "id": type_id,
+        "thicknessMm": total_mm,
+        "areaWeightKnM2": area_weight,
+        "layers": layers,
+        "matchingSlabTypes": slab_types,
+    }
+    path = write_json(ctx, "floor-types.json", catalogue)
     return result(
         summary={
-            "floorTypeId": values["floorTypeId"],
-            "thicknessMm": values["thickness"],
+            "floorTypeId": type_id,
+            "thicknessMm": total_mm,
+            "areaWeightKnM2": area_weight,
+            "catalogueCount": len(catalogue),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Floor build-up layers",
+                [
+                    ("layer", "Layer"),
+                    ("thicknessMm", "Thickness", "mm"),
+                    ("unitWeightKnM3", "Unit weight", "kN/m³"),
+                    ("weightKnM2", "Dead load", "kN/m²"),
+                ],
+                layers,
+            )
+        ],
     )
 
 

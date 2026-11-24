@@ -13,7 +13,15 @@ from saengine.features import (
     table,
     text,
 )
-from saengine.features.overview_common import json_text, require_project, write_export
+from saengine.features.overview_common import (
+    load_export_json,
+    now_iso,
+    project_kpis,
+    project_name,
+    require_project,
+    save_export_json,
+    write_export,
+)
 
 
 @feature(
@@ -173,18 +181,69 @@ def diagnostics(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def report_issue(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a local issue report for later review."""
-    if not values["summary"].strip():
+    """Capture project JSON diagnostics and append the issue to a persistent Markdown/JSON report."""
+    import json
+
+    summary_text = values["summary"].strip()
+    if not summary_text:
         raise FeatureInputError("Enter an issue summary.")
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "issue-report.md",
-        f"# Issue Report\n\n## Summary\n{values['summary']}\n\n## Details\n{values['details']}\n",
+    root = require_project(ctx, "reporting a local issue")
+    json_errors = []
+    for p in sorted(root.rglob("*.json")):
+        if ".git" in p.parts:
+            continue
+        try:
+            json.loads(p.read_text("utf-8"))
+        except (OSError, json.JSONDecodeError) as err:
+            json_errors.append(f"{p.relative_to(root)}: {err}")
+    kpis = project_kpis(ctx)
+    reports = load_export_json(ctx, "11 Exports", "issue-reports.json", [])
+    rows = [r for r in (reports if isinstance(reports, list) else []) if isinstance(r, dict)]
+    rows.append(
+        {
+            "id": f"BUG-{len(rows) + 1:03d}",
+            "timestamp": now_iso(),
+            "summary": summary_text,
+            "details": values["details"].strip(),
+            "jsonErrors": len(json_errors),
+            "bimElements": kpis["bimElements"],
+        }
     )
+    save_export_json(ctx, "11 Exports", "issue-reports.json", rows)
+    md = [
+        f"# Issue Report ({rows[-1]['id']})",
+        "",
+        f"## Summary\n{summary_text}",
+        "",
+        f"## Details\n{values['details'].strip() or '(none)'}",
+        "",
+        "## Attached Diagnostics",
+        f"- Project: {project_name(ctx)}",
+        f"- BIM elements: {kpis['bimElements']}, Objects: {kpis['objects']}, BOQ items: {kpis['boqItems']}",
+        f"- Invalid JSON files: {len(json_errors)}",
+    ]
+    path = write_export(ctx, "11 Exports", "issue-report.md", "\n".join(md) + "\n")
     return result(
-        summary={"summary": values["summary"], "exportPath": str(path)},
-        notes=[f"Issue report written to {path}; it was not sent externally."],
+        summary={
+            "id": rows[-1]["id"],
+            "summary": summary_text,
+            "jsonErrors": len(json_errors),
+            "reportCount": len(rows),
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Local issue reports",
+                [
+                    ("id", "ID"),
+                    ("timestamp", "UTC"),
+                    ("summary", "Summary"),
+                    ("jsonErrors", "JSON errors"),
+                ],
+                rows,
+            )
+        ],
+        notes=[f"Diagnostic issue report written to {path}; it was not sent externally."],
     )
 
 
@@ -219,16 +278,39 @@ def about_saengine(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     requires_project=True,
 )
 def submit_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a local diagnostic log export without network submission."""
+    """Build a project file inventory with per-folder counts, byte totals, and SHA-256 digests."""
+    import hashlib
+
     root = require_project(ctx, "creating a diagnostic log")
-    lines = [str(path.relative_to(root)) for path in sorted(root.rglob("*")) if path.is_file()][
-        :500
-    ]
+    entries = []
+    total_bytes = 0
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root)
+        if ".git" in rel.parts or not path.is_file():
+            continue
+        size = path.stat().st_size
+        total_bytes += size
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+        entries.append({"file": rel.as_posix(), "sizeBytes": size, "sha256": digest})
+        if len(entries) >= 500:
+            break
+    lines = [f"{e['sha256']}  {e['sizeBytes']:>9}  {e['file']}" for e in entries]
     name = values["filename"].strip().replace(" ", "-") or "diagnostic-log"
-    path = write_export(ctx, "11 Exports", f"{name}.txt", "\n".join(lines) + "\n")
+    out = write_export(ctx, "11 Exports", f"{name}.txt", "\n".join(lines) + "\n")
     return result(
-        summary={"listedFiles": len(lines), "exportPath": str(path)},
-        notes=[f"Log written to {path}; no submission was made."],
+        summary={
+            "listedFiles": len(entries),
+            "totalKb": round(total_bytes / 1024.0, 2),
+            "exportPath": str(out),
+        },
+        tables=[
+            table(
+                "Diagnostic file digests",
+                [("file", "File"), ("sizeBytes", "Size", "byte"), ("sha256", "SHA-256")],
+                entries[:50],
+            )
+        ],
+        notes=[f"Diagnostic checksum log written to {out}; no submission was made."],
     )
 
 
@@ -240,13 +322,35 @@ def submit_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def remote_session(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record a remote-session identifier locally without opening a network connection."""
-    path = write_export(
-        ctx, "11 Exports", "remote-session.json", json_text({"sessionId": values["sessionId"]})
-    )
+    """Capture project workspace metrics under a named local remote-session checkpoint."""
+    sid = values["sessionId"].strip()
+    if not sid:
+        raise FeatureInputError("Enter a session identifier.")
+    kpis = project_kpis(ctx)
+    sessions = load_export_json(ctx, "11 Exports", "remote-session.json", [])
+    rows = [s for s in (sessions if isinstance(sessions, list) else []) if isinstance(s, dict)]
+    rows.append({"sessionId": sid, "timestamp": now_iso(), "project": project_name(ctx), **kpis})
+    path = save_export_json(ctx, "11 Exports", "remote-session.json", rows)
     return result(
-        summary={"sessionId": values["sessionId"], "exportPath": str(path)},
-        notes=["Session metadata is local; no remote connection was opened."],
+        summary={
+            "sessionId": sid,
+            "sessionCount": len(rows),
+            "bimElements": kpis["bimElements"],
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Remote session log",
+                [
+                    ("sessionId", "Session ID"),
+                    ("timestamp", "UTC"),
+                    ("bimElements", "BIM elements"),
+                    ("boqItems", "BOQ items"),
+                ],
+                rows,
+            )
+        ],
+        notes=["Session checkpoint is stored locally; no remote connection was opened."],
     )
 
 
@@ -339,11 +443,41 @@ def user_forum(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def feature_requests(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a local feature-request file."""
-    path = write_export(
-        ctx, "11 Exports", "feature-request.md", f"# {values['title']}\n\n{values['details']}\n"
+    """Log an indexed feature request with project context to feature-requests.json and Markdown."""
+    title = values["title"].strip()
+    if not title:
+        raise FeatureInputError("Enter a feature request title.")
+    loaded = load_export_json(ctx, "11 Exports", "feature-requests.json", [])
+    items = [r for r in (loaded if isinstance(loaded, list) else []) if isinstance(r, dict)]
+    items.append(
+        {
+            "id": f"FR-{len(items) + 1:03d}",
+            "timestamp": now_iso(),
+            "project": project_name(ctx),
+            "title": title,
+            "details": values["details"].strip(),
+        }
     )
-    return result(summary={"title": values["title"], "exportPath": str(path)})
+    save_export_json(ctx, "11 Exports", "feature-requests.json", items)
+    md = ["# Project Feature Requests", ""]
+    for row in items:
+        md.append(f"## {row['id']}: {row['title']} ({row['timestamp']})")
+        md.append(row["details"] or "(no details)")
+        md.append("")
+    path = write_export(ctx, "11 Exports", "feature-request.md", "\n".join(md))
+    return result(
+        summary={
+            "id": items[-1]["id"],
+            "title": title,
+            "requestCount": len(items),
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Feature requests", [("id", "ID"), ("timestamp", "UTC"), ("title", "Title")], items
+            )
+        ],
+    )
 
 
 @feature(

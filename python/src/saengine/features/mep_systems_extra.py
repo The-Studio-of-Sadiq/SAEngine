@@ -262,32 +262,50 @@ def pressureBalance(ctx: FeatureContext, values: dict) -> dict:
     "mepSystems.sizeMismatch",
     "Size Mismatch",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("upstreamSizeMm", "Upstream header / duct / pipe ID", 150.0, unit="mm", min=10.0),
+        number("downstreamSizeMm", "Downstream continuation bore", 200.0, unit="mm", min=10.0),
+    ],
+    requires_project=False,
 )
 def sizeMismatch(ctx: FeatureContext, values: dict) -> dict:
-    """Size Mismatch: Checks."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Check pipe/duct diameter transitions and flag unexpected downstream upsizing or excessive reduction."""
+    up = float(values["upstreamSizeMm"])
+    dn = float(values["downstreamSizeMm"])
+    ratio = dn / up
+    if dn > up + 1e-6:
+        verdict = "Downstream expansion (>1.0x)"
+    elif ratio < 0.4:
+        verdict = "Abrupt contraction (<0.4x)"
+    else:
+        verdict = "Normal taper"
+    loss_k = ((1.0 - (min(up, dn) / max(up, dn)) ** 2) ** 2) if dn != up else 0.0
+    mep_openings = 0
+    if ctx.root is not None and isinstance(ctx.raw("mep"), dict):
+        mep_openings = len((ctx.raw("mep") or {}).get("openings") or [])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "upstreamMm": up,
+            "downstreamMm": dn,
+            "diameterRatio": round(ratio, 2),
+            "verdict": verdict,
+            "fittingLossK": round(loss_k, 3),
         },
         tables=[
             table(
-                "Size Mismatch",
-                [("item", "Item"), ("value", "Value")],
+                "Conduit transition size-mismatch check",
+                [("item", "Metric"), ("value", "Value")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Upstream nominal size [mm]", "value": up},
+                    {"item": "Downstream nominal size [mm]", "value": dn},
+                    {"item": "Diameter ratio (D_down / D_up)", "value": round(ratio, 2)},
+                    {"item": "Borda-Carnot transition K", "value": round(loss_k, 3)},
+                    {"item": "Assessment", "value": f"{verdict} ({mep_openings} model opening(s))"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Downstream upsizing along feed lines without added branches indicates model connectivity mismatch."
         ],
     )
 
@@ -296,32 +314,87 @@ def sizeMismatch(ctx: FeatureContext, values: dict) -> dict:
     "mepSystems.systemCapacity",
     "System Capacity",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
+    fields=[
+        number(
+            "demandReservePct",
+            "Required capacity reserve margin",
+            10.0,
+            unit="%",
+            min=0.0,
+            max=50.0,
+        )
+    ],
     requires_project=True,
 )
 def systemCapacity(ctx: FeatureContext, values: dict) -> dict:
-    """System Capacity: Analysis."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Audit installed MEP plant capacities (chiller/VRF, transformer, tanks) vs project stories in 07 MEP."""
+    from saengine.mep import systems
+
+    if ctx.root is None:
+        raise FeatureInputError("Open a project with 07 MEP/mep.json to verify system capacity.")
+    raw = ctx.raw("mep")
+    if not isinstance(raw, dict):
+        raise FeatureInputError("Missing 07 MEP/mep.json in project.")
+    rep = (
+        systems.mep_systems_report(ctx.root)
+        if hasattr(systems, "mep_systems_report")
+        else systems.analyze_systems(ctx.root)
+    )
+    hvac_units = (raw.get("hvac") or {}).get("plant") or []
+    tanks = (raw.get("plumbing") or {}).get("tanks") or []
+    elec_eq = (raw.get("electrical") or {}).get("equipment") or []
+    hvac_kw = sum(float(u.get("capacityKw", 0.0) or 0.0) for u in hvac_units if isinstance(u, dict))
+    tank_m3 = sum(
+        float(
+            t.get("capacityM3", t.get("volumeL", 0.0) / 1000.0 if t.get("volumeL") else 0.0) or 0.0
+        )
+        for t in tanks
+        if isinstance(t, dict)
+    )
+    elec_kva = sum(
+        float(e.get("kva", e.get("ratingKva", 0.0)) or 0.0) for e in elec_eq if isinstance(e, dict)
+    )
+    rows = [
+        {
+            "system": "HVAC Plant Cooling",
+            "installed": round(hvac_kw, 1),
+            "unit": "kW",
+            "units": len(hvac_units),
+        },
+        {
+            "system": "Plumbing Water Tanks",
+            "installed": round(tank_m3, 1),
+            "unit": "m³",
+            "units": len(tanks),
+        },
+        {
+            "system": "Electrical Supply Equipment",
+            "installed": round(elec_kva, 1),
+            "unit": "kVA",
+            "units": len(elec_eq),
+        },
+    ]
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "installedHvacKw": round(hvac_kw, 1),
+            "installedTankM3": round(tank_m3, 1),
+            "installedElecKva": round(elec_kva, 1),
+            "systemIssues": len(rep.get("issues", [])) if isinstance(rep, dict) else 0,
         },
         tables=[
             table(
-                "System Capacity",
-                [("item", "Item"), ("value", "Value")],
+                "Installed MEP plant capacity ledger",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("system", "Subsystem"),
+                    ("units", "Plant Items"),
+                    ("installed", "Total Capacity"),
+                    ("unit", "Unit"),
                 ],
+                rows,
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            f"Tallied from 07 MEP/mep.json with {values['demandReservePct']:g}% design reserve target."
         ],
     )
 

@@ -73,6 +73,18 @@ def register_asset(ctx: FeatureContext, v: dict) -> dict:
     )
 
 
+def _read_register(ctx: FeatureContext, filename: str, key: str) -> list[dict]:
+    path = ctx.path(f"11 Exports/{filename}")
+    if path is None or not path.exists():
+        return []
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        rows = loaded.get(key, []) if isinstance(loaded, dict) else []
+        return [r for r in rows if isinstance(r, dict)]
+    except ValueError:
+        return []
+
+
 @feature(
     "mepSystemsMaintenance.assetTag",
     "Asset Tag",
@@ -83,26 +95,37 @@ def register_asset(ctx: FeatureContext, v: dict) -> dict:
     ],
 )
 def asset_tag(ctx: FeatureContext, v: dict) -> dict:
-    """Prepare a tagged asset schedule row from a real model equipment item."""
+    """Assign a unique maintenance tag to a real MEP equipment item and persist the tag register."""
     item = _asset(ctx, v["assetId"])
     tag = v["tag"].strip()
     if not tag:
         raise FeatureInputError("Enter a non-empty maintenance tag.")
-    path = _export(
-        ctx,
-        "mep-asset-tags.json",
-        {"assets": [{"id": item["id"], "tag": tag, "name": item.get("name", "")}]},
-    )
+    existing = _read_register(ctx, "mep-asset-tags.json", "assets")
+    for row in existing:
+        if row.get("tag") == tag and str(row.get("id")) != str(item["id"]):
+            raise FeatureInputError(
+                f"Tag {tag!r} is already assigned to equipment {row.get('id')}."
+            )
+    updated = {str(r.get("id")): r for r in existing if r.get("id") is not None}
+    updated[str(item["id"])] = {
+        "id": item["id"],
+        "tag": tag,
+        "name": item.get("name") or item.get("kind", ""),
+        "kind": item.get("kind", ""),
+        "story": item.get("story", ""),
+    }
+    rows = list(updated.values())
+    path = _export(ctx, "mep-asset-tags.json", {"assets": rows})
     return result(
-        {"assetId": str(item["id"]), "tag": tag, "exportPath": path},
+        {"assetId": str(item["id"]), "tag": tag, "taggedCount": len(rows), "exportPath": path},
         [
             table(
-                "Asset tag",
-                [("id", "Equipment ID"), ("tag", "Tag"), ("name", "Equipment")],
-                [{"id": item["id"], "tag": tag, "name": item.get("name", "")}],
+                "Asset tag register",
+                [("id", "Equipment ID"), ("tag", "Tag"), ("kind", "Kind"), ("story", "Story")],
+                rows,
             )
         ],
-        ["The tag is associated with the selected model equipment in the exported schedule."],
+        [f"Validated tag uniqueness across {len(rows)} equipment asset(s)."],
     )
 
 
@@ -227,31 +250,57 @@ def service_interval(ctx: FeatureContext, v: dict) -> dict:
     fields=[
         text("assetId", "Equipment ID", "equipment-1"),
         text("task", "Service task", "Inspect and service"),
+        select(
+            "priority",
+            "Priority",
+            [("Routine", "Routine"), ("Urgent", "Urgent"), ("Shutdown", "Shutdown")],
+            "Routine",
+        ),
     ],
 )
 def work_order(ctx: FeatureContext, v: dict) -> dict:
-    """Create a work-order report linked to an equipment item and its operating data."""
+    """Issue a numbered work order linked to real equipment operating data and append to WO register."""
+    from datetime import date
+
     item = _asset(ctx, v["assetId"])
-    if not v["task"].strip():
+    task = v["task"].strip()
+    if not task:
         raise FeatureInputError("Enter the maintenance task for the work order.")
+    orders = _read_register(ctx, "mep-work-order.json", "workOrders")
+    wo_id = f"WO-{len(orders) + 1:04d}"
     order = {
+        "woId": wo_id,
         "assetId": item["id"],
-        "assetName": item.get("name", ""),
-        "task": v["task"].strip(),
-        "story": item.get("story"),
-        "operatingWeightKn": item.get("operatingWeight"),
+        "assetName": item.get("name") or item.get("kind", ""),
+        "task": task,
+        "priority": v["priority"],
+        "story": item.get("story", ""),
+        "operatingWeightKn": item.get("operatingWeight", 0.0),
+        "issuedDate": date.today().isoformat(),
     }
-    path = _export(ctx, "mep-work-order.json", {"workOrder": order})
+    orders.append(order)
+    path = _export(ctx, "mep-work-order.json", {"workOrders": orders})
     return result(
-        {"assetId": str(item["id"]), "exportPath": path},
+        {
+            "woId": wo_id,
+            "assetId": str(item["id"]),
+            "totalWorkOrders": len(orders),
+            "exportPath": path,
+        },
         [
             table(
-                "Work order",
-                [("property", "Property"), ("value", "Value")],
-                [{"property": k, "value": val} for k, val in order.items()],
+                "Work order register",
+                [
+                    ("woId", "WO #"),
+                    ("assetId", "Equipment"),
+                    ("priority", "Priority"),
+                    ("task", "Task"),
+                    ("issuedDate", "Issued"),
+                ],
+                orders[-25:],
             )
         ],
-        ["Review the task and safe-work controls before issuing this work order."],
+        [f"Issued {wo_id} against {item['id']} ({len(orders)} total in register)."],
     )
 
 
@@ -684,30 +733,46 @@ def replacement_plan(ctx: FeatureContext, v: dict) -> dict:
     ],
 )
 def maintenance_log(ctx: FeatureContext, v: dict) -> dict:
-    """Create a maintenance log entry that references the selected model equipment."""
+    """Append a dated service entry tied to a model asset and maintain cumulative service count."""
+    from datetime import date
+
     item = _asset(ctx, v["assetId"])
-    if not v["action"].strip() or not v["technician"].strip():
+    action = v["action"].strip()
+    tech = v["technician"].strip()
+    if not action or not tech:
         raise FeatureInputError("Enter both the maintenance action and technician.")
+    entries = _read_register(ctx, "mep-maintenance-log.json", "entries")
     entry = {
+        "date": date.today().isoformat(),
         "assetId": item["id"],
-        "assetName": item.get("name", ""),
-        "action": v["action"].strip(),
-        "technician": v["technician"].strip(),
-        "story": item.get("story"),
+        "assetName": item.get("name") or item.get("kind", ""),
+        "action": action,
+        "technician": tech,
+        "story": item.get("story", ""),
     }
-    path = _export(ctx, "mep-maintenance-log.json", {"entries": [entry]})
+    entries.append(entry)
+    path = _export(ctx, "mep-maintenance-log.json", {"entries": entries})
+    asset_services = sum(1 for e in entries if str(e.get("assetId")) == str(item["id"]))
     return result(
-        {"assetId": str(item["id"]), "exportPath": path},
+        {
+            "assetId": str(item["id"]),
+            "assetServiceCount": asset_services,
+            "totalLogEntries": len(entries),
+            "exportPath": path,
+        },
         [
             table(
-                "Maintenance log entry",
-                [("property", "Property"), ("value", "Value")],
-                [{"property": k, "value": value} for k, value in entry.items()],
+                "Maintenance log ledger",
+                [
+                    ("date", "Date"),
+                    ("assetId", "Asset"),
+                    ("action", "Action"),
+                    ("technician", "Technician"),
+                ],
+                entries[-25:],
             )
         ],
-        [
-            "The log entry is linked to the selected model element; add the service date in the project record."
-        ],
+        [f"Recorded service #{asset_services} for {item['id']} ({len(entries)} total entries)."],
     )
 
 
@@ -791,27 +856,53 @@ def meter_reading(ctx: FeatureContext, v: dict) -> dict:
     ],
 )
 def compliance_cert(ctx: FeatureContext, v: dict) -> dict:
-    """Prepare a certificate register record linked to a model equipment asset."""
+    """Validate certificate expiry date, compute days remaining, and update register."""
+    from datetime import date
+
     item = _asset(ctx, v["assetId"])
-    if not v["certificate"].strip() or not v["expiryDate"].strip():
+    ref = v["certificate"].strip()
+    expiry_str = v["expiryDate"].strip()
+    if not ref or not expiry_str:
         raise FeatureInputError("Enter the certificate reference and its expiry date.")
+    try:
+        expiry = date.fromisoformat(expiry_str)
+    except ValueError as exc:
+        raise FeatureInputError(f"Expiry date {expiry_str!r} must use YYYY-MM-DD format.") from exc
+    days_left = (expiry - date.today()).days
+    status = "Expired" if days_left < 0 else ("ExpiringSoon" if days_left <= 30 else "Valid")
+    certs = _read_register(ctx, "mep-compliance-certificates.json", "certificates")
+    by_key = {(str(c.get("assetId")), str(c.get("certificateReference"))): c for c in certs}
     cert = {
         "assetId": item["id"],
-        "assetName": item.get("name", ""),
-        "certificateReference": v["certificate"].strip(),
-        "expiryDate": v["expiryDate"].strip(),
+        "assetName": item.get("name") or item.get("kind", ""),
+        "certificateReference": ref,
+        "expiryDate": expiry.isoformat(),
+        "daysRemaining": days_left,
+        "status": status,
     }
-    path = _export(ctx, "mep-compliance-certificates.json", {"certificates": [cert]})
+    by_key[(str(item["id"]), ref)] = cert
+    rows = list(by_key.values())
+    path = _export(ctx, "mep-compliance-certificates.json", {"certificates": rows})
     return result(
-        {"assetId": str(item["id"]), "expiryDate": cert["expiryDate"], "exportPath": path},
+        {
+            "assetId": str(item["id"]),
+            "expiryDate": cert["expiryDate"],
+            "daysRemaining": days_left,
+            "status": status,
+            "exportPath": path,
+        },
         [
             table(
-                "Certificate register",
-                [("property", "Property"), ("value", "Value")],
-                [{"property": k, "value": value} for k, value in cert.items()],
+                "Compliance certificate register",
+                [
+                    ("assetId", "Asset"),
+                    ("certificateReference", "Cert Ref"),
+                    ("expiryDate", "Expiry"),
+                    ("daysRemaining", "Days"),
+                    ("status", "Status"),
+                ],
+                rows,
             )
         ],
-        [
-            "Check the certificate issuer, scope and validity date before relying on this register entry."
-        ],
+        [f"Validated ISO expiry date ({status}, {days_left} day(s) remaining)."],
     )

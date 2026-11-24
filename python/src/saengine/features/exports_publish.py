@@ -331,11 +331,37 @@ def transmittal_sheet(ctx: FeatureContext, values: dict) -> dict:
     ],
 )
 def cover_letter(ctx: FeatureContext, values: dict) -> dict:
-    """Generate a plain-text cover letter from user-supplied project and recipient details."""
-    body = f"To: {values['recipient']}\nSubject: {values['subject']}\n\nRe: {values['project']}\n\n{values['message']}\n\nRegards,\nProject team\n"
+    """Assemble a cover letter citing project settings title and packaged deliverables."""
+    settings = ctx.raw("settings")
+    project_title = values["project"].strip()
+    if not project_title and isinstance(settings, dict):
+        proj = settings.get("project")
+        if isinstance(proj, dict) and isinstance(proj.get("name"), str):
+            project_title = proj["name"]
+    if not project_title and ctx.root is not None:
+        project_title = ctx.root.name
+    pkg_dir = ctx.root / "11 Exports" / "Packages" if ctx.root is not None else None
+    enclosures = (
+        [
+            f"- {p.name} ({p.stat().st_size} bytes, sha256:{hashlib.sha256(p.read_bytes()).hexdigest()[:12]})"
+            for p in sorted(pkg_dir.iterdir())
+            if p.is_file() and p.name != "cover-letter.txt"
+        ]
+        if pkg_dir is not None and pkg_dir.is_dir()
+        else []
+    )
+    enclosure_block = "\nEnclosures:\n" + "\n".join(enclosures) if enclosures else ""
+    body = (
+        f"To: {values['recipient']}\n"
+        f"Subject: {values['subject']}\n\n"
+        f"Re: {project_title}\n\n"
+        f"{values['message']}\n"
+        f"{enclosure_block}\n\n"
+        "Regards,\nProject team\n"
+    )
     path = write_export_text(ctx, "cover-letter.txt", body, "Packages")
     return result(
-        summary={"letterPath": path, "characters": len(body)},
+        summary={"letterPath": path, "characters": len(body), "enclosureCount": len(enclosures)},
         notes=["The letter is a draft text file and is not transmitted."],
     )
 

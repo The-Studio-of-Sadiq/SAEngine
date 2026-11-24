@@ -181,32 +181,84 @@ def componentData(ctx: FeatureContext, values: dict) -> dict:
     "mepBrowser.designChecks",
     "Design Checks",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
+    fields=[text("discipline", "Filter discipline (blank=all, plumbing/hvac/electrical/fire)", "")],
     requires_project=True,
 )
 def designChecks(ctx: FeatureContext, values: dict) -> dict:
-    """Design Checks: Analysis."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Run full integrated MEP systems verification across 07 MEP/mep.json."""
+    from saengine.library.bim import BuildingModel
+    from saengine.library.mep import MepModel
+    from saengine.mep import systems
+
+    if ctx.root is None:
+        raise FeatureInputError(
+            "Open a project with 07 MEP/mep.json before running MEP design checks."
+        )
+    raw = ctx.raw("mep")
+    if not isinstance(raw, dict):
+        raise FeatureInputError("Missing 07 MEP/mep.json in project.")
+    try:
+        mep = MepModel.model_validate(raw)
+    except ValueError as error:
+        raise FeatureInputError(f"Invalid 07 MEP/mep.json: {error}") from error
+    raw_bim = ctx.raw("bim")
+    building = None
+    if isinstance(raw_bim, dict):
+        try:
+            building = BuildingModel.model_validate(raw_bim)
+        except ValueError:
+            building = None
+    report = systems.analyze_systems(mep, building)
+    issues = report.get("issues", [])
+    filt = values["discipline"].strip().lower()
+    if filt:
+        issues = [
+            i
+            for i in issues
+            if filt in str(i.get("classification") or i.get("kind") or "").lower()
+            or filt in str(i.get("message", "")).lower()
+        ]
+    rows = [
+        {
+            "discipline": str(i.get("classification") or i.get("kind") or "mep"),
+            "severity": str(i.get("severity", "")),
+            "element": ", ".join(str(e) for e in (i.get("elements") or [])) or "-",
+            "message": str(i.get("message", "")),
+        }
+        for i in issues[:40]
+    ]
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "totalIssues": len(issues),
+            "errors": sum(
+                1 for i in issues if str(i.get("severity", "")).lower() in ("error", "fail")
+            ),
+            "warnings": sum(
+                1 for i in issues if str(i.get("severity", "")).lower() in ("warning", "warn")
+            ),
         },
         tables=[
             table(
-                "Design Checks",
-                [("item", "Item"), ("value", "Value")],
+                "Integrated MEP design checks",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("discipline", "Discipline"),
+                    ("severity", "Severity"),
+                    ("element", "Element"),
+                    ("message", "Finding"),
+                ],
+                rows
+                or [
+                    {
+                        "discipline": "all",
+                        "severity": "ok",
+                        "element": "-",
+                        "message": "No issues detected.",
+                    }
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Evaluated directly via saengine.mep.systems.analyze_systems against active project code pack."
         ],
     )
 

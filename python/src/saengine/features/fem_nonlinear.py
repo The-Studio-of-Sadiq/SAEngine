@@ -565,31 +565,58 @@ def convergence_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def restart_point(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record nonlinear solver checkpoint metadata against 08 FEM/model.osmodel."""
+    """Compute checkpoint schedule and estimate storage overhead against 08 FEM/model.osmodel."""
+    import json
+
     _, model = optional_osmodel(ctx)
     if model is None:
         raise FeatureInputError(
             "Derive 08 FEM/model.osmodel first to configure restart checkpoints."
         )
-    path = export_fem_file(
-        ctx,
-        "nonlinear-checkpoint.json",
-        f'{{"saveIntervalSteps": {int(values["saveIntervalSteps"])}, "nodes": {len(model.get("nodes", []))}}}\n',
-    )
-    rows = [{"intervalSteps": int(values["saveIntervalSteps"]), "checkpointPath": str(path)}]
+    interval = max(1, int(values["saveIntervalSteps"]))
+    nodes = len(model.get("nodes", []))
+    elements = len(model.get("elements", []))
+    cases = model.get("cases") or model.get("loadCases") or []
+    total_steps = sum(int(c.get("steps", 50) or 50) for c in cases if isinstance(c, dict)) or 50
+    checkpoints = max(1, math.ceil(total_steps / interval))
+    est_kb = round(checkpoints * (nodes * 6 * 8 + elements * 12 * 8) / 1024.0, 1)
+    payload = {
+        "saveIntervalSteps": interval,
+        "nodes": nodes,
+        "elements": elements,
+        "totalPlannedSteps": total_steps,
+        "estimatedCheckpoints": checkpoints,
+        "estimatedStorageKb": est_kb,
+    }
+    path = export_fem_file(ctx, "nonlinear-checkpoint.json", json.dumps(payload, indent=2) + "\n")
+    rows = [
+        {
+            "intervalSteps": interval,
+            "checkpoints": checkpoints,
+            "estimatedStorageKb": est_kb,
+            "checkpointPath": str(path),
+        }
+    ]
     return result(
         summary={
-            "saveIntervalSteps": int(values["saveIntervalSteps"]),
+            "saveIntervalSteps": interval,
+            "estimatedCheckpoints": checkpoints,
+            "estimatedStorageKb": est_kb,
             "checkpointPath": str(path),
         },
         tables=[
             table(
-                "Restart checkpoint settings",
-                [("intervalSteps", "Interval"), ("checkpointPath", "Metadata Path")],
+                "Restart checkpoint schedule",
+                [
+                    ("intervalSteps", "Interval"),
+                    ("checkpoints", "Checkpoints"),
+                    ("estimatedStorageKb", "Est. Size", "KB"),
+                    ("checkpointPath", "Metadata Path"),
+                ],
                 rows,
             )
         ],
-        notes=[f"Checkpoint metadata written to {path}"],
+        notes=[f"Checkpoint plan ({checkpoints} saves, ~{est_kb} KB) written to {path}."],
     )
 
 

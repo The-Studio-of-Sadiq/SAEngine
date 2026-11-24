@@ -15,33 +15,66 @@ from saengine.features import (
 )
 from saengine.features.overview_common import (
     boq_items,
-    json_text,
     list_bim,
     list_objects,
+    load_export_json,
+    now_iso,
+    project_kpis,
+    project_name,
     require_project,
+    save_export_json,
     write_export,
 )
+
+
+def _load_dashboard(ctx: FeatureContext) -> dict[str, Any]:
+    data = load_export_json(ctx, "11 Exports", "dashboard-state.json", {})
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 @feature(
     "overviewDashboard.addKpi",
     "Add KPI",
     part="settings",
-    fields=[text("name", "KPI name", ""), number("value", "Value", 0.0, unit="value")],
+    fields=[text("name", "KPI name", ""), number("kpiValue", "KPI value", 0.0, unit="value")],
     requires_project=True,
 )
 def add_kpi(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a KPI record for the project dashboard."""
-    if not values["name"].strip():
+    """Store a KPI in persistent dashboard state and compare against any existing target."""
+    kpi_name = values["name"].strip()
+    if not kpi_name:
         raise FeatureInputError("Enter a KPI name.")
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "dashboard-kpis.json",
-        json_text({"name": values["name"], "value": values["value"]}),
-    )
+    state = _load_dashboard(ctx)
+    kpis = state.setdefault("kpis", {})
+    targets = state.get("targets", {})
+    val = float(values["kpiValue"])
+    target = targets.get(kpi_name)
+    variance = round(val - float(target), 3) if isinstance(target, (int, float)) else None
+    kpis[kpi_name] = {
+        "name": kpi_name,
+        "value": val,
+        "target": target,
+        "variance": variance,
+        "updatedAt": now_iso(),
+    }
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    rows = list(kpis.values())
     return result(
-        summary={"name": values["name"], "value": values["value"], "exportPath": str(path)}
+        summary={"name": kpi_name, "value": val, "kpiCount": len(rows), "exportPath": str(path)},
+        tables=[
+            table(
+                "Dashboard KPIs",
+                [
+                    ("name", "KPI"),
+                    ("value", "Value"),
+                    ("target", "Target"),
+                    ("variance", "Variance"),
+                ],
+                rows,
+            )
+        ],
     )
 
 
@@ -53,15 +86,37 @@ def add_kpi(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def set_target(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a KPI target."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "dashboard-target.json",
-        json_text({"kpi": values["kpi"], "target": values["target"]}),
-    )
+    """Set a KPI target and evaluate variance against stored or live project KPI values."""
+    kpi_name = values["kpi"].strip()
+    if not kpi_name:
+        raise FeatureInputError("Enter a KPI name to assign a target.")
+    state = _load_dashboard(ctx)
+    targets = state.setdefault("targets", {})
+    target_val = float(values["target"])
+    targets[kpi_name] = target_val
+    live = project_kpis(ctx)
+    kpis = state.setdefault("kpis", {})
+    actual = kpis[kpi_name]["value"] if kpi_name in kpis else live.get(kpi_name)
+    variance = round(float(actual) - target_val, 3) if isinstance(actual, (int, float)) else None
+    if kpi_name in kpis:
+        kpis[kpi_name]["target"] = target_val
+        kpis[kpi_name]["variance"] = variance
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    rows = [
+        {"kpi": k, "target": v, "actual": kpis.get(k, {}).get("value", live.get(k))}
+        for k, v in sorted(targets.items())
+    ]
     return result(
-        summary={"kpi": values["kpi"], "target": values["target"], "exportPath": str(path)}
+        summary={
+            "kpi": kpi_name,
+            "target": target_val,
+            "variance": variance,
+            "targetCount": len(rows),
+            "exportPath": str(path),
+        },
+        tables=[
+            table("KPI targets", [("kpi", "KPI"), ("actual", "Actual"), ("target", "Target")], rows)
+        ],
     )
 
 
@@ -191,11 +246,28 @@ def custom_chart(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def arrange_layout(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a dashboard layout name export."""
-    path = write_export(
-        ctx, "11 Exports", "dashboard-layout.json", json_text({"layout": values["layout"]})
+    """Update active dashboard layout and compute widget grid slot allocation."""
+    layout_name = values["layout"].strip() or "Engineering overview"
+    state = _load_dashboard(ctx)
+    widgets = state.get("widgets", [])
+    columns = 2 if len(widgets) <= 4 else 3
+    rows = max(1, (len(widgets) + columns - 1) // columns)
+    state["layout"] = {
+        "name": layout_name,
+        "columns": columns,
+        "rows": rows,
+        "updatedAt": now_iso(),
+    }
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    return result(
+        summary={
+            "layout": layout_name,
+            "widgetCount": len(widgets),
+            "columns": columns,
+            "rows": rows,
+            "exportPath": str(path),
+        }
     )
-    return result(summary={"layout": values["layout"], "exportPath": str(path)})
 
 
 @feature(
@@ -245,18 +317,28 @@ def set_threshold(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     requires_project=True,
 )
 def alert_recipients(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write alert recipients to a local export."""
+    """Validate alert recipient addresses and update persistent dashboard alert subscribers."""
     recipients = [item.strip() for item in values["recipients"].split(",") if item.strip()]
-    path = write_export(
-        ctx, "11 Exports", "alert-recipients.json", json_text({"recipients": recipients})
-    )
+    if not recipients:
+        raise FeatureInputError("Enter at least one alert recipient.")
+    rows = [
+        {"recipient": r, "syntaxValid": "@" in r and "." in r.rsplit("@", 1)[-1]}
+        for r in recipients
+    ]
+    state = _load_dashboard(ctx)
+    state["alertRecipients"] = rows
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
     return result(
-        summary={"recipientCount": len(recipients), "exportPath": str(path)},
+        summary={
+            "recipientCount": len(rows),
+            "invalidCount": sum(not row["syntaxValid"] for row in rows),
+            "exportPath": str(path),
+        },
         tables=[
             table(
                 "Alert recipients",
-                [("recipient", "Recipient")],
-                [{"recipient": recipient} for recipient in recipients],
+                [("recipient", "Recipient"), ("syntaxValid", "Valid syntax")],
+                rows,
             )
         ],
     )
@@ -273,15 +355,39 @@ def alert_recipients(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     requires_project=True,
 )
 def snooze_alert(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write an alert snooze record."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "alert-snooze.json",
-        json_text({"alert": values["alert"], "hours": values["hours"]}),
+    """Compute snooze expiry UTC timestamp and persist muted dashboard alerts."""
+    from datetime import UTC, datetime, timedelta
+
+    alert_name = values["alert"].strip()
+    if not alert_name:
+        raise FeatureInputError("Enter an alert name to snooze.")
+    until = (datetime.now(UTC) + timedelta(hours=float(values["hours"]))).isoformat(
+        timespec="seconds"
     )
+    state = _load_dashboard(ctx)
+    snoozes = [s for s in state.get("snoozes", []) if s.get("alert") != alert_name]
+    entry = {"alert": alert_name, "hours": float(values["hours"]), "snoozedUntilUtc": until}
+    snoozes.append(entry)
+    state["snoozes"] = snoozes
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
     return result(
-        summary={"alert": values["alert"], "hours": values["hours"], "exportPath": str(path)}
+        summary={
+            "alert": alert_name,
+            "hours": entry["hours"],
+            "snoozedUntilUtc": until,
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Snoozed alerts",
+                [
+                    ("alert", "Alert"),
+                    ("hours", "Duration", "h"),
+                    ("snoozedUntilUtc", "Snoozed until UTC"),
+                ],
+                snoozes,
+            )
+        ],
     )
 
 
@@ -293,11 +399,32 @@ def snooze_alert(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def add_widget(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a dashboard widget configuration."""
-    path = write_export(
-        ctx, "11 Exports", "dashboard-widget.json", json_text({"widget": values["widget"]})
+    """Append a widget populated with live project metrics to dashboard state."""
+    widget_name = values["widget"].strip()
+    if not widget_name:
+        raise FeatureInputError("Enter a widget name.")
+    live = project_kpis(ctx)
+    state = _load_dashboard(ctx)
+    widgets = state.setdefault("widgets", [])
+    widgets.append(
+        {
+            "id": f"W-{len(widgets) + 1:02d}",
+            "widget": widget_name,
+            "metrics": live,
+            "addedAt": now_iso(),
+        }
     )
-    return result(summary={"widget": values["widget"], "exportPath": str(path)})
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    return result(
+        summary={"widget": widget_name, "widgetCount": len(widgets), "exportPath": str(path)},
+        tables=[
+            table(
+                "Dashboard widgets",
+                [("id", "ID"), ("widget", "Widget"), ("addedAt", "Added UTC")],
+                widgets,
+            )
+        ],
+    )
 
 
 @feature(
@@ -308,11 +435,39 @@ def add_widget(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def filter_controls(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Store a dashboard filter expression."""
-    path = write_export(
-        ctx, "11 Exports", "dashboard-filter.json", json_text({"filter": values["filter"]})
+    """Apply a filter keyword across live project BIM elements and BOQ items and store it."""
+    needle = values["filter"].strip().lower()
+    elements, _ = list_bim(ctx)
+    items = boq_items(ctx)
+    matched_bim = [
+        e
+        for e in elements
+        if not needle
+        or needle in str(e.get("kind", "")).lower()
+        or needle in str(e.get("id", "")).lower()
+    ]
+    matched_boq = [
+        b
+        for b in items
+        if not needle
+        or needle in str(b.get("description", "")).lower()
+        or needle in str(b.get("trade", "")).lower()
+    ]
+    state = _load_dashboard(ctx)
+    state["activeFilter"] = {
+        "expression": values["filter"].strip(),
+        "matchedBim": len(matched_bim),
+        "matchedBoq": len(matched_boq),
+    }
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    return result(
+        summary={
+            "filter": values["filter"].strip(),
+            "matchedBim": len(matched_bim),
+            "matchedBoq": len(matched_boq),
+            "exportPath": str(path),
+        }
     )
-    return result(summary={"filter": values["filter"], "exportPath": str(path)})
 
 
 @feature(
@@ -323,25 +478,33 @@ def filter_controls(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def widget_properties(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write widget properties JSON."""
+    """Validate and merge JSON configuration onto a dashboard widget."""
     import json
 
+    widget_name = values["widget"].strip()
+    if not widget_name:
+        raise FeatureInputError("Enter a widget name.")
     try:
         properties = json.loads(values["properties"])
     except json.JSONDecodeError as error:
         raise FeatureInputError("Properties must be valid JSON.") from error
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "widget-properties.json",
-        json_text({"widget": values["widget"], "properties": properties}),
+    if not isinstance(properties, dict):
+        raise FeatureInputError("Widget properties must be a JSON object.")
+    state = _load_dashboard(ctx)
+    widgets = state.setdefault("widgets", [])
+    target = next(
+        (w for w in widgets if w.get("widget") == widget_name or w.get("id") == widget_name), None
     )
+    if target is None:
+        target = {"id": f"W-{len(widgets) + 1:02d}", "widget": widget_name, "addedAt": now_iso()}
+        widgets.append(target)
+    merged = {**(target.get("properties") or {}), **properties}
+    target["properties"] = merged
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    rows = [{"property": k, "value": str(v)} for k, v in merged.items()]
     return result(
-        summary={
-            "widget": values["widget"],
-            "propertyCount": len(properties) if isinstance(properties, dict) else 0,
-            "exportPath": str(path),
-        }
+        summary={"widget": widget_name, "propertyCount": len(merged), "exportPath": str(path)},
+        tables=[table("Widget properties", [("property", "Property"), ("value", "Value")], rows)],
     )
 
 
@@ -353,18 +516,61 @@ def widget_properties(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     requires_project=True,
 )
 def export_pdf(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export a Markdown dashboard report in place of a binary PDF."""
-    elements, stories = list_bim(ctx)
-    report = f"# {values['filename']}\\n\\n- Objects: {len(list_objects(ctx))}\\n- BIM elements: {len(elements)}\\n- Stories: {len(stories)}\\n"
+    """Assemble live project metrics, BIM breakdowns, BOQ cost totals, and KPIs into Markdown."""
+    live = project_kpis(ctx)
+    elements, _stories = list_bim(ctx)
+    state = _load_dashboard(ctx)
+    by_kind: dict[str, int] = {}
+    for elem in elements:
+        k = str(elem.get("kind", "unknown"))
+        by_kind[k] = by_kind.get(k, 0) + 1
+    lines = [
+        f"# {project_name(ctx)} — Executive Dashboard Report",
+        "",
+        "## Key Project Metrics",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        f"| Objects | {live['objects']} |",
+        f"| BIM Elements | {live['bimElements']} |",
+        f"| Stories | {live['stories']} |",
+        f"| BOQ Line Items | {live['boqItems']} |",
+        f"| BOQ Total Amount | {live['boqAmount']:,.2f} |",
+        "",
+        "## BIM Element Breakdown",
+        "",
+        "| Element Kind | Count |",
+        "| --- | ---: |",
+    ]
+    for kind, cnt in sorted(by_kind.items()):
+        lines.append(f"| {kind} | {cnt} |")
+    if not by_kind:
+        lines.append("| None | 0 |")
+    kpis = list((state.get("kpis") or {}).values())
+    if kpis:
+        lines.extend(
+            ["", "## Configured KPIs", "", "| KPI | Value | Target |", "| --- | ---: | ---: |"]
+        )
+        for row in kpis:
+            lines.append(f"| {row['name']} | {row['value']} | {row.get('target', '-')} |")
     name = values["filename"].strip().replace(" ", "-") or "dashboard-report"
-    path = write_export(ctx, "11 Exports", f"{name}.md", report)
+    path = write_export(ctx, "11 Exports", f"{name}.md", "\n".join(lines) + "\n")
     return result(
         summary={
             "exportPath": str(path),
-            "bimElements": len(elements),
-            "objectCount": len(list_objects(ctx)),
+            "bimElements": live["bimElements"],
+            "objectCount": live["objects"],
+            "boqAmount": live["boqAmount"],
+            "kpiCount": len(kpis),
         },
-        notes=[f"Markdown report written to {path}; binary PDF generation is not requested."],
+        tables=[
+            table(
+                "BIM element breakdown",
+                [("kind", "Kind"), ("count", "Count")],
+                [{"kind": k, "count": v} for k, v in sorted(by_kind.items())],
+            )
+        ],
+        notes=[f"Markdown executive dashboard report written to {path}."],
     )
 
 
@@ -376,21 +582,38 @@ def export_pdf(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def scheduled_email(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write scheduled-report metadata locally; no email is sent."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "scheduled-report.json",
-        json_text({"recipient": values["recipient"], "schedule": values["schedule"]}),
+    """Validate recipient address and update persistent scheduled-digest subscriptions."""
+    recipient = values["recipient"].strip()
+    if not recipient or "@" not in recipient or "." not in recipient.rsplit("@", 1)[-1]:
+        raise FeatureInputError("Enter a valid email address for the scheduled digest.")
+    state = _load_dashboard(ctx)
+    subs = [s for s in state.get("scheduledDigests", []) if s.get("recipient") != recipient]
+    subs.append(
+        {
+            "recipient": recipient,
+            "schedule": values["schedule"],
+            "kpisIncluded": len(state.get("kpis", {})),
+            "updatedAt": now_iso(),
+        }
     )
+    state["scheduledDigests"] = subs
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
     return result(
         summary={
-            "recipient": values["recipient"],
+            "recipient": recipient,
             "schedule": values["schedule"],
+            "subscriptionCount": len(subs),
             "networkAccess": False,
             "exportPath": str(path),
         },
-        notes=["Email metadata is local; no message was sent."],
+        tables=[
+            table(
+                "Scheduled digests",
+                [("recipient", "Recipient"), ("schedule", "Cadence"), ("updatedAt", "Updated UTC")],
+                subs,
+            )
+        ],
+        notes=["Scheduled digest saved locally; no network message was sent."],
     )
 
 
@@ -402,19 +625,35 @@ def scheduled_email(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def report_template(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a report-template manifest."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "dashboard-template.json",
-        json_text(
-            {
-                "template": values["templateName"],
-                "sections": ["Project metrics", "BIM summary", "BOQ summary"],
-            }
-        ),
+    """Bind project live metrics and section schema into a persistent dashboard report template."""
+    live = project_kpis(ctx)
+    state = _load_dashboard(ctx)
+    sections = [
+        {"section": "Project metrics", "itemCount": live["objects"]},
+        {"section": "BIM summary", "itemCount": live["bimElements"]},
+        {"section": "BOQ summary", "itemCount": live["boqItems"]},
+        {"section": "Configured KPIs", "itemCount": len(state.get("kpis", {}))},
+    ]
+    state["reportTemplate"] = {
+        "template": values["templateName"].strip() or "Engineering Dashboard",
+        "sections": sections,
+        "updatedAt": now_iso(),
+    }
+    path = save_export_json(ctx, "11 Exports", "dashboard-state.json", state)
+    return result(
+        summary={
+            "templateName": state["reportTemplate"]["template"],
+            "sectionCount": len(sections),
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Report template sections",
+                [("section", "Section"), ("itemCount", "Items")],
+                sections,
+            )
+        ],
     )
-    return result(summary={"templateName": values["templateName"], "exportPath": str(path)})
 
 
 @feature(

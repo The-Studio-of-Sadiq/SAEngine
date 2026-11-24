@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC
 from typing import Any
 
 from saengine.features import FeatureContext, checkbox, feature, number, result, select, table, text
@@ -131,16 +132,30 @@ def study_results(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     ],
 )
 def option_sets(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Save a set of design options."""
+    """Build mutually-exclusive design option set tied to live 06 BIM element count & footprint."""
+    from saengine.features.bim_common import element_extent
+
     data = require_bim(ctx)
     ids = [v.strip() for v in str(values["optionIds"]).split(",") if v.strip()]
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    footprint_m2 = round(((xmax - xmin) * (ymax - ymin)) / 1e6, 1)
     payload = {
         "name": values["setName"].strip() or "Envelope",
         "optionIds": ids,
-        "elementCount": len(data["elements"]),
+        "primaryOption": ids[0] if ids else None,
+        "baselineFootprintM2": footprint_m2,
+        "elementCount": len(data.get("elements") or []),
     }
     path = write_bim_json(ctx, "bim_option_set.json", payload)
-    return result(summary={"setName": payload["name"], "optionCount": len(ids), "exportPath": path})
+    return result(
+        summary={
+            "setName": payload["name"],
+            "optionCount": len(ids),
+            "footprintM2": footprint_m2,
+            "exportPath": path,
+        }
+    )
 
 
 @feature(
@@ -365,23 +380,39 @@ def option_variants(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "Report Export",
     part="bim",
     fields=[
-        select(
-            "format", "Report format", [("json", "JSON"), ("csv", "CSV"), ("html", "HTML")], "json"
-        ),
+        select("format", "Report format", [("json", "JSON"), ("csv", "CSV")], "json"),
         text("title", "Report title", "BIM Study Report"),
     ],
 )
 def report_export(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export a basic BIM study report."""
+    """Compile real BIM bounding extent, story heights, and category mix into a study report."""
+    from saengine.features.bim_common import element_extent, slab_area_m2, write_bim_csv
+
     data = require_bim(ctx)
-    payload = {
-        "title": values["title"],
-        "elementCount": len(data["elements"]),
-        "kindCounts": kind_counts(data),
-    }
-    path = write_bim_json(ctx, "bim_study_report.json", payload)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    slab_m2 = slab_area_m2(data)
+    counts = kind_counts(data)
+    if values["format"] == "csv":
+        rows = [{"category": k, "count": v} for k, v in sorted(counts.items())]
+        path = write_bim_csv(ctx, "bim_study_report.csv", ["category", "count"], rows)
+    else:
+        payload = {
+            "title": values["title"],
+            "elementCount": len(data.get("elements") or []),
+            "totalSlabAreaM2": slab_m2,
+            "planSpanXM": round((xmax - xmin) / 1000.0, 2),
+            "planSpanYM": round((ymax - ymin) / 1000.0, 2),
+            "kindCounts": counts,
+        }
+        path = write_bim_json(ctx, "bim_study_report.json", payload)
     return result(
-        summary={"format": values["format"], "title": values["title"], "exportPath": path}
+        summary={
+            "format": values["format"],
+            "slabAreaM2": slab_m2,
+            "elementCount": len(data.get("elements") or []),
+            "exportPath": path,
+        }
     )
 
 
@@ -490,21 +521,38 @@ def study_legend(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     part="bim",
     fields=[
         text("scenarioName", "Scenario name", "Peak demand"),
-        text("parameters", "Parameters", "loadFactor=1.2,windSpeed=25"),
+        number("loadFactor", "Gravity / Demand multiplier", 1.2, min=0.5, max=3.0),
+        number(
+            "carbonFactorKgPerM2",
+            "Benchmark embodied carbon intensity",
+            420.0,
+            unit="kgCO2e/m²",
+            min=50.0,
+        ),
     ],
 )
 def scenario_builder(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record a named study scenario."""
+    """Evaluate parametric structural/carbon scenario KPIs scaled across real BIM slab area."""
+    from saengine.features.bim_common import slab_area_m2
+
     data = require_bim(ctx)
-    params = [v.strip() for v in values["parameters"].split(",") if v.strip()]
+    slab_m2 = slab_area_m2(data)
+    eff_area = slab_m2 or float(len(data.get("elements") or [])) * 20.0
+    lf = float(values["loadFactor"])
+    tot_carbon_t = round(eff_area * float(values["carbonFactorKgPerM2"]) * (lf**0.5) / 1000.0, 1)
     payload = {
         "name": values["scenarioName"].strip() or "Peak demand",
-        "parameters": params,
-        "elementCount": len(data["elements"]),
+        "loadFactor": lf,
+        "evaluatedAreaM2": round(eff_area, 1),
+        "projectedCarbonTonnesCo2e": tot_carbon_t,
     }
     path = write_bim_json(ctx, "bim_scenario.json", payload)
     return result(
-        summary={"scenarioName": payload["name"], "parameterCount": len(params), "exportPath": path}
+        summary={
+            "scenarioName": payload["name"],
+            "projectedCarbonTonnes": tot_carbon_t,
+            "exportPath": path,
+        }
     )
 
 
@@ -545,22 +593,49 @@ def parameter_sweep(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     part="bim",
     fields=[
         text("captureName", "Capture name", "Envelope - run 1"),
-        text("notes", "Capture notes", ""),
+        text("notes", "Engineering takeaway", "Baseline structural framing metrics"),
     ],
 )
 def result_capture(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Capture named study metadata."""
+    """Snapshot real BIM metrics (counts, extents, slab area) and append comparison log."""
+    import json
+    from datetime import datetime
+
+    from saengine.features.bim_common import element_extent, slab_area_m2
+
     data = require_bim(ctx)
-    payload = {
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    slab_m2 = slab_area_m2(data)
+    entry = {
         "name": values["captureName"].strip() or "Study capture",
-        "notes": values["notes"],
-        "elementCount": len(data["elements"]),
+        "capturedAt": datetime.now(UTC).isoformat(timespec="seconds"),
+        "notes": values["notes"].strip(),
+        "elementCount": len(data.get("elements") or []),
+        "slabAreaM2": slab_m2,
+        "boundsM": [
+            round(xmin / 1000, 1),
+            round(ymin / 1000, 1),
+            round(xmax / 1000, 1),
+            round(ymax / 1000, 1),
+        ],
     }
-    path = write_bim_json(ctx, "bim_study_capture.json", payload)
+    reg = ctx.path("11 Exports/BIM/bim_study_capture.json")
+    captures: list[dict[str, Any]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                captures = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    captures.append(entry)
+    path = write_bim_json(ctx, "bim_study_capture.json", captures[-20:])
     return result(
         summary={
-            "captureName": payload["name"],
-            "elementCount": len(data["elements"]),
+            "captureName": entry["name"],
+            "slabAreaM2": slab_m2,
+            "totalCaptures": len(captures),
             "exportPath": path,
         }
     )

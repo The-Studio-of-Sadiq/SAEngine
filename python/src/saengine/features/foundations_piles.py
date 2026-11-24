@@ -561,8 +561,9 @@ def pile_cap_punching(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     return result(
         summary={
             "perimeterMm": res.b0,
-            "demandKn": res.vu / 1e3,
-            "capacityKn": res.phi_vc / 1e3,
+            "demandStressMpa": res.vu,
+            "capacityStressMpa": res.phi_vc,
+            "capacityKn": res.phi_vc * res.b0 * res.d / 1e3,
             "utilisation": res.utilisation,
             "ok": res.utilisation <= 1.0,
         },
@@ -573,8 +574,8 @@ def pile_cap_punching(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
                 [
                     {"metric": "Effective depth d", "value": d_mm, "unit": "mm"},
                     {"metric": "Critical perimeter b0", "value": res.b0, "unit": "mm"},
-                    {"metric": "Factored column shear Vu", "value": res.vu / 1e3, "unit": "kN"},
-                    {"metric": "Concrete capacity φVc", "value": res.phi_vc / 1e3, "unit": "kN"},
+                    {"metric": "Shear stress demand vu", "value": res.vu, "unit": "MPa"},
+                    {"metric": "Concrete resistance φvc", "value": res.phi_vc, "unit": "MPa"},
                     {"metric": "Utilisation", "value": res.utilisation, "unit": "-"},
                 ],
             )

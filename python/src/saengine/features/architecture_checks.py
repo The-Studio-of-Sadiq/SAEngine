@@ -233,25 +233,87 @@ def fire_compartment(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     fields=[text("title", "Report title", "Architecture Check Report")],
 )
 def architecture_report(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Compile a Markdown architecture report."""
+    """Run architecture validation, room metrics, and opening checks into a Markdown report."""
+    from saengine.library.architecture import check as check_arch
+
     arch = require_arch(ctx)
-    lines = [
-        "# " + values["title"],
-        "",
-        f"- Walls: {len(arch.walls)}",
-        f"- Doors: {len(arch.doors)}",
-        f"- Windows: {len(arch.windows)}",
-        f"- Rooms: {len(arch.rooms)}",
+    floor_plan = ctx.raw("floorPlan")
+    problems = check_arch(arch, floor_plan=floor_plan if isinstance(floor_plan, dict) else None)
+    rooms = room_metrics(ctx, arch)
+    wall_ids = {w.id for w in arch.walls}
+    opening_rows = [
+        {
+            "opening": o.id,
+            "kind": "Door" if o in arch.doors else "Window",
+            "host": o.wall,
+            "passes": o.wall in wall_ids,
+        }
+        for o in [*arch.doors, *arch.windows]
     ]
+    failed_openings = sum(not r["passes"] for r in opening_rows)
+    unbounded_rooms = sum(not r["bounded"] for r in rooms)
+    total_net_m2 = round(sum(r["netAreaM2"] for r in rooms), 2)
+    total_gross_m2 = round(sum(r["grossAreaM2"] for r in rooms), 2)
+
+    lines = [
+        f"# {values['title'].strip() or 'Architecture Check Report'}",
+        "",
+        "## Model Summary",
+        "",
+        "| Metric | Value |",
+        "| --- | --- |",
+        f"| Walls | {len(arch.walls)} |",
+        f"| Doors | {len(arch.doors)} |",
+        f"| Windows | {len(arch.windows)} |",
+        f"| Rooms (bounded / total) | {len(rooms) - unbounded_rooms} / {len(rooms)} |",
+        f"| Total Net Room Area | {total_net_m2:.2f} m² |",
+        f"| Total Gross Room Area | {total_gross_m2:.2f} m² |",
+        f"| Model Validation Issues | {len(problems)} |",
+        f"| Opening Host Failures | {failed_openings} |",
+        "",
+        "## Room Schedule",
+        "",
+        "| Room | Name | Story | Bounded | Gross Area (m²) | Net Area (m²) |",
+        "| --- | --- | --- | --- | ---: | ---: |",
+    ]
+    for r in rooms:
+        lines.append(
+            f"| {r['room']} | {r['name']} | {r['story']} | "
+            f"{'Yes' if r['bounded'] else 'No'} | {r['grossAreaM2']:.2f} | {r['netAreaM2']:.2f} |"
+        )
+    if not rooms:
+        lines.append("| - | No rooms defined | - | - | 0.00 | 0.00 |")
+    lines.extend(["", "## Validation Findings", ""])
+    if problems:
+        lines.extend(f"- {p}" for p in problems)
+    else:
+        lines.append("- No architecture model validation errors.")
+
     path = write_arch_export(ctx, "architecture-report.md", "\n".join(lines) + "\n")
     return result(
         summary={
             "wallCount": len(arch.walls),
             "doorCount": len(arch.doors),
             "windowCount": len(arch.windows),
-            "roomCount": len(arch.rooms),
+            "roomCount": len(rooms),
+            "totalNetAreaM2": total_net_m2,
+            "problemCount": len(problems) + failed_openings + unbounded_rooms,
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Architecture room summary",
+                [
+                    ("room", "Room"),
+                    ("name", "Name"),
+                    ("story", "Story"),
+                    ("bounded", "Bounded"),
+                    ("netAreaM2", "Net area", "m²"),
+                ],
+                rooms,
+            )
+        ],
+        problems=problems,
     )
 
 
@@ -262,18 +324,57 @@ def architecture_report(ctx: FeatureContext, values: dict[str, Any]) -> dict[str
     fields=[select("format", "Format", [("csv", "CSV"), ("json", "JSON")], "csv")],
 )
 def area_schedule(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Publish a room area schedule."""
+    """Compute room gross/net areas, building efficiency, and publish the area schedule."""
     arch = require_arch(ctx)
     rows = room_metrics(ctx, arch)
+    total_gross = round(sum(r["grossAreaM2"] for r in rows), 3)
+    total_net = round(sum(r["netAreaM2"] for r in rows), 3)
+    efficiency = round(total_net / total_gross, 4) if total_gross > 0 else 0.0
+    bounded = sum(1 for r in rows if r["bounded"])
     if values["format"] == "json":
-        path = write_json(ctx, "area-schedule.json", rows)
+        path = write_json(
+            ctx,
+            "area-schedule.json",
+            {
+                "roomCount": len(rows),
+                "boundedCount": bounded,
+                "totalGrossAreaM2": total_gross,
+                "totalNetAreaM2": total_net,
+                "netToGrossRatio": efficiency,
+                "rooms": rows,
+            },
+        )
     else:
         path = write_arch_export(
             ctx,
             "area-schedule.csv",
-            csv_text(["room", "name", "number", "story", "grossAreaM2", "netAreaM2"], rows),
+            csv_text(
+                ["room", "name", "number", "story", "bounded", "grossAreaM2", "netAreaM2"], rows
+            ),
         )
-    return result(summary={"roomCount": len(rows), "exportPath": path})
+    return result(
+        summary={
+            "roomCount": len(rows),
+            "boundedCount": bounded,
+            "totalGrossAreaM2": total_gross,
+            "totalNetAreaM2": total_net,
+            "netToGrossRatio": efficiency,
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Room area schedule",
+                [
+                    ("room", "Room"),
+                    ("name", "Name"),
+                    ("story", "Story"),
+                    ("grossAreaM2", "Gross area", "m²"),
+                    ("netAreaM2", "Net area", "m²"),
+                ],
+                rows,
+            )
+        ],
+    )
 
 
 @feature(
@@ -568,12 +669,56 @@ def fire_spread_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     fields=[text("reviewer", "Reviewer", ""), text("status", "Review status", "Open")],
 )
 def markup_review(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a markup-review register entry."""
-    path = write_json(
-        ctx, "markup-review.json", {"reviewer": values["reviewer"], "status": values["status"]}
-    )
+    """Validate architecture model state and append a timestamped markup-review entry."""
+    import json
+    from datetime import UTC, datetime
+
+    from saengine.library.architecture import check as check_arch
+
+    arch = require_arch(ctx)
+    reviewer = values["reviewer"].strip()
+    if not reviewer:
+        raise FeatureInputError("Enter a reviewer name before logging a markup review.")
+    problems = check_arch(arch)
+    assert ctx.root is not None
+    reg_path = ctx.root / "11 Exports" / "Architecture" / "markup-review.json"
+    entries: list[dict[str, Any]] = []
+    if reg_path.is_file():
+        try:
+            loaded = json.loads(reg_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                entries = loaded
+        except (OSError, ValueError):
+            entries = []
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "reviewer": reviewer,
+        "status": values["status"].strip() or "Open",
+        "elementCount": len(arch.instances()),
+        "openIssueCount": len(problems),
+    }
+    entries.append(entry)
+    path = write_json(ctx, "markup-review.json", entries)
     return result(
-        summary={"reviewer": values["reviewer"], "status": values["status"], "exportPath": path}
+        summary={
+            "reviewer": entry["reviewer"],
+            "status": entry["status"],
+            "reviewCount": len(entries),
+            "openIssueCount": len(problems),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Markup review register",
+                [
+                    ("timestamp", "Timestamp"),
+                    ("reviewer", "Reviewer"),
+                    ("status", "Status"),
+                    ("openIssueCount", "Model issues"),
+                ],
+                entries,
+            )
+        ],
     )
 
 

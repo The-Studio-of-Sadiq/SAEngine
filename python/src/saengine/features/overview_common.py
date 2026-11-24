@@ -89,3 +89,33 @@ def csv_text(columns: list[str], rows: list[dict[str, Any]]) -> str:
 
 def json_text(value: Any) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False) + "\n"
+
+
+def load_export_json(ctx: FeatureContext, folder: str, filename: str, default: Any) -> Any:
+    root = require_project(ctx, f"reading {filename}")
+    path = root / folder / filename
+    if not path.is_file():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise FeatureInputError(f"{filename} is not valid JSON: {error}") from error
+
+
+def save_export_json(ctx: FeatureContext, folder: str, filename: str, data: Any) -> Path:
+    return write_export(ctx, folder, filename, json_text(data))
+
+
+def project_kpis(ctx: FeatureContext) -> dict[str, Any]:
+    elements, stories = list_bim(ctx)
+    items = boq_items(ctx)
+    amount = round(
+        sum(float(i.get("quantity", 0) or 0) * float(i.get("rate", 0) or 0) for i in items), 2
+    )
+    return {
+        "objects": len(list_objects(ctx)),
+        "bimElements": len(elements),
+        "stories": len(stories),
+        "boqItems": len(items),
+        "boqAmount": amount,
+    }

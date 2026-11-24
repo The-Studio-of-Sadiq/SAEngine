@@ -265,30 +265,58 @@ def compare_cases(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     requires_project=True,
 )
 def chart_templates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Save a reusable chart template configuration against analyzed project results."""
-    out_dir, _ = require_results(ctx)
+    """Validate available result tables for the requested chart kind and save a template preset."""
+    out_dir, model_path = require_results(ctx)
+    idx = result_tables.table_index(out_dir, model_path)
+    cases = idx.get("results", [])
+    kind_tables = {
+        "drift": "nodes",
+        "shear": "members",
+        "moment": "members",
+        "utilisation": "members",
+    }
+    needed_table = kind_tables[values["chartKind"]]
+    matching_cases = [
+        str(c.get("case_name") or c.get("key") or "")
+        for c in cases
+        if any(t.get("id") == needed_table for t in c.get("tables", []))
+    ]
     tpl = {
-        "name": values["templateName"],
+        "name": values["templateName"].strip() or "chart-template",
         "kind": values["chartKind"],
+        "sourceTable": needed_table,
+        "matchingCases": matching_cases,
         "resultsDir": str(out_dir),
         "gridlines": True,
         "showLimits": True,
     }
-    path = export_fem_file(ctx, f"chart-template-{values['templateName']}.json", format_json(tpl))
+    safe = (
+        "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in tpl["name"]).strip("-")
+        or "chart"
+    )
+    path = export_fem_file(ctx, f"chart-template-{safe}.json", format_json(tpl))
     return result(
         summary={
-            "templateName": values["templateName"],
-            "chartKind": values["chartKind"],
+            "templateName": tpl["name"],
+            "chartKind": tpl["kind"],
+            "matchingCases": len(matching_cases),
             "templatePath": str(path),
         },
         tables=[
             table(
-                "Saved chart template",
+                "Validated chart template",
                 [("key", "Setting"), ("val", "Value")],
-                [{"key": k, "val": str(v)} for k, v in tpl.items()],
+                [
+                    {"key": "name", "val": tpl["name"]},
+                    {"key": "kind", "val": tpl["kind"]},
+                    {"key": "sourceTable", "val": needed_table},
+                    {"key": "matchingCases", "val": str(len(matching_cases))},
+                ],
             )
         ],
-        notes=[f"Chart template written to {path}"],
+        notes=[
+            f"Chart template validated against {len(matching_cases)} case(s) and saved to {path}."
+        ],
     )
 
 

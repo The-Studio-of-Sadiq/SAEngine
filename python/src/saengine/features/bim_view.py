@@ -177,21 +177,34 @@ def render_settings(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     ],
 )
 def export_image(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record an image-export request for the current view."""
+    """Compute camera frustum, pixel dimensions, and BIM model bounding extents for view capture."""
+    from saengine.features.bim_common import element_extent
+
     data = require_bim(ctx)
+    dims = {"1080p": (1920, 1080), "1440p": (2560, 1440), "4k": (3840, 2160)}[values["resolution"]]
+    w_px, h_px = dims
+    aspect = round(w_px / h_px, 3)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    dx_m = round((xmax - xmin) / 1000.0, 2)
+    dy_m = round((ymax - ymin) / 1000.0, 2)
+    megapixels = round((w_px * h_px) / 1e6, 2)
     payload = {
         "format": values["format"],
-        "resolution": values["resolution"],
-        "elementCount": len(data["elements"]),
+        "widthPx": w_px,
+        "heightPx": h_px,
+        "aspectRatio": aspect,
+        "megapixels": megapixels,
+        "modelSpanXM": dx_m,
+        "modelSpanYM": dy_m,
+        "elementCount": len(data.get("elements") or []),
     }
-    path = write_bim_json(ctx, "bim_view_export_request.json", payload)
+    path = write_bim_json(ctx, "bim_view_export_spec.json", payload)
     return result(
-        summary={
-            "format": values["format"],
-            "resolution": values["resolution"],
-            "exportPath": path,
-        },
-        notes=[f"Export request written to {path}."],
+        summary={**payload, "exportPath": path},
+        notes=[
+            f"Computed {w_px}x{h_px} ({megapixels} MP) viewport framing {dx_m}x{dy_m} m model -> {path}."
+        ],
     )
 
 

@@ -330,6 +330,17 @@ def stm_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Publish a structured design report with load cases, checks, assumptions, and code-pack citations."""
     _models, model = project_model(ctx)
     report = stm_model.check_model(model)
+    checks = report.get("checks") or []
+    rows = [
+        {
+            "item": str(c.get("name", c.get("id", "-"))),
+            "demand": round(float(c.get("demand", 0.0) or 0.0), 2),
+            "capacity": round(float(c.get("capacity", 0.0) or 0.0), 2),
+            "utilisation": round(float(c.get("utilisation", 0.0) or 0.0), 3),
+            "ok": bool(c.get("ok", True)),
+        }
+        for c in checks
+    ]
     path = export_json(ctx, "stm-design-report.json", report)
     return result(
         {
@@ -337,8 +348,21 @@ def stm_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
             "overallPass": report["ok"],
             "utilisationRatio": report["utilisation"],
             "savedTo": str(path),
-            "checks": len(report["checks"]),
-        }
+            "checks": len(checks),
+        },
+        [
+            table(
+                "STM Design Checks",
+                [
+                    ("item", "Check"),
+                    ("demand", "Demand"),
+                    ("capacity", "Capacity"),
+                    ("utilisation", "Util"),
+                    ("ok", "Pass"),
+                ],
+                rows[:40],
+            )
+        ],
     )
 
 

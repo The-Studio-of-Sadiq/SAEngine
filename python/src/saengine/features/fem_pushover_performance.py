@@ -474,39 +474,53 @@ def compliance_summary(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     requires_project=True,
 )
 def export_assessment(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export full pushover performance evaluation payload to JSON."""
+    """Evaluate IO/LS/CP drift performance levels for all pushover cases and export JSON assessment."""
     runs = _require_pushover(ctx)
-    payload = {
-        "runs": [
+    assessed: list[dict[str, Any]] = []
+    for r in runs:
+        drifts = [float(d.get("drift", 0.0) or 0.0) for d in (r.get("storeyDrifts") or [])]
+        peak_drift = max(drifts, default=float(r.get("maxDispMm") or 0.0) / 10000.0)
+        level = (
+            "IO"
+            if peak_drift <= 0.010
+            else ("LS" if peak_drift <= 0.020 else ("CP" if peak_drift <= 0.040 else "EXCEEDS CP"))
+        )
+        assessed.append(
             {
-                "name": r.get("name"),
-                "steps": r.get("steps"),
-                "maxShearKn": r.get("maxShearKn"),
-                "maxDispMm": r.get("maxDispMm"),
+                "name": str(r.get("name", "")),
+                "steps": int(r.get("steps") or 0),
+                "maxShearKn": float(r.get("maxShearKn") or 0.0),
+                "maxDispMm": float(r.get("maxDispMm") or 0.0),
+                "peakDrift": round(peak_drift, 5),
+                "performanceLevel": level,
+                "lsUtilisation": round(peak_drift / 0.020, 3),
             }
-            for r in runs
-        ]
-    }
+        )
+    payload = {"limits": {"IO": 0.010, "LS": 0.020, "CP": 0.040}, "runs": assessed}
     path = export_fem_file(
         ctx, values["filename"].strip() or "performance-assessment.json", format_json(payload)
     )
     return result(
-        summary={"runsExported": len(runs), "exportPath": str(path)},
+        summary={
+            "runsExported": len(assessed),
+            "governingLevel": assessed[0]["performanceLevel"] if assessed else "-",
+            "exportPath": str(path),
+        },
         tables=[
             table(
-                "Exported assessment summary",
-                [("name", "Case"), ("steps", "Steps"), ("maxShearKn", "V_max", "kN")],
+                "Exported performance assessment",
                 [
-                    {
-                        "name": str(r["name"]),
-                        "steps": int(r["steps"] or 0),
-                        "maxShearKn": float(r["maxShearKn"] or 0.0),
-                    }
-                    for r in payload["runs"]
+                    ("name", "Case"),
+                    ("steps", "Steps"),
+                    ("maxShearKn", "V_max", "kN"),
+                    ("peakDrift", "Peak Drift"),
+                    ("performanceLevel", "Level"),
+                    ("lsUtilisation", "LS Ratio"),
                 ],
+                assessed,
             )
         ],
-        notes=[f"Assessment exported to {path}"],
+        notes=[f"Assessed IO/LS/CP drift limits and exported to {path}"],
     )
 
 

@@ -10,6 +10,7 @@ from saengine.features import (
     feature,
     number,
     result,
+    select,
     table,
     text,
 )
@@ -120,38 +121,74 @@ def autoOffsetSystem(ctx: FeatureContext, values: dict) -> dict:
     "Clearance Report",
     part="mep",
     fields=[
-        number("value", "Design value", 100, unit="units", min=0),
-        text("name", "Output name", "MEP schedule"),
+        number("minGapMm", "Required service-to-service gap", 50.0, unit="mm", min=0.0),
+        text("name", "Export report filename prefix", "clearanceReport"),
     ],
     requires_project=True,
 )
 def clearanceReport(ctx: FeatureContext, values: dict) -> dict:
-    """Clearance Report: Check."""
+    """Run MEP clash & structural opening clearance coordination checks and export report."""
+    from saengine.mep import coordination
+
     if ctx.root is None:
-        raise FeatureInputError("Open a project before creating output.")
-    raw = ctx.raw("mep") or {}
-    payload = {
-        "feature": "mepCoordinationClearances.clearanceReport",
-        "title": "Clearance Report",
-        "name": values["name"],
-        "group": "Check",
-        "mep": raw,
-    }
-    path = ctx.path("11 Exports/clearanceReport.json")
+        raise FeatureInputError(
+            "Open a project with 07 MEP/mep.json before generating a clearance report."
+        )
+    coord = coordination.coordinate(ctx.root)
+    clashes = coord.get("clashes", [])
+    rows = [
+        {
+            "id": str(c.get("id", f"CL-{i + 1}")),
+            "a": str(c.get("a", "")),
+            "b": str(c.get("b", "")),
+            "clearanceMm": float(c.get("clearanceMm", 0.0) or 0.0),
+            "status": "OK"
+            if float(c.get("clearanceMm", 0.0) or 0.0) >= float(values["minGapMm"])
+            else "VIOLATION",
+        }
+        for i, c in enumerate(clashes)
+    ]
+    safe = "".join(c for c in values["name"] if c.isalnum() or c in "-_") or "clearanceReport"
+    path = ctx.path(f"11 Exports/{safe}.json")
     if path is None:
         raise FeatureInputError("Open a project before creating output.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {"minGapMm": values["minGapMm"], "clashes": rows, "coordination": coord},
+            indent=2,
+            default=str,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return result(
-        summary={"exportPath": str(path), "name": values["name"]},
+        summary={"clashesFound": len(rows), "exportPath": str(path)},
         tables=[
             table(
-                "Clearance Report",
-                [("item", "Item"), ("value", "Value")],
-                [{"item": "Export", "value": str(path)}],
+                "MEP coordination clearance report",
+                [
+                    ("id", "ID"),
+                    ("a", "Element A"),
+                    ("b", "Element B"),
+                    ("clearanceMm", "Gap", "mm"),
+                    ("status", "Status"),
+                ],
+                rows[:30]
+                or [
+                    {
+                        "id": "-",
+                        "a": "All services",
+                        "b": "Structure",
+                        "clearanceMm": values["minGapMm"],
+                        "status": "CLEAR",
+                    }
+                ],
             )
         ],
-        notes=["Generated an output file from the current MEP project data."],
+        notes=[
+            f"Executed saengine.mep.coordination.coordinate against project BIM+MEP models; saved to {path}."
+        ],
     )
 
 
@@ -160,38 +197,52 @@ def clearanceReport(ctx: FeatureContext, values: dict) -> dict:
     "Clearance Signoff",
     part="mep",
     fields=[
-        number("value", "Design value", 100, unit="units", min=0),
-        text("name", "Output name", "MEP schedule"),
+        text("reviewer", "Coordination lead initials", "MEP-BIM"),
+        text("name", "Signoff register file prefix", "clearanceSignoff"),
     ],
     requires_project=True,
 )
 def clearanceSignoff(ctx: FeatureContext, values: dict) -> dict:
-    """Clearance Signoff: Resolution Workflow."""
+    """Validate zero hard clashes across MEP coordination model and record clearance sign-off."""
+    from saengine.mep import coordination
+
     if ctx.root is None:
-        raise FeatureInputError("Open a project before creating output.")
-    raw = ctx.raw("mep") or {}
-    payload = {
-        "feature": "mepCoordinationClearances.clearanceSignoff",
-        "title": "Clearance Signoff",
-        "name": values["name"],
-        "group": "Resolution Workflow",
-        "mep": raw,
-    }
-    path = ctx.path("11 Exports/clearanceSignoff.json")
+        raise FeatureInputError("Open a project before recording clearance sign-off.")
+    coord = coordination.coordinate(ctx.root)
+    hard_clashes = [
+        c for c in coord.get("clashes", []) if float(c.get("clearanceMm", 0.0) or 0.0) <= 0.0
+    ]
+    signed_off = len(hard_clashes) == 0
+    safe = "".join(c for c in values["name"] if c.isalnum() or c in "-_") or "clearanceSignoff"
+    path = ctx.path(f"11 Exports/{safe}.json")
     if path is None:
         raise FeatureInputError("Open a project before creating output.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    record = {
+        "reviewer": values["reviewer"].strip() or "MEP-BIM",
+        "hardClashes": len(hard_clashes),
+        "signedOff": signed_off,
+    }
+    path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return result(
-        summary={"exportPath": str(path), "name": values["name"]},
+        summary={**record, "exportPath": str(path)},
         tables=[
             table(
-                "Clearance Signoff",
-                [("item", "Item"), ("value", "Value")],
-                [{"item": "Export", "value": str(path)}],
+                "Coordination clearance signoff",
+                [("item", "Check"), ("value", "Result")],
+                [
+                    {"item": "Reviewer", "value": record["reviewer"]},
+                    {"item": "Blocking hard clashes", "value": len(hard_clashes)},
+                    {
+                        "item": "Sign-off verdict",
+                        "value": "APPROVED" if signed_off else "BLOCKED (RESOLVE CLASHES)",
+                    },
+                ],
             )
         ],
-        notes=["Generated an output file from the current MEP project data."],
+        notes=[
+            "Sign-off granted only when saengine.mep.coordination reports zero unresolved hard clashes."
+        ],
     )
 
 
@@ -249,32 +300,38 @@ def elevationBand(ctx: FeatureContext, values: dict) -> dict:
     "mepCoordinationClearances.insulatedClearance",
     "Insulated Clearance",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("bareOdMm", "Bare pipe outer diameter / duct width", 114.3, unit="mm", min=10.0),
+        number("insulationMm", "Thermal insulation jacket thickness", 32.0, unit="mm", min=0.0),
+        number("workingClearanceMm", "Clear tool / vapour-barrier gap", 25.0, unit="mm", min=10.0),
+    ],
+    requires_project=False,
 )
 def insulatedClearance(ctx: FeatureContext, values: dict) -> dict:
-    """Insulated Clearance: Spatial Buffers."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate total coordinated envelope width/radius including insulation jacket and buffer."""
+    insulated_od = float(values["bareOdMm"]) + 2.0 * float(values["insulationMm"])
+    envelope = insulated_od + 2.0 * float(values["workingClearanceMm"])
+    min_sleeve = insulated_od + 25.0
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "insulatedOdMm": round(insulated_od, 1),
+            "coordinatedEnvelopeMm": round(envelope, 1),
+            "minSleeveIdMm": round(min_sleeve, 0),
         },
         tables=[
             table(
-                "Insulated Clearance",
-                [("item", "Item"), ("value", "Value")],
+                "Insulated service envelope",
+                [("item", "Zone Layer"), ("sizeMm", "Dimension", "mm")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Bare service outer size", "sizeMm": values["bareOdMm"]},
+                    {"item": "Insulated OD (+2 x t_ins)", "sizeMm": round(insulated_od, 1)},
+                    {"item": "Coordinated reservation zone", "sizeMm": round(envelope, 1)},
+                    {"item": "Suggested minimum sleeve ID", "sizeMm": round(min_sleeve, 0)},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Maintain continuous vapour-barrier jacket through wall/slab firestop sleeves on chilled pipes."
         ],
     )
 
@@ -333,33 +390,52 @@ def maintenanceBuffer(ctx: FeatureContext, values: dict) -> dict:
     "mepCoordinationClearances.minClearance",
     "Min Clearance",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        select(
+            "material",
+            "Pipe material",
+            [("GI", "GI"), ("PPR", "PPR"), ("uPVC", "uPVC"), ("HDPE", "HDPE"), ("CI", "CI")],
+            "GI",
+        ),
+        number("diameterMm", "Larger adjacent pipe/duct dimension", 200.0, unit="mm", min=15.0),
+        number(
+            "flangeAllowanceMm", "Flange / valve handwheel projection", 35.0, unit="mm", min=0.0
+        ),
+        number("providedGapMm", "Modelled centre-to-clear surface gap", 85.0, unit="mm", min=0.0),
+    ],
+    requires_project=False,
 )
 def minClearance(ctx: FeatureContext, values: dict) -> dict:
-    """Min Clearance: Define."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute minimum required service-to-service clearance and check provided gap."""
+    from saengine.mep import fabrication
+
+    d = float(values["diameterMm"])
+    opts = fabrication.FabricationOptions()
+    spacing_val, spacing_source = fabrication.pipe_spacing(values["material"], d, opts)
+    base_spacing = float(spacing_val) if spacing_val is not None else max(200.0, d * 10.0)
+    req_gap = max(50.0, base_spacing * 0.025) + float(values["flangeAllowanceMm"])
+    ok = float(values["providedGapMm"]) >= req_gap
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "material": values["material"],
+            "supportSpacingMm": round(base_spacing, 1),
+            "requiredClearGapMm": round(req_gap, 1),
+            "providedGapMm": values["providedGapMm"],
+            "compliant": ok,
         },
         tables=[
             table(
-                "Min Clearance",
-                [("item", "Item"), ("value", "Value")],
+                "Minimum service clearance check",
+                [("item", "Item"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Pipe support spacing", "value": round(base_spacing, 1), "unit": "mm"},
+                    {"item": "Required clear gap", "value": round(req_gap, 1), "unit": "mm"},
+                    {"item": "Provided clear gap", "value": values["providedGapMm"], "unit": "mm"},
+                    {"item": "Source", "value": spacing_source, "unit": "-"},
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=[f"Support spacing reference: {spacing_source}."],
     )
 
 
@@ -417,32 +493,41 @@ def ruleExceptions(ctx: FeatureContext, values: dict) -> dict:
     "mepCoordinationClearances.runClearance",
     "Run Clearance",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("slabSoffitMm", "Structural slab soffit elevation", 3200.0, unit="mm", min=1500.0),
+        number(
+            "ceilingElevationMm", "Suspended ceiling plane elevation", 2700.0, unit="mm", min=1500.0
+        ),
+        number(
+            "serviceDepthMm", "Largest duct + hanger + insulation depth", 380.0, unit="mm", min=50.0
+        ),
+    ],
+    requires_project=False,
 )
 def runClearance(ctx: FeatureContext, values: dict) -> dict:
-    """Run Clearance: Check."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Check horizontal ceiling plenum depth vs service stack + hanger clearance."""
+    plenum_mm = float(values["slabSoffitMm"]) - float(values["ceilingElevationMm"])
+    spare_mm = plenum_mm - float(values["serviceDepthMm"])
+    ok = spare_mm >= 50.0
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "plenumDepthMm": round(plenum_mm, 0),
+            "remainingClearanceMm": round(spare_mm, 0),
+            "compliantGe50Mm": ok,
         },
         tables=[
             table(
-                "Run Clearance",
-                [("item", "Item"), ("value", "Value")],
+                "Ceiling plenum vertical clearance check",
+                [("item", "Level / Component"), ("valueMm", "Height", "mm")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Available ceiling plenum", "valueMm": round(plenum_mm, 0)},
+                    {"item": "Largest service envelope", "valueMm": values["serviceDepthMm"]},
+                    {"item": "Remaining hanger/crossing gap", "valueMm": round(spare_mm, 0)},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Maintain >= 50 mm vertical clearance below soffit/beam and above recessed light fixtures."
         ],
     )
 

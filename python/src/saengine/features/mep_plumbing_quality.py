@@ -94,33 +94,62 @@ def carbonFilter(ctx: FeatureContext, values: dict) -> dict:
     "mepPlumbingQuality.chlorineLevel",
     "Chlorine Level",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("dosedMgPerL", "Dosed free chlorine", 1.0, unit="mg/L", min=0.05, max=10.0),
+        number("tankVolumeM3", "Storage tank volume", 40.0, unit="m³", min=0.5),
+        number("dailyDemandM3", "Daily throughput", 60.0, unit="m³/d", min=0.5),
+        number("decayRatePerHr", "First-order bulk/wall decay k", 0.04, unit="/h", min=0.0),
+        number("minResidualMgPerL", "Minimum residual target", 0.20, unit="mg/L", min=0.05),
+    ],
+    requires_project=False,
 )
 def chlorineLevel(ctx: FeatureContext, values: dict) -> dict:
-    """Chlorine Level: Testing."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute first-order free chlorine decay over storage residence time and dosing check."""
+    import math
+
+    c0 = float(values["dosedMgPerL"])
+    vol = float(values["tankVolumeM3"])
+    q = float(values["dailyDemandM3"])
+    k = float(values["decayRatePerHr"])
+    c_min = float(values["minResidualMgPerL"])
+    tau_hr = 24.0 * vol / q
+    c_out = c0 * math.exp(-k * tau_hr)
+    max_tau_hr = math.log(c0 / c_min) / k if k > 0 and c0 > c_min else 9999.0
+    boost_g_per_day = max(0.0, (c_min - c_out) * q)
+    ok = c_out >= c_min
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "residenceTimeHr": round(tau_hr, 2),
+            "outletResidualMgPerL": round(c_out, 3),
+            "minResidualMgPerL": c_min,
+            "compliant": ok,
         },
         tables=[
             table(
-                "Chlorine Level",
-                [("item", "Item"), ("value", "Value")],
+                "Chlorine residual decay check",
+                [("parameter", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "parameter": "Hydraulic residence time",
+                        "value": round(tau_hr, 2),
+                        "unit": "h",
+                    },
+                    {
+                        "parameter": "Max allowed residence",
+                        "value": round(max_tau_hr, 1),
+                        "unit": "h",
+                    },
+                    {"parameter": "Outlet free chlorine", "value": round(c_out, 3), "unit": "mg/L"},
+                    {
+                        "parameter": "Required booster Cl2",
+                        "value": round(boost_g_per_day, 1),
+                        "unit": "g/day",
+                    },
+                    {"parameter": "Compliant", "value": "PASS" if ok else "FAIL", "unit": "-"},
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=["First-order exponential decay C = C0 * exp(-k * t), t = 24 * V_tank / Q_day."],
     )
 
 
@@ -128,32 +157,45 @@ def chlorineLevel(ctx: FeatureContext, values: dict) -> dict:
     "mepPlumbingQuality.deadLegCheck",
     "Dead Leg Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("pipeDiameterMm", "Nominal pipe bore", 25.0, unit="mm", min=10.0),
+        number("deadLegLengthM", "Unflushed branch length L", 2.2, unit="m", min=0.05),
+        number("maxLengthLimitM", "Project dead-leg length limit", 1.5, unit="m", min=0.1),
+    ],
+    requires_project=False,
 )
 def deadLegCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Dead Leg Check: Temperature."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Evaluate dead-leg stagnation length ratio (L/D) and trapped water volume."""
+    import math
+
+    d_mm = float(values["pipeDiameterMm"])
+    l_m = float(values["deadLegLengthM"])
+    lim_m = float(values["maxLengthLimitM"])
+    l_over_d = (l_m * 1000.0) / d_mm
+    stagnant_l = math.pi * ((d_mm / 1000.0) / 2.0) ** 2 * l_m * 1000.0
+    ok = l_m <= lim_m
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "deadLegLengthM": l_m,
+            "lengthToDiameterRatio": round(l_over_d, 1),
+            "stagnantVolumeL": round(stagnant_l, 3),
+            "compliant": ok,
         },
         tables=[
             table(
-                "Dead Leg Check",
-                [("item", "Item"), ("value", "Value")],
+                "Dead-leg stagnation check",
+                [("item", "Check Item"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Dead-leg length L", "value": l_m, "unit": "m"},
+                    {"item": "Limit length", "value": lim_m, "unit": "m"},
+                    {"item": "Slenderness ratio L/D", "value": round(l_over_d, 1), "unit": "-"},
+                    {"item": "Stagnant water volume", "value": round(stagnant_l, 3), "unit": "L"},
+                    {"item": "Status", "value": "PASS" if ok else "EXCEEDS LIMIT", "unit": "-"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Short dead-legs limit biofilm growth; shorten branch, relocate tee, or add purge valve if exceeded."
         ],
     )
 

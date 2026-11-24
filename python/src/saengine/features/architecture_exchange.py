@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import itertools
 import json
+import math
+import struct
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +23,7 @@ from saengine.features import (
 )
 from saengine.features.architecture_common import (
     csv_text,
+    elevations,
     require_arch,
     room_metrics,
     write_arch_export,
@@ -32,6 +38,109 @@ def _require_file(ctx: FeatureContext, value: str) -> Path:
     if not path.is_file():
         raise FeatureInputError(f"Exchange source file was not found: {value}")
     return path
+
+
+def _load_arch_json_list(ctx: FeatureContext, filename: str) -> list[dict[str, Any]]:
+    if ctx.root is None:
+        return []
+    path = ctx.root / "11 Exports" / "Architecture" / filename
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _image_dimensions(path: Path) -> tuple[int, int] | None:
+    data = path.read_bytes()
+    if len(data) >= 24 and data[:8] == b"\x89PNG\r\n\x1a\n":
+        w, h = struct.unpack(">II", data[16:24])
+        return int(w), int(h)
+    if len(data) >= 26 and data[:2] == b"BM":
+        w, h = struct.unpack("<ii", data[18:26])
+        return abs(int(w)), abs(int(h))
+    return None
+
+
+def _wall_boxes(
+    ctx: FeatureContext, arch: Any, scale: float = 0.001
+) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int, int]], list[dict[str, Any]]]:
+    from saengine.library.architecture import centre_line, offset_path, wall_levels
+
+    levels = elevations(ctx)
+    wall_types = {t.id: t for t in arch.wallTypes}
+    vertices: list[tuple[float, float, float]] = []
+    quads: list[tuple[int, int, int, int]] = []
+    wall_rows: list[dict[str, Any]] = []
+    for w in arch.walls:
+        wt = wall_types.get(w.type)
+        lv = wall_levels(w, levels)
+        bottom = lv[0] if lv else 0.0
+        top = lv[1] if lv else 3000.0
+        half_t = (wt.thickness if wt else 150.0) / 2.0
+        cl = centre_line(w, wt) if wt else w.path
+        left = offset_path(cl, half_t)
+        right = offset_path(cl, -half_t)
+        length_m = (
+            sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in itertools.pairwise(cl)) / 1000.0
+        )
+        height_m = max(0.0, top - bottom) / 1000.0
+        wall_rows.append(
+            {
+                "wall": w.id,
+                "type": w.type,
+                "lengthM": round(length_m, 3),
+                "areaM2": round(length_m * height_m, 2),
+            }
+        )
+        for i in range(len(cl) - 1):
+            base = len(vertices) + 1
+            pts_2d = [left[i], left[i + 1], right[i + 1], right[i]]
+            for z in (bottom, top):
+                for x, y in pts_2d:
+                    vertices.append((round(x * scale, 6), round(y * scale, 6), round(z * scale, 6)))
+            quads.extend(
+                [
+                    (base + 0, base + 1, base + 2, base + 3),
+                    (base + 4, base + 7, base + 6, base + 5),
+                    (base + 0, base + 4, base + 5, base + 1),
+                    (base + 1, base + 5, base + 6, base + 2),
+                    (base + 2, base + 6, base + 7, base + 3),
+                    (base + 3, base + 7, base + 4, base + 0),
+                ]
+            )
+    return vertices, quads, wall_rows
+
+
+def _build_arch_dxf(arch: Any, unit: str) -> tuple[str, int]:
+    import io
+
+    import ezdxf
+
+    scale = 0.001 if unit == "m" else 1.0
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    for layer_name in ("A-WALL", "A-DOOR", "A-WIND", "A-ROOM"):
+        if layer_name not in doc.layers:
+            doc.layers.add(layer_name)
+    count = 0
+    for w in arch.walls:
+        if len(w.path) >= 2:
+            pts = [(p[0] * scale, p[1] * scale) for p in w.path]
+            msp.add_lwpolyline(pts, dxfattribs={"layer": "A-WALL"})
+            count += 1
+    for r in arch.rooms:
+        label = f"{r.number or r.id} {r.name}".strip()
+        msp.add_text(
+            label,
+            dxfattribs={"layer": "A-ROOM", "height": 250.0 * scale},
+        ).set_placement((r.point[0] * scale, r.point[1] * scale))
+        count += 1
+    buf = io.StringIO()
+    doc.write(buf)
+    return buf.getvalue(), count
 
 
 @feature(
@@ -105,21 +214,52 @@ def import_ifc(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def import_image(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Register an image underlay with scale and rotation."""
+    """Read image header dimensions, compute scaled plan extents, and register the underlay."""
     path = _require_file(ctx, values["file"])
-    payload = {
+    raw_bytes = path.read_bytes()
+    dims = _image_dimensions(path)
+    width_px, height_px = dims if dims else (0, 0)
+    scale = float(values["scale"])
+    entry = {
         "file": values["file"],
-        "scaleMmPerPixel": values["scale"],
+        "sizeBytes": len(raw_bytes),
+        "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "widthPx": width_px,
+        "heightPx": height_px,
+        "planWidthM": round(width_px * scale / 1000.0, 3),
+        "planHeightM": round(height_px * scale / 1000.0, 3),
+        "scaleMmPerPixel": scale,
         "rotationDeg": values["rotation"],
     }
-    out = write_json(ctx, "image-underlay.json", payload)
+    entries = [
+        e
+        for e in _load_arch_json_list(ctx, "image-underlays.json")
+        if e.get("file") != values["file"]
+    ]
+    entries.append(entry)
+    out = write_json(ctx, "image-underlays.json", entries)
     return result(
         summary={
             "file": values["file"],
-            "sizeBytes": path.stat().st_size,
-            "scale": values["scale"],
+            "sizeBytes": len(raw_bytes),
+            "planWidthM": entry["planWidthM"],
+            "planHeightM": entry["planHeightM"],
+            "scale": scale,
             "exportPath": out,
-        }
+        },
+        tables=[
+            table(
+                "Registered image underlays",
+                [
+                    ("file", "File"),
+                    ("widthPx", "Width (px)"),
+                    ("heightPx", "Height (px)"),
+                    ("planWidthM", "Plan width", "m"),
+                    ("rotationDeg", "Rotation", "°"),
+                ],
+                entries,
+            )
+        ],
     )
 
 
@@ -133,16 +273,57 @@ def import_image(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def export_dwg(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export a DXF and also record a DWG exchange manifest."""
+    """Generate a layered CAD DXF interchange file alongside its DWG conversion manifest."""
     arch = require_arch(ctx)
-    rows = [{"wall": w.id, "type": w.type, "pathCount": len(w.path)} for w in arch.walls]
+    stem = values["filename"].strip() or "architecture-plan"
+    dxf_content, entity_count = _build_arch_dxf(arch, values["unit"])
+    dxf_path = write_arch_export(ctx, f"{stem}.dxf", dxf_content)
+    rows = [
+        {
+            "wall": w.id,
+            "type": w.type,
+            "lengthM": round(
+                sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(w.path, w.path[1:]))
+                / 1000.0,
+                3,
+            ),
+        }
+        for w in arch.walls
+    ]
+    total_len = round(sum(r["lengthM"] for r in rows), 3)
     path = write_arch_export(
         ctx,
-        f"{values['filename'].strip() or 'architecture-plan'}.dwg.json",
-        json.dumps({"format": "DWGExchange", "unit": values["unit"], "walls": rows}, indent=2)
+        f"{stem}.dwg.json",
+        json.dumps(
+            {
+                "format": "DWGExchange",
+                "dxfSource": dxf_path,
+                "unit": values["unit"],
+                "entityCount": entity_count,
+                "totalWallLengthM": total_len,
+                "walls": rows,
+            },
+            indent=2,
+        )
         + "\n",
     )
-    return result(summary={"wallCount": len(rows), "unit": values["unit"], "exportPath": path})
+    return result(
+        summary={
+            "wallCount": len(rows),
+            "entityCount": entity_count,
+            "totalWallLengthM": total_len,
+            "dxfPath": dxf_path,
+            "unit": values["unit"],
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Exported CAD walls",
+                [("wall", "Wall"), ("type", "Type"), ("lengthM", "Length", "m")],
+                rows,
+            )
+        ],
+    )
 
 
 @feature(
@@ -155,19 +336,54 @@ def export_dwg(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def export_ifc(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a project-native architecture manifest for IFC exchange."""
+    """Export the architecture model into a standard IFC4 STEP file via the IFC engine."""
+    from saengine.library.bim import BuildingModel, Story
+    from saengine.library.ifc import export_ifc as run_ifc_export
+    from saengine.library.objects import ObjectLibrary
+
     arch = require_arch(ctx)
-    payload = {
-        "schema": values["schema"],
-        "walls": len(arch.walls),
-        "doors": len(arch.doors),
-        "windows": len(arch.windows),
-        "rooms": len(arch.rooms),
-        "roofs": len(arch.roofs),
-        "curtainWalls": len(arch.curtainWalls),
-    }
-    path = write_json(ctx, f"{values['filename'].strip() or 'architecture'}.ifc.json", payload)
-    return result(summary={**payload, "exportPath": path})
+    raw_bim = ctx.raw("bim")
+    if isinstance(raw_bim, dict) and isinstance(raw_bim.get("stories"), list):
+        building = BuildingModel.model_validate(raw_bim)
+    else:
+        lv = elevations(ctx) or {"L1": 0.0}
+        building = BuildingModel(
+            stories=[
+                Story(id=sid, name=sid, elevation=elev)
+                for sid, elev in sorted(lv.items(), key=lambda item: item[1])
+            ]
+        )
+    raw_obj = ctx.raw("objects")
+    objects = (
+        ObjectLibrary.model_validate(raw_obj) if isinstance(raw_obj, dict) else ObjectLibrary()
+    )
+    ifc_file, ids, skipped = run_ifc_export(
+        building, objects, name="SAEngine Architecture", architecture=arch, schema=values["schema"]
+    )
+    assert ctx.root is not None
+    target_dir = ctx.root / "11 Exports" / "Architecture"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    stem = values["filename"].strip() or "architecture"
+    ifc_path = target_dir / f"{stem}.ifc"
+    ifc_file.write(str(ifc_path))
+    rel = ifc_path.relative_to(ctx.root).as_posix()
+    return result(
+        summary={
+            "schema": values["schema"],
+            "ifcEntityCount": len(ids),
+            "skippedCount": len(skipped),
+            "walls": len(arch.walls),
+            "doors": len(arch.doors),
+            "windows": len(arch.windows),
+            "rooms": len(arch.rooms),
+            "exportPath": rel,
+        },
+        notes=[
+            f"Skipped elements: {len(skipped)}."
+            if skipped
+            else "All architecture elements exported cleanly."
+        ],
+    )
 
 
 @feature(
@@ -177,11 +393,24 @@ def export_ifc(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     fields=[select("format", "Format", [("csv", "CSV"), ("json", "JSON")], "csv")],
 )
 def export_room_data(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export room and area data."""
+    """Measure bounded room areas and totals, then export to CSV or JSON."""
     arch = require_arch(ctx)
     rows = room_metrics(ctx, arch)
+    total_gross = round(sum(r["grossAreaM2"] for r in rows), 3)
+    total_net = round(sum(r["netAreaM2"] for r in rows), 3)
+    bounded = sum(1 for r in rows if r["bounded"])
     if values["format"] == "json":
-        path = write_json(ctx, "room-data.json", rows)
+        path = write_json(
+            ctx,
+            "room-data.json",
+            {
+                "roomCount": len(rows),
+                "boundedCount": bounded,
+                "totalGrossAreaM2": total_gross,
+                "totalNetAreaM2": total_net,
+                "rooms": rows,
+            },
+        )
     else:
         path = write_arch_export(
             ctx,
@@ -190,7 +419,28 @@ def export_room_data(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
                 ["room", "name", "number", "story", "bounded", "grossAreaM2", "netAreaM2"], rows
             ),
         )
-    return result(summary={"roomCount": len(rows), "format": values["format"], "exportPath": path})
+    return result(
+        summary={
+            "roomCount": len(rows),
+            "boundedCount": bounded,
+            "totalGrossAreaM2": total_gross,
+            "totalNetAreaM2": total_net,
+            "format": values["format"],
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Exported room data",
+                [
+                    ("room", "Room"),
+                    ("name", "Name"),
+                    ("story", "Story"),
+                    ("netAreaM2", "Net area", "m²"),
+                ],
+                rows,
+            )
+        ],
+    )
 
 
 @feature(
@@ -200,11 +450,44 @@ def export_room_data(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     fields=[text("file", "Linked model file", ""), text("linkName", "Link name", "Reference")],
 )
 def link_model(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Register a linked external model path."""
-    payload = {"name": values["linkName"], "file": values["file"], "status": "linked"}
-    path = write_json(ctx, "architecture-links.json", payload)
+    """Validate an existing linked model file, hash its contents, and append to architecture links."""
+    source = _require_file(ctx, values["file"])
+    data = source.read_bytes()
+    link_name = values["linkName"].strip() or "Reference"
+    entry = {
+        "name": link_name,
+        "file": values["file"],
+        "sizeBytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "status": "linked",
+    }
+    links = [
+        x
+        for x in _load_arch_json_list(ctx, "architecture-links.json")
+        if x.get("name") != link_name
+    ]
+    links.append(entry)
+    path = write_json(ctx, "architecture-links.json", links)
     return result(
-        summary={"linkName": values["linkName"], "file": values["file"], "exportPath": path}
+        summary={
+            "linkName": link_name,
+            "file": values["file"],
+            "sizeBytes": len(data),
+            "linkCount": len(links),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Architecture links",
+                [
+                    ("name", "Name"),
+                    ("file", "File"),
+                    ("sizeBytes", "Size", "byte"),
+                    ("status", "Status"),
+                ],
+                links,
+            )
+        ],
     )
 
 
@@ -252,14 +535,47 @@ def reload_links(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def shared_coordinates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write the project shared-coordinate transformation."""
+    """Compute a 2D rigid shared-coordinate transform matrix and transformed wall extents."""
+    arch = require_arch(ctx)
+    east = float(values["east"])
+    north = float(values["north"])
+    rad = math.radians(float(values["rotation"]))
+    c, s = math.cos(rad), math.sin(rad)
+    transformed = [
+        (round(east + p[0] * c - p[1] * s, 2), round(north + p[0] * s + p[1] * c, 2))
+        for w in arch.walls
+        for p in w.path
+    ]
+    min_e = min((p[0] for p in transformed), default=east)
+    max_e = max((p[0] for p in transformed), default=east)
+    min_n = min((p[1] for p in transformed), default=north)
+    max_n = max((p[1] for p in transformed), default=north)
     payload = {
-        "eastMm": values["east"],
-        "northMm": values["north"],
+        "eastMm": east,
+        "northMm": north,
         "rotationDeg": values["rotation"],
+        "matrix3x3": [
+            [round(c, 8), round(-s, 8), east],
+            [round(s, 8), round(c, 8), north],
+            [0.0, 0.0, 1.0],
+        ],
+        "transformedBoundsMm": {
+            "minEast": min_e,
+            "maxEast": max_e,
+            "minNorth": min_n,
+            "maxNorth": max_n,
+        },
     }
     path = write_json(ctx, "shared-coordinates.json", payload)
-    return result(summary={**payload, "exportPath": path})
+    return result(
+        summary={
+            "eastMm": east,
+            "northMm": north,
+            "rotationDeg": values["rotation"],
+            "pointCount": len(transformed),
+            "exportPath": path,
+        }
+    )
 
 
 @feature(
@@ -269,19 +585,36 @@ def shared_coordinates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     fields=[text("filename", "SketchUp exchange name", "architecture")],
 )
 def export_sketchup(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a SketchUp-neutral geometry manifest."""
+    """Extrude architecture walls into triangulated surface geometry for SketchUp exchange."""
     arch = require_arch(ctx)
-    path = write_json(
-        ctx,
-        f"{values['filename'].strip() or 'architecture'}.sketchup.json",
-        {
-            "walls": len(arch.walls),
-            "roofs": len(arch.roofs),
-            "rooms": len(arch.rooms),
-            "components": len(arch.components),
+    vertices, quads, wall_rows = _wall_boxes(ctx, arch, scale=0.001)
+    triangles = sum(2 for _ in quads)
+    payload = {
+        "format": "SAEngine.SketchUpMesh/1",
+        "units": "m",
+        "verticesM": vertices,
+        "quadFaces": quads,
+        "wallCount": len(wall_rows),
+        "roomCount": len(arch.rooms),
+        "triangleCount": triangles,
+    }
+    stem = values["filename"].strip() or "architecture"
+    path = write_json(ctx, f"{stem}.sketchup.json", payload)
+    return result(
+        summary={
+            "vertexCount": len(vertices),
+            "triangleCount": triangles,
+            "wallAreaM2": round(sum(r["areaM2"] for r in wall_rows), 2),
+            "exportPath": path,
         },
+        tables=[
+            table(
+                "SketchUp walls",
+                [("wall", "Wall"), ("lengthM", "Length", "m"), ("areaM2", "Area", "m²")],
+                wall_rows,
+            )
+        ],
     )
-    return result(summary={"elementCount": len(arch.instances()), "exportPath": path})
 
 
 @feature(
@@ -312,19 +645,32 @@ def import_sketchup(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     fields=[text("filename", "OBJ exchange name", "architecture")],
 )
 def export_obj(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write an OBJ-neutral geometry manifest."""
+    """Extrude architecture walls into a Wavefront .obj 3D mesh file in metres."""
     arch = require_arch(ctx)
-    path = write_json(
-        ctx,
-        f"{values['filename'].strip() or 'architecture'}.obj.json",
-        {
-            "walls": len(arch.walls),
-            "roofs": len(arch.roofs),
-            "curtainWalls": len(arch.curtainWalls),
-            "rooms": len(arch.rooms),
+    vertices, quads, wall_rows = _wall_boxes(ctx, arch, scale=0.001)
+    lines = [
+        "# SAEngine Architecture OBJ Mesh (units: m)",
+        f"o {values['filename'].strip() or 'architecture'}",
+    ]
+    lines.extend(f"v {x} {y} {z}" for x, y, z in vertices)
+    lines.extend(f"f {a} {b} {c} {d}" for a, b, c, d in quads)
+    stem = values["filename"].strip() or "architecture"
+    path = write_arch_export(ctx, f"{stem}.obj", "\n".join(lines) + "\n")
+    return result(
+        summary={
+            "wallCount": len(wall_rows),
+            "vertexCount": len(vertices),
+            "faceCount": len(quads),
+            "exportPath": path,
         },
+        tables=[
+            table(
+                "OBJ wall meshes",
+                [("wall", "Wall"), ("lengthM", "Length", "m"), ("areaM2", "Area", "m²")],
+                wall_rows,
+            )
+        ],
     )
-    return result(summary={"elementCount": len(arch.instances()), "exportPath": path})
 
 
 @feature(
@@ -337,20 +683,38 @@ def export_obj(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def export_dxf(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a DXF-neutral wall/room layer manifest."""
+    """Export layered walls and room annotations into a standard ASCII DXF CAD file."""
     arch = require_arch(ctx)
-    payload = {
-        "unit": values["unit"],
-        "walls": [{"id": w.id, "path": w.path} for w in arch.walls],
-        "rooms": [{"id": r.id, "point": r.point} for r in arch.rooms],
-    }
-    path = write_json(ctx, f"{values['filename'].strip() or 'architecture'}.dxf.json", payload)
+    content, entity_count = _build_arch_dxf(arch, values["unit"])
+    total_wall_m = round(
+        sum(
+            math.hypot(b[0] - a[0], b[1] - a[1]) / 1000.0
+            for w in arch.walls
+            for a, b in itertools.pairwise(w.path)
+        ),
+        3,
+    )
+    stem = values["filename"].strip() or "architecture"
+    path = write_arch_export(ctx, f"{stem}.dxf", content)
     return result(
         summary={
-            "wallCount": len(payload["walls"]),
-            "roomCount": len(payload["rooms"]),
+            "wallCount": len(arch.walls),
+            "roomCount": len(arch.rooms),
+            "totalWallLengthM": total_wall_m,
+            "entityCount": entity_count,
+            "unit": values["unit"],
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "DXF layer summary",
+                [("layer", "Layer"), ("entities", "Entities")],
+                [
+                    {"layer": "A-WALL", "entities": len(arch.walls)},
+                    {"layer": "A-ROOM", "entities": len(arch.rooms)},
+                ],
+            )
+        ],
     )
 
 
@@ -364,16 +728,49 @@ def export_dxf(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def export_sheets(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write an issued sheet-set manifest."""
+    """Assemble a storey-indexed sheet set from live architecture elements and room metrics."""
+    arch = require_arch(ctx)
+    rooms = room_metrics(ctx, arch)
+    story_ids = sorted(
+        {w.story for w in arch.walls} | {r.story for r in arch.rooms} | set(elevations(ctx))
+    ) or ["L1"]
+    requested = int(values["sheetCount"])
+    sheets = []
+    for idx in range(requested):
+        story = story_ids[idx % len(story_ids)]
+        sheets.append(
+            {
+                "sheet": f"A-{101 + idx}",
+                "story": story,
+                "walls": sum(1 for w in arch.walls if w.story == story),
+                "rooms": sum(1 for r in rooms if r["story"] == story),
+                "areaM2": round(sum(r["netAreaM2"] for r in rooms if r["story"] == story), 2),
+            }
+        )
     path = write_json(
-        ctx, "sheet-set.json", {"name": values["sheetSet"], "sheetCount": values["sheetCount"]}
+        ctx,
+        "sheet-set.json",
+        {"name": values["sheetSet"], "sheetCount": len(sheets), "sheets": sheets},
     )
     return result(
         summary={
             "sheetSet": values["sheetSet"],
-            "sheetCount": values["sheetCount"],
+            "sheetCount": len(sheets),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Sheet set",
+                [
+                    ("sheet", "Sheet"),
+                    ("story", "Story"),
+                    ("walls", "Walls"),
+                    ("rooms", "Rooms"),
+                    ("areaM2", "Net area", "m²"),
+                ],
+                sheets,
+            )
+        ],
     )
 
 
@@ -453,12 +850,44 @@ def round_trip_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     ],
 )
 def export_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write an exchange operation log entry."""
-    path = write_json(
-        ctx, "exchange-log.json", {"operation": values["operation"], "status": values["status"]}
+    """Append a timestamped exchange event alongside architecture export file counts."""
+    if ctx.root is None:
+        raise FeatureInputError("Open a project before logging exchange events.")
+    arch_dir = ctx.root / "11 Exports" / "Architecture"
+    file_count = (
+        sum(1 for p in arch_dir.glob("*") if p.is_file() and p.name != "exchange-log.json")
+        if arch_dir.is_dir()
+        else 0
     )
+    entries = _load_arch_json_list(ctx, "exchange-log.json")
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "operation": values["operation"].strip() or "Export",
+        "status": values["status"],
+        "exportArtifacts": file_count,
+    }
+    entries.append(entry)
+    path = write_json(ctx, "exchange-log.json", entries)
     return result(
-        summary={"operation": values["operation"], "status": values["status"], "exportPath": path}
+        summary={
+            "operation": entry["operation"],
+            "status": entry["status"],
+            "logCount": len(entries),
+            "exportArtifacts": file_count,
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Exchange log",
+                [
+                    ("timestamp", "Timestamp"),
+                    ("operation", "Operation"),
+                    ("status", "Status"),
+                    ("exportArtifacts", "Artifacts"),
+                ],
+                entries,
+            )
+        ],
     )
 
 
@@ -472,18 +901,52 @@ def export_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def mapping_rules(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write an exchange category mapping rule."""
-    path = write_json(
-        ctx,
-        "exchange-mapping-rules.json",
-        {"source": values["sourceCategory"], "target": values["targetCategory"]},
+    """Validate category against live architecture classes and persist IFC mapping rules."""
+    arch = require_arch(ctx)
+    category_counts = {
+        "Wall": len(arch.walls),
+        "Door": len(arch.doors),
+        "Window": len(arch.windows),
+        "Room": len(arch.rooms),
+        "Roof": len(arch.roofs),
+        "CurtainWall": len(arch.curtainWalls),
+        "Ceiling": len(arch.ceilings),
+        "Ramp": len(arch.ramps),
+        "Railing": len(arch.railings),
+    }
+    src = values["sourceCategory"].strip()
+    if src not in category_counts:
+        raise FeatureInputError(
+            f"Unknown source category '{src}'. Expected one of: {', '.join(sorted(category_counts))}."
+        )
+    entries = [
+        e
+        for e in _load_arch_json_list(ctx, "exchange-mapping-rules.json")
+        if e.get("source") != src
+    ]
+    entries.append(
+        {
+            "source": src,
+            "target": values["targetCategory"].strip(),
+            "instanceCount": category_counts[src],
+        }
     )
+    path = write_json(ctx, "exchange-mapping-rules.json", entries)
     return result(
         summary={
-            "sourceCategory": values["sourceCategory"],
-            "targetCategory": values["targetCategory"],
+            "sourceCategory": src,
+            "targetCategory": values["targetCategory"].strip(),
+            "instanceCount": category_counts[src],
+            "ruleCount": len(entries),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Mapping rules",
+                [("source", "Source"), ("target", "IFC target"), ("instanceCount", "Instances")],
+                entries,
+            )
+        ],
     )
 
 
@@ -532,23 +995,47 @@ def unit_mapping(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     fields=[text("revision", "Revision", "A"), text("location", "Shared project location", "")],
 )
 def publish_model(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a coordinated-model publication manifest."""
+    """Validate architecture model, hash source data, and append a coordinated publication revision."""
+    from saengine.library.architecture import check as check_arch
+
     arch = require_arch(ctx)
-    path = write_json(
-        ctx,
-        "published-model.json",
-        {
-            "revision": values["revision"],
-            "location": values["location"],
-            "elementCount": len(arch.instances()),
-        },
-    )
+    problems = check_arch(arch)
+    assert ctx.root is not None
+    arch_bytes = (ctx.root / "05 Floor Plan" / "architecture.json").read_bytes()
+    rooms = room_metrics(ctx, arch)
+    entry = {
+        "revision": values["revision"].strip() or "A",
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "location": values["location"],
+        "elementCount": len(arch.instances()),
+        "totalNetAreaM2": round(sum(r["netAreaM2"] for r in rooms), 2),
+        "validationIssues": len(problems),
+        "sha256": hashlib.sha256(arch_bytes).hexdigest(),
+    }
+    history = _load_arch_json_list(ctx, "published-model.json")
+    history.append(entry)
+    path = write_json(ctx, "published-model.json", history)
     return result(
         summary={
-            "revision": values["revision"],
-            "elementCount": len(arch.instances()),
+            "revision": entry["revision"],
+            "elementCount": entry["elementCount"],
+            "validationIssues": entry["validationIssues"],
+            "revisionCount": len(history),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Published revisions",
+                [
+                    ("revision", "Revision"),
+                    ("timestamp", "Published UTC"),
+                    ("elementCount", "Elements"),
+                    ("validationIssues", "Issues"),
+                ],
+                history,
+            )
+        ],
+        problems=problems,
     )
 
 
@@ -562,16 +1049,59 @@ def publish_model(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     ],
 )
 def package_sheets(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a sheet-package manifest."""
+    """Bundle generated architecture deliverables into a checksummed ZIP package and manifest."""
+    import zipfile
+
+    if ctx.root is None:
+        raise FeatureInputError("Open a project before packaging sheets.")
+    arch_dir = ctx.root / "11 Exports" / "Architecture"
+    arch_dir.mkdir(parents=True, exist_ok=True)
+    slug = (values["packageName"].strip() or "issue-package").replace(" ", "-").lower()
+    zip_path = arch_dir / f"{slug}.zip"
+    files = [
+        p
+        for p in sorted(arch_dir.iterdir())
+        if p.is_file() and p.suffix.lower() != ".zip" and p.name != "sheet-package.json"
+    ]
+    manifest = []
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for src in files:
+            data = src.read_bytes()
+            zf.writestr(src.name, data)
+            manifest.append(
+                {
+                    "file": src.name,
+                    "sizeBytes": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                }
+            )
     path = write_json(
-        ctx, "sheet-package.json", {"name": values["packageName"], "sheetSet": values["sheetSet"]}
+        ctx,
+        "sheet-package.json",
+        {
+            "name": values["packageName"],
+            "sheetSet": values["sheetSet"],
+            "zipArchive": zip_path.relative_to(ctx.root).as_posix(),
+            "fileCount": len(manifest),
+            "totalBytes": sum(m["sizeBytes"] for m in manifest),
+            "files": manifest,
+        },
     )
     return result(
         summary={
             "packageName": values["packageName"],
             "sheetSet": values["sheetSet"],
+            "fileCount": len(manifest),
+            "totalBytes": sum(m["sizeBytes"] for m in manifest),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Packaged deliverables",
+                [("file", "File"), ("sizeBytes", "Size", "byte"), ("sha256", "SHA-256")],
+                manifest,
+            )
+        ],
     )
 
 
@@ -586,23 +1116,52 @@ def package_sheets(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     ],
 )
 def transmittal_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Generate a transmittal sheet record."""
-    path = write_json(
-        ctx,
-        "transmittal.json",
-        {
-            "recipient": values["recipient"],
-            "issue": values["issue"],
-            "revision": values["revision"],
-        },
+    """Generate a dated architecture transmittal register hashing available export deliverables."""
+    if ctx.root is None:
+        raise FeatureInputError("Open a project before creating a transmittal sheet.")
+    recipient = values["recipient"].strip()
+    if not recipient:
+        raise FeatureInputError("Enter a transmittal recipient.")
+    arch_dir = ctx.root / "11 Exports" / "Architecture"
+    deliverables = (
+        [
+            {
+                "file": p.name,
+                "sizeBytes": p.stat().st_size,
+                "sha256": hashlib.sha256(p.read_bytes()).hexdigest()[:16],
+            }
+            for p in sorted(arch_dir.iterdir())
+            if p.is_file() and p.name != "transmittal.json"
+        ]
+        if arch_dir.is_dir()
+        else []
     )
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "recipient": recipient,
+        "issue": values["issue"],
+        "revision": values["revision"],
+        "deliverableCount": len(deliverables),
+        "deliverables": deliverables,
+    }
+    history = _load_arch_json_list(ctx, "transmittal.json")
+    history.append(entry)
+    path = write_json(ctx, "transmittal.json", history)
     return result(
         summary={
-            "recipient": values["recipient"],
+            "recipient": recipient,
             "issue": values["issue"],
             "revision": values["revision"],
+            "deliverableCount": len(deliverables),
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Transmitted deliverables",
+                [("file", "File"), ("sizeBytes", "Size", "byte"), ("sha256", "SHA-256 prefix")],
+                deliverables,
+            )
+        ],
     )
 
 
@@ -616,24 +1175,42 @@ def transmittal_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     ],
 )
 def cloud_upload(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record a cloud package upload request without network access."""
-    path = write_json(
-        ctx,
-        "cloud-upload-request.json",
-        {
-            "package": values["packageFile"],
-            "destination": values["destination"],
-            "status": "queued",
-        },
-    )
+    """Verify the target package exists locally, hash its payload, and append to the upload queue."""
+    pkg = _require_file(ctx, values["packageFile"])
+    data = pkg.read_bytes()
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "package": values["packageFile"],
+        "destination": values["destination"],
+        "sizeBytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "status": "queued",
+    }
+    queue = _load_arch_json_list(ctx, "cloud-upload-request.json")
+    queue.append(entry)
+    path = write_json(ctx, "cloud-upload-request.json", queue)
     return result(
         summary={
             "package": values["packageFile"],
             "destination": values["destination"],
+            "sizeBytes": len(data),
+            "queueCount": len(queue),
             "status": "Queued locally",
             "exportPath": path,
         },
-        notes=["No network upload is performed; this writes a local upload request manifest."],
+        tables=[
+            table(
+                "Local upload queue",
+                [
+                    ("package", "Package"),
+                    ("destination", "Destination"),
+                    ("sizeBytes", "Size", "byte"),
+                    ("status", "Status"),
+                ],
+                queue,
+            )
+        ],
+        notes=["No network upload is performed; this verifies and queues the file locally."],
     )
 
 

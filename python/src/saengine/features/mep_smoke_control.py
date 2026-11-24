@@ -16,32 +16,72 @@ from saengine.features import (
     "mepSmoke.airBalanceSmoke",
     "Air Balance Smoke",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "pressurisedFloorCount",
+            "Pressurised stairwell doors closed + 1 open",
+            10,
+            min=1,
+            max=80,
+        ),
+        number(
+            "closedDoorGapAreaM2", "Leakage gap area per closed door", 0.02, unit="m²", min=0.005
+        ),
+        number("openDoorsCount", "Assumed simultaneously open egress doors", 1, min=0, max=4),
+        number("openDoorAreaM2", "Single open door leaf area", 1.8, unit="m²", min=1.0),
+        number(
+            "targetPressurePa", "Design stairwell overpressure", 50.0, unit="Pa", min=12.5, max=80.0
+        ),
+    ],
+    requires_project=False,
 )
 def airBalanceSmoke(ctx: FeatureContext, values: dict) -> dict:
-    """Air Balance Smoke: Ventilation."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute stairwell smoke-control pressurisation supply fan airflow (closed + open doors)."""
+    import math
+
+    dp = float(values["targetPressurePa"])
+    # Orifice flow Q = Cd * A * sqrt(2 * dP / rho), Cd = 0.65, rho = 1.2
+    v_crack = 0.65 * math.sqrt(2.0 * dp / 1.2)
+    q_closed = int(values["pressurisedFloorCount"]) * float(values["closedDoorGapAreaM2"]) * v_crack
+    # Open door velocity Criterion (min 1.0 m/s across open door)
+    q_open = int(values["openDoorsCount"]) * float(values["openDoorAreaM2"]) * 1.0
+    q_total = (q_closed + q_open) * 1.15  # 15% duct & shaft leakage margin
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "closedDoorLeakageM3s": round(q_closed, 2),
+            "openDoorAirflowM3s": round(q_open, 2),
+            "totalFanSupplyM3s": round(q_total, 2),
+            "totalFanSupplyLps": round(q_total * 1000.0, 0),
         },
         tables=[
             table(
-                "Air Balance Smoke",
-                [("item", "Item"), ("value", "Value")],
+                "Stairwell smoke pressurisation airflow balance",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("component", "Flow Path"),
+                    ("flowM3s", "Flow", "m³/s"),
+                    ("flowLps", "Flow", "L/s"),
+                ],
+                [
+                    {
+                        "component": "Closed door crack leakage",
+                        "flowM3s": round(q_closed, 2),
+                        "flowLps": round(q_closed * 1000, 0),
+                    },
+                    {
+                        "component": "Open door purge velocity (>= 1.0 m/s)",
+                        "flowM3s": round(q_open, 2),
+                        "flowLps": round(q_open * 1000, 0),
+                    },
+                    {
+                        "component": "Design supply + 15% duct margin",
+                        "flowM3s": round(q_total, 2),
+                        "flowLps": round(q_total * 1000, 0),
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Orifice equation Cd=0.65 across closed door perimeter gaps plus 1.0 m/s open-door purge velocity."
         ],
     )
 
@@ -75,32 +115,71 @@ def cfdSmokeRun(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.doorForceCheck",
     "Door Force Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("doorWidthM", "Door leaf width W", 0.90, unit="m", min=0.6, max=1.5),
+        number("doorHeightM", "Door leaf height H", 2.10, unit="m", min=1.8, max=2.8),
+        number("closerForceN", "Door closer latch resistance F_dc", 45.0, unit="N", min=10.0),
+        number(
+            "pressureDiffPa", "Maximum stairwell pressure difference ΔP", 50.0, unit="Pa", min=5.0
+        ),
+        number("maxAllowedForceN", "Maximum handle opening force limit", 133.0, unit="N", min=50.0),
+    ],
+    requires_project=False,
 )
 def doorForceCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Door Force Check: Stairwells."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate stairwell egress door handle opening force under smoke pressurisation."""
+    w = float(values["doorWidthM"])
+    h = float(values["doorHeightM"])
+    d_latch = 0.075  # m from stile edge to knob/bar
+    dp = float(values["pressureDiffPa"])
+    area = w * h
+    f_air = (dp * area * w) / (2.0 * (w - d_latch))
+    f_total = float(values["closerForceN"]) + f_air
+    max_dp_allowed = (
+        (float(values["maxAllowedForceN"]) - float(values["closerForceN"]))
+        * 2.0
+        * (w - d_latch)
+        / (area * w)
+    )
+    ok = f_total <= float(values["maxAllowedForceN"])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "totalOpeningForceN": round(f_total, 1),
+            "airPressureForceN": round(f_air, 1),
+            "maxAllowableDeltaPPa": round(max(0.0, max_dp_allowed), 1),
+            "compliant": ok,
         },
         tables=[
             table(
-                "Door Force Check",
-                [("item", "Item"), ("value", "Value")],
+                "Pressurised egress door opening force",
+                [("item", "Component"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Door closer force F_dc",
+                        "value": values["closerForceN"],
+                        "unit": "N",
+                    },
+                    {"item": "Differential pressure force", "value": round(f_air, 1), "unit": "N"},
+                    {
+                        "item": "Total force at panic hardware",
+                        "value": round(f_total, 1),
+                        "unit": "N",
+                    },
+                    {
+                        "item": "Max ΔP before exceeding limit",
+                        "value": round(max(0.0, max_dp_allowed), 1),
+                        "unit": "Pa",
+                    },
+                    {
+                        "item": "Egress door status",
+                        "value": "PASS" if ok else "ADD RELIEF DAMPER",
+                        "unit": "-",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Moment equilibrium F = F_dc + (dP * A * W) / (2 * (W - d)); verify barometric relief setpoint."
         ],
     )
 
@@ -134,33 +213,52 @@ def ductSmokeDetector(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.egressWidthCheck",
     "Egress Width Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("occupantLoad", "Floor or stairwell design occupant load", 180, min=1),
+        number(
+            "widthPerPersonMm", "Stair width factor per occupant", 7.6, unit="mm/person", min=4.0
+        ),
+        number(
+            "providedClearMm",
+            "Provided clear exit stair / door width",
+            1500.0,
+            unit="mm",
+            min=600.0,
+        ),
+    ],
+    requires_project=False,
 )
 def egressWidthCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Egress Width Check: Egress."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Check clear smoke-protected egress width against occupant capacity and minimum width."""
+    req_mm = max(1100.0, int(values["occupantLoad"]) * float(values["widthPerPersonMm"]))
+    prov_mm = float(values["providedClearMm"])
+    cap_persons = int(prov_mm / float(values["widthPerPersonMm"]))
+    ok = prov_mm >= req_mm
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "requiredClearWidthMm": round(req_mm, 0),
+            "providedWidthMm": prov_mm,
+            "egressCapacityPersons": cap_persons,
+            "compliant": ok,
         },
         tables=[
             table(
-                "Egress Width Check",
-                [("item", "Item"), ("value", "Value")],
+                "Egress clear width check",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Design occupant load",
+                        "value": values["occupantLoad"],
+                        "unit": "persons",
+                    },
+                    {"item": "Required minimum width", "value": round(req_mm, 0), "unit": "mm"},
+                    {"item": "Provided clear width", "value": prov_mm, "unit": "mm"},
+                    {"item": "Clear width capacity", "value": cap_persons, "unit": "persons"},
+                    {"item": "Status", "value": "PASS" if ok else "WIDEN EXIT", "unit": "-"},
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=["Enforces 1100 mm floor minimum clear width plus occupant-scaled egress demand."],
     )
 
 
@@ -243,32 +341,55 @@ def exitRoutes(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.extractionRate",
     "Extraction Rate",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "heatReleaseKw", "Design fire convective heat release Qc", 3500.0, unit="kW", min=200.0
+        ),
+        number(
+            "clearHeightM", "Clear smoke-free height Z above fuel", 6.0, unit="m", min=2.0, max=40.0
+        ),
+        number("smokeTempC", "Upper smoke layer temperature Ts", 85.0, unit="°C", min=30.0),
+    ],
+    requires_project=False,
 )
 def extractionRate(ctx: FeatureContext, values: dict) -> dict:
-    """Extraction Rate: Simulation."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate axisymmetric plume mass flow and volumetric mechanical smoke extraction rate."""
+    qc = float(values["heatReleaseKw"])
+    z = float(values["clearHeightM"])
+    # Heskestad / NFPA 92 axisymmetric plume (for z > flame limit z_l): m_p = 0.071 * Qc^(1/3) * z^(5/3) + 0.0018 * Qc
+    m_p_kgs = 0.071 * (qc ** (1.0 / 3.0)) * (z ** (5.0 / 3.0)) + 0.0018 * qc
+    rho_s = 1.2 * (293.15 / (float(values["smokeTempC"]) + 273.15))
+    vol_m3s = m_p_kgs / rho_s
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "plumeMassRateKgPerS": round(m_p_kgs, 2),
+            "smokeDensityKgPerM3": round(rho_s, 3),
+            "extractionRateM3s": round(vol_m3s, 2),
+            "extractionRateLps": round(vol_m3s * 1000.0, 0),
         },
         tables=[
             table(
-                "Extraction Rate",
-                [("item", "Item"), ("value", "Value")],
+                "Mechanical smoke exhaust rate",
+                [("parameter", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"parameter": "Convective HRR Qc", "value": qc, "unit": "kW"},
+                    {"parameter": "Clear smoke interface height Z", "value": z, "unit": "m"},
+                    {
+                        "parameter": "Entrained plume mass flow",
+                        "value": round(m_p_kgs, 2),
+                        "unit": "kg/s",
+                    },
+                    {"parameter": "Hot smoke density", "value": round(rho_s, 3), "unit": "kg/m³"},
+                    {
+                        "parameter": "Required exhaust flow rate",
+                        "value": round(vol_m3s, 2),
+                        "unit": "m³/s",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Axi-symmetric plume entrainment m_p = 0.071*Qc^(1/3)*Z^(5/3) + 0.0018*Qc converted at hot layer density."
         ],
     )
 
@@ -504,32 +625,54 @@ def smokeLayerHeight(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.smokeReservoirs",
     "Smoke Reservoirs",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("zoneAreaM2", "Compartment smoke reservoir area", 2200.0, unit="m²", min=50.0),
+        number("maxSideM", "Longest reservoir dimension", 52.0, unit="m", min=5.0),
+        number("layerDepthM", "Ceiling smoke screen drop depth d", 1.8, unit="m", min=0.5),
+    ],
+    requires_project=False,
 )
 def smokeReservoirs(ctx: FeatureContext, values: dict) -> dict:
-    """Smoke Reservoirs: Smoke Control."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Evaluate smoke reservoir zoning area (<= 2600 m² mechanical), aspect length, and storage volume."""
+    area = float(values["zoneAreaM2"])
+    length = float(values["maxSideM"])
+    depth = float(values["layerDepthM"])
+    vol_m3 = area * depth
+    area_ok = area <= 2600.0
+    len_ok = length <= 60.0
+    sub_zones = max(1, int(-(-area // 2600.0)))
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "reservoirVolumeM3": round(vol_m3, 0),
+            "recommendedSubZones": sub_zones,
+            "areaOk": area_ok,
+            "lengthOk": len_ok,
         },
         tables=[
             table(
-                "Smoke Reservoirs",
-                [("item", "Item"), ("value", "Value")],
+                "Smoke reservoir zoning check",
+                [("criterion", "Check Criterion"), ("value", "Value"), ("status", "Status")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "criterion": "Reservoir plan area (<= 2600 m²)",
+                        "value": f"{area:g} m²",
+                        "status": "PASS" if area_ok else f"SPLIT INTO {sub_zones}",
+                    },
+                    {
+                        "criterion": "Maximum edge length (<= 60 m)",
+                        "value": f"{length:g} m",
+                        "status": "PASS" if len_ok else "EXCEEDS 60 m",
+                    },
+                    {
+                        "criterion": "Smoke storage volume",
+                        "value": f"{vol_m3:,.0f} m³",
+                        "status": f"d={depth:g} m",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Smoke curtains sub-divide large malls/atriums so plume buoyancy remains well-stratified."
         ],
     )
 
@@ -538,32 +681,61 @@ def smokeReservoirs(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.smokeVents",
     "Smoke Vents",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("plumeMassKgPerS", "Smoke mass flow rate M_s", 18.0, unit="kg/s", min=0.5),
+        number("smokeLayerDepthM", "Hot smoke layer buoyancy depth d", 1.6, unit="m", min=0.4),
+        number("smokeTempC", "Mean smoke layer temperature", 90.0, unit="°C", min=35.0),
+        number("ambientTempC", "Ambient outside air temperature", 25.0, unit="°C"),
+        number("dischargeCoeff", "Vent aerodynamic Cv factor", 0.60, min=0.4, max=0.8),
+    ],
+    requires_project=False,
 )
 def smokeVents(ctx: FeatureContext, values: dict) -> dict:
-    """Smoke Vents: Smoke Control."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Size natural buoyancy smoke ventilator free geometric area via BRE/EN-style stack formula."""
+    import math
+
+    m_s = float(values["plumeMassKgPerS"])
+    d = float(values["smokeLayerDepthM"])
+    t_s = float(values["smokeTempC"]) + 273.15
+    t_0 = float(values["ambientTempC"]) + 273.15
+    dt = max(1.0, t_s - t_0)
+    rho_0 = 1.2 * 293.15 / t_0
+    cv = float(values["dischargeCoeff"])
+    # Aerodynamic free area Aa = M_s / (rho_0 * sqrt(2 * g * d * dT * T_0 / T_s^2)) roughly
+    denom = rho_0 * math.sqrt(2.0 * 9.81 * d * dt * t_0 / (t_s**2))
+    aa_m2 = m_s / denom
+    geom_area_m2 = aa_m2 / cv
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "aerodynamicAreaM2": round(aa_m2, 2),
+            "geometricVentAreaM2": round(geom_area_m2, 2),
         },
         tables=[
             table(
-                "Smoke Vents",
-                [("item", "Item"), ("value", "Value")],
+                "Natural smoke ventilator sizing",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Smoke mass rate M_s", "value": m_s, "unit": "kg/s"},
+                    {
+                        "item": "Buoyancy depth d / ΔT",
+                        "value": f"{d:g} m / {dt:.0f} K",
+                        "unit": "-",
+                    },
+                    {
+                        "item": "Required aerodynamic area Aa",
+                        "value": round(aa_m2, 2),
+                        "unit": "m²",
+                    },
+                    {
+                        "item": "Required geometric area (Aa/Cv)",
+                        "value": round(geom_area_m2, 2),
+                        "unit": "m²",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Provide low-level replacement makeup air >= 1.5x total exhaust aerodynamic area to limit plugholing."
         ],
     )
 
@@ -631,32 +803,67 @@ def temperatureSlice(ctx: FeatureContext, values: dict) -> dict:
     "mepSmoke.tenability",
     "Tenability",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "opticalDensityPerM", "Smoke optical extinction coeff alpha", 0.18, unit="/m", min=0.01
+        ),
+        number("airTempC", "Occupant-head gas temperature (2.0 m)", 42.0, unit="°C", min=15.0),
+        number(
+            "radiationKwPerM2", "Radiant heat flux from upper layer", 1.2, unit="kW/m²", min=0.0
+        ),
+    ],
+    requires_project=False,
 )
 def tenability(ctx: FeatureContext, values: dict) -> dict:
-    """Tenability: Analysis."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Verify ASET egress tenability limits for visibility (>= 10 m), gas temp (<= 60 °C), and radiation (<= 2.5 kW/m²)."""
+    # Jin's visibility law: S = K / extinction_coeff, K = 3 for illuminated exit signs
+    vis_m = 3.0 / float(values["opticalDensityPerM"])
+    temp_c = float(values["airTempC"])
+    rad = float(values["radiationKwPerM2"])
+    vis_ok = vis_m >= 10.0
+    temp_ok = temp_c <= 60.0
+    rad_ok = rad <= 2.5
+    overall = vis_ok and temp_ok and rad_ok
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "visibilityM": round(vis_m, 1),
+            "temperatureC": temp_c,
+            "radiationKwPerM2": rad,
+            "tenable": overall,
         },
         tables=[
             table(
-                "Tenability",
-                [("item", "Item"), ("value", "Value")],
+                "Life-safety tenability criteria",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("criterion", "Criterion"),
+                    ("computed", "Value"),
+                    ("limit", "Limit"),
+                    ("status", "Status"),
+                ],
+                [
+                    {
+                        "criterion": "Illuminated exit visibility",
+                        "computed": f"{vis_m:.1f} m",
+                        "limit": ">= 10.0 m",
+                        "status": "PASS" if vis_ok else "FAIL",
+                    },
+                    {
+                        "criterion": "Breathing zone temperature",
+                        "computed": f"{temp_c:.1f} °C",
+                        "limit": "<= 60.0 °C",
+                        "status": "PASS" if temp_ok else "FAIL",
+                    },
+                    {
+                        "criterion": "Downward radiant flux",
+                        "computed": f"{rad:.2f} kW/m²",
+                        "limit": "<= 2.5 kW/m²",
+                        "status": "PASS" if rad_ok else "FAIL",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Uses Jin's relation S = 3 / alpha for light-reflecting signage in smoky corridors."
         ],
     )
 

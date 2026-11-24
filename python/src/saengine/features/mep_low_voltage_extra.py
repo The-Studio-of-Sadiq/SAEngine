@@ -69,32 +69,55 @@ def audioVideoPoints(ctx: FeatureContext, values: dict) -> dict:
     "mepLowVoltage.bandwidthCheck",
     "Bandwidth Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("endpoints", "Active endpoints / IP cameras / APs", 24, min=1, max=500),
+        number(
+            "perEndpointMbps", "Average stream throughput per endpoint", 12.0, unit="Mbps", min=0.5
+        ),
+        number("uplinkGbps", "Core switch uplink capacity", 1.0, unit="Gbps", min=0.1),
+        number(
+            "maxUtilPct", "Target peak link utilisation limit", 70.0, unit="%", min=20.0, max=95.0
+        ),
+    ],
+    requires_project=False,
 )
 def bandwidthCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Bandwidth Check: Checks."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Check structured-cabling uplink throughput utilisation and spare bandwidth headroom."""
+    tot_mbps = int(values["endpoints"]) * float(values["perEndpointMbps"])
+    cap_mbps = float(values["uplinkGbps"]) * 1000.0
+    util_pct = (tot_mbps / cap_mbps) * 100.0
+    ok = util_pct <= float(values["maxUtilPct"])
+    min_uplink_gbps = tot_mbps / (float(values["maxUtilPct"]) / 100.0 * 1000.0)
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "demandMbps": round(tot_mbps, 1),
+            "uplinkUtilisationPct": round(util_pct, 1),
+            "compliant": ok,
+            "recommendedUplinkGbps": round(min_uplink_gbps, 2),
         },
         tables=[
             table(
-                "Bandwidth Check",
-                [("item", "Item"), ("value", "Value")],
+                "ELV network bandwidth check",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Aggregate endpoint demand",
+                        "value": round(tot_mbps, 1),
+                        "unit": "Mbps",
+                    },
+                    {"item": "Provisioned uplink", "value": cap_mbps, "unit": "Mbps"},
+                    {"item": "Uplink utilisation", "value": round(util_pct, 1), "unit": "%"},
+                    {
+                        "item": "Min uplink at target cap",
+                        "value": round(min_uplink_gbps, 2),
+                        "unit": "Gbps",
+                    },
+                    {"item": "Status", "value": "PASS" if ok else "UPGRADE UPLINK", "unit": "-"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Maintain <= 70% utilisation on uplinks for burst tolerance and multicast overhead."
         ],
     )
 
@@ -489,32 +512,46 @@ def redundancy(ctx: FeatureContext, values: dict) -> dict:
     "mepLowVoltage.signalLossCheck",
     "Signal Loss Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("fiberLengthM", "Optical link path length", 350.0, unit="m", min=5.0),
+        number("attenuationDbPerKm", "Fiber attenuation rate", 3.0, unit="dB/km", min=0.2),
+        number("connectorPairs", "Mated connector pairs", 4, min=0, max=20),
+        number("fusionSplices", "Fusion splices", 2, min=0, max=30),
+        number("linkBudgetDb", "Transceiver optical power budget", 7.5, unit="dB", min=1.0),
+    ],
+    requires_project=False,
 )
 def signalLossCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Signal Loss Check: Testing."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate optical fiber / structured link insertion loss budget and margin."""
+    fiber_loss = (float(values["fiberLengthM"]) / 1000.0) * float(values["attenuationDbPerKm"])
+    conn_loss = int(values["connectorPairs"]) * 0.50
+    splice_loss = int(values["fusionSplices"]) * 0.10
+    margin_db = 1.50
+    total_loss = fiber_loss + conn_loss + splice_loss + margin_db
+    headroom = float(values["linkBudgetDb"]) - total_loss
+    ok = headroom >= 0.0
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "linkLossDb": round(total_loss, 2),
+            "budgetDb": float(values["linkBudgetDb"]),
+            "marginDb": round(headroom, 2),
+            "compliant": ok,
         },
         tables=[
             table(
-                "Signal Loss Check",
-                [("item", "Item"), ("value", "Value")],
+                "Optical link attenuation budget",
+                [("component", "Loss Component"), ("lossDb", "Loss", "dB")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"component": "Cable attenuation", "lossDb": round(fiber_loss, 2)},
+                    {"component": "Connectors (0.5 dB/pair)", "lossDb": round(conn_loss, 2)},
+                    {"component": "Fusion splices (0.1 dB)", "lossDb": round(splice_loss, 2)},
+                    {"component": "Ageing & bend margin", "lossDb": margin_db},
+                    {"component": "Total link loss", "lossDb": round(total_loss, 2)},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Assumes 0.5 dB per mated LC/SC pair, 0.1 dB per fusion splice, and 1.5 dB ageing allowance."
         ],
     )
 
@@ -635,32 +672,58 @@ def tvOutlets(ctx: FeatureContext, values: dict) -> dict:
     "mepLowVoltage.upsSizing",
     "UPS Sizing",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("criticalLoadKw", "Critical IT / ELV load", 24.0, unit="kW", min=0.5),
+        number("autonomyMin", "Battery backup autonomy", 15.0, unit="min", min=5.0, max=240.0),
+        number("loadPf", "UPS output power factor", 0.90, min=0.7, max=1.0),
+        number("dcBusV", "Battery string nominal DC bus", 240.0, unit="V", min=24.0),
+    ],
+    requires_project=False,
 )
 def upsSizing(ctx: FeatureContext, values: dict) -> dict:
-    """UPS Sizing: Checks."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Size critical-power UPS frame kVA and battery bank via saengine.electrical.supply.ups."""
+    from saengine.electrical import supply
+
+    kw = float(values["criticalLoadKw"])
+    autonomy = float(values["autonomyMin"])
+    res = supply.ups(kw, autonomy)
+    req_kva = float(res.get("kva", kw / float(values["loadPf"])))
+    batt_vah = kw * 1000.0 * (autonomy / 60.0) / 0.88
+    batt_ah = batt_vah / float(values["dcBusV"])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "requiredKva": round(req_kva, 2),
+            "standardFrameKva": res.get("rating", res.get("kva")),
+            "batteryAh": round(batt_ah, 1),
+            "autonomyMin": autonomy,
         },
         tables=[
             table(
-                "UPS Sizing",
-                [("item", "Item"), ("value", "Value")],
+                "UPS & battery sizing",
+                [("parameter", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"parameter": "Critical real power", "value": kw, "unit": "kW"},
+                    {"parameter": "UPS apparent rating", "value": round(req_kva, 2), "unit": "kVA"},
+                    {
+                        "parameter": "Selected standard frame",
+                        "value": res.get("rating", round(req_kva, 1)),
+                        "unit": "kVA",
+                    },
+                    {
+                        "parameter": "Battery energy required (η=88%)",
+                        "value": round(batt_vah / 1000.0, 2),
+                        "unit": "kVAh",
+                    },
+                    {
+                        "parameter": "Bank capacity at DC bus",
+                        "value": round(batt_ah, 1),
+                        "unit": "Ah",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "UPS kVA sized via saengine.electrical.supply.ups; size rectifier & room cooling for full-load heat loss."
         ],
     )
 

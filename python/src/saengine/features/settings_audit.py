@@ -783,38 +783,76 @@ def backup_schedule(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "Restore Point",
     part="settings",
     fields=[
+        text("label", "Restore point label", "pre-check-baseline"),
         checkbox("createBackup", "Create restore point JSON in exports", True),
     ],
     requires_project=False,
 )
 def restore_point(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a validated settings restore point in 02 Project Settings/exports."""
+    """Create and verify a SHA-256 checksummed settings restore point in 02 Project Settings/exports."""
+    import hashlib
+    import json
+    from datetime import datetime
+
     st = load_settings(ctx)
-    payload = json_dumps_clean(st.model_dump(mode="json", by_alias=True, exclude_none=True))
+    label = values["label"].strip() or "restore-point"
+    payload_str = json_dumps_clean(st.model_dump(mode="json", by_alias=True, exclude_none=True))
+    digest = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
     out_path = None
-    if values["createBackup"] and ctx.root is not None:
-        out_path = export_file(ctx, "settings-restore-point.json", payload)
+    drift_detected = False
+    previous_digest = None
+    if ctx.root is not None:
+        hist_path = ctx.path("02 Project Settings/exports/settings-restore-history.json")
+        history: list[dict[str, Any]] = []
+        if hist_path is not None and hist_path.exists():
+            try:
+                loaded = json.loads(hist_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    history = loaded
+            except ValueError:
+                history = []
+        if history:
+            previous_digest = str(history[-1].get("sha256", ""))
+            drift_detected = bool(previous_digest and previous_digest != digest)
+        if values["createBackup"]:
+            out_path = export_file(ctx, "settings-restore-point.json", payload_str)
+            entry = {
+                "label": label,
+                "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+                "sha256": digest,
+                "codePack": st.codePack,
+                "areaLoads": len(st.areaLoads),
+                "combinations": len(st.combinations),
+            }
+            history.append(entry)
+            export_file(
+                ctx, "settings-restore-history.json", json.dumps(history[-25:], indent=2) + "\n"
+            )
     return result(
         summary={
             "project": st.project.name,
-            "sizeBytes": len(payload.encode("utf-8")),
+            "sha256": digest[:16],
+            "driftSinceLast": drift_detected,
             "saved": out_path is not None,
         },
         tables=[
             table(
-                "Restore point summary",
+                "Restore point verification",
                 [("item", "Item"), ("value", "Value")],
                 [
+                    {"item": "Label", "value": label},
                     {"item": "Code pack", "value": st.codePack},
                     {"item": "Area loads", "value": str(len(st.areaLoads))},
                     {"item": "Combinations", "value": str(len(st.combinations))},
+                    {"item": "SHA-256 (prefix)", "value": digest[:16]},
+                    {"item": "Changed vs last", "value": str(drift_detected)},
                 ],
             )
         ],
         notes=[
-            f"Restore point saved to {out_path}"
+            f"Restore point saved to {out_path} (SHA-256 {digest[:12]})."
             if out_path
-            else "Open a project folder to save settings-restore-point.json."
+            else "Verified in memory; open a project folder to write restore history."
         ],
     )
 

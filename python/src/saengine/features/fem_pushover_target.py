@@ -460,22 +460,49 @@ def manual_override(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def accept_target(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Commit accepted target displacement to 08 FEM/exports/target-displacement.json."""
-    _require_pushover(ctx)
-    path = export_fem_file(
-        ctx, "target-displacement.json", f'{{"acceptedTargetMm": {values["targetDispMm"]:.3f}}}\n'
-    )
-    rows = [{"acceptedTargetMm": values["targetDispMm"], "path": str(path)}]
+    """Validate accepted target displacement against achieved pushover curve displacement and commit."""
+    import json
+
+    runs = _require_pushover(ctx)
+    target_mm = float(values["targetDispMm"])
+    min_achieved = min(float(r.get("maxDispMm") or 0.0) for r in runs)
+    ratio = target_mm / min_achieved if min_achieved > 0 else float("inf")
+    feasible = min_achieved >= target_mm - 1e-6
+    payload = {
+        "acceptedTargetMm": round(target_mm, 3),
+        "minAchievedPushoverMm": round(min_achieved, 3),
+        "demandToCapacityDispRatio": round(ratio, 3) if math.isfinite(ratio) else None,
+        "reachedInPushover": feasible,
+    }
+    path = export_fem_file(ctx, "target-displacement.json", json.dumps(payload, indent=2) + "\n")
+    rows = [
+        {
+            "acceptedTargetMm": target_mm,
+            "achievedMm": min_achieved,
+            "ratio": round(ratio, 3) if math.isfinite(ratio) else 0.0,
+            "ok": feasible,
+        }
+    ]
     return result(
-        summary={"acceptedTargetMm": values["targetDispMm"], "committedPath": str(path)},
+        summary={
+            "acceptedTargetMm": target_mm,
+            "minAchievedMm": min_achieved,
+            "reachedInPushover": feasible,
+            "committedPath": str(path),
+        },
         tables=[
             table(
-                "Committed target displacement",
-                [("acceptedTargetMm", "δt", "mm"), ("path", "File")],
+                "Target displacement verification",
+                [
+                    ("acceptedTargetMm", "Target δt", "mm"),
+                    ("achievedMm", "Achieved Δ", "mm"),
+                    ("ratio", "δt / Δ"),
+                    ("ok", "Reached"),
+                ],
                 rows,
             )
         ],
-        notes=[f"Accepted target committed to {path}"],
+        notes=[f"Verified target against {len(runs)} pushover run(s) and committed to {path}."],
     )
 
 
@@ -699,25 +726,47 @@ def pushover_summary(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     requires_project=True,
 )
 def export_target(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export target displacement metrics for downstream seismic report assembly."""
+    """Compute target roof drift ratios against allowable threshold and export JSON deliverable."""
+    import json
+
     runs = _require_pushover(ctx)
-    data = [
-        {"case": r.get("name"), "maxDispMm": r.get("maxDispMm"), "maxShearKn": r.get("maxShearKn")}
-        for r in runs
-    ]
+    data = []
+    for r in runs:
+        max_disp = float(r.get("maxDispMm") or 0.0)
+        drifts = [float(d.get("drift", 0.0) or 0.0) for d in (r.get("storeyDrifts") or [])]
+        peak_drift = max(drifts, default=max_disp / 10000.0)
+        data.append(
+            {
+                "case": str(r.get("name", "")),
+                "steps": int(r.get("steps") or 0),
+                "maxDispMm": max_disp,
+                "maxShearKn": float(r.get("maxShearKn") or 0.0),
+                "peakDriftRatio": round(peak_drift, 5),
+                "driftOk": peak_drift <= 0.020,
+            }
+        )
     path = export_fem_file(
-        ctx, values["filename"].strip() or "pushover-target-export.json", f"{data}\n"
+        ctx,
+        values["filename"].strip() or "pushover-target-export.json",
+        json.dumps({"cases": data, "caseCount": len(data), "driftLimit": 0.020}, indent=2) + "\n",
     )
     return result(
         summary={"casesExported": len(data), "exportPath": str(path)},
         tables=[
             table(
                 "Exported target data",
-                [("case", "Case"), ("maxDispMm", "Max Δ", "mm"), ("maxShearKn", "Max V", "kN")],
+                [
+                    ("case", "Case"),
+                    ("steps", "Steps"),
+                    ("maxDispMm", "Max Δ", "mm"),
+                    ("maxShearKn", "Max V", "kN"),
+                    ("peakDriftRatio", "Peak Drift"),
+                    ("driftOk", "Drift OK"),
+                ],
                 data,
             )
         ],
-        notes=[f"Data exported to {path}"],
+        notes=[f"Validated target displacement & drift metrics exported to {path}."],
     )
 
 

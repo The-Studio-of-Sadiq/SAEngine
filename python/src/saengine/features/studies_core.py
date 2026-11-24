@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
+from datetime import UTC
+from typing import Any
 
 from saengine.features import (
     FeatureContext,
@@ -202,15 +205,58 @@ def merge_options(ctx: FeatureContext, values: dict) -> dict:
     fields=[text("option", "Active option", "Scheme A"), text("revision", "Option revision", "A")],
 )
 def active_option(ctx: FeatureContext, values: dict) -> dict:
-    """Save the active option identifier and revision in the study output folder."""
+    """Validate and switch the active design option in the study state ledger."""
+    from datetime import datetime
+
     option = values["option"].strip()
     if not option:
         raise FeatureInputError("Enter the option to activate.")
-    payload = {"activeOption": option, "revision": values["revision"].strip()}
-    path = write_json(ctx, study_path("active-option"), payload)
+    rev = values["revision"].strip() or "A"
+    settings = ctx.raw("settings") or {}
+    project_name = str(((settings.get("project") or {}).get("name")) or "Project")
+    ledger_rel = study_path("active-option")
+    ledger_file = ctx.path(ledger_rel)
+    history: list[dict[str, Any]] = []
+    previous_option = None
+    if ledger_file is not None and ledger_file.exists():
+        try:
+            existing = json.loads(ledger_file.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                previous_option = existing.get("activeOption")
+                if isinstance(existing.get("history"), list):
+                    history = existing["history"]
+        except ValueError:
+            history = []
+    entry = {
+        "option": option,
+        "revision": rev,
+        "activatedAt": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    history = (history + [entry])[-20:]
+    payload = {
+        "project": project_name,
+        "activeOption": option,
+        "revision": rev,
+        "previousOption": previous_option,
+        "history": history,
+    }
+    path = write_json(ctx, ledger_rel, payload)
     return result(
-        summary={"activeOption": option, "outputPath": path},
-        notes=[f"Active option selection saved to {path}."],
+        summary={
+            "activeOption": option,
+            "revision": rev,
+            "changed": previous_option != option,
+            "historyCount": len(history),
+            "outputPath": path,
+        },
+        tables=[
+            table(
+                "Active study option history",
+                [("option", "Option"), ("revision", "Revision"), ("activatedAt", "Activated At")],
+                history,
+            )
+        ],
+        notes=[f"Active option state updated in {path} (previous={previous_option or 'none'})."],
     )
 
 
