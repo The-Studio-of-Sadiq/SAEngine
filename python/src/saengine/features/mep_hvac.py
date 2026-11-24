@@ -222,26 +222,61 @@ def internal_gains(ctx, v):
     "Duct Sizing",
     part="mep",
     fields=[
-        number("flow", "Flow", 1000, unit="l/s", min=0),
-        select("shape", "Shape", [("round", "Round"), ("rect", "Rectangular")], "round"),
-        number("friction", "Friction rate", 1, unit="Pa/m", min=0.1),
+        number("flow", "Air flow", 1000, unit="l/s", min=1),
+        number("friction", "Design friction rate", 1.0, unit="Pa/m", min=0.1),
+        number("roughnessMm", "Duct roughness", 0.09, unit="mm", min=0.0),
+        number("aspect", "Rectangular aspect ratio a/b", 2.0, min=1.0, max=8.0),
     ],
     requires_project=False,
 )
 def duct_sizing(ctx, v):
-    q = v["flow"] / 1000
-    d = 0.127 * ((q**1.9) / v["friction"]) ** 0.2 * 1000
-    d = math.sqrt(4 * q * 1000 / (math.pi * 7.5))
+    """Equal-friction duct size: the round diameter whose Darcy-Weisbach friction loss equals
+    the design rate, and the rectangular duct of the same loss (Huebscher)."""
+    q = v["flow"] / 1000.0  # m³/s
+    rho, nu = 1.2, 1.5e-5  # air at about 20 °C: kg/m³, m²/s
+    eps = v["roughnessMm"] / 1000.0
+
+    def loss(d: float) -> tuple[float, float]:
+        area = math.pi * d * d / 4
+        vel = q / area
+        re = vel * d / nu
+        f = 0.25 / math.log10(eps / (3.7 * d) + 5.74 / re**0.9) ** 2  # Swamee-Jain
+        return f / d * rho * vel * vel / 2, vel
+
+    lo, hi = 0.02, 5.0
+    for _ in range(80):  # the loss falls as the diameter grows: bisect on it
+        mid = (lo + hi) / 2
+        if loss(mid)[0] > v["friction"]:
+            lo = mid
+        else:
+            hi = mid
+    d = hi
+    dp, vel = loss(d)
+    # Rectangular a × b with the same equivalent diameter De = 1.30 (ab)^0.625 / (a + b)^0.25.
+    r = v["aspect"]
+    b = d / (1.30 * r**0.625 / (1 + r) ** 0.25)
+    a = r * b
     return result(
-        summary={"suggestedDiameterMm": d, "flowM3PerS": q},
+        summary={
+            "roundDiameterMm": d * 1000,
+            "velocityMPerS": vel,
+            "frictionPaPerM": dp,
+            "rectWidthMm": a * 1000,
+            "rectHeightMm": b * 1000,
+        },
         tables=[
             table(
-                "Duct size",
+                "Equal-friction duct size",
                 [("item", "Item"), ("value", "Value")],
-                [{"item": "Diameter", "value": d}, {"item": "Shape", "value": v["shape"]}],
+                [
+                    {"item": "Round diameter [mm]", "value": round(d * 1000)},
+                    {"item": "Velocity [m/s]", "value": vel},
+                    {"item": "Rectangular a × b [mm]", "value": f"{a * 1000:.0f} × {b * 1000:.0f}"},
+                ],
             )
         ],
         notes=[
-            "Preliminary round diameter is based on velocity 7.5 m/s; use Darcy-Weisbach equal-friction sizing for design."
+            "Darcy-Weisbach with the Swamee-Jain friction factor, standard air; round up to the "
+            "next stock size and check velocity and noise limits for the space."
         ],
     )

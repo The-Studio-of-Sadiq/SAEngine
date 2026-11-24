@@ -8,7 +8,6 @@ from saengine.design import (
     check as design_check,
 )
 from saengine.design import (
-    development_factors,
     proposal,
     slender,
 )
@@ -281,18 +280,17 @@ def development_length(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     """Compute tension, compression, and standard 90-degree hook development lengths."""
     fc, fy = concrete_rebar_defaults(ctx)
     db = values["barDiameterMm"]
+    from saengine.drawings import detailing
+
+    # The detailing engine's development lengths (the code pack's rules), with their clauses.
     with in_force(ctx.root):
-        ten = development_factors.tension_length(
-            db, fy, fc, top=values["topBar"], cd=values["clearCoverMm"]
-        )
-        comp = development_factors.compression_length(db, fy, fc)
-        hook = development_factors.hook_length(
-            db, fy, fc, top=values["topBar"], cd=values["clearCoverMm"]
-        )
+        ten = detailing.development_tension(db, fy, fc, top=values["topBar"])
+        comp = detailing.development_compression(db, fy, fc)
+        hook = detailing.hook_development(db, fy, fc, cover=values["clearCoverMm"] >= 65.0)
     rows = [
-        {"kind": "Straight tension ld", "lengthMm": float(ten.get("length", 0.0))},
-        {"kind": "Compression ldc", "lengthMm": float(comp.get("length", 0.0))},
-        {"kind": "Standard 90° hook ldh", "lengthMm": float(hook.get("length", 0.0))},
+        {"kind": "Straight tension ld", "lengthMm": float(ten.value), "clause": ten.clause},
+        {"kind": "Compression ldc", "lengthMm": float(comp.value), "clause": comp.clause},
+        {"kind": "Standard 90° hook ldh", "lengthMm": float(hook.value), "clause": hook.clause},
     ]
     return result(
         summary={

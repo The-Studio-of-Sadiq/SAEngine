@@ -145,9 +145,9 @@ def pad_footing(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
         },
         {
             "check": "Punching shear (ULS)",
-            "demand": punch.vu / 1e3 if punch else 0.0,
-            "capacity": punch.phi_vc / 1e3 if punch else 0.0,
-            "unit": "kN",
+            "demand": punch.vu if punch else 0.0,
+            "capacity": punch.phi_vc if punch else 0.0,
+            "unit": "MPa",
             "ratio": punch_util,
             "status": "PASS" if punch_util <= 1.0 else "FAIL",
         },
@@ -592,16 +592,23 @@ def punching_shear(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     rows = [
         {"metric": "Critical perimeter b0", "value": res.b0, "unit": "mm"},
         {"metric": "Effective depth d", "value": res.d, "unit": "mm"},
-        {"metric": "Factored shear demand Vu", "value": res.vu / 1e3, "unit": "kN"},
-        {"metric": "Direct shear (net of soil relief)", "value": res.direct / 1e3, "unit": "kN"},
-        {"metric": "Concrete punching capacity φVc", "value": res.phi_vc / 1e3, "unit": "kN"},
+        # The engine's punching values are stresses on the critical section [MPa].
+        {"metric": "Shear stress demand vu", "value": res.vu, "unit": "MPa"},
+        {"metric": "Direct shear stress (net of soil relief)", "value": res.direct, "unit": "MPa"},
+        {"metric": "Concrete punching resistance φvc", "value": res.phi_vc, "unit": "MPa"},
+        {
+            "metric": "Equivalent capacity φvc·b0·d",
+            "value": res.phi_vc * res.b0 * res.d / 1e3,
+            "unit": "kN",
+        },
         {"metric": "Concrete-only utilisation", "value": res.utilisation, "unit": "-"},
     ]
     return result(
         summary={
             "perimeterMm": res.b0,
-            "demandKn": res.vu / 1e3,
-            "capacityKn": res.phi_vc / 1e3,
+            "demandStressMpa": res.vu,
+            "capacityStressMpa": res.phi_vc,
+            "capacityKn": res.phi_vc * res.b0 * res.d / 1e3,
             "utilisation": res.utilisation,
             "concreteOk": res.utilisation <= 1.0,
         },
