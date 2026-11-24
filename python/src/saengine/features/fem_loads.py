@@ -545,14 +545,15 @@ def point_loads(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 def temperature_loads(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Evaluate restrained plate thermal axial/moment resultants and thermal load combinations."""
     with in_force(ctx.root):
-        nt, mt = thermal.plate_thermal_resultants(
-            values["eMpa"],
+        nt_n_m, mt_nm_m = thermal.plate_thermal_resultants(
+            values["eMpa"] * 1e6,
             0.2,
-            values["thicknessMm"],
+            values["thicknessMm"] / 1000.0,
             values["alphaPerC"],
             values["uniformDeltaC"],
             values["gradientC"],
         )
+        nt, mt = nt_n_m / 1000.0, mt_nm_m / 1000.0
         str_combos = thermal.strength_combinations_with_t()
     rows = [
         {"combo": name, "factors": ", ".join(f"{v:g}{k}" for k, v in fac.items())}
@@ -683,10 +684,10 @@ def influence_lines(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
 def notional_loads(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute notional horizontal stability load coefficient and storey notional force."""
     with in_force(ctx.root):
-        try:
-            coeff = fem_notional.coefficient(values["method"], height=values["heightM"])
-        except Exception:  # noqa: BLE001
+        if values["method"] == "sway":
             coeff = fem_notional.sway_coefficient(values["heightM"])
+        else:
+            coeff = fem_notional.coefficient(values["method"], height=values["heightM"])
     n_force = coeff * values["gravityLoadKn"]
     rows = [
         {

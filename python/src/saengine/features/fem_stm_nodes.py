@@ -554,20 +554,18 @@ def hydrostatic_boundary(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, An
 def principal_stress_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Resolve incident axial member stresses into an approximate in-plane nodal stress tensor."""
     model = working_model(ctx, v)
+    checked = solve_rows(model)
+    forces = {r["id"]: r["force"] * 1000 for r in checked["members"]}
+    coords_map = geometry(model)
+    area = v["nodeZoneDepthMm"] * model.thickness
     rows = []
     for node in model.nodes:
         sxx = syy = txy = 0.0
         for member in model.members:
             if node.id not in (member.start, member.end):
                 continue
-            coords = geometry(model)[member.id]
-            force = (
-                next(r["force"] for r in solve_rows(model)["members"] if r["id"] == member.id)
-                * 1000
-            )
-            area = member.width * model.thickness if member.kind == "strut" else member.barArea
-            if area <= 0:
-                continue
+            coords = coords_map[member.id]
+            force = forces[member.id]
             c, s = coords[2], coords[3]
             stress = force / area
             sxx += stress * c * c

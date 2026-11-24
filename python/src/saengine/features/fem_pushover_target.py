@@ -22,9 +22,8 @@ from saengine.features.fem_common import (
     load_settings,
     parse_pairs,
     require_results,
-    site_params,
 )
-from saengine.fem import acceptance, loads, pushover_target
+from saengine.fem import acceptance, pushover_target
 from saengine.report.clauses import in_force
 
 
@@ -174,20 +173,23 @@ def compute_target(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     d = np.array([p[0] / 1000.0 for p in pts], dtype=float)
     v = np.array([p[1] * 1000.0 for p in pts], dtype=float)
     settings = load_settings(ctx)
-    sc, z_val, _, _, _, _ = site_params(settings)
     with in_force(ctx.root):
         rule = pushover_target.table()
         if rule is None:
             raise FeatureInputError("Active code pack does not define pushover target rules.")
-        res = pushover_target.coefficient(
+        td = rule.targetDisplacement
+        sa, corners = pushover_target.spectrum_of(settings, td)
+        method = pushover_target.METHODS.get(td.method, pushover_target.coefficient)
+        res = method(
             d,
             v,
             t1=values["t1S"],
             c0=values["c0"],
             weight=values["weightKn"] * 1000.0,
-            spectrum=lambda t: loads.normalized_spectrum(t, sc) * max(z_val, 0.15),
-            corners={"Ts": 0.6, "Tmax": 1.0},
-            rule=rule,
+            spectrum=sa,
+            corners=corners,
+            rule=td,
+            site_class=settings.site.siteClass,
         )
     dt_mm = float(res.get("target", 0.0)) * 1000.0
     rows = [
@@ -519,9 +521,10 @@ def damping_reduction(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     """Compute damping reduction factor B(β_eff) via saengine.fem.pushover_target."""
     with in_force(ctx.root):
         rule = pushover_target.table()
+        lin = getattr(getattr(rule, "targetDisplacement", None), "linearization", None)
         b = (
-            pushover_target.damping_reduction(values["effectiveDamping"], rule)
-            if rule
+            pushover_target.damping_reduction(values["effectiveDamping"] * 100.0, lin)
+            if lin is not None
             else (4.0 / (5.6 - math.log(values["effectiveDamping"] * 100.0)))
         )
     rows = [{"betaEff": values["effectiveDamping"], "reductionB": b, "spectralScale": 1.0 / b}]

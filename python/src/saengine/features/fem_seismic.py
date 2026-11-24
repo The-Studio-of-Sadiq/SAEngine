@@ -115,7 +115,7 @@ def response_spectrum(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
                 sa = spectral_hazard.spectral_acceleration(t, hazard)
                 cs = spectral_hazard.response_coefficient(t, hazard, imp, r_fac)
             else:
-                sa = loads.normalized_spectrum(t, sc, damping=values["damping"])
+                sa = loads.normalized_spectrum(t, sc, damping=values["damping"]) * z_val
                 cs = loads.design_acceleration(t, sc, z_val, imp, r_fac, damping=values["damping"])
             rows.append({"periodS": t, "elasticSaG": sa, "designCs": cs})
     return result(

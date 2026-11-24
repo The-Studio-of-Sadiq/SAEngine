@@ -79,7 +79,7 @@ def tie_width(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def tie_depth(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate the tie reinforcement centroid depth and available lever arm after cover."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     if v["depthMm"] <= 2 * v["coverMm"]:
         raise FeatureInputError("Tie depth must exceed twice the clear cover.")
@@ -109,7 +109,7 @@ def tie_depth(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def bar_size(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Enumerate bar diameters and integer bar counts that provide the tie's calculated steel demand."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     demand = _tie_demand_kn(model, tie.id) * 1000
     tokens = [
@@ -168,7 +168,7 @@ def bar_size(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def tie_cover(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Report steel centroid cover and the remaining room within the tie's effective width."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     centroid = v["clearCoverMm"] + tie.barDiameter / 2
     width_room = tie.width - 2 * v["clearCoverMm"] if tie.width else None
@@ -196,7 +196,7 @@ def tie_cover(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def development_length(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate the pack's straight and bent-bar anchorage length for a tie bar."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     length = bar_rules.anchorage_length(
         v["barDiameterMm"], model.fc, model.fy, sigma_sd=v["barStressMpa"], cd=tie.width or None
@@ -299,7 +299,7 @@ def end_anchorage(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def curtailment_point(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Locate end development zones and identify whether a constant-force STM tie has curtailment room."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     length = geometry(model)[tie.id][4]
     anchorage = bar_rules.anchorage_length(v["barDiameterMm"], model.fc, model.fy)["lbd"]
@@ -329,7 +329,7 @@ def curtailment_point(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def tie_strength(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check nominal and design tension resistance including any prestress in the tie."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     force = _tie_demand_kn(model, tie.id)
     nominal = stm.tie_nominal(
@@ -361,7 +361,7 @@ def tie_strength(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def crack_width(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Estimate tie-zone crack spacing and width from elastic steel strain and bar spacing."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     if tie.barArea <= 0:
         raise FeatureInputError("Assign non-zero tie steel area before estimating crack width.")
@@ -398,7 +398,7 @@ def crack_width(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def spacing_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Verify clear spacing of a specified tie bar group within its available width."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     count = int(v["barCount"])
     clear = (v["clearWidthMm"] - count * v["barDiameterMm"]) / max(count - 1, 1)
@@ -420,7 +420,7 @@ def spacing_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 @feature("femStmTies.tieReport", "Tie Report", part="fem", fields=[], requires_project=False)
 def tie_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Report each tie's solved envelope, design capacity, steel requirement, and end anchorage."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     checked = solve_rows(model)
     rows = []
     for tie in (m for m in model.members if m.kind == "tie"):
@@ -469,7 +469,7 @@ def tie_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def bar_bundle(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Group the provided tie area into equal reinforcement bundles and report bundle spacing limits."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     if tie.barArea <= 0 or tie.barDiameter <= 0:
         raise FeatureInputError("Assign the tie bar area and diameter before arranging bundles.")
@@ -504,7 +504,7 @@ def bar_bundle(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def layer_distribution(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Distribute the provided tie steel uniformly across the entered number of reinforcement layers."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     count = int(v["layers"])
     bars = int(v["barsPerLayer"])
@@ -538,7 +538,7 @@ def layer_distribution(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]
 )
 def stirrup_leg(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate total transverse tie steel per spacing and its ratio across the STM thickness."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     one = math.pi * v["barDiameterMm"] ** 2 / 4
     total = int(v["legCount"]) * one
     return result(
@@ -606,7 +606,7 @@ def coupler_assignment(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]
 )
 def effective_tension(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Evaluate service steel stress and strain from the solved tension in a reinforced tie."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     if tie.barArea <= 0:
         raise FeatureInputError("Assign a positive tie steel area before evaluating steel tension.")
@@ -638,7 +638,7 @@ def effective_tension(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def softening_factor(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Return the active pack's bottle-strut softening factor and resulting effective concrete stress."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     strut = next((m for m in model.members if m.id == v["strutId"] and m.kind == "strut"), None)
     if strut is None:
         raise FeatureInputError(f"{v['strutId']!r} is not a strut.")
@@ -669,7 +669,7 @@ def softening_factor(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def strain_compatibility(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check elastic tie-bar strain against yield strain under the entered service force level."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = _tie(model, v["tieId"])
     if tie.barArea <= 0:
         raise FeatureInputError(
@@ -706,7 +706,7 @@ def strain_compatibility(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, An
 )
 def bend_radius(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Evaluate bent-bar anchorage reduction using the code pack and compare an entered mandrel diameter."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     anchorage = bar_rules.anchorage_length(
         v["barDiameterMm"],
         model.fc,
@@ -743,7 +743,7 @@ def bend_radius(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def splice_length(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate the code-pack lap length for the entered bar size, bond, cover, and lapped share."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     splice = bar_rules.lap_length(
         v["barDiameterMm"], model.fc, model.fy, lapped_share=v["lappedShare"], cd=v["coverMm"]
     )

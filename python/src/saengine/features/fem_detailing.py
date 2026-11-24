@@ -8,7 +8,7 @@ from typing import Any
 
 import ezdxf
 
-from saengine.design import bars, development_factors, punching, rc_detailing
+from saengine.design import bars, punching, rc_detailing
 from saengine.drawings import bbs, detailing
 from saengine.features import (
     FeatureContext,
@@ -219,9 +219,12 @@ def splice_design(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     """Design tension or compression lap splice lengths and mechanical coupler options."""
     fc, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
-        ten = development_factors.lap_tension(values["barDiaMm"], fy, fc)
-        comp = development_factors.lap_compression(values["barDiaMm"], fy, fc)
-    lap = float(comp.get("length", 0.0) if values["compressionOnly"] else ten.get("length", 0.0))
+        res = (
+            detailing.lap_compression(values["barDiaMm"], fy, fc)
+            if values["compressionOnly"]
+            else detailing.lap_tension(values["barDiaMm"], fy, fc)
+        )
+    lap = float(res.value)
     rows = [
         {
             "kind": "Compression lap" if values["compressionOnly"] else "Class B tension lap",
@@ -242,7 +245,7 @@ def splice_design(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
                 rows,
             )
         ],
-        notes=["Computed via saengine.design.development_factors."],
+        notes=["Computed via saengine.drawings.detailing under active code pack."],
     )
 
 
@@ -324,7 +327,7 @@ def punching_rebar(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     rows = [
         {
             "perimeterMm": res.b0 if res else 0.0,
-            "phiVcKn": (res.phi_vc / 1000.0) if res else 0.0,
+            "phiVcKn": (res.phi_vc * res.b0 * values["dMm"] / 1000.0) if res else 0.0,
             "utilisation": res.utilisation if res else 0.0,
             "studLayout": layout,
         }
@@ -488,11 +491,11 @@ def rebar_anchorage(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     fc, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
         res = (
-            development_factors.hook_length(values["barDiaMm"], fy, fc)
+            detailing.hook_development(values["barDiaMm"], fy, fc)
             if values["bentHook"]
-            else development_factors.tension_length(values["barDiaMm"], fy, fc)
+            else detailing.development_tension(values["barDiaMm"], fy, fc)
         )
-    length_mm = float(res.get("length", 0.0))
+    length_mm = float(res.value)
     rows = [
         {
             "mode": "90° Hook" if values["bentHook"] else "Straight",
@@ -509,7 +512,7 @@ def rebar_anchorage(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
                 rows,
             )
         ],
-        notes=["Computed via saengine.design.development_factors."],
+        notes=["Computed via saengine.drawings.detailing under active code pack."],
     )
 
 
@@ -527,11 +530,11 @@ def splice_length(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     """Compute Class A and Class B tension lap splice lengths by bar diameter."""
     fc, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
-        ten = development_factors.tension_length(values["barDiaMm"], fy, fc, top=values["topBar"])
-        lap = development_factors.lap_tension(values["barDiaMm"], fy, fc, top=values["topBar"])
-    ld = float(ten.get("length", 0.0))
-    lap_b = float(lap.get("length", 1.3 * ld))
-    rows = [{"classA": max(ld, 300.0), "classB": max(lap_b, 300.0)}]
+        ten = detailing.lap_tension(values["barDiaMm"], fy, fc, cls="A", top=values["topBar"])
+        lap = detailing.lap_tension(values["barDiaMm"], fy, fc, cls="B", top=values["topBar"])
+    lap_a = float(ten.value)
+    lap_b = float(lap.value)
+    rows = [{"classA": max(lap_a, 300.0), "classB": max(lap_b, 300.0)}]
     return result(
         summary={"classALapMm": rows[0]["classA"], "classBLapMm": rows[0]["classB"]},
         tables=[

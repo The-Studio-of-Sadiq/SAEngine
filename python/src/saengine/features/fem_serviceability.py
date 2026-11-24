@@ -200,10 +200,11 @@ def floor_vibration(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
         if rules is None:
             raise FeatureInputError("Active code pack does not tabulate floor vibration criteria.")
         occ_id = rules.areaUses.get(occ, rules.defaultOccupancy)
+        unit_weight_kn_m2 = values["panelWeightKn"] / values["areaM2"]
         check = fem_floor_vibration.check_panel(
-            "walking",
+            rules.concreteMethod,
             values["fnHz"],
-            values["panelWeightKn"],
+            unit_weight_kn_m2,
             values["areaM2"],
             values["spanM"],
             rules.occupancies[occ_id],
@@ -249,7 +250,7 @@ def floor_vibration(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
 )
 def natural_frequency(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute fundamental floor bay frequency fn = C / √Δ from static deflection."""
-    fn = fem_floor_vibration.natural_frequency(values["midspanDeflectionMm"], values["constantC"])
+    fn = values["constantC"] / math.sqrt(values["midspanDeflectionMm"])
     rows = [
         {
             "deflectionMm": values["midspanDeflectionMm"],

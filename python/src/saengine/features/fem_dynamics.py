@@ -340,13 +340,14 @@ def modal_combination(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     """Combine modal peak responses using CQC, SRSS, or ABS rules."""
     peaks = np.array([values["peak1"], values["peak2"]], dtype=float)
     omegas = [2.0 * math.pi / values["mode1PeriodS"], 2.0 * math.pi / values["mode2PeriodS"]]
-    comb = float(seismic_design.combine(peaks, omegas, values["damping"], values["rule"]))
     srss = float(seismic_design.combine(peaks, omegas, values["damping"], "SRSS"))
     cqc = float(seismic_design.combine(peaks, omegas, values["damping"], "CQC"))
+    abs_sum = abs(values["peak1"]) + abs(values["peak2"])
+    comb = {"CQC": cqc, "SRSS": srss, "ABS": abs_sum}[values["rule"]]
     rows = [
         {"rule": "CQC", "combined": cqc},
         {"rule": "SRSS", "combined": srss},
-        {"rule": "ABS", "combined": abs(values["peak1"]) + abs(values["peak2"])},
+        {"rule": "ABS", "combined": abs_sum},
     ]
     return result(
         summary={

@@ -91,7 +91,7 @@ def _trace_to_support(
 )
 def trace_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Trace the force-dominant connected path from a loaded node to its first support."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     path = _trace_to_support(model, _forces(model), v["loadNode"])
     return result(
         {
@@ -125,7 +125,7 @@ def trace_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def select_node(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Inspect an STM joint's position, boundary role, applied loads, and connected force members."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     node = next((n for n in model.nodes if n.id == v["nodeId"]), None)
     if node is None:
         raise FeatureInputError(f"No node {v['nodeId']!r} exists.")
@@ -179,7 +179,7 @@ def select_node(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 @feature("femStmLoadPaths.showFlow", "Show Flow", part="fem", fields=[], requires_project=False)
 def show_flow(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Compute member force participation percentages as data for a load-flow view."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     total = sum(abs(x) for x in forces.values())
     rows = [
@@ -216,7 +216,7 @@ def show_flow(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def flow_direction(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Orient every axial force vector from its tension/compression sign and member axis."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     rows = []
     for member in model.members:
@@ -266,7 +266,7 @@ def flow_direction(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def find_bottleneck(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Rank the model's struts, ties, and nodes by their actual demand-to-capacity ratios."""
-    checked = solve_rows(working_model(ctx, v))
+    checked = solve_rows(working_model(ctx, v, kind="auto"))
     rows = [
         {
             "component": x["id"],
@@ -323,7 +323,7 @@ def find_bottleneck(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def detour_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Enumerate distinct simple routes from a selected node to supported boundaries."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     graph = _edges(model, _forces(model))
     nodes = {n.id: n for n in model.nodes}
     if v["loadNode"] not in graph:
@@ -382,7 +382,7 @@ def detour_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def stress_hotspot(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Locate members and end joints whose average axial compression stress exceeds a threshold."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     node_score = {n.id: 0.0 for n in model.nodes}
     rows = []
@@ -445,7 +445,7 @@ def stress_hotspot(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def stress_band(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Group each member's axial stress into reproducible equal-width stress bands."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     rows = []
     for member in model.members:
@@ -484,7 +484,7 @@ def stress_band(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def compare_cases(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Compare every member's solved force across the model's load cases."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     if len(model.cases) < 2:
         raise FeatureInputError("Add at least two load cases before comparing load paths.")
     rows = []
@@ -532,7 +532,7 @@ def compare_cases(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def redistribute_forces(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Re-solve a trial geometry to quantify force changes caused by an explicit internal-node adjustment."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     node = next((n for n in model.nodes if n.id == v["internalNode"]), None)
     if node is None or node.support or any(x.node == node.id for c in model.cases for x in c.loads):
         raise FeatureInputError("Choose an existing unloaded, unsupported internal node.")
@@ -586,7 +586,7 @@ def redistribute_forces(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any
 )
 def visualise_paths(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Return a per-member path-participation index and compression/tension state for view colouring."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     total = sum(abs(x) for x in forces.values())
     rows = [
@@ -628,7 +628,7 @@ def visualise_paths(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def export_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Export a force-dominant load path with member forces and node coordinates to JSON."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     path = _trace_to_support(model, forces, v["loadNode"])
     coords = {n.id: {"xMm": n.x, "yMm": n.y} for n in model.nodes}
@@ -662,8 +662,9 @@ def export_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def principal_trajectories(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Derive approximate principal stress directions from the solved member axial stress tensor."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
+    control_area = v["controlDepthMm"] * model.thickness
     rows = []
     for node in model.nodes:
         sxx = syy = txy = 0.0
@@ -671,10 +672,7 @@ def principal_trajectories(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, 
             if node.id not in (member.start, member.end):
                 continue
             _x0, _y0, dx, dy, _length = geometry(model)[member.id]
-            area = member.width * model.thickness if member.kind == "strut" else member.barArea
-            if area <= 0:
-                continue
-            stress = forces[member.id] * 1000 / area
+            stress = forces[member.id] * 1000 / control_area
             sxx += stress * dx * dx
             syy += stress * dy * dy
             txy += stress * dx * dy
@@ -715,7 +713,7 @@ def principal_trajectories(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, 
 )
 def compressive_streamlines(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Trace compression-only member chains from a load node to the nearest supported node."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     path = _trace_to_support(model, _forces(model), v["loadNode"], compression_only=True)
     return result(
         {"compressionSegments": len(path)},
@@ -748,7 +746,7 @@ def compressive_streamlines(ctx: FeatureContext, v: dict[str, Any]) -> dict[str,
 )
 def tensile_streamlines(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Trace a continuous chain of tension ties from a selected joint and expose its force sequence."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     graph = _edges(model, forces, "tie")
     if v["startNode"] not in graph:
@@ -796,7 +794,7 @@ def tensile_streamlines(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any
 )
 def streamline_density(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Sample each force-carrying truss member at the entered spacing to set view streamline density."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     forces = _forces(model)
     rows = []
     for member in model.members:
@@ -842,7 +840,7 @@ def streamline_density(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]
 )
 def efficiency_index(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate axial strain energy and load-path work index for the entered member areas."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     total_energy = 0.0
     total_work_index = 0.0
     rows = []
@@ -899,7 +897,7 @@ def efficiency_index(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def strain_energy_stream(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Map calculated axial strain energy by individual member and load case."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     rows = []
     for case in model.cases:
         solution = stm_model.solve(model, case)
@@ -947,7 +945,7 @@ def strain_energy_stream(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, An
 )
 def material_utilization(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Identify struts with material utilisation below the entered threshold for review of material efficiency."""
-    checked = solve_rows(working_model(ctx, v))
+    checked = solve_rows(working_model(ctx, v, kind="auto"))
     rows = [
         {
             "strutId": x["id"],
@@ -986,7 +984,7 @@ def material_utilization(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, An
 )
 def bim_rebar_align(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Compare STM tie orientation with recorded BIM reinforcement where those BIM elements provide it."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     building = load_bim(ctx)
     if building is None:
         raise FeatureInputError("Add a valid 06 BIM/bim.json model first.")

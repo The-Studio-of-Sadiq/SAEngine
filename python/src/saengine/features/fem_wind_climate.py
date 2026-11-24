@@ -414,7 +414,8 @@ def gumbel_fit(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 def confidence_bands(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Calculate ±95% sampling uncertainty interval on fitted extreme wind quantiles."""
     y_t = -math.log(-math.log(1.0 - 1.0 / values["returnPeriodYr"]))
-    se = values["sampleStdMs"] * math.sqrt((1.0 + 1.14 * y_t + 1.1 * (y_t**2)) / values["nYears"])
+    k_t = (y_t - 0.57721566) * math.sqrt(6.0) / math.pi
+    se = values["sampleStdMs"] * math.sqrt((1.0 + 1.14 * k_t + 1.1 * (k_t**2)) / values["nYears"])
     lo = values["vTM"] - 1.96 * se
     hi = values["vTM"] + 1.96 * se
     rows = [{"estimateMs": values["vTM"], "stdErrMs": se, "lower95Ms": lo, "upper95Ms": hi}]

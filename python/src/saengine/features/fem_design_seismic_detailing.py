@@ -8,13 +8,13 @@ from typing import Any
 from saengine.design import (
     capacity_design,
     curvature_ductility,
-    development_factors,
     ductile_members,
     overstrength,
     seismic_detailing,
     seismic_rules,
     walls,
 )
+from saengine.drawings import detailing
 from saengine.features import (
     FeatureContext,
     feature,
@@ -326,9 +326,14 @@ def shear_demand(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 )
 def ductility_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute required curvature ductility factor μ_φ from q0 and period ratio T1/Tc."""
-    mu_phi = curvature_ductility.curvature_ductility(
-        values["q0"], values["t1S"], values["tcS"], ductility=values["ductilityClass"]
-    )
+    with in_force(ctx.root):
+        if curvature_ductility.rules() is not None:
+            mu_phi = curvature_ductility.curvature_ductility(
+                values["q0"], values["t1S"], values["tcS"], ductility=values["ductilityClass"]
+            )
+        else:
+            q0, t1, tc = values["q0"], values["t1S"], values["tcS"]
+            mu_phi = 2.0 * q0 - 1.0 if t1 >= tc else 1.0 + 2.0 * (q0 - 1.0) * tc / t1
     rows = [
         {"ductilityClass": values["ductilityClass"], "q0": values["q0"], "muPhiRequired": mu_phi}
     ]
@@ -393,8 +398,8 @@ def lap_splice(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Locate column lap splices in the mid-height region outside plastic hinge zones."""
     fc, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
-        lap = development_factors.lap_tension(values["barDiaMm"], fy, fc)
-    lap_len = float(lap.get("length", 0.0))
+        lap = detailing.lap_tension(values["barDiaMm"], fy, fc, cls="B")
+    lap_len = float(lap.value)
     mid_avail = max(0.0, values["clearHeightMm"] - 2.0 * values["loZoneMm"])
     rows = [
         {
@@ -710,7 +715,7 @@ def beam_column_joint(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     gamma = {"interior": 1.7, "exterior": 1.25, "corner": 1.0}[values["confinement"]]
     vj_kn = (1.25 * values["beamTopSteelMm2"] * fy) / 1000.0 - values["columnShearKn"]
     aj = values["columnWidthMm"] * values["columnDepthMm"]
-    phi_vn_kn = 0.85 * 0.083 * gamma * math.sqrt(fc) * aj / 1000.0
+    phi_vn_kn = 0.85 * gamma * math.sqrt(fc) * aj / 1000.0
     dcr = max(0.0, vj_kn) / max(phi_vn_kn, 1e-6)
     rows = [
         {"jointShearDemandKn": vj_kn, "jointCapacityKn": phi_vn_kn, "dcr": dcr, "ok": dcr <= 1.0}

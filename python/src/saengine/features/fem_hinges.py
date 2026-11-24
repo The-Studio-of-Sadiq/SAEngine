@@ -585,7 +585,11 @@ def end_hinges(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     lp_est = 0.5 * values["depthMm"]
     elastic_core = max(0.0, values["spanMm"] - 2.0 * lp_est)
     rows = [
-        {"spanMm": values["spanMm"], "hingeZoneEachEndMm": lp_est, "elasticMiddleMm": elastic_core}
+        {
+            "spanMm": values["spanMm"],
+            "hingeZoneEachEndMm": lp_est,
+            "elasticMidSpanMm": elastic_core,
+        }
     ]
     return result(
         summary={"elasticMidSpanMm": elastic_core, "validClearance": elastic_core > 0.0},

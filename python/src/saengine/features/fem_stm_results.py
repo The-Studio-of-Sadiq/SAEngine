@@ -16,6 +16,7 @@ from saengine.features import (
     table,
     text,
 )
+from saengine.features.fem_common import resolve_stm_model
 from saengine.features.fem_stm_common import (
     export_json,
     geometry,
@@ -656,7 +657,7 @@ def utilisation_ratio(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def service_load_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check service-scaled tie stresses against the engineer-entered service stress limit."""
-    model = working_model(ctx, v)
+    model, _ = resolve_stm_model(ctx, "auto")
     checked = solve_rows(model)
     rows = []
     for tie in (m for m in model.members if m.kind == "tie"):
@@ -702,7 +703,7 @@ def service_load_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]
 )
 def detailing_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check tie bar widths, end anchorage data, and reinforcement fit for detailing conflicts."""
-    model = working_model(ctx, v)
+    model, _ = resolve_stm_model(ctx, "auto")
     rows = []
     for tie in (m for m in model.members if m.kind == "tie"):
         count = (

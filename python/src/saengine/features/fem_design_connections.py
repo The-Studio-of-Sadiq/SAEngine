@@ -5,8 +5,9 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from saengine.design import development_factors, steel_connections
+from saengine.design import steel_connections
 from saengine.design.timber import connections as timber_conn
+from saengine.drawings import detailing
 from saengine.features import (
     FeatureContext,
     checkbox,
@@ -18,6 +19,11 @@ from saengine.features import (
 )
 from saengine.features.fem_common import concrete_rebar_defaults, export_fem_file, steel_defaults
 from saengine.report.clauses import in_force
+
+
+def _resolve_bolt_grade(grade: str) -> str:
+    """Resolve bare bolt grade labels (e.g. A325, A490) to threads-included pack keys."""
+    return {"A325": "A325N", "A490": "A490N"}.get(grade, grade)
 
 
 @feature(
@@ -91,7 +97,7 @@ def shear_connection(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     """Check simple fin-plate / end-plate shear connection bolt group capacity."""
     with in_force(ctx.root):
         v_bolt = steel_connections.bolt_shear_capacity(
-            values["boltGrade"], values["boltDiameterMm"], planes=1
+            _resolve_bolt_grade(values["boltGrade"]), values["boltDiameterMm"], planes=1
         )
     v_bolt_kn = v_bolt / 1000.0 if v_bolt > 500 else v_bolt
     cap_kn = v_bolt_kn * int(values["bolts"])
@@ -245,9 +251,10 @@ def base_plate(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 )
 def bolt_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Check single-bolt shear, tension, and elliptical shear-tension interaction."""
+    grade = _resolve_bolt_grade(values["grade"])
     with in_force(ctx.root):
-        vs = steel_connections.bolt_shear_capacity(values["grade"], values["diameterMm"], planes=1)
-        vt, _ = steel_connections.bolt_tension_capacity(values["grade"], values["diameterMm"])
+        vs = steel_connections.bolt_shear_capacity(grade, values["diameterMm"], planes=1)
+        vt, _ = steel_connections.bolt_tension_capacity(grade, values["diameterMm"])
     vs_kn = vs / 1000.0 if vs > 500 else vs
     vt_kn = vt / 1000.0 if vt > 500 else vt
     rv, rt = (
@@ -708,8 +715,7 @@ def rebar_development(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     """Check beam bar hooked development length inside exterior beam-column joints."""
     fc, fy = concrete_rebar_defaults(ctx)
     with in_force(ctx.root):
-        hook = development_factors.hook_length(values["barDiameterMm"], fy, fc)
-    ldh = float(hook.get("length", 0.0))
+        ldh = float(detailing.hook_development(values["barDiameterMm"], fy, fc).value)
     ok = ldh <= values["availableDepthMm"] - 50.0
     rows = [{"requiredLdhMm": ldh, "availableMm": values["availableDepthMm"] - 50.0, "ok": ok}]
     return result(

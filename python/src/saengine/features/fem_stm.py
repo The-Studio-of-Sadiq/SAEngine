@@ -199,7 +199,7 @@ def node_placement(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def load_path(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Trace the strongest connected force route from the selected load node to a support."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     checked = solve_rows(model)
     connected = {n.id: [] for n in model.nodes}
     for member in model.members:
@@ -337,7 +337,7 @@ def boundary(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def strut_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate the code-pack design resistance and governing demand of a selected strut."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     member = next((m for m in model.members if m.id == v["memberId"]), None)
     if member is None or member.kind != "strut":
         raise FeatureInputError(f"{v['memberId']!r} is not a strut in the selected model.")
@@ -371,7 +371,7 @@ def strut_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def tie_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check a tie's steel and prestressing resistance against its solved tensile force."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     member = next((m for m in model.members if m.id == v["memberId"]), None)
     if member is None or member.kind != "tie":
         raise FeatureInputError(f"{v['memberId']!r} is not a tie in the selected model.")
@@ -411,7 +411,7 @@ def tie_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def node_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Check the selected nodal bearing face using its tie count and entered bearing area."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     node = next((n for n in model.nodes if n.id == v["nodeId"]), None)
     if node is None:
         raise FeatureInputError(f"No node {v['nodeId']!r} exists in the selected model.")
@@ -451,7 +451,7 @@ def node_capacity(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def topology_optimise(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Evaluate small admissible internal-node shifts and select the lowest-energy stable layout."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     base = solve_rows(model)
     movable = [
         n
@@ -506,7 +506,7 @@ def topology_optimise(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 @feature("femStrutTie.strutAngles", "Strut Angles", part="fem", fields=[], requires_project=False)
 def strut_angles(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Compare every incident strut/tie angle with the active code pack's minimum."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     coords = {n.id: (n.x, n.y) for n in model.nodes}
     minimum = stm.min_angle()
     rows = []
@@ -596,7 +596,7 @@ def tie_tuning(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 @feature("femStrutTie.forceBalance", "Force Balance", part="fem", fields=[], requires_project=False)
 def force_balance(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Sum applied, member, and support forces at each node for every load case."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     coords = {n.id: (n.x, n.y) for n in model.nodes}
     rows = []
     for case in model.cases:
@@ -662,7 +662,7 @@ def tie_anchorage(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate hook development for the selected reinforced tie at both end nodes."""
     from saengine.design.ductile_joints import hooked_development
 
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = next((m for m in model.members if m.id == v["memberId"] and m.kind == "tie"), None)
     if tie is None or tie.barDiameter <= 0:
         raise FeatureInputError("Select a tie with its reinforcing-bar diameter specified.")
@@ -743,7 +743,7 @@ def strut_confinement(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def reinforcement_layout(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Select the smallest whole-bar count of the chosen diameter that resists a tie demand."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     tie = next((m for m in model.members if m.id == v["tieId"] and m.kind == "tie"), None)
     if tie is None:
         raise FeatureInputError(f"{v['tieId']!r} is not a tie in the selected model.")
@@ -776,7 +776,7 @@ def reinforcement_layout(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, An
 )
 def crack_reinforcement(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Calculate distributed web reinforcement and its code-pack ratio for the region thickness."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     area = math.pi * v["barDiameterMm"] ** 2 / 4
     ratio = area / (model.thickness * v["maxSpacingMm"])
     need = stm.factor("webRatio")
@@ -803,7 +803,7 @@ def crack_reinforcement(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any
 )
 def equilibrium_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Report global applied-load and support-reaction balance by load case."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     rows = []
     for case in model.cases:
         solution = stm_model.solve(model, case)
@@ -850,7 +850,7 @@ def equilibrium_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def capacity_ratio(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Tabulate demand-to-resistance ratios for every strut, tie and nodal-zone check."""
-    checked = solve_rows(working_model(ctx, v))
+    checked = solve_rows(working_model(ctx, v, kind="auto"))
     rows = [
         {
             "component": x["id"],
@@ -897,7 +897,7 @@ def capacity_ratio(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
 )
 def serviceability_check(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Scale solved forces to the entered service level and report reinforcement stress and strain."""
-    model = working_model(ctx, v)
+    model = working_model(ctx, v, kind="auto")
     checked = solve_rows(model)
     rows = []
     for member in model.members:
