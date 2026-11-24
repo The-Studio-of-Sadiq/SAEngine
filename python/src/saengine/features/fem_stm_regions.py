@@ -827,6 +827,17 @@ def region_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     """Publish region geometry, solved force envelopes, code-pack checks, assumptions, and warnings."""
     _models, model = project_model(ctx)
     checked = stm_model.check_model(model)
+    checks = checked.get("checks") or []
+    rows = [
+        {
+            "item": str(c.get("name", c.get("id", "-"))),
+            "demand": round(float(c.get("demand", 0.0) or 0.0), 2),
+            "capacity": round(float(c.get("capacity", 0.0) or 0.0), 2),
+            "utilisation": round(float(c.get("utilisation", 0.0) or 0.0), 3),
+            "ok": bool(c.get("ok", True)),
+        }
+        for c in checks
+    ]
     path = export_json(
         ctx,
         "stm-region-report.json",
@@ -835,10 +846,24 @@ def region_report(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
     return result(
         {
             "regionName": model.name,
-            "checks": len(checked["checks"]),
+            "checks": len(checks),
             "overallPass": checked["ok"],
+            "utilisationRatio": checked["utilisation"],
             "savedTo": str(path),
-        }
+        },
+        [
+            table(
+                "STM Region Checks",
+                [
+                    ("item", "Check"),
+                    ("demand", "Demand"),
+                    ("capacity", "Capacity"),
+                    ("utilisation", "Util"),
+                    ("ok", "Pass"),
+                ],
+                rows[:40],
+            )
+        ],
     )
 
 
@@ -879,32 +904,47 @@ def region_snapshot(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
             "Region assumptions",
             "Planar load path; bearing faces act over entered dimensions.",
         ),
-        text("reviewer", "Author", ""),
+        text("reviewer", "Author", "SE"),
     ],
     requires_project=True,
 )
 def design_notes(ctx: FeatureContext, v: dict[str, Any]) -> dict[str, Any]:
-    """Record project-specific region assumptions with the checked model identity."""
+    """Validate STM region model checks and append persistent design assumption register."""
+    import json
+
     _models, model = project_model(ctx)
-    if not v["assumptions"].strip():
+    assumptions = [line.strip() for line in v["assumptions"].splitlines() if line.strip()]
+    if not assumptions:
         raise FeatureInputError("Enter at least one region-specific design assumption.")
-    path = export_json(
-        ctx,
-        "stm-region-notes.json",
-        {
-            "model": model.name,
-            "member": model.member,
-            "author": v["reviewer"].strip(),
-            "assumptions": [line.strip() for line in v["assumptions"].splitlines() if line.strip()],
-            "fcMpa": model.fc,
-            "fyMpa": model.fy,
-            "thicknessMm": model.thickness,
-        },
-    )
+    checked = stm_model.check_model(model)
+    entry = {
+        "model": model.name,
+        "member": model.member,
+        "author": v["reviewer"].strip() or "SE",
+        "assumptions": assumptions,
+        "fcMpa": model.fc,
+        "fyMpa": model.fy,
+        "thicknessMm": model.thickness,
+        "stmPass": bool(checked.get("ok")),
+        "checkCount": len(checked.get("checks", [])),
+    }
+    reg_file = ctx.path("08 FEM/exports/stm-region-notes.json")
+    register: list[dict[str, Any]] = []
+    if reg_file is not None and reg_file.exists():
+        try:
+            loaded = json.loads(reg_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("entries"), list):
+                register = [r for r in loaded["entries"] if isinstance(r, dict)]
+        except ValueError:
+            register = []
+    by_model = {str(r.get("model", "")): r for r in register}
+    by_model[model.name] = entry
+    path = export_json(ctx, "stm-region-notes.json", {"entries": list(by_model.values())})
     return result(
         {
             "modelName": model.name,
-            "assumptionCount": len(v["assumptions"].splitlines()),
+            "assumptionCount": len(assumptions),
+            "stmPass": entry["stmPass"],
             "savedTo": str(path),
         }
     )

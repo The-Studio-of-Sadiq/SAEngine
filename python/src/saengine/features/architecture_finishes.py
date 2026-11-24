@@ -253,29 +253,82 @@ def casework(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     fields=[text("roomId", "Room id", "")],
 )
 def finish_schedule(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Schedule floor, wall and ceiling finishes from room properties."""
+    """Schedule floor, wall and ceiling finish areas and weights from bounded room geometry."""
+    from saengine.library.architecture import room_boundary
+
     arch = require_arch(ctx)
-    rows = [
-        {
-            "room": r.id,
-            "floor": r.floorFinish or "Unassigned",
-            "wall": r.wallFinish or "Unassigned",
-            "ceiling": r.ceilingFinish or "Unassigned",
-        }
-        for r in arch.rooms
-        if not values["roomId"] or r.id == values["roomId"]
-    ]
-    if not rows:
-        raise FeatureInputError("No matching room was found.")
+    levels = elevations(ctx)
+    sorted_levels = sorted(set(levels.values()))
+    finish_map = {f.id: f for f in arch.finishTypes}
+    room_filter = values["roomId"].strip()
+    matches = [r for r in arch.rooms if not room_filter or r.id == room_filter]
+    if not matches:
+        raise FeatureInputError(f"Room '{room_filter}' was not found.")
+
+    rows = []
+    for r in matches:
+        found = room_boundary(arch, r, levels)
+        net_area = round(found[1].area * 1e-6, 3) if found else 0.0
+        perimeter_m = round(found[1].length * 1e-3, 3) if found else 0.0
+        base_elev = levels.get(r.story, 0.0)
+        above = [e for e in sorted_levels if e > base_elev + 1.0]
+        clear_h_m = round((above[0] - base_elev) * 1e-3, 3) if above else 3.0
+        wall_area = round(perimeter_m * clear_h_m, 3)
+        floor_f = finish_map.get(r.floorFinish or "")
+        wall_f = finish_map.get(r.wallFinish or "")
+        ceil_f = finish_map.get(r.ceilingFinish or "")
+        finish_load = round(
+            (floor_f.thickness / 1000.0 * floor_f.unitWeight if floor_f else 0.0)
+            + (ceil_f.thickness / 1000.0 * ceil_f.unitWeight if ceil_f else 0.0)
+            + (wall_f.thickness / 1000.0 * wall_f.unitWeight if wall_f else 0.0)
+            + (
+                (floor_f.sunkFilling or 0.0) / 1000.0 * floor_f.sunkUnitWeight
+                if r.wet and floor_f and floor_f.sunkFilling
+                else 0.0
+            ),
+            3,
+        )
+        rows.append(
+            {
+                "room": r.id,
+                "floor": r.floorFinish or "Unassigned",
+                "wall": r.wallFinish or "Unassigned",
+                "ceiling": r.ceilingFinish or "Unassigned",
+                "floorAreaM2": net_area,
+                "wallAreaM2": wall_area,
+                "finishLoadKnM2": finish_load,
+            }
+        )
+
+    total_floor = round(sum(row["floorAreaM2"] for row in rows), 2)
+    total_wall = round(sum(row["wallAreaM2"] for row in rows), 2)
     path = write_arch_export(
-        ctx, "finish-schedule.csv", csv_text(["room", "floor", "wall", "ceiling"], rows)
+        ctx,
+        "finish-schedule.csv",
+        csv_text(
+            ["room", "floor", "wall", "ceiling", "floorAreaM2", "wallAreaM2", "finishLoadKnM2"],
+            rows,
+        ),
     )
     return result(
-        summary={"roomCount": len(rows), "exportPath": path},
+        summary={
+            "roomCount": len(rows),
+            "totalFloorAreaM2": total_floor,
+            "totalWallAreaM2": total_wall,
+            "exportPath": path,
+        },
         tables=[
             table(
                 "Finish schedule",
-                [("room", "Room"), ("floor", "Floor"), ("wall", "Wall"), ("ceiling", "Ceiling")],
+                [
+                    ("room", "Room"),
+                    ("floor", "Floor"),
+                    ("wall", "Wall"),
+                    ("ceiling", "Ceiling"),
+                    ("floorAreaM2", "Floor area", "m²"),
+                    ("wallAreaM2", "Wall area", "m²"),
+                    ("finishLoadKnM2", "Dead load", "kN/m²"),
+                ],
                 rows,
             )
         ],

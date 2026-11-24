@@ -146,19 +146,76 @@ def wall_sweeps(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def reveals(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Prepare a reveal cut record for a wall opening or edge."""
+    """Compute reveal groove volume and thickness reduction along a host wall."""
+    import json
+
     arch = require_arch(ctx)
-    if not any(w.id == values["hostId"] for w in arch.walls):
-        raise FeatureInputError("The reveal host wall was not found.")
-    payload = {"host": values["hostId"], "width": values["width"], "depth": values["depth"]}
-    path = write_json(ctx, "wall-reveal.json", payload)
+    host_id = values["hostId"].strip()
+    wall = next((w for w in arch.walls if w.id == host_id), None)
+    if wall is None:
+        raise FeatureInputError(f"The reveal host wall '{host_id}' was not found.")
+    wall_type = next((wt for wt in arch.wallTypes if wt.id == wall.type), None)
+    wall_thickness_mm = wall_type.thickness if wall_type else 0.0
+    length_mm = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(wall.path, wall.path[1:]))
+    width_mm = float(values["width"])
+    depth_mm = float(values["depth"])
+    volume_m3 = round((length_mm / 1000.0) * (width_mm / 1000.0) * (depth_mm / 1000.0), 6)
+    reduction_pct = (
+        round((depth_mm / wall_thickness_mm) * 100.0, 2) if wall_thickness_mm > 0 else 0.0
+    )
+    outer_layer_mm = wall_type.layers[0].thickness if wall_type and wall_type.layers else 0.0
+    exceeds_outer = outer_layer_mm > 0 and depth_mm > outer_layer_mm
+
+    assert ctx.root is not None
+    reg_path = ctx.root / "11 Exports" / "Architecture" / "wall-reveals.json"
+    entries: list[dict[str, Any]] = []
+    if reg_path.is_file():
+        try:
+            loaded = json.loads(reg_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                entries = loaded
+        except (OSError, ValueError):
+            entries = []
+    entry = {
+        "hostId": wall.id,
+        "wallType": wall.type,
+        "lengthM": round(length_mm / 1000.0, 3),
+        "widthMm": width_mm,
+        "depthMm": depth_mm,
+        "grooveVolumeM3": volume_m3,
+        "thicknessReductionPercent": reduction_pct,
+        "exceedsOuterLayer": exceeds_outer,
+    }
+    entries = [e for e in entries if e.get("hostId") != wall.id]
+    entries.append(entry)
+    path = write_json(ctx, "wall-reveals.json", entries)
     return result(
         summary={
-            "hostId": values["hostId"],
-            "widthMm": values["width"],
-            "depthMm": values["depth"],
+            "hostId": wall.id,
+            "lengthM": entry["lengthM"],
+            "grooveVolumeM3": volume_m3,
+            "thicknessReductionPercent": reduction_pct,
             "exportPath": path,
-        }
+        },
+        tables=[
+            table(
+                "Wall reveals",
+                [
+                    ("hostId", "Wall"),
+                    ("lengthM", "Length", "m"),
+                    ("widthMm", "Width", "mm"),
+                    ("depthMm", "Depth", "mm"),
+                    ("grooveVolumeM3", "Volume", "m³"),
+                    ("thicknessReductionPercent", "Wall reduction", "%"),
+                ],
+                entries,
+            )
+        ],
+        problems=(
+            [f"Reveal depth ({depth_mm:g} mm) exceeds outer wall layer ({outer_layer_mm:g} mm)."]
+            if exceeds_outer
+            else []
+        ),
     )
 
 

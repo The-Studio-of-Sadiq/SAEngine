@@ -19,32 +19,51 @@ from saengine.features import (
     "mepFireDampers.accessClearanceCheck",
     "Access Clearance Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("ductWidthMm", "Duct / damper clear width", 600.0, unit="mm", min=150.0),
+        number("accessPanelWidthMm", "Inspection access panel width", 450.0, unit="mm", min=150.0),
+        number(
+            "clearFrontMm", "Clear maintenance space in front of door", 600.0, unit="mm", min=100.0
+        ),
+        number(
+            "minClearanceMm", "Minimum maintenance access clearance", 500.0, unit="mm", min=300.0
+        ),
+    ],
+    requires_project=False,
 )
 def accessClearanceCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Access Clearance Check: Maintenance Access."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Verify fire/smoke damper access door opening size and unobstructed maintenance reach."""
+    front_ok = float(values["clearFrontMm"]) >= float(values["minClearanceMm"])
+    reach_ratio = float(values["accessPanelWidthMm"]) / float(values["ductWidthMm"])
+    panel_ok = float(values["accessPanelWidthMm"]) >= min(450.0, float(values["ductWidthMm"]))
+    ok = front_ok and panel_ok
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "clearFrontMm": values["clearFrontMm"],
+            "accessPanelMm": values["accessPanelWidthMm"],
+            "widthCoverageRatio": round(reach_ratio, 2),
+            "compliant": ok,
         },
         tables=[
             table(
-                "Access Clearance Check",
-                [("item", "Item"), ("value", "Value")],
+                "Fire damper maintenance access check",
+                [("item", "Criterion"), ("value", "Provided"), ("status", "Status")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Frontal clearance (>= min)",
+                        "value": f"{values['clearFrontMm']:g} mm",
+                        "status": "PASS" if front_ok else "OBSTRUCTED",
+                    },
+                    {
+                        "item": "Access panel width",
+                        "value": f"{values['accessPanelWidthMm']:g} mm",
+                        "status": "PASS" if panel_ok else "TOO NARROW",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Install hinged inspection door adjacent to fusible link / actuator for periodic drop testing."
         ],
     )
 
@@ -507,32 +526,58 @@ def pressurizationControl(ctx: FeatureContext, values: dict) -> dict:
     "mepFireDampers.ratingCheck",
     "Rating Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "barrierRatingMin",
+            "Fire barrier / floor separation rating",
+            120.0,
+            unit="min",
+            min=30.0,
+        ),
+        number(
+            "damperRatingMin", "Damper tested fire endurance rating", 90.0, unit="min", min=30.0
+        ),
+        number("staticPressurePa", "System duct closing pressure", 350.0, unit="Pa", min=50.0),
+    ],
+    requires_project=False,
 )
 def ratingCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Rating Check: Checks."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Verify fire damper assembly hour rating meets or exceeds compartment wall/slab rating."""
+    barrier = float(values["barrierRatingMin"])
+    damper = float(values["damperRatingMin"])
+    # Common compartmental rule: 3-hr barriers require >=3-hr damper; <=2-hr barriers allow 1.5-hr damper (or equal)
+    req_damper = 180.0 if barrier >= 180.0 else (90.0 if barrier >= 90.0 else 60.0)
+    ok = damper >= req_damper
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "barrierRatingMin": barrier,
+            "requiredDamperMin": req_damper,
+            "providedDamperMin": damper,
+            "compliant": ok,
         },
         tables=[
             table(
-                "Rating Check",
-                [("item", "Item"), ("value", "Value")],
+                "Fire damper compartment rating check",
+                [("item", "Item"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Fire wall / floor rating", "value": barrier, "unit": "min"},
+                    {"item": "Minimum damper rating", "value": req_damper, "unit": "min"},
+                    {"item": "Selected damper rating", "value": damper, "unit": "min"},
+                    {
+                        "item": "Dynamic closure rating pressure",
+                        "value": values["staticPressurePa"],
+                        "unit": "Pa",
+                    },
+                    {
+                        "item": "Compliance",
+                        "value": "PASS" if ok else "UPGRADE DAMPER RATING",
+                        "unit": "-",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Select dynamic-rated curtain or multi-blade damper tested under system airflow & static pressure."
         ],
     )
 
@@ -541,33 +586,59 @@ def ratingCheck(ctx: FeatureContext, values: dict) -> dict:
     "mepFireDampers.sealCheck",
     "Seal Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("damperAreaM2", "Damper nominal face area", 0.48, unit="m²", min=0.02),
+        number(
+            "testPressurePa", "Compartment test pressure differential", 1000.0, unit="Pa", min=100.0
+        ),
+        number(
+            "leakageRateLpsPerM2", "Manufacturer blade seal leakage", 18.0, unit="L/(s·m²)", min=0.5
+        ),
+        number(
+            "maxClassLimitLpsPerM2",
+            "Class I / II maximum allowable leakage",
+            20.3,
+            unit="L/(s·m²)",
+            min=2.0,
+        ),
+    ],
+    requires_project=False,
 )
 def sealCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Seal Check: Checks."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute total closed-damper smoke leakage flow and verify leakage-class limit."""
+    q_leak_lps = float(values["damperAreaM2"]) * float(values["leakageRateLpsPerM2"])
+    ok = float(values["leakageRateLpsPerM2"]) <= float(values["maxClassLimitLpsPerM2"])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "totalLeakageLps": round(q_leak_lps, 2),
+            "leakageClassOk": ok,
+            "testPressurePa": float(values["testPressurePa"]),
         },
         tables=[
             table(
-                "Seal Check",
-                [("item", "Item"), ("value", "Value")],
+                "Combination fire-smoke damper seal leakage",
+                [("item", "Item"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Damper face area", "value": values["damperAreaM2"], "unit": "m²"},
+                    {
+                        "item": "Specific leakage at ΔP",
+                        "value": values["leakageRateLpsPerM2"],
+                        "unit": "L/(s·m²)",
+                    },
+                    {
+                        "item": "Total blade bypass leakage",
+                        "value": round(q_leak_lps, 2),
+                        "unit": "L/s",
+                    },
+                    {
+                        "item": "Seal class check",
+                        "value": "PASS" if ok else "EXCEEDS LIMIT",
+                        "unit": "-",
+                    },
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=["Provide stainless-steel side jamb seals and perimeter intumescent sleeve sealant."],
     )
 
 

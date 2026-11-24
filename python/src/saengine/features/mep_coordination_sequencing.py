@@ -19,32 +19,59 @@ from saengine.features import (
     "mepCoordinationSequencing.accessPathCheck",
     "Access Path Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "equipmentWidthMm", "Largest skid / chiller rig width", 1450.0, unit="mm", min=200.0
+        ),
+        number(
+            "corridorClearWidthMm",
+            "Rigging corridor / doorway clear width",
+            1800.0,
+            unit="mm",
+            min=400.0,
+        ),
+        number("equipmentWeightKg", "Skid rigging mass", 1800.0, unit="kg", min=20.0),
+        number(
+            "slabLiveLoadKnPerM2", "Corridor floor slab rigging rating", 5.0, unit="kN/m²", min=1.0
+        ),
+    ],
+    requires_project=False,
 )
 def accessPathCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Access Path Check: Constructability."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Check plant replacement rigging corridor clearance margin and dolly bearing pressure."""
+    gap_mm = float(values["corridorClearWidthMm"]) - float(values["equipmentWidthMm"])
+    side_margin = gap_mm / 2.0
+    width_ok = side_margin >= 100.0
+    # Spread over assumed 2.4 m x (w) dolly contact footprint
+    footprint_m2 = max(0.8, 2.4 * (float(values["equipmentWidthMm"]) / 1000.0))
+    bearing_kn_m2 = (float(values["equipmentWeightKg"]) * 9.80665 / 1000.0) / footprint_m2
+    floor_ok = bearing_kn_m2 <= float(values["slabLiveLoadKnPerM2"])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "sideClearanceMm": round(side_margin, 0),
+            "riggingBearingKnM2": round(bearing_kn_m2, 2),
+            "pathClear": width_ok and floor_ok,
         },
         tables=[
             table(
-                "Access Path Check",
-                [("item", "Item"), ("value", "Value")],
+                "Equipment rigging access check",
+                [("item", "Criterion"), ("computed", "Computed"), ("status", "Status")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Per-side handling clearance (>= 100 mm)",
+                        "computed": f"{side_margin:.0f} mm",
+                        "status": "PASS" if width_ok else "WIDEN DOOR / HATCH",
+                    },
+                    {
+                        "item": "Dolly floor bearing pressure",
+                        "computed": f"{bearing_kn_m2:.2f} kN/m²",
+                        "status": "PASS" if floor_ok else "SHORE SLAB",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Ensure removable knock-out panels or double doors maintain plant replacement path for service life."
         ],
     )
 
@@ -203,33 +230,55 @@ def crewAllocation(ctx: FeatureContext, values: dict) -> dict:
     "mepCoordinationSequencing.duration",
     "Duration",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number(
+            "quantityUnits", "Linear run / installation quantity", 450.0, unit="m / pts", min=1.0
+        ),
+        number(
+            "crewProductivityPerDay", "Output per crew per shift", 32.0, unit="units/day", min=0.5
+        ),
+        number("crews", "Parallel MEP installation crews", 2, min=1, max=20),
+    ],
+    requires_project=False,
 )
 def duration(ctx: FeatureContext, values: dict) -> dict:
-    """Duration: Time."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute MEP trade installation working days and total labour-hours."""
+    import math
+
+    days = math.ceil(
+        float(values["quantityUnits"])
+        / (float(values["crewProductivityPerDay"]) * int(values["crews"]))
+    )
+    man_hours = (
+        float(values["quantityUnits"]) / float(values["crewProductivityPerDay"])
+    ) * 16.0  # 2-person crew x 8h
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "workingDays": days,
+            "totalManHours": round(man_hours, 1),
+            "crews": int(values["crews"]),
         },
         tables=[
             table(
-                "Duration",
-                [("item", "Item"), ("value", "Value")],
+                "MEP trade duration estimate",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Work quantity", "value": values["quantityUnits"], "unit": "units"},
+                    {
+                        "item": "Daily output (all crews)",
+                        "value": float(values["crewProductivityPerDay"]) * int(values["crews"]),
+                        "unit": "units/d",
+                    },
+                    {"item": "Scheduled working duration", "value": days, "unit": "days"},
+                    {
+                        "item": "Estimated crew labour",
+                        "value": round(man_hours, 1),
+                        "unit": "man-h",
+                    },
                 ],
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=["Duration = ceil(Quantity / (CrewRate * Crews)) rounded up to whole working days."],
     )
 
 
@@ -569,32 +618,50 @@ def startDate(ctx: FeatureContext, values: dict) -> dict:
     "mepCoordinationSequencing.taskLag",
     "Task Lag",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("predecessorDurationD", "Upstream trade rough-in duration", 12, unit="days", min=1),
+        number(
+            "overlapPct", "Staggered zone start-to-start overlap", 40.0, unit="%", min=0.0, max=90.0
+        ),
+        number(
+            "inspectionBufferD", "Pressure-test / QA inspection hold lag", 2, unit="days", min=0
+        ),
+    ],
+    requires_project=False,
 )
 def taskLag(ctx: FeatureContext, values: dict) -> dict:
-    """Task Lag: Time."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute zoned start-to-start trade lead/lag days separating gravity, ducts, piping, and trays."""
+    pred = int(values["predecessorDurationD"])
+    ss_lag = max(1, round(pred * (1.0 - float(values["overlapPct"]) / 100.0)))
+    total_offset = ss_lag + int(values["inspectionBufferD"])
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "ssLagDays": ss_lag,
+            "inspectionBufferDays": int(values["inspectionBufferD"]),
+            "effectiveStartOffsetDays": total_offset,
         },
         tables=[
             table(
-                "Task Lag",
-                [("item", "Item"), ("value", "Value")],
+                "Multi-trade ceiling installation sequence",
+                [("stage", "Trade Sequence Step"), ("offsetDays", "Day Offset", "d")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "stage": "1. Top-level sloped gravity drainage & primary ducts",
+                        "offsetDays": 0,
+                    },
+                    {
+                        "stage": "2. Pressure fire mains & hydronic headers (SS + lag)",
+                        "offsetDays": total_offset,
+                    },
+                    {
+                        "stage": "3. Electrical trays below wet pipes / final insulation",
+                        "offsetDays": total_offset + max(2, ss_lag // 2),
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Install gravity-sloped drainage and large ducts first from slab soffit down before pressure piping & trays."
         ],
     )
 

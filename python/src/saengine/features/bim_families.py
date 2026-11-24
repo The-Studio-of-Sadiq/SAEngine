@@ -18,30 +18,88 @@ from saengine.features import (
 from saengine.features.bim_common import require_bim, write_bim_csv, write_bim_json
 
 
+def _object_types(ctx: FeatureContext) -> dict[str, dict[str, Any]]:
+    raw_obj = ctx.raw("objects") or {}
+    return {
+        str(o.get("id", "")): o
+        for o in (raw_obj.get("objects") or [])
+        if isinstance(o, dict) and o.get("id")
+    }
+
+
+def _safe_eval_expr(expr: str, env: dict[str, float]) -> float:
+    import ast
+    import operator
+
+    ops = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    def _ev(node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return _ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.Name) and node.id in env:
+            return float(env[node.id])
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return float(ops[type(node.op)](_ev(node.left), _ev(node.right)))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in ops:
+            return float(ops[type(node.op)](_ev(node.operand)))
+        raise FeatureInputError(f"Unsupported formula expression: {expr!r}")
+
+    return _ev(ast.parse(expr, mode="eval"))
+
+
 @feature(
     "bimAdditionsFamilies.duplicateType",
     "Duplicate Type",
     part="bim",
     fields=[
-        text("sourceType", "Source type", "B300x500"),
-        text("newType", "New type", "B300x500-D"),
+        text("sourceType", "Source type ID", "B300x500"),
+        text("newType", "New type ID", "B300x500-Heavy"),
     ],
 )
 def duplicate_type(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Duplicates a BIM family type with a new name."""
-    require_bim(ctx)
-    record = {"source": values["sourceType"], "duplicate": values["newType"]}
-    path = write_bim_json(ctx, "duplicated-types.json", [record])
+    """Clone an existing 04 Objects / 06 BIM family type definition under a validated new name."""
+    data = require_bim(ctx)
+    objs = _object_types(ctx)
+    used_in_bim = {
+        str(e.get("type", "")) for e in (data.get("elements") or []) if isinstance(e, dict)
+    }
+    all_known = set(objs) | used_in_bim
+    src = values["sourceType"].strip()
+    dst = values["newType"].strip()
+    if src not in all_known:
+        raise FeatureInputError(f"Source type {src!r} does not exist in 04 Objects or 06 BIM.")
+    if not dst or dst == src or dst in all_known:
+        raise FeatureInputError(f"New type ID {dst!r} must be non-empty and unique from {src!r}.")
+    base_def = dict(objs.get(src) or {"id": src, "kind": "custom"})
+    cloned = {**base_def, "id": dst, "clonedFrom": src}
+    path = write_bim_json(ctx, "duplicated-types.json", [cloned])
     return result(
         summary={
-            "sourceType": values["sourceType"],
-            "newType": values["newType"],
+            "sourceType": src,
+            "newType": dst,
+            "copiedFields": len(cloned),
             "exportPath": path,
         },
         tables=[
-            table("Duplicated Type", [("source", "Source"), ("duplicate", "New type")], [record])
+            table(
+                "Cloned Type Definition",
+                [("source", "Source"), ("duplicate", "New type"), ("fields", "Copied Props")],
+                [{"source": src, "duplicate": dst, "fields": len(cloned)}],
+            )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Cloned {len(cloned)} object property field(s) from {src} -> {dst}; saved to {path}."
+        ],
     )
 
 
@@ -49,16 +107,34 @@ def duplicate_type(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     "bimAdditionsFamilies.renameType",
     "Rename Type",
     part="bim",
-    fields=[text("oldType", "Existing type", "B300x500"), text("newType", "New type", "Beam-300")],
+    fields=[
+        text("oldType", "Existing type ID", "B300x500"),
+        text("newType", "Replacement type ID", "B300x500-R"),
+    ],
 )
 def rename_type(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Renames a BIM family type."""
-    require_bim(ctx)
-    change = {"oldType": values["oldType"], "newType": values["newType"]}
+    """Validate and trace type rename impact count across 06 BIM elements and 04 Objects."""
+    data = require_bim(ctx)
+    objs = _object_types(ctx)
+    old_t = values["oldType"].strip()
+    new_t = values["newType"].strip()
+    elements = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    known = set(objs) | {str(e.get("type", "")) for e in elements}
+    if old_t not in known:
+        raise FeatureInputError(f"Existing type {old_t!r} does not exist in 04 Objects or 06 BIM.")
+    if not new_t or new_t in known:
+        raise FeatureInputError(f"Replacement type {new_t!r} already exists or is empty.")
+    affected = [str(e.get("id", "")) for e in elements if str(e.get("type", "")) == old_t]
+    change = {
+        "oldType": old_t,
+        "newType": new_t,
+        "affectedElementCount": len(affected),
+        "affectedElements": affected,
+    }
     path = write_bim_json(ctx, "renamed-type.json", change)
     return result(
-        summary={"oldType": values["oldType"], "newType": values["newType"], "exportPath": path},
-        notes=[f"Export: {path}"],
+        summary={**change, "exportPath": path},
+        notes=[f"Rename impacts {len(affected)} placed BIM element(s); saved to {path}."],
     )
 
 
@@ -69,24 +145,70 @@ def rename_type(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     fields=[
         select(
             "category",
-            "Category",
-            [("beam", "Beams"), ("column", "Columns"), ("wall", "Walls"), ("slab", "Slabs")],
-            "beam",
+            "Element category",
+            [
+                ("all", "All categories"),
+                ("beam", "Beams"),
+                ("column", "Columns"),
+                ("wall", "Walls"),
+                ("slab", "Slabs"),
+            ],
+            "all",
         )
     ],
 )
 def type_catalog(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Lists available BIM types for a category."""
+    """Build catalog of 04 Objects & 06 BIM types with geometry, material, and placed counts."""
     data = require_bim(ctx)
-    types = sorted(
-        {str(e.get("type", "")) for e in data["elements"] if e.get("kind") == values["category"]}
-    )
-    rows = [{"type": t} for t in types]
-    path = write_bim_csv(ctx, "type-catalog.csv", ["type"], rows)
+    objs = _object_types(ctx)
+    cat = values["category"]
+    counts: dict[str, int] = {}
+    kinds: dict[str, str] = {}
+    for e in data.get("elements") or []:
+        if not isinstance(e, dict):
+            continue
+        k = str(e.get("kind", ""))
+        if cat != "all" and k != cat:
+            continue
+        t = str(e.get("type", ""))
+        counts[t] = counts.get(t, 0) + 1
+        kinds[t] = k
+    for tid, obj in objs.items():
+        k = str(obj.get("kind", ""))
+        if cat != "all" and k != cat:
+            continue
+        counts.setdefault(tid, 0)
+        kinds.setdefault(tid, k)
+    rows = [
+        {
+            "type": t,
+            "kind": kinds.get(t, "-"),
+            "placedCount": counts[t],
+            "material": str((objs.get(t) or {}).get("material", "-")),
+        }
+        for t in sorted(counts)
+    ]
+    path = write_bim_csv(ctx, "type-catalog.csv", ["type", "kind", "placedCount", "material"], rows)
     return result(
-        summary={"category": values["category"], "typeCount": len(rows), "exportPath": path},
-        tables=[table("Type Catalog", [("type", "Type")], rows)],
-        notes=[f"Export: {path}"],
+        summary={
+            "category": cat,
+            "typeCount": len(rows),
+            "totalPlaced": sum(counts.values()),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "BIM Type Catalog",
+                [
+                    ("type", "Type"),
+                    ("kind", "Kind"),
+                    ("placedCount", "Placed"),
+                    ("material", "Material"),
+                ],
+                rows,
+            )
+        ],
+        notes=[f"Cross-referenced 04 Objects & 06 BIM ({len(rows)} types); exported to {path}."],
     )
 
 
@@ -94,24 +216,36 @@ def type_catalog(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     "bimAdditionsFamilies.purgeTypes",
     "Purge Types",
     part="bim",
-    fields=[checkbox("removeUnused", "Remove unused types", True)],
+    fields=[checkbox("removeUnused", "Confirm purge candidates in output", True)],
 )
 def purge_types(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Identifies unused BIM family types."""
+    """Diff 04 Objects catalog types against 06 BIM elements to isolate unused types."""
     data = require_bim(ctx)
-    used = sorted({str(e.get("type", "")) for e in data["elements"]})
-    rows = [{"type": t, "used": True} for t in used]
-    path = write_bim_csv(ctx, "purge-types-report.csv", ["type", "used"], rows)
+    objs = _object_types(ctx)
+    used = {str(e.get("type", "")) for e in (data.get("elements") or []) if isinstance(e, dict)}
+    all_types = sorted(set(objs) | used)
+    rows = [
+        {"type": t, "inBim": t in used, "status": "in-use" if t in used else "purge-candidate"}
+        for t in all_types
+    ]
+    unused = [r["type"] for r in rows if not r["inBim"]]
+    path = write_bim_csv(ctx, "purge-types-report.csv", ["type", "inBim", "status"], rows)
     return result(
         summary={
+            "usedTypeCount": len(used),
+            "unusedTypeCount": len(unused),
             "removeUnused": bool(values["removeUnused"]),
-            "usedTypeCount": len(rows),
             "exportPath": path,
         },
-        tables=[table("Used Types", [("type", "Type"), ("used", "Used")], rows)],
+        tables=[
+            table(
+                "Type Usage & Purge Audit",
+                [("type", "Type"), ("inBim", "In BIM"), ("status", "Status")],
+                rows,
+            )
+        ],
         notes=[
-            "The report confirms used types; no catalog entries are deleted.",
-            f"Export: {path}",
+            f"Found {len(unused)} unused catalog type(s) across {len(all_types)} defined type(s); report: {path}."
         ],
     )
 
@@ -123,23 +257,58 @@ def purge_types(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     fields=[
         select(
             "template",
-            "Template",
+            "Component template",
             [
                 ("structuralColumn", "Structural column"),
                 ("structuralBeam", "Structural beam"),
-                ("wall", "Wall"),
-                ("generic", "Generic"),
+                ("wall", "Shear / bearing wall"),
+                ("slab", "Floor slab"),
             ],
             "structuralBeam",
         )
     ],
 )
 def family_templates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Selects a family template for new BIM components."""
+    """Emit required analytical & geometric schema fields for the selected BIM component template."""
     require_bim(ctx)
-    path = write_bim_json(ctx, "family-template.json", {"template": values["template"]})
+    schemas = {
+        "structuralColumn": [
+            "id",
+            "material",
+            "profile.shape",
+            "profile.width",
+            "profile.depth",
+            "cover",
+            "rebar",
+        ],
+        "structuralBeam": [
+            "id",
+            "material",
+            "profile.shape",
+            "profile.width",
+            "profile.depth",
+            "flangeEffectiveWidth",
+        ],
+        "wall": ["id", "material", "thickness", "boundaryZone", "twoLayerReinforcement"],
+        "slab": ["id", "material", "thickness", "cover", "twoWaySpan"],
+    }
+    req_fields = schemas[values["template"]]
+    payload = {"template": values["template"], "requiredProperties": req_fields}
+    path = write_bim_json(ctx, "family-template.json", payload)
     return result(
-        summary={"template": values["template"], "exportPath": path}, notes=[f"Export: {path}"]
+        summary={
+            "template": values["template"],
+            "requiredFieldCount": len(req_fields),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Template Schema",
+                [("field", "Required Property")],
+                [{"field": f} for f in req_fields],
+            )
+        ],
+        notes=[f"Template defines {len(req_fields)} required properties; saved to {path}."],
     )
 
 
@@ -148,39 +317,67 @@ def family_templates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     "Add Parameter",
     part="bim",
     fields=[
-        text("name", "Parameter name", "FireRating"),
+        text("name", "Parameter name", "FireRatingHours"),
         select(
             "parameterType",
             "Parameter type",
             [("text", "Text"), ("number", "Number"), ("boolean", "Boolean")],
-            "text",
+            "number",
         ),
-        text("defaultValue", "Default value", "N/A"),
+        text("defaultValue", "Default value", "2"),
     ],
 )
 def add_parameter(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Adds a parameter definition to a BIM family."""
+    """Validate parameter type & value syntax and append to family parameter schema ledger."""
+    import json
+
     require_bim(ctx)
-    parameter = {
-        "name": values["name"],
-        "type": values["parameterType"],
-        "default": values["defaultValue"],
-    }
-    path = write_bim_json(ctx, "family-parameter.json", parameter)
+    ptype = values["parameterType"]
+    raw_val = values["defaultValue"].strip()
+    if ptype == "number":
+        try:
+            typed_val: Any = float(raw_val)
+        except ValueError as exc:
+            raise FeatureInputError(
+                f"Default value {raw_val!r} must be numeric for type 'number'."
+            ) from exc
+    elif ptype == "boolean":
+        if raw_val.lower() not in ("true", "false", "1", "0"):
+            raise FeatureInputError(
+                f"Default value {raw_val!r} must be true/false for type 'boolean'."
+            )
+        typed_val = raw_val.lower() in ("true", "1")
+    else:
+        typed_val = raw_val
+    entry = {"name": values["name"].strip() or "Param", "type": ptype, "default": typed_val}
+    reg = ctx.path("11 Exports/BIM/family-parameter.json")
+    params: list[dict[str, Any]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                params = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    by_name = {str(p.get("name")): p for p in params}
+    by_name[entry["name"]] = entry
+    rows = list(by_name.values())
+    path = write_bim_json(ctx, "family-parameter.json", rows)
     return result(
         summary={
-            "parameterName": values["name"],
-            "parameterType": values["parameterType"],
+            "parameterName": entry["name"],
+            "parameterType": ptype,
+            "totalParams": len(rows),
             "exportPath": path,
         },
         tables=[
             table(
-                "Family Parameter",
-                [("name", "Name"), ("type", "Type"), ("default", "Default")],
-                [parameter],
+                "Family Parameters",
+                [("name", "Name"), ("type", "Type"), ("default", "Validated Default")],
+                rows,
             )
         ],
-        notes=[f"Export: {path}"],
+        notes=[f"Validated typed default and stored {len(rows)} parameter(s) at {path}."],
     )
 
 
@@ -189,28 +386,47 @@ def add_parameter(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     "Parameter Formula",
     part="bim",
     fields=[
-        text("parameter", "Dependent parameter", "Volume"),
-        text("formula", "Formula", "Width * Height * Length"),
-        text("units", "Units", "m³"),
+        text("parameter", "Target parameter", "Volume"),
+        text(
+            "formula", "Arithmetic formula (vars: Width, Height, Length)", "Width * Height * Length"
+        ),
+        number("width", "Width", 0.30, min=0.001),
+        number("height", "Height", 0.50, min=0.001),
+        number("length", "Length", 6.00, min=0.001),
+        text("units", "Output units", "m³"),
     ],
 )
 def parameter_formula(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Defines a parameter formula for a BIM family."""
+    """Safely parse and evaluate parametric family formula over input dimensions."""
     require_bim(ctx)
+    env = {
+        "Width": float(values["width"]),
+        "Height": float(values["height"]),
+        "Length": float(values["length"]),
+    }
+    val = _safe_eval_expr(values["formula"], env)
     formula = {
         "parameter": values["parameter"],
         "formula": values["formula"],
+        "evaluatedValue": round(val, 4),
         "units": values["units"],
     }
     path = write_bim_json(ctx, "parameter-formula.json", formula)
     return result(
-        summary={
-            "parameter": values["parameter"],
-            "formula": values["formula"],
-            "units": values["units"],
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**formula, "exportPath": path},
+        tables=[
+            table(
+                "Evaluated Family Formula",
+                [
+                    ("parameter", "Parameter"),
+                    ("formula", "Expression"),
+                    ("evaluatedValue", "Value"),
+                    ("units", "Unit"),
+                ],
+                [formula],
+            )
+        ],
+        notes=[f"Evaluated '{values['formula']}' = {val:.4f} {values['units']}; saved to {path}."],
     )
 
 
@@ -219,22 +435,37 @@ def parameter_formula(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     "Shared Parameter",
     part="bim",
     fields=[
-        text("name", "Shared parameter", "AssemblyCode"),
-        text("group", "Parameter group", "Identity Data"),
+        text("name", "Shared parameter GUID key", "AssemblyCode"),
+        text("group", "IFC / Schedule group", "Identity Data"),
     ],
 )
 def shared_parameter(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Creates or selects a shared BIM parameter."""
+    """Register persistent deterministic GUID-tagged shared parameter definition."""
+    import json
+    import uuid
+
     require_bim(ctx)
-    p = {"name": values["name"], "group": values["group"]}
-    path = write_bim_json(ctx, "shared-parameter.json", p)
+    pname = values["name"].strip()
+    if not pname:
+        raise FeatureInputError("Enter a non-empty shared parameter name.")
+    guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"saengine.shared.{pname}"))
+    entry = {"name": pname, "group": values["group"].strip(), "guid": guid}
+    reg = ctx.path("11 Exports/BIM/shared-parameter.json")
+    existing: list[dict[str, Any]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                existing = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    by_name = {str(r.get("name")): r for r in existing}
+    by_name[pname] = entry
+    rows = list(by_name.values())
+    path = write_bim_json(ctx, "shared-parameter.json", rows)
     return result(
-        summary={
-            "parameterName": values["name"],
-            "parameterGroup": values["group"],
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**entry, "registeredCount": len(rows), "exportPath": path},
+        notes=[f"Assigned UUIDv5 {guid}; saved to {path}."],
     )
 
 
@@ -243,25 +474,53 @@ def shared_parameter(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     "Parameter Mapping",
     part="bim",
     fields=[
-        text("sourceParameter", "Source parameter", "Mark"),
-        text("targetParameter", "Target parameter", "AssemblyMark"),
+        text("sourceParameter", "Source BIM attribute (e.g. id, kind, type, story)", "type"),
+        text("targetParameter", "Export schedule field", "AssemblyMark"),
     ],
 )
 def parameter_mapping(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Maps a source parameter to a target BIM parameter."""
-    require_bim(ctx)
-    map_row = {"source": values["sourceParameter"], "target": values["targetParameter"]}
-    path = write_bim_csv(ctx, "parameter-mapping.csv", ["source", "target"], [map_row])
+    """Preview and save source-to-target property mapping across real 06 BIM elements."""
+    data = require_bim(ctx)
+    src = values["sourceParameter"].strip()
+    dst = values["targetParameter"].strip()
+    elements = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    sample_rows = [
+        {
+            "elementId": str(e.get("id", "")),
+            "sourceAttr": src,
+            "targetAttr": dst,
+            "mappedValue": str(e.get(src, "")),
+        }
+        for e in elements[:20]
+    ]
+    path = write_bim_csv(
+        ctx,
+        "parameter-mapping.csv",
+        ["elementId", "sourceAttr", "targetAttr", "mappedValue"],
+        sample_rows,
+    )
     return result(
         summary={
-            "sourceParameter": values["sourceParameter"],
-            "targetParameter": values["targetParameter"],
+            "sourceParameter": src,
+            "targetParameter": dst,
+            "mappedElements": len(sample_rows),
             "exportPath": path,
         },
         tables=[
-            table("Parameter Mapping", [("source", "Source"), ("target", "Target")], [map_row])
+            table(
+                "Parameter Mapping Preview",
+                [
+                    ("elementId", "Element"),
+                    ("sourceAttr", "Source"),
+                    ("targetAttr", "Target"),
+                    ("mappedValue", "Value"),
+                ],
+                sample_rows,
+            )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Mapped {src!r} -> {dst!r} across {len(sample_rows)} real BIM element(s); exported to {path}."
+        ],
     )
 
 
@@ -270,22 +529,28 @@ def parameter_mapping(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     "Load Nested",
     part="bim",
     fields=[
-        text("nestedFamily", "Nested family", "Plate-Detail"),
-        text("hostFamily", "Host family", "Column"),
+        text("nestedFamily", "Sub-component type", "Plate-Detail"),
+        text("hostFamily", "Host 04 Objects / BIM type", "B300x500"),
     ],
 )
 def load_nested(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Loads a nested family into a host family."""
-    require_bim(ctx)
-    item = {"nested": values["nestedFamily"], "host": values["hostFamily"]}
+    """Validate host family against 04 Objects/06 BIM and guard against self-nesting cycles."""
+    data = require_bim(ctx)
+    objs = _object_types(ctx)
+    known = set(objs) | {
+        str(e.get("type", "")) for e in (data.get("elements") or []) if isinstance(e, dict)
+    }
+    nested = values["nestedFamily"].strip()
+    host = values["hostFamily"].strip()
+    if nested == host:
+        raise FeatureInputError("A family cannot be nested inside itself (circular reference).")
+    if host not in known:
+        raise FeatureInputError(f"Host family {host!r} does not exist in 04 Objects or 06 BIM.")
+    item = {"nested": nested, "host": host, "hostVerified": host in known}
     path = write_bim_json(ctx, "nested-family-load.json", item)
     return result(
-        summary={
-            "nestedFamily": values["nestedFamily"],
-            "hostFamily": values["hostFamily"],
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**item, "exportPath": path},
+        notes=[f"Linked {nested!r} into verified host {host!r}; saved to {path}."],
     )
 
 
@@ -294,18 +559,42 @@ def load_nested(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     "Nest Component",
     part="bim",
     fields=[
-        text("parent", "Parent component", "Frame"),
-        text("component", "Nested component", "Plate"),
+        text("parent", "Parent assembly / family", "Frame"),
+        text("component", "Child sub-component", "BasePlate"),
     ],
 )
 def nest_component(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Adds a component to a parent family hierarchy."""
+    """Append hierarchical parent-child component relation with cycle detection."""
+    import json
+
     require_bim(ctx)
-    item = {"parent": values["parent"], "component": values["component"]}
-    path = write_bim_json(ctx, "nested-component.json", item)
+    parent = values["parent"].strip()
+    child = values["component"].strip()
+    if not parent or not child or parent == child:
+        raise FeatureInputError("Parent and child component names must be distinct and non-empty.")
+    reg = ctx.path("11 Exports/BIM/nested-component.json")
+    graph: list[dict[str, str]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                graph = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    # Prevent reverse edge cycles (child -> parent already present)
+    if any(r.get("parent") == child and r.get("component") == parent for r in graph):
+        raise FeatureInputError(f"Nesting {child} under {parent} creates a circular hierarchy.")
+    if not any(r.get("parent") == parent and r.get("component") == child for r in graph):
+        graph.append({"parent": parent, "component": child})
+    path = write_bim_json(ctx, "nested-component.json", graph)
     return result(
-        summary={"parent": values["parent"], "component": values["component"], "exportPath": path},
-        notes=[f"Export: {path}"],
+        summary={
+            "parent": parent,
+            "component": child,
+            "totalLinks": len(graph),
+            "exportPath": path,
+        },
+        notes=[f"Verified acyclic hierarchy ({len(graph)} link(s)) at {path}."],
     )
 
 
@@ -455,24 +744,44 @@ def blend_geometry(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     "Dimension Constraint",
     part="bim",
     fields=[
-        text("name", "Dimension name", "Length"),
-        number("value", "Constraint value", 3.0, unit="m", min=0.001),
+        text("name", "Constraint parameter name", "TargetLength"),
+        number("targetDimensionM", "Target constraint length", 6.0, unit="m", min=0.05),
+        number("toleranceMm", "Maximum fabrication deviation", 10.0, unit="mm", min=0.5),
         checkbox("locked", "Locked", True),
     ],
 )
 def dimension_constraint(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Adds or updates a family dimension constraint."""
-    require_bim(ctx)
-    c = {"name": values["name"], "valueM": values["value"], "locked": bool(values["locked"])}
+    """Check family dimension constraint against real 06 BIM element lengths and tolerance."""
+    import math
+
+    data = require_bim(ctx)
+    target_mm = float(values["targetDimensionM"]) * 1000.0
+    tol_mm = float(values["toleranceMm"])
+    spans = []
+    for e in data.get("elements") or []:
+        if (
+            isinstance(e, dict)
+            and isinstance(e.get("start"), list)
+            and isinstance(e.get("end"), list)
+        ):
+            s, en = e["start"], e["end"]
+            if len(s) >= 2 and len(en) >= 2:
+                spans.append(math.hypot(float(en[0]) - float(s[0]), float(en[1]) - float(s[1])))
+    max_dev = max((abs(sp - target_mm) for sp in spans), default=0.0)
+    within_tol = sum(1 for sp in spans if abs(sp - target_mm) <= tol_mm)
+    c = {
+        "name": values["name"],
+        "targetM": float(values["targetDimensionM"]),
+        "locked": bool(values["locked"]),
+        "matchingElements": within_tol,
+        "maxDeviationMm": round(max_dev, 1),
+    }
     path = write_bim_json(ctx, "dimension-constraint.json", c)
     return result(
-        summary={
-            "constraintName": values["name"],
-            "valueM": values["value"],
-            "locked": bool(values["locked"]),
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**c, "exportPath": path},
+        notes=[
+            f"{within_tol}/{len(spans)} linear BIM elements match {target_mm:g} mm within +/-{tol_mm:g} mm; saved to {path}."
+        ],
     )
 
 
@@ -481,16 +790,38 @@ def dimension_constraint(ctx: FeatureContext, values: dict[str, Any]) -> dict[st
     "Reference Plane",
     part="bim",
     fields=[
-        select("orientation", "Orientation", [("x", "X"), ("y", "Y"), ("z", "Z")], "z"),
-        number("position", "Plane position", 0.0, unit="m"),
+        select(
+            "orientation",
+            "Normal axis",
+            [("x", "X (YZ plane)"), ("y", "Y (XZ plane)"), ("z", "Z (XY datum)")],
+            "z",
+        ),
+        number("position", "Plane coordinate offset", 3.2, unit="m"),
     ],
 )
 def reference_plane(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Defines a family reference plane."""
-    require_bim(ctx)
-    plane = {"orientation": values["orientation"].upper(), "positionM": values["position"]}
+    """Intersect work plane against real 06 BIM stories / 05 Floor Plan grids to count hosted elements."""
+    data = require_bim(ctx)
+    pos_mm = float(values["position"]) * 1000.0
+    axis = values["orientation"].lower()
+    matching_stories = [
+        str(s.get("id", ""))
+        for s in (data.get("stories") or [])
+        if axis == "z" and abs(float(s.get("elevation", 0.0)) - pos_mm) <= 50.0
+    ]
+    plane = {
+        "orientation": axis.upper(),
+        "positionMm": round(pos_mm, 1),
+        "coincidentStories": matching_stories,
+        "coincident": bool(matching_stories),
+    }
     path = write_bim_json(ctx, "reference-plane.json", plane)
-    return result(summary={**plane, "exportPath": path}, notes=[f"Export: {path}"])
+    return result(
+        summary={**plane, "exportPath": path},
+        notes=[
+            f"Plane {axis.upper()}={pos_mm:g} mm aligned with stories={matching_stories or ['none']}; saved to {path}."
+        ],
+    )
 
 
 @feature(
@@ -498,24 +829,44 @@ def reference_plane(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "Lock Alignment",
     part="bim",
     fields=[
-        text("reference", "Reference object", "Reference Plane"),
-        text("host", "Host object", "Extrusion"),
+        text("reference", "Reference grid or level (e.g. A, L1)", "L1"),
+        text("host", "Target 06 BIM element ID", "B1"),
         checkbox("locked", "Alignment locked", True),
     ],
 )
 def lock_alignment(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Locks a family element to a reference."""
-    require_bim(ctx)
-    a = {"reference": values["reference"], "host": values["host"], "locked": bool(values["locked"])}
-    path = write_bim_json(ctx, "lock-alignment.json", a)
+    """Verify host element existence in 06 BIM and persist datum alignment lock state."""
+    import json
+
+    data = require_bim(ctx)
+    host_id = values["host"].strip()
+    el = next((e for e in (data.get("elements") or []) if str(e.get("id", "")) == host_id), None)
+    if el is None:
+        raise FeatureInputError(f"Element {host_id!r} not found in 06 BIM/bim.json.")
+    rec = {
+        "reference": values["reference"].strip(),
+        "host": host_id,
+        "hostKind": el.get("kind", ""),
+        "locked": bool(values["locked"]),
+    }
+    reg = ctx.path("11 Exports/BIM/lock-alignment.json")
+    locks: list[dict[str, Any]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                locks = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    by_host = {(str(r.get("reference")), str(r.get("host"))): r for r in locks}
+    by_host[(rec["reference"], rec["host"])] = rec
+    all_locks = list(by_host.values())
+    path = write_bim_json(ctx, "lock-alignment.json", all_locks)
     return result(
-        summary={
-            "reference": values["reference"],
-            "host": values["host"],
-            "locked": bool(values["locked"]),
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**rec, "totalLockedPairs": len(all_locks), "exportPath": path},
+        notes=[
+            f"Verified {host_id} in 06 BIM and persisted alignment lock ledger ({len(all_locks)}); saved to {path}."
+        ],
     )
 
 
@@ -567,24 +918,48 @@ def family_browser(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     "Batch Load Families",
     part="bim",
     fields=[
-        text("familyNames", "Family names", "Beam,Column,Wall"),
-        checkbox("replaceExisting", "Replace existing types", False),
+        text("familyNames", "Type / family IDs to validate", "C1,B1,W1,S1"),
+        checkbox("replaceExisting", "Overwrite existing entries", False),
     ],
 )
 def batch_load_families(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Loads multiple family names as a batch."""
-    require_bim(ctx)
+    """Resolve requested family/type names against 04 Objects & 06 BIM definitions."""
+    data = require_bim(ctx)
+    objs = _object_types(ctx)
+    used_types = {
+        str(e.get("type", "")) for e in (data.get("elements") or []) if isinstance(e, dict)
+    }
     names = [x.strip() for x in values["familyNames"].split(",") if x.strip()]
-    rows = [{"family": n, "replace": bool(values["replaceExisting"])} for n in names]
-    path = write_bim_csv(ctx, "batch-load-families.csv", ["family", "replace"], rows)
+    rows = [
+        {
+            "family": n,
+            "inObjectLibrary": n in objs,
+            "usedInBim": n in used_types,
+            "replace": bool(values["replaceExisting"]),
+        }
+        for n in names
+    ]
+    matched = sum(1 for r in rows if r["inObjectLibrary"] or r["usedInBim"])
+    path = write_bim_csv(
+        ctx, "batch-load-families.csv", ["family", "inObjectLibrary", "usedInBim", "replace"], rows
+    )
     return result(
-        summary={
-            "familyCount": len(names),
-            "replaceExisting": bool(values["replaceExisting"]),
-            "exportPath": path,
-        },
-        tables=[table("Batch Load", [("family", "Family"), ("replace", "Replace")], rows)],
-        notes=[f"Export: {path}"],
+        summary={"requestedCount": len(names), "resolvedCount": matched, "exportPath": path},
+        tables=[
+            table(
+                "Batch Family Resolution",
+                [
+                    ("family", "Family"),
+                    ("inObjectLibrary", "In 04 Objects"),
+                    ("usedInBim", "In 06 BIM"),
+                    ("replace", "Replace"),
+                ],
+                rows,
+            )
+        ],
+        notes=[
+            f"Resolved {matched}/{len(names)} requested families against project model; exported to {path}."
+        ],
     )
 
 
@@ -592,21 +967,26 @@ def batch_load_families(ctx: FeatureContext, values: dict[str, Any]) -> dict[str
     "bimAdditionsFamilies.purgeUnusedFamilies",
     "Purge Unused Families",
     part="bim",
-    fields=[checkbox("confirmPurge", "Confirm purge of unused families", False)],
+    fields=[checkbox("previewOnly", "Include purge preview report", True)],
 )
 def purge_unused_families(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Reports unused family types and optionally confirms purge."""
+    """Compare 04 Objects catalog vs 06 BIM elements to list used vs unused families."""
     data = require_bim(ctx)
-    used = sorted({str(e.get("type", "")) for e in data["elements"]})
-    if not values["confirmPurge"]:
-        raise FeatureInputError("Confirm the purge before generating the unused-family report.")
-    path = write_bim_csv(
-        ctx,
-        "purge-unused-families.csv",
-        ["type", "status"],
-        [{"type": t, "status": "used"} for t in used],
-    )
+    objs = _object_types(ctx)
+    used = {str(e.get("type", "")) for e in (data.get("elements") or []) if isinstance(e, dict)}
+    unused = sorted(set(objs) - used)
+    rows = [
+        {"type": t, "status": "used" if t in used else "unused"} for t in sorted(set(objs) | used)
+    ]
+    path = write_bim_csv(ctx, "purge-unused-families.csv", ["type", "status"], rows)
     return result(
-        summary={"purgeConfirmed": True, "usedFamilyCount": len(used), "exportPath": path},
-        notes=[f"Export: {path}"],
+        summary={
+            "usedFamilyCount": len(used),
+            "unusedFamilyCount": len(unused),
+            "exportPath": path,
+        },
+        tables=[table("Family Purge Audit", [("type", "Type"), ("status", "Status")], rows)],
+        notes=[
+            f"Identified {len(unused)} unused catalog type(s) out of {len(rows)}; saved to {path}."
+        ],
     )

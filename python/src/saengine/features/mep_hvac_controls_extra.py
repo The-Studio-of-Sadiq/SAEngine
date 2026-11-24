@@ -94,32 +94,50 @@ def co2Sensor(ctx: FeatureContext, values: dict) -> dict:
     "mepHvacControls.controlDeadband",
     "Control Deadband",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("heatingSetpointC", "Zone heating setpoint", 21.0, unit="°C", min=10.0, max=25.0),
+        number("coolingSetpointC", "Zone cooling setpoint", 24.5, unit="°C", min=18.0, max=32.0),
+        number(
+            "sensorUncertaintyK",
+            "Thermostat sensor drift + hysteresis",
+            0.5,
+            unit="K",
+            min=0.1,
+            max=2.0,
+        ),
+    ],
+    requires_project=False,
 )
 def controlDeadband(ctx: FeatureContext, values: dict) -> dict:
-    """Control Deadband: Setpoints."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Evaluate heating/cooling neutral deadband width to avoid simultaneous bucking."""
+    t_h = float(values["heatingSetpointC"])
+    t_c = float(values["coolingSetpointC"])
+    db = t_c - t_h
+    min_rec = max(2.0, 4.0 * float(values["sensorUncertaintyK"]))
+    ok = db >= min_rec
+    mid = 0.5 * (t_h + t_c)
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "deadbandK": round(db, 2),
+            "minRecommendedK": round(min_rec, 2),
+            "neutralMidpointC": round(mid, 2),
+            "compliant": ok,
         },
         tables=[
             table(
-                "Control Deadband",
-                [("item", "Item"), ("value", "Value")],
+                "Thermostat deadband check",
+                [("item", "Item"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Heating setpoint", "value": t_h, "unit": "°C"},
+                    {"item": "Cooling setpoint", "value": t_c, "unit": "°C"},
+                    {"item": "Control deadband ΔT", "value": round(db, 2), "unit": "K"},
+                    {"item": "Min separation recommended", "value": round(min_rec, 2), "unit": "K"},
+                    {"item": "Status", "value": "PASS" if ok else "WIDEN DEADBAND", "unit": "-"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Maintain >= 2.0 K deadband (>= 4x sensor hysteresis) to prevent simultaneous heating and cooling."
         ],
     )
 
@@ -364,32 +382,60 @@ def networkBus(ctx: FeatureContext, values: dict) -> dict:
     "mepHvacControls.occupancySetpoint",
     "Occupancy Setpoint",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("occupiedCoolC", "Occupied cooling setpoint", 24.0, unit="°C"),
+        number(
+            "unoccupiedSetupK", "Unoccupied temperature setup", 4.0, unit="K", min=0.0, max=10.0
+        ),
+        number("outdoorTempC", "Design outdoor temperature", 34.0, unit="°C"),
+        number("designFlowLps", "Zone full outdoor-air ventilation", 350.0, unit="L/s", min=10.0),
+        number("standbyFlowRatio", "Standby minimum outdoor-air fraction", 0.30, min=0.0, max=1.0),
+    ],
+    requires_project=False,
 )
 def occupancySetpoint(ctx: FeatureContext, values: dict) -> dict:
-    """Occupancy Setpoint: Setpoints."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute unoccupied setup setpoint, envelope gradient reduction, and ventilation saving."""
+    t_occ = float(values["occupiedCoolC"])
+    t_unocc = t_occ + float(values["unoccupiedSetupK"])
+    t_out = float(values["outdoorTempC"])
+    grad_occ = max(0.1, abs(t_out - t_occ))
+    grad_unocc = max(0.0, abs(t_out - t_unocc))
+    cond_save_pct = max(0.0, (1.0 - grad_unocc / grad_occ) * 100.0)
+    vent_unocc_lps = float(values["designFlowLps"]) * float(values["standbyFlowRatio"])
+    vent_save_kw = (
+        1.2 * 1.005 * ((float(values["designFlowLps"]) - vent_unocc_lps) / 1000.0) * grad_occ
+    )
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "unoccupiedSetpointC": round(t_unocc, 1),
+            "conductionReductionPct": round(cond_save_pct, 1),
+            "standbyOutdoorAirLps": round(vent_unocc_lps, 1),
+            "ventilationSavingKw": round(vent_save_kw, 2),
         },
         tables=[
             table(
-                "Occupancy Setpoint",
-                [("item", "Item"), ("value", "Value")],
+                "Occupied vs standby/unoccupied mode",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("mode", "Schedule Mode"),
+                    ("setpointC", "Setpoint", "°C"),
+                    ("outdoorAirLps", "OA Flow", "L/s"),
+                ],
+                [
+                    {
+                        "mode": "Occupied",
+                        "setpointC": t_occ,
+                        "outdoorAirLps": values["designFlowLps"],
+                    },
+                    {
+                        "mode": "Unoccupied / Standby",
+                        "setpointC": round(t_unocc, 1),
+                        "outdoorAirLps": round(vent_unocc_lps, 1),
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Combines temperature setup envelope gradient reduction with DCV standby outdoor-air turndown."
         ],
     )
 
@@ -398,32 +444,60 @@ def occupancySetpoint(ctx: FeatureContext, values: dict) -> dict:
     "mepHvacControls.pidTuning",
     "PID Tuning",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("processGain", "Steady-state process gain K_p", 1.5, min=0.05),
+        number("timeConstantS", "Loop dominant time constant tau", 45.0, unit="s", min=1.0),
+        number("deadTimeS", "Transport dead time L", 8.0, unit="s", min=0.5),
+    ],
+    requires_project=False,
 )
 def pidTuning(ctx: FeatureContext, values: dict) -> dict:
-    """PID Tuning: Controllers."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute Cohen-Coon / Ziegler-Nichols PI and PID controller gains from FOPDT parameters."""
+    kp = float(values["processGain"])
+    tau = float(values["timeConstantS"])
+    theta = float(values["deadTimeS"])
+    # ZN open-loop reaction curve
+    kc_pi = 0.9 * tau / (kp * theta)
+    ti_pi = 3.33 * theta
+    kc_pid = 1.2 * tau / (kp * theta)
+    ti_pid = 2.0 * theta
+    td_pid = 0.5 * theta
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "controllabilityRatio": round(theta / tau, 3),
+            "piGainKc": round(kc_pi, 3),
+            "piIntegralTiS": round(ti_pi, 1),
+            "pidGainKc": round(kc_pid, 3),
+            "pidIntegralTiS": round(ti_pid, 1),
+            "pidDerivativeTdS": round(td_pid, 1),
         },
         tables=[
             table(
-                "PID Tuning",
-                [("item", "Item"), ("value", "Value")],
+                "Reaction-curve loop tuning parameters",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("controller", "Controller"),
+                    ("kc", "Gain Kc"),
+                    ("tiS", "Integral Ti", "s"),
+                    ("tdS", "Derivative Td", "s"),
+                ],
+                [
+                    {
+                        "controller": "PI (valves/dampers)",
+                        "kc": round(kc_pi, 3),
+                        "tiS": round(ti_pi, 1),
+                        "tdS": 0.0,
+                    },
+                    {
+                        "controller": "PID (fast coils)",
+                        "kc": round(kc_pid, 3),
+                        "tiS": round(ti_pid, 1),
+                        "tdS": round(td_pid, 1),
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Ziegler-Nichols open-loop step response tuning on FOPDT plant; favor PI without D on noisy sensors."
         ],
     )
 

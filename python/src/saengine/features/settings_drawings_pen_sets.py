@@ -85,34 +85,57 @@ def load_pen_set(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     part="settings",
     fields=[
         text("setName", "Pen set name", "office-monochrome"),
+        number("scale", "Drawing plot scale denominator (1:N)", 100.0, min=10.0, max=1000.0),
         checkbox("writeFile", "Save JSON to 02 Project Settings/exports", True),
     ],
     requires_project=False,
 )
 def save_pen_set(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Save the current office pen set definition to 02 Project Settings/exports."""
+    """Validate ISO 128 pen widths scaled from DraftingStandard layers and persist the pen set."""
+    name = values["setName"].strip()
+    if not name:
+        raise FeatureInputError("Enter a non-empty pen set name.")
+    iso_widths = (0.13, 0.18, 0.25, 0.35, 0.50, 0.70, 1.00, 1.40, 2.00)
+    scale_denom = float(values["scale"])
+    # ISO thin:medium:thick = 1:2:4; scale down slightly for compact scales (1:200 vs 1:50)
+    factor = (100.0 / scale_denom) ** 0.15
+    base_pens = {"1": 0.13, "2": 0.18, "3": 0.35, "4": 0.25, "7": 0.50, "8": 0.13}
+    std = getattr(load_settings(ctx).drawings, "standard", None)
+    layers = getattr(std, "layers", None)
+    layer_count = len(layers) if isinstance(layers, (list, dict)) else 0
+    validated_pens = {
+        k: min(iso_widths, key=lambda w: abs(w - raw_w * factor)) for k, raw_w in base_pens.items()
+    }
     payload = {
-        "name": values["setName"],
-        "pens": {"1": 0.13, "2": 0.18, "3": 0.35, "4": 0.25, "7": 0.50, "8": 0.13},
+        "name": name,
+        "scaleDenominator": scale_denom,
+        "layerCount": layer_count,
+        "pens": validated_pens,
     }
     out_path = None
     if values["writeFile"] and ctx.root is not None:
-        out_path = export_file(ctx, f"pen-set-{values['setName']}.json", json_dumps_clean(payload))
+        safe = (
+            "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in name).strip("-") or "pens"
+        )
+        out_path = export_file(ctx, f"pen-set-{safe}.json", json_dumps_clean(payload))
     return result(
         summary={
-            "setName": values["setName"],
-            "penCount": len(payload["pens"]),
+            "setName": name,
+            "penCount": len(validated_pens),
+            "scale": f"1:{int(scale_denom)}",
             "saved": out_path is not None,
         },
         tables=[
             table(
-                "Saved pen set",
-                [("aci", "ACI"), ("weightMm", "Weight", "mm")],
-                [{"aci": k, "weightMm": v} for k, v in payload["pens"].items()],
+                "ISO-snapped pen set",
+                [("aci", "ACI"), ("weightMm", "ISO Weight", "mm")],
+                [{"aci": k, "weightMm": v} for k, v in validated_pens.items()],
             )
         ],
         notes=[
-            f"Saved to {out_path}" if out_path else "Open a project folder to save pen set JSON."
+            f"Snapped pen weights to ISO 128 series for 1:{int(scale_denom)} ({layer_count} drafting layers); saved to {out_path}."
+            if out_path
+            else f"Snapped pen weights to ISO 128 series for 1:{int(scale_denom)}; open a project to save JSON."
         ],
     )
 

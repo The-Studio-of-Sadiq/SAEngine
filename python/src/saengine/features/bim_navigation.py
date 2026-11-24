@@ -146,22 +146,45 @@ def snap_to_vertex(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     part="bim",
     fields=[
         text("pathName", "Path name", "Entrance tour"),
-        number("duration", "Duration", 60.0, unit="s", min=1),
-        number("eyeHeight", "Camera eye height", 1.6, unit="m", min=0.5),
+        number("duration", "Tour duration", 60.0, unit="s", min=2.0),
+        number("eyeHeight", "Camera eye height above floor", 1.6, unit="m", min=0.5),
     ],
 )
 def walkthrough_path(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a walkthrough-path definition."""
+    """Generate 3D camera waypoints around real 06 BIM perimeter extents and compute speed."""
+    from saengine.features.bim_common import element_extent
+
     data = require_bim(ctx)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    dx_m = (xmax - xmin) / 1000.0
+    dy_m = (ymax - ymin) / 1000.0
+    path_len_m = 2.0 * (dx_m + dy_m)
+    dur = float(values["duration"])
+    speed_ms = path_len_m / dur if dur > 0 else 0.0
+    eye_z = float(values["eyeHeight"])
+    waypoints = [
+        {"x": round(xmin / 1000.0 - 2.0, 1), "y": round(ymin / 1000.0 - 2.0, 1), "z": eye_z},
+        {"x": round(xmax / 1000.0 + 2.0, 1), "y": round(ymin / 1000.0 - 2.0, 1), "z": eye_z},
+        {"x": round(xmax / 1000.0 + 2.0, 1), "y": round(ymax / 1000.0 + 2.0, 1), "z": eye_z},
+        {"x": round(xmin / 1000.0 - 2.0, 1), "y": round(ymax / 1000.0 + 2.0, 1), "z": eye_z},
+    ]
     payload = {
         "name": values["pathName"].strip() or "Entrance tour",
-        "durationS": values["duration"],
-        "eyeHeightM": values["eyeHeight"],
-        "elementCount": len(data["elements"]),
+        "durationS": dur,
+        "pathLengthM": round(path_len_m, 1),
+        "cameraSpeedMs": round(speed_ms, 2),
+        "eyeHeightM": eye_z,
+        "waypoints": waypoints,
     }
     path = write_bim_json(ctx, "walkthrough_path.json", payload)
     return result(
-        summary={"pathName": payload["name"], "durationS": values["duration"], "exportPath": path}
+        summary={
+            "pathName": payload["name"],
+            "pathLengthM": payload["pathLengthM"],
+            "cameraSpeedMs": payload["cameraSpeedMs"],
+            "exportPath": path,
+        }
     )
 
 

@@ -135,9 +135,45 @@ def sheet_list(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 
 @feature("bimQuantities.roomDataSheet", "Room Data Sheet", part="bim")
 def room_data_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export room data recorded by the spatial model."""
+    """Compile room/slab floorplate areas from spatial model or BIM slab polygons."""
+    import json
+
+    from saengine.features.bim_common import polygon_area
+
     data = require_bim(ctx)
-    rooms = data.get("rooms", [])
+    rooms = [r for r in (data.get("rooms") or []) if isinstance(r, dict)]
+    if not rooms:
+        sp_file = ctx.path("11 Exports/BIM/spaces.json")
+        if sp_file is not None and sp_file.exists():
+            try:
+                loaded = json.loads(sp_file.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    rooms = [
+                        {
+                            "id": f"SP-{i + 1}",
+                            "name": r.get("name", ""),
+                            "areaM2": r.get("areaM2", 0),
+                        }
+                        for i, r in enumerate(loaded)
+                        if isinstance(r, dict)
+                    ]
+            except ValueError:
+                pass
+    if not rooms:
+        for e in data.get("elements") or []:
+            if (
+                isinstance(e, dict)
+                and e.get("kind") == "slab"
+                and isinstance(e.get("polygon"), list)
+            ):
+                area_m2 = round(polygon_area(e["polygon"]) / 1e6, 2)
+                rooms.append(
+                    {
+                        "id": str(e.get("id", "")),
+                        "name": f"Slab Zone {e.get('story', '')}",
+                        "areaM2": area_m2,
+                    }
+                )
     path = write_bim_csv(
         ctx,
         "room-data.csv",
@@ -145,16 +181,19 @@ def room_data_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
         [
             {"id": r.get("id", ""), "name": r.get("name", ""), "areaM2": r.get("areaM2", 0)}
             for r in rooms
-            if isinstance(r, dict)
         ],
     )
     return result(
-        summary={"roomCount": len(rooms), "exportPath": path},
+        summary={
+            "roomCount": len(rooms),
+            "totalAreaM2": round(sum(float(r.get("areaM2", 0) or 0) for r in rooms), 2),
+            "exportPath": path,
+        },
         tables=[
             table(
-                "Rooms",
-                [("id", "Room"), ("name", "Name"), ("areaM2", "Area", "m²")],
-                rooms if isinstance(rooms, list) else [],
+                "Room / Floorplate Schedule",
+                [("id", "Zone"), ("name", "Name"), ("areaM2", "Area", "m²")],
+                rooms or [{"id": "-", "name": "No rooms/slabs", "areaM2": 0.0}],
             )
         ],
     )
@@ -167,15 +206,92 @@ def room_data_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     fields=[text("filename", "Output filename", "bim-quantities.csv")],
 )
 def export_quantities(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export element quantities to a CSV file."""
+    """Compute geometric length [m], area [m²], and volume [m³] quantities from 06 BIM & 04 Objects."""
+    import math
+
+    from saengine.features.bim_common import polygon_area
+
     data = require_bim(ctx)
-    rows = [
-        {"id": e.get("id", ""), "kind": e.get("kind", ""), "type": e.get("type", "")}
-        for e in data["elements"]
-    ]
-    filename = values["filename"].strip() or "bim-quantities.csv"
-    path = write_bim_csv(ctx, filename, ["id", "kind", "type"], rows)
-    return result(summary={"elementCount": len(rows), "exportPath": path})
+    objs = {
+        str(o.get("id", "")): o
+        for o in ((ctx.raw("objects") or {}).get("objects") or [])
+        if isinstance(o, dict)
+    }
+    story_elevs = sorted(
+        {float(s.get("elevation", 0.0)) for s in (data.get("stories") or []) if isinstance(s, dict)}
+    )
+    default_h_mm = (story_elevs[1] - story_elevs[0]) if len(story_elevs) >= 2 else 3200.0
+    rows = []
+    tot_vol = 0.0
+    for e in data.get("elements") or []:
+        if not isinstance(e, dict):
+            continue
+        oid = str(e.get("type", ""))
+        obj = objs.get(oid, {})
+        kind = str(e.get("kind", ""))
+        prof = obj.get("profile") if isinstance(obj.get("profile"), dict) else {}
+        sec_m2 = (
+            float(prof.get("width", 300.0) or 300.0) * float(prof.get("depth", 400.0) or 400.0)
+        ) / 1e6
+        length_m = 0.0
+        area_m2 = 0.0
+        vol_m3 = 0.0
+        if kind == "column":
+            top_z = float(e.get("top", default_h_mm) or default_h_mm)
+            bot_z = float(e.get("bottom", 0.0) or 0.0)
+            length_m = (
+                max(1.0, (top_z - bot_z) / 1000.0) if top_z > bot_z else default_h_mm / 1000.0
+            )
+            vol_m3 = sec_m2 * length_m
+        elif kind == "beam" and isinstance(e.get("start"), list) and isinstance(e.get("end"), list):
+            s, en = e["start"], e["end"]
+            length_m = math.hypot(float(en[0]) - float(s[0]), float(en[1]) - float(s[1])) / 1000.0
+            vol_m3 = sec_m2 * length_m
+        elif kind == "wall" and isinstance(e.get("start"), list) and isinstance(e.get("end"), list):
+            s, en = e["start"], e["end"]
+            length_m = math.hypot(float(en[0]) - float(s[0]), float(en[1]) - float(s[1])) / 1000.0
+            h_m = default_h_mm / 1000.0
+            th_m = float(obj.get("thickness", 200.0) or 200.0) / 1000.0
+            area_m2 = length_m * h_m
+            vol_m3 = area_m2 * th_m
+        elif kind == "slab" and isinstance(e.get("polygon"), list):
+            area_m2 = polygon_area(e["polygon"]) / 1e6
+            th_m = float(obj.get("thickness", 150.0) or 150.0) / 1000.0
+            vol_m3 = area_m2 * th_m
+        tot_vol += vol_m3
+        rows.append(
+            {
+                "id": e.get("id", ""),
+                "kind": kind,
+                "type": oid,
+                "lengthM": round(length_m, 2),
+                "areaM2": round(area_m2, 2),
+                "volumeM3": round(vol_m3, 3),
+            }
+        )
+    filename = (
+        "".join(c for c in values["filename"] if c.isalnum() or c in "-_.") or "bim-quantities.csv"
+    )
+    path = write_bim_csv(
+        ctx, filename, ["id", "kind", "type", "lengthM", "areaM2", "volumeM3"], rows
+    )
+    return result(
+        summary={"elementCount": len(rows), "totalVolumeM3": round(tot_vol, 2), "exportPath": path},
+        tables=[
+            table(
+                "BIM Element Quantities",
+                [
+                    ("id", "ID"),
+                    ("kind", "Kind"),
+                    ("type", "Type"),
+                    ("lengthM", "Length", "m"),
+                    ("areaM2", "Area", "m²"),
+                    ("volumeM3", "Volume", "m³"),
+                ],
+                rows[:30],
+            )
+        ],
+    )
 
 
 @feature("bimQuantities.linkToBoq", "Link to BOQ", part="bim")
@@ -443,17 +559,61 @@ def rounding_policy(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "bimQuantities.overrideNotes",
     "Override Notes",
     part="bim",
-    fields=[text("reason", "Override reason", "No geometric measurement available")],
+    fields=[
+        text("elementId", "Target element ID", "S1"),
+        text(
+            "reason", "Override justification", "Net deduction adjusted for unmodelled drop panels"
+        ),
+        number("overrideDeltaM3", "Volume adjustment", 0.0, unit="m³"),
+    ],
 )
 def override_notes(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record the reason for a measured quantity override."""
+    """Validate target element in 06 BIM and append audit-trailed quantity override ledger."""
+    import json
+    from datetime import date
+
     data = require_bim(ctx)
-    path = write_bim_json(
-        ctx,
-        "quantity-override-notes.json",
-        {"reason": values["reason"], "elementCount": len(data["elements"])},
+    eid = values["elementId"].strip()
+    known_ids = {str(e.get("id", "")) for e in (data.get("elements") or []) if isinstance(e, dict)}
+    if known_ids and eid and eid not in known_ids:
+        raise FeatureInputError(f"Element {eid!r} not found in 06 BIM/bim.json.")
+    entry = {
+        "date": date.today().isoformat(),
+        "elementId": eid,
+        "deltaM3": float(values["overrideDeltaM3"]),
+        "reason": values["reason"].strip(),
+    }
+    reg = ctx.path("11 Exports/BIM/quantity-override-notes.json")
+    entries: list[dict[str, Any]] = []
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                entries = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    entries.append(entry)
+    path = write_bim_json(ctx, "quantity-override-notes.json", entries)
+    return result(
+        summary={
+            "elementId": eid,
+            "overrideCount": len(entries),
+            "netDeltaM3": round(sum(float(r.get("deltaM3", 0) or 0) for r in entries), 3),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Quantity Override Ledger",
+                [
+                    ("date", "Date"),
+                    ("elementId", "Element"),
+                    ("deltaM3", "Delta", "m³"),
+                    ("reason", "Reason"),
+                ],
+                entries[-15:],
+            )
+        ],
     )
-    return result(summary={"reason": values["reason"], "exportPath": path})
 
 
 @feature("bimQuantities.quantityAudit", "Quantity Audit", part="bim")
@@ -552,18 +712,22 @@ def compare_takeoff(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     fields=[text("revision", "Takeoff revision", "C01")],
 )
 def publish_takeoff(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Publish a reviewed element takeoff to the BIM export folder."""
+    """Compute SHA-256 verified BIM takeoff quantities and publish revision bundle."""
+    import hashlib
+    import json
+
     data = require_bim(ctx)
+    qty_res = export_quantities(ctx, {"filename": f"takeoff-{values['revision']}.csv"})
+    rev = values["revision"].strip() or "C01"
+    digest = hashlib.sha256(
+        json.dumps(data.get("elements") or [], sort_keys=True).encode("utf-8")
+    ).hexdigest()
     payload = {
-        "revision": values["revision"],
-        "elements": len(data["elements"]),
+        "revision": rev,
+        "sha256": digest[:16],
+        "elements": len(data.get("elements") or []),
         "categories": kind_counts(data),
+        "totalVolumeM3": qty_res.get("summary", {}).get("totalVolumeM3", 0.0),
     }
-    path = write_bim_json(ctx, f"takeoff-{values['revision']}.json", payload)
-    return result(
-        summary={
-            "revision": values["revision"],
-            "elementCount": len(data["elements"]),
-            "exportPath": path,
-        }
-    )
+    path = write_bim_json(ctx, f"takeoff-{rev}.json", payload)
+    return result(summary={**payload, "exportPath": path})

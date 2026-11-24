@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC
 from typing import Any
 
 import numpy as np
@@ -850,34 +851,81 @@ def assumption_register(ctx: FeatureContext, values: dict[str, Any]) -> dict[str
         text(
             "comment", "Review note", "Verified governing column interaction and beam shear checks."
         ),
+        select(
+            "status",
+            "Review decision",
+            [
+                ("Accepted", "Accepted"),
+                ("Commented", "Commented"),
+                ("ActionRequired", "Action Required"),
+            ],
+            "Commented",
+        ),
     ],
     requires_project=True,
 )
 def reviewer_notes(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Attach peer-review comments to the design check record and export QA note."""
+    """Attach peer-review comments tied to governing DCR checks and maintain review register."""
+    import json
+    from datetime import datetime
+
     res = _design_run(ctx)
-    path = export_fem_file(
-        ctx,
-        "reviewer-notes.md",
-        f"# Design Peer Review Note\n\n- Reviewer: {values['reviewer']}\n- Members Checked: {len(res.get('members', []))}\n- Note: {values['comment']}\n",
-    )
-    rows = [
-        {
-            "reviewer": values["reviewer"],
-            "members": len(res.get("members", [])),
-            "comment": values["comment"],
-        }
+    members = res.get("members", [])
+    peak_dcr = max((float(m.get("utilisation", 0.0) or 0.0) for m in members), default=0.0)
+    failing = sum(1 for m in members if not m.get("ok", True))
+    entry = {
+        "reviewer": values["reviewer"].strip() or "Reviewer",
+        "date": datetime.now(UTC).isoformat(timespec="seconds"),
+        "membersChecked": len(members),
+        "peakDcr": round(peak_dcr, 3),
+        "failingMembers": failing,
+        "status": values["status"],
+        "comment": values["comment"].strip(),
+    }
+    reg_file = ctx.path("08 FEM/exports/reviewer-notes.json")
+    register: list[dict[str, Any]] = []
+    if reg_file is not None and reg_file.exists():
+        try:
+            loaded = json.loads(reg_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                register = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            register = []
+    register.append(entry)
+    export_fem_file(ctx, "reviewer-notes.json", json.dumps(register, indent=2) + "\n")
+    md = [
+        "# Design Peer Review Log",
+        "",
+        "| Date | Reviewer | Members | Peak DCR | Failing | Status | Note |",
+        "|---|---|---|---|---|---|---|",
     ]
+    for r in register:
+        md.append(
+            f"| {r['date']} | {r['reviewer']} | {r['membersChecked']} | {r['peakDcr']} | {r['failingMembers']} | {r['status']} | {r['comment']} |"
+        )
+    path = export_fem_file(ctx, "reviewer-notes.md", "\n".join(md) + "\n")
     return result(
-        summary={"reviewer": values["reviewer"], "notePath": str(path)},
+        summary={
+            "reviewer": entry["reviewer"],
+            "peakDcr": entry["peakDcr"],
+            "failingMembers": failing,
+            "noteCount": len(register),
+            "notePath": str(path),
+        },
         tables=[
             table(
-                "Recorded reviewer note",
-                [("reviewer", "Reviewer"), ("members", "Members"), ("comment", "Comment")],
-                rows,
+                "Peer review log",
+                [
+                    ("reviewer", "Reviewer"),
+                    ("membersChecked", "Members"),
+                    ("peakDcr", "Peak DCR"),
+                    ("status", "Status"),
+                    ("comment", "Comment"),
+                ],
+                register[-20:],
             )
         ],
-        notes=[f"Note saved to {path}"],
+        notes=[f"Review entry appended ({len(register)} total) and saved to {path}."],
     )
 
 

@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import math
+from typing import Any
 
 from saengine.features import (
     FeatureContext,
@@ -519,26 +520,64 @@ def best_design(ctx: FeatureContext, values: dict) -> dict:
     fields=[
         text(
             "design",
-            "Best design JSON",
-            '{"name":"Scheme B","variables":{"spanM":6,"depthMm":550},"objectives":{"cost":950000}}',
-        )
+            "Candidate designs JSON (object or list of feasible candidates)",
+            '[{"name":"Scheme A","variables":{"spanM":6,"depthMm":600},"objectives":{"cost":1020000},"maxDcr":0.78},{"name":"Scheme B","variables":{"spanM":6,"depthMm":550},"objectives":{"cost":950000},"maxDcr":0.89}]',
+        ),
+        number("dcrLimit", "Maximum allowed DCR", 1.0, min=0.5, max=1.0),
     ],
 )
 def apply_best(ctx: FeatureContext, values: dict) -> dict:
-    """Save the reviewed best-design record for traceability without mutating structural model inputs."""
-    best = json.loads(values["design"])
-    if not isinstance(best, dict) or not best.get("variables"):
-        raise FeatureInputError("Best design must be a JSON object with a variables object.")
-    best["appliedToStudy"] = True
-    path = write_json(ctx, study_path("selected-best-design"), best)
+    """Select the lowest-cost feasible candidate meeting DCR <= limit and persist selection."""
+    parsed = json.loads(values["design"])
+    candidates = parsed if isinstance(parsed, list) else [parsed]
+    feasible: list[dict[str, Any]] = []
+    for c in candidates:
+        if not isinstance(c, dict) or not c.get("variables"):
+            raise FeatureInputError(
+                "Each candidate must be a JSON object with a variables mapping."
+            )
+        dcr = float(c.get("maxDcr", 0.0) or 0.0)
+        if dcr <= values["dcrLimit"]:
+            cost = float((c.get("objectives") or {}).get("cost", 0.0) or 0.0)
+            feasible.append({**c, "_cost": cost, "_dcr": dcr})
+    if not feasible:
+        raise FeatureInputError(f"No candidate meets maxDcr <= {values['dcrLimit']:g}.")
+    best = min(feasible, key=lambda c: c["_cost"])
+    costs = [
+        float((c.get("objectives") or {}).get("cost", 0.0) or 0.0)
+        for c in candidates
+        if isinstance(c, dict) and c.get("objectives")
+    ]
+    worst_cost = max(costs) if len(costs) > 1 else best["_cost"]
+    savings_pct = ((worst_cost - best["_cost"]) / worst_cost * 100.0) if worst_cost > 0 else 0.0
+    record_payload = {k: v for k, v in best.items() if not k.startswith("_")}
+    record_payload["appliedToStudy"] = True
+    record_payload["savingsPct"] = round(savings_pct, 2)
+    path = write_json(ctx, study_path("selected-best-design"), record_payload)
     return result(
         summary={
             "design": best.get("name", "Selected design"),
-            "variableCount": len(best["variables"]),
+            "cost": best["_cost"],
+            "maxDcr": best["_dcr"],
+            "savingsPct": round(savings_pct, 2),
             "recordPath": path,
         },
+        tables=[
+            table(
+                "Feasible optimisation ranking",
+                [("name", "Candidate"), ("cost", "Cost"), ("dcr", "Max DCR")],
+                [
+                    {
+                        "name": c.get("name", f"Option {i + 1}"),
+                        "cost": c["_cost"],
+                        "dcr": c["_dcr"],
+                    }
+                    for i, c in enumerate(sorted(feasible, key=lambda x: x["_cost"]))
+                ],
+            )
+        ],
         notes=[
-            f"The selected design record was saved to {path}; structural model inputs are not rewritten."
+            f"Selected minimum-cost feasible option ({savings_pct:.1f}% savings) saved to {path}."
         ],
     )
 

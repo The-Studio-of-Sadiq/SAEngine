@@ -44,32 +44,52 @@ def airBalancing(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsBalancing.balanceMode",
     "Balance Mode",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("indexLossKpa", "Index (worst-path) circuit loss", 145.0, unit="kPa", min=1.0),
+        number("subBranchLossKpa", "Favoured parallel branch loss", 85.0, unit="kPa", min=1.0),
+        number("branchFlowLps", "Favoured branch design flow", 2.2, unit="L/s", min=0.05),
+    ],
+    requires_project=False,
 )
 def balanceMode(ctx: FeatureContext, values: dict) -> dict:
-    """Balance Mode: Commissioning."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Determine excess differential head to balance and PICV vs manual balancing valve authority."""
+    excess_kpa = float(values["indexLossKpa"]) - float(values["subBranchLossKpa"])
+    if excess_kpa < 0:
+        excess_kpa = 0.0
+    auth = excess_kpa / float(values["indexLossKpa"]) if float(values["indexLossKpa"]) > 0 else 0.0
+    mode = (
+        "Static DRV + Control Valve"
+        if excess_kpa < 40.0
+        else "Pressure-Independent Control Valve (PICV)"
+    )
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "excessHeadKpa": round(excess_kpa, 1),
+            "throttlingAuthority": round(auth, 2),
+            "recommendedStrategy": mode,
         },
         tables=[
             table(
-                "Balance Mode",
-                [("item", "Item"), ("value", "Value")],
+                "Hydronic balancing strategy",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "item": "Index circuit pressure drop",
+                        "value": values["indexLossKpa"],
+                        "unit": "kPa",
+                    },
+                    {
+                        "item": "Favoured branch drop",
+                        "value": values["subBranchLossKpa"],
+                        "unit": "kPa",
+                    },
+                    {"item": "Excess head to absorb", "value": round(excess_kpa, 1), "unit": "kPa"},
+                    {"item": "Recommended valve mode", "value": mode, "unit": "-"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Select PICVs where excess head varies widely at part-load across multi-riser CHW/LTHW circuits."
         ],
     )
 
@@ -79,38 +99,75 @@ def balanceMode(ctx: FeatureContext, values: dict) -> dict:
     "Balance Report",
     part="mep",
     fields=[
-        number("value", "Design value", 100, unit="units", min=0),
-        text("name", "Output name", "MEP schedule"),
+        number("tolerancePct", "Allowable flow tolerance (±%)", 10.0, unit="%", min=1.0, max=25.0),
+        text("name", "Export balance report filename prefix", "balanceReport"),
     ],
     requires_project=True,
 )
 def balanceReport(ctx: FeatureContext, values: dict) -> dict:
-    """Balance Report: Results."""
+    """Compute hydraulic & air system balancing summary across 07 MEP risers/ducts and export JSON."""
     if ctx.root is None:
-        raise FeatureInputError("Open a project before creating output.")
-    raw = ctx.raw("mep") or {}
-    payload = {
-        "feature": "mepSystemsBalancing.balanceReport",
-        "title": "Balance Report",
-        "name": values["name"],
-        "group": "Results",
-        "mep": raw,
-    }
-    path = ctx.path("11 Exports/balanceReport.json")
+        raise FeatureInputError(
+            "Open a project with 07 MEP/mep.json before generating a balance report."
+        )
+    raw = ctx.raw("mep")
+    if not isinstance(raw, dict):
+        raise FeatureInputError("Missing 07 MEP/mep.json in project.")
+    risers = (raw.get("plumbing") or {}).get("risers") or []
+    ducts = (raw.get("hvac") or {}).get("ducts") or []
+    rows = []
+    for r in risers:
+        if isinstance(r, dict):
+            rows.append(
+                {
+                    "system": "Plumbing Riser",
+                    "id": str(r.get("id", "")),
+                    "target": str(r.get("kind", "supply")),
+                    "tolerancePct": values["tolerancePct"],
+                }
+            )
+    for d in ducts:
+        if isinstance(d, dict):
+            rows.append(
+                {
+                    "system": "HVAC Duct",
+                    "id": str(d.get("id", "")),
+                    "target": str(d.get("system", "supply")),
+                    "tolerancePct": values["tolerancePct"],
+                }
+            )
+    if not rows:
+        raise FeatureInputError(
+            "No risers or ducts present in 07 MEP/mep.json to schedule for balancing."
+        )
+    safe = "".join(c for c in values["name"] if c.isalnum() or c in "-_") or "balanceReport"
+    path = ctx.path(f"11 Exports/{safe}.json")
     if path is None:
         raise FeatureInputError("Open a project before creating output.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps({"tolerancePct": values["tolerancePct"], "circuits": rows}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return result(
-        summary={"exportPath": str(path), "name": values["name"]},
+        summary={
+            "circuitCount": len(rows),
+            "tolerancePct": values["tolerancePct"],
+            "exportPath": str(path),
+        },
         tables=[
             table(
-                "Balance Report",
-                [("item", "Item"), ("value", "Value")],
-                [{"item": "Export", "value": str(path)}],
+                "System balancing schedule",
+                [
+                    ("system", "System"),
+                    ("id", "Circuit ID"),
+                    ("target", "Service"),
+                    ("tolerancePct", "Tol", "%"),
+                ],
+                rows,
             )
         ],
-        notes=["Generated an output file from the current MEP project data."],
+        notes=[f"Scheduled {len(rows)} balancing circuit(s) from 07 MEP/mep.json to {path}."],
     )
 
 
@@ -420,38 +477,68 @@ def hydronicLoop(ctx: FeatureContext, values: dict) -> dict:
     "Imbalance List",
     part="mep",
     fields=[
-        number("value", "Design value", 100, unit="units", min=0),
-        text("name", "Output name", "MEP schedule"),
+        text(
+            "measuredPairs",
+            "Branch measurements name=design:actual;...",
+            "B1=100:82;B2=100:118;B3=100:96",
+        ),
+        number("tolerancePct", "Allowable % deviation", 10.0, unit="%", min=1.0),
+        text("name", "Export imbalance JSON filename", "imbalanceList"),
     ],
-    requires_project=True,
+    requires_project=False,
 )
 def imbalanceList(ctx: FeatureContext, values: dict) -> dict:
-    """Imbalance List: Results."""
-    if ctx.root is None:
-        raise FeatureInputError("Open a project before creating output.")
-    raw = ctx.raw("mep") or {}
-    payload = {
-        "feature": "mepSystemsBalancing.imbalanceList",
-        "title": "Imbalance List",
-        "name": values["name"],
-        "group": "Results",
-        "mep": raw,
-    }
-    path = ctx.path("11 Exports/imbalanceList.json")
-    if path is None:
-        raise FeatureInputError("Open a project before creating output.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    """Flag out-of-tolerance terminal branches from measured vs design flow pairs."""
+    tol = float(values["tolerancePct"])
+    rows = []
+    for tok in values["measuredPairs"].split(";"):
+        tok = tok.strip()
+        if not tok or "=" not in tok or ":" not in tok:
+            continue
+        b_id, pair = tok.split("=", 1)
+        des_s, act_s = pair.split(":", 1)
+        des_v, act_v = float(des_s), float(act_s)
+        dev_pct = ((act_v - des_v) / des_v) * 100.0 if des_v else 0.0
+        rows.append(
+            {
+                "branch": b_id.strip(),
+                "design": des_v,
+                "actual": act_v,
+                "deviationPct": round(dev_pct, 1),
+                "outOfTolerance": abs(dev_pct) > tol,
+            }
+        )
+    if not rows:
+        raise FeatureInputError("Provide valid name=design:actual branch pairs.")
+    flagged = [r for r in rows if r["outOfTolerance"]]
+    out_note = f"Identified {len(flagged)} out-of-balance branch(es) outside +/-{tol:g}%."
+    if ctx.root is not None:
+        safe = "".join(c for c in values["name"] if c.isalnum() or c in "-_") or "imbalanceList"
+        path = ctx.path(f"11 Exports/{safe}.json")
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"tolerancePct": tol, "imbalances": flagged, "all": rows}, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            out_note += f" Saved to {path}."
     return result(
-        summary={"exportPath": str(path), "name": values["name"]},
+        summary={"totalBranches": len(rows), "imbalancedCount": len(flagged), "tolerancePct": tol},
         tables=[
             table(
-                "Imbalance List",
-                [("item", "Item"), ("value", "Value")],
-                [{"item": "Export", "value": str(path)}],
+                "Branch balancing deviation audit",
+                [
+                    ("branch", "Branch"),
+                    ("design", "Design"),
+                    ("actual", "Measured"),
+                    ("deviationPct", "Dev", "%"),
+                    ("outOfTolerance", "Flagged"),
+                ],
+                rows,
             )
         ],
-        notes=["Generated an output file from the current MEP project data."],
+        notes=[out_note],
     )
 
 
@@ -459,32 +546,58 @@ def imbalanceList(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsBalancing.iterateBalance",
     "Iterate Balance",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("minBranchRatio", "Lowest starved branch (Q_meas/Q_des)", 0.72, min=0.2, max=1.5),
+        number(
+            "maxBranchRatio", "Highest overflowed branch (Q_meas/Q_des)", 1.28, min=0.5, max=2.5
+        ),
+        number("currentPumpHeadKpa", "Current pump operating head", 160.0, unit="kPa", min=10.0),
+    ],
+    requires_project=False,
 )
 def iterateBalance(ctx: FeatureContext, values: dict) -> dict:
-    """Iterate Balance: Adjust."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute proportional valve throttling & pump speed scaling convergence for hydronic balancing."""
+    r_min = float(values["minBranchRatio"])
+    r_max = float(values["maxBranchRatio"])
+    # Bring starved index branch to 1.0 -> global pump multiplier = 1 / r_min; overflow branch must then be throttled from r_max/r_min to 1.0
+    scale_q = 1.0 / r_min
+    head_mult = scale_q**2
+    throttle_ratio = r_max / r_min
+    new_head = float(values["currentPumpHeadKpa"]) * head_mult
+    spread_pct = ((r_max - r_min) / 1.0) * 100.0
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "initialSpreadPct": round(spread_pct, 1),
+            "pumpSpeedMultiplier": round(scale_q, 3),
+            "adjustedPumpHeadKpa": round(new_head, 1),
+            "maxThrottleFactor": round(throttle_ratio, 2),
         },
         tables=[
             table(
-                "Iterate Balance",
-                [("item", "Item"), ("value", "Value")],
+                "Proportional balance iteration step",
+                [("step", "Metric"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {
+                        "step": "Ratio spread (max - min)",
+                        "value": round(spread_pct, 1),
+                        "unit": "%",
+                    },
+                    {
+                        "step": "Required pump/fan speed scale",
+                        "value": round(scale_q, 3),
+                        "unit": "x",
+                    },
+                    {"step": "Scaled circuit head", "value": round(new_head, 1), "unit": "kPa"},
+                    {
+                        "step": "Favoured branch throttle ratio",
+                        "value": round(throttle_ratio, 2),
+                        "unit": ":1",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Lock index circuit wide open, proportion sub-branches to index ratio, then trim VFD speed to set Q=100%."
         ],
     )
 
@@ -552,32 +665,58 @@ def pressureDrop(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsBalancing.pumpSpeed",
     "Pump Speed",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("ratedRpm", "Motor synchronous / rated speed N1", 1450.0, unit="rpm", min=300.0),
+        number("measuredFlowLps", "Balanced full-throttle flow Q1", 14.5, unit="L/s", min=0.2),
+        number("targetFlowLps", "Design required system flow Q2", 12.0, unit="L/s", min=0.2),
+        number("ratedPowerKw", "Pump input power P1 at N1", 11.0, unit="kW", min=0.1),
+    ],
+    requires_project=False,
 )
 def pumpSpeed(ctx: FeatureContext, values: dict) -> dict:
-    """Pump Speed: Adjust."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Trim VFD pump speed using centrifugal affinity laws to eliminate excess throttling head."""
+    q1 = float(values["measuredFlowLps"])
+    q2 = float(values["targetFlowLps"])
+    ratio = q2 / q1
+    n2 = float(values["ratedRpm"]) * ratio
+    freq2 = 50.0 * ratio
+    p2 = float(values["ratedPowerKw"]) * (ratio**3)
+    saved_kw = float(values["ratedPowerKw"]) - p2
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "speedRatio": round(ratio, 3),
+            "targetRpm": round(n2, 0),
+            "vfdFrequencyHz": round(freq2, 1),
+            "trimmedPowerKw": round(p2, 2),
+            "powerSavedKw": round(saved_kw, 2),
         },
         tables=[
             table(
-                "Pump Speed",
-                [("item", "Item"), ("value", "Value")],
+                "VFD pump speed trim (affinity laws)",
+                [("parameter", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"parameter": "Target VFD speed ratio", "value": round(ratio, 3), "unit": "-"},
+                    {
+                        "parameter": "Trimmed rotational speed N2",
+                        "value": round(n2, 0),
+                        "unit": "rpm",
+                    },
+                    {
+                        "parameter": "Drive frequency (50 Hz base)",
+                        "value": round(freq2, 1),
+                        "unit": "Hz",
+                    },
+                    {"parameter": "Input power after trim P2", "value": round(p2, 2), "unit": "kW"},
+                    {
+                        "parameter": "Throttling power avoided",
+                        "value": round(saved_kw, 2),
+                        "unit": "kW",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Affinity laws: Q ~ N, H ~ N^2, P ~ N^3 assuming pure quadratic system resistance curve."
         ],
     )
 
@@ -586,33 +725,61 @@ def pumpSpeed(ctx: FeatureContext, values: dict) -> dict:
     "mepSystemsBalancing.saveBalanceSet",
     "Save Balance Set",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
+    fields=[
+        text("setName", "Commissioned balance set ID", "CHW-Primary-Riser1"),
+        number("totalFlowLps", "Commissioned total loop flow", 12.0, unit="L/s", min=0.1),
+        number("residualDpKpa", "Verified index differential pressure", 38.0, unit="kPa", min=1.0),
+    ],
     requires_project=True,
 )
 def saveBalanceSet(ctx: FeatureContext, values: dict) -> dict:
-    """Save Balance Set: Results."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Persist validated TAB balance-set record against project MEP circuits in 11 Exports."""
+    from datetime import date
+
+    if ctx.root is None:
+        raise FeatureInputError("Open a project before saving commissioned balance records.")
+    raw = ctx.raw("mep") or {}
+    hvac_count = len((raw.get("hvac") or {}).get("plant") or []) + len(
+        (raw.get("hvac") or {}).get("ducts") or []
+    )
+    entry = {
+        "setName": values["setName"].strip() or "BalanceSet",
+        "date": date.today().isoformat(),
+        "totalFlowLps": float(values["totalFlowLps"]),
+        "residualDpKpa": float(values["residualDpKpa"]),
+        "projectHvacItems": hvac_count,
+    }
+    path = ctx.path("11 Exports/balance-sets.json")
+    if path is None:
+        raise FeatureInputError("Open a project before saving balance sets.")
+    existing = []
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("sets"), list):
+                existing = [s for s in loaded["sets"] if isinstance(s, dict)]
+        except ValueError:
+            existing = []
+    by_name = {str(s.get("setName", "")): s for s in existing}
+    by_name[entry["setName"]] = entry
+    rows = list(by_name.values())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"sets": rows}, indent=2) + "\n", encoding="utf-8")
     return result(
-        summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
-        },
+        summary={"setName": entry["setName"], "savedSets": len(rows), "exportPath": str(path)},
         tables=[
             table(
-                "Save Balance Set",
-                [("item", "Item"), ("value", "Value")],
+                "Saved balance sets register",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("setName", "Set ID"),
+                    ("date", "Date"),
+                    ("totalFlowLps", "Flow", "L/s"),
+                    ("residualDpKpa", "Index dP", "kPa"),
                 ],
+                rows,
             )
         ],
-        notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
-        ],
+        notes=[f"Updated balance set register ({len(rows)} record(s)) at {path}."],
     )
 
 

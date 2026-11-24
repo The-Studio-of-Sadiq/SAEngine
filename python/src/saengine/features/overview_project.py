@@ -126,22 +126,33 @@ def recent_projects(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def project_templates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a JSON template manifest from the open project's settings."""
+    """Extract settings, stories, units, and object-type schemas into a reusable template JSON."""
     require_project(ctx, "saving a project template")
     raw = settings_dict(ctx)
+    _, stories = list_bim(ctx)
+    object_kinds = sorted({str(item.get("kind", "unknown")) for item in list_objects(ctx)})
     template = {
-        "template": values["templateName"],
+        "template": values["templateName"].strip() or "Building Project",
         "project": raw.get("project", {}),
         "site": raw.get("site", {}),
+        "occupancy": raw.get("occupancy", {}),
+        "units": raw.get("units", {}),
+        "codePack": raw.get("codePack", ""),
+        "storyElevations": [
+            {"id": s.get("id", ""), "name": s.get("name", ""), "elevation": s.get("elevation", 0)}
+            for s in stories
+        ],
+        "objectKinds": object_kinds,
     }
-    path = write_export(
-        ctx,
-        "11 Exports/templates",
-        f"{values['templateName'].replace(' ', '-').lower()}.json",
-        json_text(template),
-    )
+    name = template["template"].replace(" ", "-").lower()
+    path = write_export(ctx, "11 Exports/templates", f"{name}.json", json_text(template))
     return result(
-        summary={"templateName": values["templateName"], "exportPath": str(path)},
+        summary={
+            "templateName": template["template"],
+            "storyCount": len(stories),
+            "objectKindCount": len(object_kinds),
+            "exportPath": str(path),
+        },
         tables=[
             table(
                 "Template manifest",
@@ -149,7 +160,7 @@ def project_templates(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
                 [{"field": k, "value": str(v)} for k, v in template.items()],
             )
         ],
-        notes=[f"Template written to {path}."],
+        notes=[f"Reusable project template written to {path}."],
     )
 
 
@@ -737,13 +748,47 @@ def unit_system(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def project_baseline(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a baseline record and save it as a project export."""
-    require_project(ctx, "creating a project baseline")
+    """Compute SHA-256 checksums across core part files and BOQ/BIM totals in a baseline JSON."""
+    import hashlib
+
+    root = require_project(ctx, "creating a project baseline")
+    part_paths = [
+        "01 Soil Report/soil-report.json",
+        "02 Project Settings/project-settings.json",
+        "03 Materials/materials.json",
+        "04 Objects/objects.json",
+        "05 Floor Plan/floor-plan.json",
+        "06 BIM/bim.json",
+        "07 MEP/mep.json",
+        "09 Substructure/substructure.json",
+        "10 BOQ/boq.json",
+    ]
+    hashes = []
+    for rel in part_paths:
+        target = root / rel
+        if target.is_file():
+            data = target.read_bytes()
+            hashes.append(
+                {
+                    "part": rel,
+                    "sizeBytes": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest()[:16],
+                }
+            )
+    items = boq_items(ctx)
+    boq_amount = round(
+        sum(float(i.get("quantity", 0) or 0) * float(i.get("rate", 0) or 0) for i in items), 2
+    )
+    elements, stories = list_bim(ctx)
     baseline = {
         "name": values["baselineName"],
         "project": project_name(ctx),
         "objects": len(list_objects(ctx)),
-        "bimElements": len(list_bim(ctx)[0]),
+        "bimElements": len(elements),
+        "stories": len(stories),
+        "boqItems": len(items),
+        "boqAmount": boq_amount,
+        "partChecksums": hashes,
     }
     path = write_export(
         ctx,
@@ -752,7 +797,27 @@ def project_baseline(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
         json_text(baseline),
     )
     return result(
-        summary={**baseline, "exportPath": str(path)}, notes=[f"Baseline written to {path}."]
+        summary={
+            "name": baseline["name"],
+            "project": baseline["project"],
+            "objects": baseline["objects"],
+            "bimElements": baseline["bimElements"],
+            "boqAmount": boq_amount,
+            "hashedParts": len(hashes),
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Baselined parts",
+                [
+                    ("part", "Part file"),
+                    ("sizeBytes", "Size", "byte"),
+                    ("sha256", "SHA-256 prefix"),
+                ],
+                hashes,
+            )
+        ],
+        notes=[f"Checksums and quantities saved to {path}."],
     )
 
 

@@ -117,30 +117,103 @@ def carbon_hotspots(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
 
 @feature("bimSummaryCarbonCost.carbonReport", "Carbon Report", part="bim")
 def carbon_report(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Issue a staged carbon report by element and material."""
+    """Compute element embodied carbon (kgCO2e) from BIM geometry, 04 Objects & 03 Materials."""
+    import math
+
+    from saengine.features.bim_common import polygon_area
+
     data = require_bim(ctx)
-    rows = [
-        {
-            "id": e.get("id", ""),
-            "type": e.get("type", ""),
-            "carbonKgCo2e": float(e["carbonKgCo2e"]),
-        }
-        for e in data["elements"]
-        if isinstance(e, dict) and isinstance(e.get("carbonKgCo2e"), (int, float))
-    ]
-    if not rows:
-        raise FeatureInputError(
-            "Record element carbon contributions before producing a carbon report."
+    elems = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    objs = {
+        str(o.get("id", "")): o
+        for o in ((ctx.raw("objects") or {}).get("objects") or [])
+        if isinstance(o, dict)
+    }
+    mats = {
+        str(m.get("id", "")): m
+        for m in ((ctx.raw("materials") or {}).get("materials") or [])
+        if isinstance(m, dict)
+    }
+    story_elevs = sorted(
+        {float(s.get("elevation", 0.0)) for s in (data.get("stories") or []) if isinstance(s, dict)}
+    )
+    default_h_m = ((story_elevs[1] - story_elevs[0]) / 1000.0) if len(story_elevs) >= 2 else 3.2
+    rows = []
+    tot_kg = 0.0
+    for e in elems:
+        explicit = e.get("carbonKgCo2e")
+        if isinstance(explicit, (int, float)):
+            c_kg = float(explicit)
+            mat_name = str(e.get("type", ""))
+        else:
+            obj = objs.get(str(e.get("type", "")), {})
+            mat_id = str(obj.get("material", "C30"))
+            mat = mats.get(mat_id, {})
+            mat_kind = str(mat.get("kind", "concrete")).lower()
+            dens = float(mat.get("density", 7850.0 if mat_kind == "steel" else 2400.0) or 2400.0)
+            ec_per_kg = 1.55 if mat_kind == "steel" else 0.14  # ICE A1-A3 cradle-to-gate typical
+            prof = obj.get("profile") if isinstance(obj.get("profile"), dict) else {}
+            sec_m2 = (
+                float(prof.get("width", 300.0) or 300.0) * float(prof.get("depth", 400.0) or 400.0)
+            ) / 1e6
+            vol_m3 = 0.0
+            k = str(e.get("kind", ""))
+            if k == "column":
+                vol_m3 = sec_m2 * default_h_m
+            elif (
+                k in ("beam", "wall")
+                and isinstance(e.get("start"), list)
+                and isinstance(e.get("end"), list)
+            ):
+                s, en = e["start"], e["end"]
+                L_m = math.hypot(float(en[0]) - float(s[0]), float(en[1]) - float(s[1])) / 1000.0
+                if k == "wall":
+                    vol_m3 = (
+                        L_m * default_h_m * (float(obj.get("thickness", 200.0) or 200.0) / 1000.0)
+                    )
+                else:
+                    vol_m3 = sec_m2 * L_m
+            elif k == "slab" and isinstance(e.get("polygon"), list):
+                vol_m3 = (polygon_area(e["polygon"]) / 1e6) * (
+                    float(obj.get("thickness", 150.0) or 150.0) / 1000.0
+                )
+            c_kg = vol_m3 * dens * ec_per_kg
+            mat_name = mat_id
+        tot_kg += c_kg
+        rows.append(
+            {
+                "id": str(e.get("id", "")),
+                "type": str(e.get("type", "")),
+                "material": mat_name,
+                "carbonKgCo2e": round(c_kg, 1),
+            }
         )
-    path = write_bim_json(ctx, "embodied-carbon-report.json", rows)
+    if not rows:
+        raise FeatureInputError("No BIM elements found to compile an embodied carbon report.")
+    path = write_bim_json(
+        ctx, "embodied-carbon-report.json", {"totalKgCo2e": round(tot_kg, 1), "elements": rows}
+    )
     return result(
-        summary={"elementCount": len(rows), "exportPath": path},
+        summary={
+            "elementCount": len(rows),
+            "totalKgCo2e": round(tot_kg, 1),
+            "totalTonnesCo2e": round(tot_kg / 1000.0, 2),
+            "exportPath": path,
+        },
         tables=[
             table(
-                "Carbon Report",
-                [("id", "Element"), ("type", "Material"), ("carbonKgCo2e", "Carbon", "kgCO2e")],
+                "Embodied Carbon Report (A1-A3)",
+                [
+                    ("id", "Element"),
+                    ("type", "Type"),
+                    ("material", "Material"),
+                    ("carbonKgCo2e", "Carbon", "kgCO2e"),
+                ],
                 rows,
             )
+        ],
+        notes=[
+            f"Computed A1-A3 embodied carbon ({tot_kg / 1000.0:.2f} tCO2e) across {len(rows)} BIM element(s); saved to {path}."
         ],
     )
 

@@ -601,34 +601,95 @@ def design_calculations(ctx: FeatureContext, values: dict[str, Any]) -> dict[str
     sub_ctx = load_substructure_context(ctx)
     with in_force(ctx.root):
         rep = sub_report.report(sub_ctx)
+    foundations = rep.get("foundations", [])
+    ties = rep.get("tieBeams", [])
+    skipped = rep.get("skipped", [])
     lines = [
         "# Foundation Design Calculations",
         "",
-        f"- Designed elements: {len(rep.get('foundations', []))}",
-        f"- Skipped elements: {len(rep.get('skipped', []))}",
+        f"- Designed foundations: {len(foundations)}",
+        f"- Designed tie beams: {len(ties)}",
+        f"- Skipped elements: {len(skipped)}",
         "",
-        "## Method & Basis",
-        *[f"- {m}" for m in rep.get("method", [])],
+        "## Designed Foundations",
         "",
-        "## Design Notes",
-        *[f"- {n}" for n in rep.get("notes", [])],
+        "| ID | Type | Utilisation | Status | Governing Check |",
+        "| --- | --- | ---: | --- | --- |",
     ]
+    calc_rows: list[dict[str, Any]] = []
+    for f in foundations:
+        checks = f.get("checks") or []
+        gov = max(checks, key=lambda c: float(c.get("utilisation", 0.0) or 0.0), default={})
+        util = float(f.get("utilisation", 0.0) or 0.0)
+        status = "PASS" if f.get("ok", True) else "FAIL"
+        gov_name = str(gov.get("name", "-"))
+        lines.append(f"| {f['id']} | {f['type']} | {util:.3f} | {status} | {gov_name} |")
+        calc_rows.append(
+            {
+                "id": str(f["id"]),
+                "type": str(f["type"]),
+                "utilisation": round(util, 3),
+                "status": status,
+                "governing": gov_name,
+            }
+        )
+    for t in ties:
+        util = float(t.get("utilisation", 0.0) or 0.0)
+        status = "PASS" if t.get("ok", True) else "FAIL"
+        lines.append(f"| {t['id']} | tieBeam | {util:.3f} | {status} | Axial tension/compression |")
+        calc_rows.append(
+            {
+                "id": str(t["id"]),
+                "type": "tieBeam",
+                "utilisation": round(util, 3),
+                "status": status,
+                "governing": "Tie beam force",
+            }
+        )
+    if skipped:
+        lines.extend(
+            ["", "## Skipped Elements", "", "| ID | Type | Reason |", "| --- | --- | --- |"]
+        )
+        for s in skipped:
+            lines.append(f"| {s['id']} | {s['type']} | {s.get('reason', '')} |")
+    lines.extend(
+        [
+            "",
+            "## Method & Basis",
+            *(f"- {m}" for m in rep.get("method", [])),
+            "",
+            "## Design Notes",
+            *(f"- {n}" for n in rep.get("notes", [])),
+        ]
+    )
     out_path = export_file(ctx, "design-calculations.md", "\n".join(lines) + "\n")
     return result(
         summary={
-            "designedCount": len(rep.get("foundations", [])),
-            "skippedCount": len(rep.get("skipped", [])),
+            "designedCount": len(foundations) + len(ties),
+            "failedCount": sum(1 for r in calc_rows if r["status"] == "FAIL"),
+            "skippedCount": len(skipped),
             "reportPath": str(out_path),
         },
         tables=[
             table(
-                "Design calculation element status",
-                [("id", "ID"), ("type", "Type"), ("reason", "Note")],
+                "Foundation design calculations",
                 [
-                    {"id": s["id"], "type": s["type"], "reason": s["reason"]}
-                    for s in rep.get("skipped", [])
-                ]
-                or [{"id": "All", "type": "-", "reason": "Complete"}],
+                    ("id", "ID"),
+                    ("type", "Type"),
+                    ("utilisation", "Max Util"),
+                    ("status", "Status"),
+                    ("governing", "Governing Check"),
+                ],
+                calc_rows
+                or [
+                    {
+                        "id": "-",
+                        "type": "-",
+                        "utilisation": 0.0,
+                        "status": "SKIPPED",
+                        "governing": "None designed",
+                    }
+                ],
             )
         ],
         notes=[f"Calculation report written to {out_path}"],
@@ -1083,32 +1144,71 @@ def issue_sheet(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=False,
 )
 def checker_comments(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Log and track independent checker comments and resolution status."""
-    row = {
-        "id": values["commentId"],
-        "ref": values["elementRef"],
-        "comment": values["comment"],
+    """Validate and maintain a persistent independent checker comments register."""
+    cid = values["commentId"].strip()
+    if not cid:
+        raise FeatureInputError("Enter a non-empty Comment ID.")
+    model = load_substructure_model(ctx) if ctx.root is not None else None
+    footing_ids = (
+        {str(getattr(f, "id", "")) for f in getattr(model, "footings", [])}
+        if model is not None
+        else set()
+    )
+    entry = {
+        "id": cid,
+        "ref": values["elementRef"].strip() or "General",
+        "comment": values["comment"].strip(),
         "status": values["status"],
+        "date": dt.date.today().isoformat(),
+        "linkedFooting": values["elementRef"].split("/")[0].strip() in footing_ids,
     }
-    saved_note = "Logged in memory (open a project to save file)."
+    register: list[dict[str, Any]] = [entry]
+    saved_note = "Validated in memory (open a project to persist register)."
     if ctx.root is not None and ctx.root.exists():
-        out_path = export_file(
-            ctx,
-            "checker-comments.md",
-            f"# Checker Comments Register\n\n| ID | Ref | Comment | Status |\n| --- | --- | --- | --- |\n| {row['id']} | {row['ref']} | {row['comment']} | {row['status']} |\n",
-        )
-        saved_note = f"Checker register saved to {out_path}"
+        reg_path = ctx.path("09 Substructure/exports/checker-comments.json")
+        if reg_path is not None and reg_path.exists():
+            try:
+                existing = json.loads(reg_path.read_text(encoding="utf-8"))
+                if isinstance(existing, list):
+                    by_id = {str(r.get("id", "")): r for r in existing if isinstance(r, dict)}
+                    by_id[cid] = entry
+                    register = list(by_id.values())
+            except ValueError:
+                pass
+        export_file(ctx, "checker-comments.json", json.dumps(register, indent=2) + "\n")
+        md_lines = [
+            "# Checker Comments Register",
+            "",
+            "| ID | Ref | Date | Comment | Status |",
+            "| --- | --- | --- | --- | --- |",
+            *[
+                f"| {r['id']} | {r['ref']} | {r.get('date', '')} | {r['comment']} | {r['status']} |"
+                for r in register
+            ],
+        ]
+        out_path = export_file(ctx, "checker-comments.md", "\n".join(md_lines) + "\n")
+        saved_note = f"Persisted {len(register)} checker comment(s) to {out_path}."
+    open_count = sum(1 for r in register if r.get("status") == "Open")
+    closed_count = sum(1 for r in register if r.get("status") == "Closed")
     return result(
         summary={
-            "commentId": row["id"],
-            "status": row["status"],
-            "openCount": 1 if row["status"] == "Open" else 0,
+            "commentId": cid,
+            "status": entry["status"],
+            "totalComments": len(register),
+            "openCount": open_count,
+            "closedCount": closed_count,
         },
         tables=[
             table(
                 "Checker comments log",
-                [("id", "ID"), ("ref", "Reference"), ("comment", "Comment"), ("status", "Status")],
-                [row],
+                [
+                    ("id", "ID"),
+                    ("ref", "Reference"),
+                    ("date", "Date"),
+                    ("status", "Status"),
+                    ("comment", "Comment"),
+                ],
+                register,
             )
         ],
         notes=[saved_note],
@@ -1129,24 +1229,58 @@ def checker_comments(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     requires_project=False,
 )
 def revision_notes(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record report revision history notes and date."""
+    """Record and track sequential substructure report revisions against open comments."""
+    rev = values["revision"].strip().upper()
+    if not rev:
+        raise FeatureInputError("Enter a non-empty revision code (e.g. R0, R1).")
     today = dt.date.today().isoformat()
     row = {
-        "rev": values["revision"],
+        "rev": rev,
         "date": today,
-        "author": values["author"],
-        "changes": values["description"],
+        "author": values["author"].strip() or "SE",
+        "changes": values["description"].strip(),
     }
-    note_msg = "Revision record formatted (open a project to export file)."
+    history: list[dict[str, Any]] = [row]
+    open_comments = 0
+    note_msg = "Revision record formatted (open a project to save history)."
     if ctx.root is not None and ctx.root.exists():
-        out_path = export_file(
-            ctx,
-            "revision-notes.md",
-            f"# Revision History\n\n| Rev | Date | Author | Description |\n| --- | --- | --- | --- |\n| {row['rev']} | {today} | {row['author']} | {row['changes']} |\n",
-        )
-        note_msg = f"Revision notes written to {out_path}"
+        reg_path = ctx.path("09 Substructure/exports/checker-comments.json")
+        if reg_path is not None and reg_path.exists():
+            try:
+                comments = json.loads(reg_path.read_text(encoding="utf-8"))
+                if isinstance(comments, list):
+                    open_comments = sum(
+                        1 for c in comments if isinstance(c, dict) and c.get("status") == "Open"
+                    )
+            except ValueError:
+                pass
+        hist_path = ctx.path("09 Substructure/exports/revision-notes.json")
+        if hist_path is not None and hist_path.exists():
+            try:
+                prev = json.loads(hist_path.read_text(encoding="utf-8"))
+                if isinstance(prev, list):
+                    by_rev = {str(r.get("rev", "")): r for r in prev if isinstance(r, dict)}
+                    by_rev[rev] = row
+                    history = list(by_rev.values())
+            except ValueError:
+                pass
+        export_file(ctx, "revision-notes.json", json.dumps(history, indent=2) + "\n")
+        md_lines = [
+            "# Revision History",
+            "",
+            "| Rev | Date | Author | Description |",
+            "| --- | --- | --- | --- |",
+            *[f"| {r['rev']} | {r['date']} | {r['author']} | {r['changes']} |" for r in history],
+        ]
+        out_path = export_file(ctx, "revision-notes.md", "\n".join(md_lines) + "\n")
+        note_msg = f"Saved {len(history)} revision(s) to {out_path}; open checker comments={open_comments}."
     return result(
-        summary={"revision": row["rev"], "date": today, "author": row["author"]},
+        summary={
+            "revision": rev,
+            "revisionCount": len(history),
+            "openCheckerComments": open_comments,
+            "date": today,
+        },
         tables=[
             table(
                 "Revision log",
@@ -1156,7 +1290,7 @@ def revision_notes(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
                     ("author", "Author"),
                     ("changes", "Description"),
                 ],
-                [row],
+                history,
             )
         ],
         notes=[note_msg],

@@ -276,7 +276,9 @@ def duct_sizing(ctx, v):
             )
         ],
         notes=[
-            "Darcy-Weisbach with the Swamee-Jain friction factor, standard air; round up to the "
-            "next stock size and check velocity and noise limits for the space."
+            (
+                "Darcy-Weisbach with the Swamee-Jain friction factor, standard air; round up to the "
+                "next stock size and check velocity and noise limits for the space."
+            )
         ],
     )

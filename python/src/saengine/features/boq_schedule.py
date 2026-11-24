@@ -201,48 +201,87 @@ def resource_levelling(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     "boqSchedule.baseline",
     "Baseline",
     part="boq",
-    fields=[checkbox("exportBaseline", "Save baseline CSV to 10 BOQ/exports", False)],
+    fields=[checkbox("exportBaseline", "Save/update baseline snapshot in 10 BOQ/exports", False)],
     requires_project=True,
 )
 def baseline(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Capture and inspect the CPM baseline programme dates and critical path milestones."""
+    """Capture the CPM baseline programme and compute schedule variance against any saved baseline."""
+    import json
+
     sched = _build_project_schedule(ctx)
+    base_json = ctx.path("10 BOQ/exports/schedule-baseline.json")
+    prev_finishes: dict[str, str] = {}
+    if base_json is not None and base_json.exists():
+        try:
+            loaded = json.loads(base_json.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("activities"), list):
+                prev_finishes = {
+                    str(r.get("id", "")): str(r.get("finish", ""))
+                    for r in loaded["activities"]
+                    if isinstance(r, dict)
+                }
+        except ValueError:
+            prev_finishes = {}
+    rows = []
+    slipped = 0
+    for a in sched.activities:
+        fin = str(a.earlyFinish)
+        prev_fin = prev_finishes.get(a.id, fin)
+        variance_d = (
+            (date.fromisoformat(fin) - date.fromisoformat(prev_fin)).days if prev_fin else 0
+        )
+        if variance_d > 0:
+            slipped += 1
+        rows.append(
+            {
+                "id": a.id,
+                "name": a.name,
+                "start": str(a.earlyStart),
+                "finish": fin,
+                "baselineFinish": prev_fin,
+                "varianceDays": variance_d,
+                "float": a.totalFloat or 0.0,
+                "critical": a.critical,
+            }
+        )
     out_path = ""
     if values["exportBaseline"]:
+        save_export(
+            ctx,
+            "schedule-baseline.json",
+            json.dumps(
+                {"start": str(sched.start), "finish": str(sched.finish), "activities": rows},
+                indent=2,
+            )
+            + "\n",
+        )
         out_path = str(save_export(ctx, "schedule-baseline.csv", cs.to_csv(sched)))
-    rows = [
-        {
-            "id": a.id,
-            "name": a.name,
-            "start": str(a.earlyStart),
-            "finish": str(a.earlyFinish),
-            "float": a.totalFloat or 0.0,
-            "critical": a.critical,
-        }
-        for a in sched.activities
-    ]
     return result(
         summary={
             "baselineStart": str(sched.start),
             "baselineFinish": str(sched.finish),
             "activities": len(rows),
+            "slippedActivities": slipped,
             "exportPath": out_path or "preview",
         },
         tables=[
             table(
-                "Programme baseline",
+                "Programme baseline & variance",
                 [
                     ("id", "ID"),
                     ("name", "Activity"),
-                    ("start", "Baseline start"),
-                    ("finish", "Baseline finish"),
+                    ("start", "Start"),
+                    ("finish", "Finish"),
+                    ("varianceDays", "Var [d]"),
                     ("float", "Float [d]"),
                     ("critical", "Critical"),
                 ],
                 rows,
             )
         ],
-        notes=["Critical activities carry zero total float."],
+        notes=[
+            "Critical activities carry zero total float; variance compares against saved schedule-baseline.json."
+        ],
     )
 
 

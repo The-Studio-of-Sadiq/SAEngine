@@ -109,32 +109,58 @@ def coverageAudit(ctx: FeatureContext, values: dict) -> dict:
     "mepFireExtinguishers.deadEndCheck",
     "Dead End Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("deadEndLengthM", "Corridor dead-end length", 5.5, unit="m", min=0.0),
+        number("limitLengthM", "Allowable dead-end pocket limit", 6.0, unit="m", min=1.0),
+        number(
+            "travelToExtinguisherM",
+            "Actual travel distance to extinguisher",
+            14.0,
+            unit="m",
+            min=0.5,
+        ),
+    ],
+    requires_project=False,
 )
 def deadEndCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Dead End Check: Coverage Mapping."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Verify dead-end corridor extinguisher access & exit travel distance bounds."""
+    dead_ok = float(values["deadEndLengthM"]) <= float(values["limitLengthM"])
+    travel_ok = float(values["travelToExtinguisherM"]) <= 22.5
+    ok = dead_ok and travel_ok
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "deadEndLengthM": values["deadEndLengthM"],
+            "deadEndOk": dead_ok,
+            "travelOk": travel_ok,
+            "compliant": ok,
         },
         tables=[
             table(
-                "Dead End Check",
-                [("item", "Item"), ("value", "Value")],
+                "Dead-end & extinguisher travel check",
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    ("criterion", "Check"),
+                    ("measured", "Measured"),
+                    ("limit", "Limit"),
+                    ("status", "Status"),
+                ],
+                [
+                    {
+                        "criterion": "Dead-end pocket length",
+                        "measured": f"{values['deadEndLengthM']:g} m",
+                        "limit": f"<= {values['limitLengthM']:g} m",
+                        "status": "PASS" if dead_ok else "FAIL",
+                    },
+                    {
+                        "criterion": "Extinguisher travel",
+                        "measured": f"{values['travelToExtinguisherM']:g} m",
+                        "limit": "<= 22.5 m",
+                        "status": "PASS" if travel_ok else "ADD UNIT",
+                    },
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Place portable extinguishers along normal path of exit travel so occupants never walk deeper into dead-ends."
         ],
     )
 
@@ -143,32 +169,65 @@ def deadEndCheck(ctx: FeatureContext, values: dict) -> dict:
     "mepFireExtinguishers.expiryCheck",
     "Expiry Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        text("manufactureYear", "Cylinder test/service year (YYYY)", "2023"),
+        number(
+            "hydroIntervalYr",
+            "Hydrostatic / refill test interval",
+            5.0,
+            unit="yr",
+            min=1.0,
+            max=12.0,
+        ),
+        number(
+            "annualCheckMonths",
+            "Annual inspection interval",
+            12.0,
+            unit="months",
+            min=3.0,
+            max=24.0,
+        ),
+    ],
+    requires_project=False,
 )
 def expiryCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Expiry Check: Schedule."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Compute next annual service and hydrostatic pressure test due year for fire extinguishers."""
+    from datetime import date
+
+    yr_str = values["manufactureYear"].strip()
+    try:
+        base_yr = int(yr_str)
+    except ValueError as exc:
+        raise FeatureInputError(f"Enter a valid 4-digit year instead of {yr_str!r}.") from exc
+    curr_yr = date.today().year
+    next_hydro = base_yr + int(values["hydroIntervalYr"])
+    years_left = next_hydro - curr_yr
+    status = "Due / Overdue" if years_left <= 0 else ("Due Soon" if years_left == 1 else "Valid")
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "baseYear": base_yr,
+            "nextHydroTestYear": next_hydro,
+            "yearsRemaining": years_left,
+            "status": status,
         },
         tables=[
             table(
-                "Expiry Check",
-                [("item", "Item"), ("value", "Value")],
+                "Extinguisher inspection & hydro schedule",
+                [("item", "Milestone"), ("value", "Value")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Baseline test year", "value": base_yr},
+                    {"item": "Next hydrostatic test year", "value": next_hydro},
+                    {"item": "Remaining service years", "value": years_left},
+                    {
+                        "item": "Routine tag check interval",
+                        "value": f"{int(values['annualCheckMonths'])} months",
+                    },
+                    {"item": "Status", "value": status},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Tag monthly visual gauge/pin checks and log 5-year / 12-year hydrostatic pressure retests."
         ],
     )
 
@@ -322,32 +381,52 @@ def extinguisherSignoff(ctx: FeatureContext, values: dict) -> dict:
     "mepFireExtinguishers.flammableStorageCheck",
     "Flammable Storage Check",
     part="mep",
-    fields=[number("value", "Design value", 100, unit="units", min=0)],
-    requires_project=True,
+    fields=[
+        number("storageAreaM2", "Flammable liquid room / bund area", 180.0, unit="m²", min=5.0),
+        number("maxTravelLimitM", "Maximum Class B travel distance", 15.0, unit="m", min=5.0),
+        number("unitBRating", "Individual extinguisher B-rating", 40.0, min=10.0),
+    ],
+    requires_project=False,
 )
 def flammableStorageCheck(ctx: FeatureContext, values: dict) -> dict:
-    """Flammable Storage Check: Hazard Assessment."""
-    design_value = float(values["value"])
-    safety_factor = 1.15
-    sized_value = design_value * safety_factor
+    """Calculate Class B portable extinguisher count and coverage radius for flammable storage."""
+    import math
+
+    area = float(values["storageAreaM2"])
+    r_max = float(values["maxTravelLimitM"])
+    # Practical circle-in-square coverage area ~(1.414 * r_eff)^2; high-hazard Class B 40-B / 80-B spacing
+    unit_cov_m2 = min(area, 0.75 * math.pi * (r_max**2))
+    by_travel = max(1, math.ceil(area / max(40.0, unit_cov_m2)))
+    req_rating = 40.0 if r_max <= 9.1 else 80.0
+    rating_ok = float(values["unitBRating"]) >= req_rating
     return result(
         summary={
-            "designValue": design_value,
-            "safetyFactor": safety_factor,
-            "sizedValue": sized_value,
+            "recommendedUnits": by_travel,
+            "minimumUnitRatingB": req_rating,
+            "ratingOk": rating_ok,
         },
         tables=[
             table(
-                "Flammable Storage Check",
-                [("item", "Item"), ("value", "Value")],
+                "Class B flammable storage protection",
+                [("item", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
-                    {"item": "Design value", "value": design_value},
-                    {"item": "Preliminary sized value", "value": sized_value},
+                    {"item": "Protected floor area", "value": area, "unit": "m²"},
+                    {
+                        "item": "Minimum Class B rating required",
+                        "value": f"{int(req_rating)}-B",
+                        "unit": "-",
+                    },
+                    {
+                        "item": "Provided unit rating",
+                        "value": f"{int(values['unitBRating'])}-B",
+                        "unit": "-",
+                    },
+                    {"item": "Minimum extinguisher units", "value": by_travel, "unit": "units"},
                 ],
             )
         ],
         notes=[
-            "Preliminary sizing uses a 1.15 factor; verify applicable code and project criteria."
+            "Locate extinguishers just outside flammable-store entry doors within maximum Class B travel distance."
         ],
     )
 

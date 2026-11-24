@@ -887,31 +887,68 @@ def benchmark_report(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     requires_project=True,
 )
 def report_binder(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Assemble cost summary, carbon ledger, and notes into a unified Markdown binder in 10 BOQ/exports."""
+    """Assemble elemental cost, trade summary, line items, carbon ledger, and notes into a Markdown binder."""
     bill, rates, _, costing = price_project_bill(ctx)
+    unpriced = sum(1 for li in costing.lines if li.status in ("no rate item", "not rated"))
     sections = [
         f"# {values['binderTitle']}",
-        f"Currency: {rates.currency} | Total: {costing.total:,.2f} | Carbon: {costing.carbonTotal:,.1f} kg CO2e",
-        "## Trade Summary",
-        *[f"- {g}: {a:,.2f} {rates.currency}" for g, a in costing.groups.items()],
-        "## Measurement Notes",
-        *[f"- {n}" for n in (bill.get("notes") or [])[:5]],
+        "",
+        f"Currency: {rates.currency} | Grand Total: {costing.total:,.2f} | Embodied Carbon: {costing.carbonTotal:,.1f} kg CO2e | Unpriced lines: {unpriced}",
+        "",
+        "## 1. Elemental Part Summary",
+        "| Part | Amount | Share |",
+        "| --- | ---: | ---: |",
+        *[
+            f"| {p} | {amt:,.2f} {rates.currency} | {(amt / costing.total * 100.0 if costing.total else 0.0):.1f}% |"
+            for p, amt in costing.parts.items()
+        ],
+        "",
+        "## 2. Trade Package Summary",
+        "| Trade | Amount |",
+        "| --- | ---: |",
+        *[f"| {g} | {a:,.2f} {rates.currency} |" for g, a in costing.groups.items()],
+        "",
+        "## 3. Measured & Priced BOQ Lines (Top 50)",
+        "| Code | Description | Qty | Unit | Rate | Amount |",
+        "| --- | --- | ---: | --- | ---: | ---: |",
+        *[
+            f"| {li.code} | {li.description} | {li.quantity:.2f} | {li.unit} | {(li.rate or 0.0):,.2f} | {(li.amount or 0.0):,.2f} |"
+            for li in costing.lines[:50]
+        ],
+        "",
+        "## 4. Embodied Carbon Assessment",
+        "| Material | Mass [kg] | Factor [kgCO2e/kg] | Carbon [kgCO2e] |",
+        "| --- | ---: | ---: | ---: |",
+        *[
+            f"| {c.material} | {c.mass:,.1f} | {(c.factor or 0.0):.3f} | {(c.carbon or 0.0):,.1f} |"
+            for c in costing.carbon
+        ],
+        "",
+        "## 5. Measurement Notes",
+        *([f"- {n}" for n in (bill.get("notes") or [])] or ["- No additional measurement notes."]),
     ]
     target = save_export(ctx, "boq-report-binder.md", "\n".join(sections) + "\n")
     return result(
-        summary={"sectionsIncluded": 3, "binderPath": str(target)},
+        summary={
+            "sectionsIncluded": 5,
+            "totalCost": costing.total,
+            "unpricedLines": unpriced,
+            "binderPath": str(target),
+        },
         tables=[
             table(
                 "Binder sections",
                 [("section", "Section"), ("entries", "Items")],
                 [
+                    {"section": "Elemental parts", "entries": len(costing.parts)},
                     {"section": "Trade summary", "entries": len(costing.groups)},
+                    {"section": "Measured bill lines", "entries": len(costing.lines)},
                     {"section": "Carbon factors", "entries": len(costing.carbon)},
                     {"section": "Notes", "entries": len(bill.get("notes") or [])},
                 ],
             )
         ],
-        notes=[f"Compiled report binder saved to {target}."],
+        notes=[f"Compiled 5-section report binder saved to {target}."],
     )
 
 
@@ -1039,21 +1076,36 @@ def distribution_list(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
 def archive_reports(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Archive a complete JSON snapshot of the priced BOQ, costing, and carbon ledger under 10 BOQ/exports."""
     bill, rates, _, costing = price_project_bill(ctx)
+    unpriced = sum(1 for li in costing.lines if li.status in ("no rate item", "not rated"))
     archive = {
         "revision": values["revisionLabel"],
         "currency": rates.currency,
         "total": costing.total,
         "carbonTotal": costing.carbonTotal,
+        "unpricedCount": unpriced,
         "groups": costing.groups,
         "parts": costing.parts,
         "itemCount": len(bill["items"]),
+        "lines": [
+            {
+                "code": li.code,
+                "qty": li.quantity,
+                "unit": li.unit,
+                "rate": li.rate,
+                "amount": li.amount,
+            }
+            for li in costing.lines
+        ],
     }
-    target = save_export(ctx, f"boq-archive-{values['revisionLabel']}.json", safe_json(archive))
+    serialized = safe_json(archive)
+    checksum = hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
+    target = save_export(ctx, f"boq-archive-{values['revisionLabel']}.json", serialized)
     return result(
         summary={
             "revision": values["revisionLabel"],
             "archivePath": str(target),
             "totalCost": costing.total,
+            "sha256": checksum,
         },
         tables=[
             table(

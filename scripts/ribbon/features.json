@@ -621,7 +621,7 @@
   "id": "architecture.floorTypes",
   "title": "Floor Types",
   "part": "floorPlan",
-  "help": "Prepare a floor build-up definition for slab, screed and finish layers.",
+  "help": "Build a layered floor build-up definition and calculate unit area weight.",
   "requiresProject": true,
   "fields": [
    {
@@ -1191,7 +1191,7 @@
   "id": "architectureChecks.architectureReport",
   "title": "Architecture Report",
   "part": "floorPlan",
-  "help": "Compile a Markdown architecture report.",
+  "help": "Run architecture validation, room metrics, and opening checks into a Markdown report.",
   "requiresProject": true,
   "fields": [
    {
@@ -1206,7 +1206,7 @@
   "id": "architectureChecks.areaSchedule",
   "title": "Area Schedule",
   "part": "floorPlan",
-  "help": "Publish a room area schedule.",
+  "help": "Compute room gross/net areas, building efficiency, and publish the area schedule.",
   "requiresProject": true,
   "fields": [
    {
@@ -1372,7 +1372,7 @@
   "id": "architectureChecks.markupReview",
   "title": "Markup Review",
   "part": "floorPlan",
-  "help": "Write a markup-review register entry.",
+  "help": "Validate architecture model state and append a timestamped markup-review entry.",
   "requiresProject": true,
   "fields": [
    {
@@ -1962,7 +1962,7 @@
   "id": "architectureEnvelope.reveals",
   "title": "Reveals",
   "part": "floorPlan",
-  "help": "Prepare a reveal cut record for a wall opening or edge.",
+  "help": "Compute reveal groove volume and thickness reduction along a host wall.",
   "requiresProject": true,
   "fields": [
    {
@@ -3008,7 +3008,7 @@
   "id": "architectureExchange.cloudUpload",
   "title": "Cloud Upload",
   "part": "floorPlan",
-  "help": "Record a cloud package upload request without network access.",
+  "help": "Verify the target package exists locally, hash its payload, and append to the upload queue.",
   "requiresProject": true,
   "fields": [
    {
@@ -3029,7 +3029,7 @@
   "id": "architectureExchange.exportDwg",
   "title": "Export DWG",
   "part": "floorPlan",
-  "help": "Export a DXF and also record a DWG exchange manifest.",
+  "help": "Generate a layered CAD DXF interchange file alongside its DWG conversion manifest.",
   "requiresProject": true,
   "fields": [
    {
@@ -3060,7 +3060,7 @@
   "id": "architectureExchange.exportDxf",
   "title": "Export DXF",
   "part": "floorPlan",
-  "help": "Write a DXF-neutral wall/room layer manifest.",
+  "help": "Export layered walls and room annotations into a standard ASCII DXF CAD file.",
   "requiresProject": true,
   "fields": [
    {
@@ -3091,7 +3091,7 @@
   "id": "architectureExchange.exportIfc",
   "title": "Export IFC",
   "part": "floorPlan",
-  "help": "Write a project-native architecture manifest for IFC exchange.",
+  "help": "Export the architecture model into a standard IFC4 STEP file via the IFC engine.",
   "requiresProject": true,
   "fields": [
    {
@@ -3118,7 +3118,7 @@
   "id": "architectureExchange.exportLog",
   "title": "Export Log",
   "part": "floorPlan",
-  "help": "Write an exchange operation log entry.",
+  "help": "Append a timestamped exchange event alongside architecture export file counts.",
   "requiresProject": true,
   "fields": [
    {
@@ -3153,7 +3153,7 @@
   "id": "architectureExchange.exportObj",
   "title": "Export OBJ",
   "part": "floorPlan",
-  "help": "Write an OBJ-neutral geometry manifest.",
+  "help": "Extrude architecture walls into a Wavefront .obj 3D mesh file in metres.",
   "requiresProject": true,
   "fields": [
    {
@@ -3168,7 +3168,7 @@
   "id": "architectureExchange.exportRoomData",
   "title": "Export Room Data",
   "part": "floorPlan",
-  "help": "Export room and area data.",
+  "help": "Measure bounded room areas and totals, then export to CSV or JSON.",
   "requiresProject": true,
   "fields": [
    {
@@ -3193,7 +3193,7 @@
   "id": "architectureExchange.exportSheets",
   "title": "Export Sheets",
   "part": "floorPlan",
-  "help": "Write an issued sheet-set manifest.",
+  "help": "Assemble a storey-indexed sheet set from live architecture elements and room metrics.",
   "requiresProject": true,
   "fields": [
    {
@@ -3215,7 +3215,7 @@
   "id": "architectureExchange.exportSketchup",
   "title": "Export SketchUp",
   "part": "floorPlan",
-  "help": "Write a SketchUp-neutral geometry manifest.",
+  "help": "Extrude architecture walls into triangulated surface geometry for SketchUp exchange.",
   "requiresProject": true,
   "fields": [
    {
@@ -3296,7 +3296,7 @@
   "id": "architectureExchange.importImage",
   "title": "Import Image",
   "part": "floorPlan",
-  "help": "Register an image underlay with scale and rotation.",
+  "help": "Read image header dimensions, compute scaled plan extents, and register the underlay.",
   "requiresProject": true,
   "fields": [
    {
@@ -3354,7 +3354,7 @@
   "id": "architectureExchange.linkModel",
   "title": "Link Model",
   "part": "floorPlan",
-  "help": "Register a linked external model path.",
+  "help": "Validate an existing linked model file, hash its contents, and append to architecture links.",
   "requiresProject": true,
   "fields": [
    {
@@ -3375,7 +3375,7 @@
   "id": "architectureExchange.mappingRules",
   "title": "Mapping Rules",
   "part": "floorPlan",
-  "help": "Write an exchange category mapping rule.",
+  "help": "Validate category against live architecture classes and persist IFC mapping rules.",
   "requiresProject": true,
   "fields": [
    {
@@ -3417,7 +3417,7 @@
   "id": "architectureExchange.packageSheets",
   "title": "Package Sheets",
   "part": "floorPlan",
-  "help": "Write a sheet-package manifest.",
+  "help": "Bundle generated architecture deliverables into a checksummed ZIP package and manifest.",
   "requiresProject": true,
   "fields": [
    {
@@ -3438,7 +3438,7 @@
   "id": "architectureExchange.publishModel",
   "title": "Publish Model",
   "part": "floorPlan",
-  "help": "Write a coordinated-model publication manifest.",
+  "help": "Validate architecture model, hash source data, and append a coordinated publication revision.",
   "requiresProject": true,
   "fields": [
    {
@@ -3495,7 +3495,7 @@
   "id": "architectureExchange.sharedCoordinates",
   "title": "Shared Coordinates",
   "part": "floorPlan",
-  "help": "Write the project shared-coordinate transformation.",
+  "help": "Compute a 2D rigid shared-coordinate transform matrix and transformed wall extents.",
   "requiresProject": true,
   "fields": [
    {
@@ -3522,7 +3522,7 @@
   "id": "architectureExchange.transmittalSheet",
   "title": "Transmittal Sheet",
   "part": "floorPlan",
-  "help": "Generate a transmittal sheet record.",
+  "help": "Generate a dated architecture transmittal register hashing available export deliverables.",
   "requiresProject": true,
   "fields": [
    {
@@ -3796,7 +3796,7 @@
   "id": "architectureFinishes.finishSchedule",
   "title": "Finish Schedule",
   "part": "floorPlan",
-  "help": "Schedule floor, wall and ceiling finishes from room properties.",
+  "help": "Schedule floor, wall and ceiling finish areas and weights from bounded room geometry.",
   "requiresProject": true,
   "fields": [
    {
@@ -4480,7 +4480,7 @@
   "id": "architectureRooms.legendViews",
   "title": "Legend Views",
   "part": "floorPlan",
-  "help": "Prepare a room legend from live occupancy, finish or area categories.",
+  "help": "Compile a room legend with live room counts, net areas, and area share.",
   "requiresProject": true,
   "fields": [
    {
@@ -4677,7 +4677,7 @@
   "id": "architectureRooms.roomStyles",
   "title": "Room Styles",
   "part": "floorPlan",
-  "help": "Write a room-style finish mapping for later assignment to room types.",
+  "help": "Validate optional finish types, match rooms, and update the room-style register.",
   "requiresProject": true,
   "fields": [
    {
@@ -4710,7 +4710,7 @@
   "id": "architectureRooms.roomTagStyles",
   "title": "Room Tag Styles",
   "part": "floorPlan",
-  "help": "Write the selected room tag style and text height.",
+  "help": "Compute paper/model tag text heights and preview formatted room tags.",
   "requiresProject": true,
   "fields": [
    {
@@ -4768,7 +4768,7 @@
   "id": "architectureRooms.scheduleExport",
   "title": "Schedule Export",
   "part": "floorPlan",
-  "help": "Export room data to CSV or JSON.",
+  "help": "Compute room area totals and export the live room schedule to CSV or JSON.",
   "requiresProject": true,
   "fields": [
    {
@@ -4866,7 +4866,7 @@
   "id": "architectureRooms.scheduleTemplate",
   "title": "Schedule Template",
   "part": "floorPlan",
-  "help": "Write a room schedule field template.",
+  "help": "Generate a populated room-schedule template preview from live architecture rooms.",
   "requiresProject": true,
   "fields": [
    {
@@ -6774,7 +6774,7 @@
   "id": "bim3dInterference.addComment",
   "title": "Add Comment",
   "part": "bim",
-  "help": "Attach a comment to a clash.",
+  "help": "Append timestamped coordination comment to a clash and update persistent clash comment register.",
   "requiresProject": true,
   "fields": [
    {
@@ -6788,6 +6788,26 @@
     "label": "Comment",
     "type": "text",
     "default": "Coordinate relocation required"
+   },
+   {
+    "key": "status",
+    "label": "Updated clash status",
+    "type": "select",
+    "default": "Active",
+    "options": [
+     {
+      "value": "Open",
+      "label": "Open"
+     },
+     {
+      "value": "Active",
+      "label": "Active"
+     },
+     {
+      "value": "Resolved",
+      "label": "Resolved"
+     }
+    ]
    }
   ]
  },
@@ -6836,7 +6856,7 @@
   "id": "bim3dInterference.bcfExport",
   "title": "BCF Export",
   "part": "bim",
-  "help": "Create a BCF-style clash-export request.",
+  "help": "Build BCF topic issues from real clash candidates and export via saengine.mep.bcf.",
   "requiresProject": true,
   "fields": [
    {
@@ -6847,15 +6867,9 @@
    },
    {
     "key": "includeComments",
-    "label": "Include comments",
+    "label": "Include recorded clash comments",
     "type": "checkbox",
     "default": true
-   },
-   {
-    "key": "includeSnapshots",
-    "label": "Include snapshots",
-    "type": "checkbox",
-    "default": false
    }
   ]
  },
@@ -6884,7 +6898,7 @@
   "id": "bim3dInterference.clashReport",
   "title": "Clash Report",
   "part": "bim",
-  "help": "Export a clash-report summary.",
+  "help": "Run interference scan against 06 BIM / 07 MEP and export filtered clash report.",
   "requiresProject": true,
   "fields": [
    {
@@ -6900,10 +6914,6 @@
      {
       "value": "csv",
       "label": "CSV"
-     },
-     {
-      "value": "html",
-      "label": "HTML"
      }
     ]
    },
@@ -6985,7 +6995,7 @@
   "id": "bim3dInterference.exportList",
   "title": "Export List",
   "part": "bim",
-  "help": "Export an empty clash-list template.",
+  "help": "Export real detected BIM/MEP clash candidates to CSV or JSON.",
   "requiresProject": true,
   "fields": [
    {
@@ -7256,7 +7266,7 @@
   "id": "bim3dInterference.newTest",
   "title": "New Test",
   "part": "bim",
-  "help": "Create a named clash-test definition.",
+  "help": "Execute 3D structural/MEP clash detection test and save structured results.",
   "requiresProject": true,
   "fields": [
    {
@@ -7284,6 +7294,13 @@
       "label": "Clearance"
      }
     ]
+   },
+   {
+    "key": "clearanceMm",
+    "label": "Clearance buffer [mm]",
+    "type": "number",
+    "default": 50.0,
+    "min": 0.0
    }
   ]
  },
@@ -7516,7 +7533,7 @@
   "id": "bimAdditions.addPlanting",
   "title": "Add Planting",
   "part": "bim",
-  "help": "Places planting elements in the site model.",
+  "help": "Compute landscape bed area, soil topsoil depth volume, and irrigation demand.",
   "requiresProject": true,
   "fields": [
    {
@@ -7527,17 +7544,33 @@
    },
    {
     "key": "spacing",
-    "label": "Plant spacing [m]",
+    "label": "Plant centre spacing [m]",
     "type": "number",
-    "default": 1.5,
-    "min": 0.1
+    "default": 1.2,
+    "min": 0.2
    },
    {
     "key": "quantity",
     "label": "Plant quantity [ea]",
     "type": "number",
-    "default": 10,
+    "default": 20,
     "min": 1
+   },
+   {
+    "key": "pattern",
+    "label": "Planting pattern",
+    "type": "select",
+    "default": "triangular",
+    "options": [
+     {
+      "value": "square",
+      "label": "Square grid"
+     },
+     {
+      "value": "triangular",
+      "label": "Triangular staggered"
+     }
+    ]
    }
   ]
  },
@@ -7545,7 +7578,7 @@
   "id": "bimAdditions.addRebarSet",
   "title": "Add Rebar Set",
   "part": "bim",
-  "help": "Adds a reinforcement set to a concrete element.",
+  "help": "Compute reinforcement area As per metre, steel mass/m², clear bar gap, and ratio.",
   "requiresProject": true,
   "fields": [
    {
@@ -7576,15 +7609,22 @@
     "key": "diameter",
     "label": "Bar diameter [mm]",
     "type": "number",
-    "default": 16,
-    "min": 6
+    "default": 16.0,
+    "min": 6.0
    },
    {
     "key": "spacing",
-    "label": "Bar spacing [mm]",
+    "label": "Bar centre-to-centre spacing [mm]",
     "type": "number",
-    "default": 150,
-    "min": 25
+    "default": 150.0,
+    "min": 40.0
+   },
+   {
+    "key": "concreteThicknessMm",
+    "label": "Member section depth / thickness [mm]",
+    "type": "number",
+    "default": 250.0,
+    "min": 100.0
    }
   ]
  },
@@ -7621,7 +7661,7 @@
   "id": "bimAdditions.addSpace",
   "title": "Add Space",
   "part": "bim",
-  "help": "Adds a BIM space to the building model.",
+  "help": "Validate host story in 06 BIM, compute space volume, and accumulate space schedule.",
   "requiresProject": true,
   "fields": [
    {
@@ -7631,11 +7671,24 @@
     "default": "Room 101"
    },
    {
+    "key": "story",
+    "label": "Host story ID",
+    "type": "text",
+    "default": "L1"
+   },
+   {
     "key": "area",
-    "label": "Net area [m²]",
+    "label": "Net floor area [m²]",
     "type": "number",
     "default": 24.0,
-    "min": 0
+    "min": 0.5
+   },
+   {
+    "key": "ceilingHeightM",
+    "label": "Clear floor-to-ceiling height [m]",
+    "type": "number",
+    "default": 3.0,
+    "min": 2.0
    }
   ]
  },
@@ -7643,7 +7696,7 @@
   "id": "bimAdditions.addStructuralMember",
   "title": "Add Structural Member",
   "part": "bim",
-  "help": "Adds a structural member to the federated model.",
+  "help": "Validate member profile against 04 Objects, compute section mass & self-weight, and queue proposal.",
   "requiresProject": true,
   "fields": [
    {
@@ -7668,16 +7721,16 @@
    },
    {
     "key": "type",
-    "label": "Member type",
+    "label": "Member type / profile",
     "type": "text",
     "default": "B300x500"
    },
    {
     "key": "length",
-    "label": "Length [m]",
+    "label": "Clear member length [m]",
     "type": "number",
     "default": 6.0,
-    "min": 0.1
+    "min": 0.2
    }
   ]
  },
@@ -7715,7 +7768,7 @@
   "id": "bimAdditions.addZone",
   "title": "Add Zone",
   "part": "bim",
-  "help": "Groups spaces into a named thermal or usage zone.",
+  "help": "Group named BIM spaces into a persistent thermal/fire zone register.",
   "requiresProject": true,
   "fields": [
    {
@@ -7726,9 +7779,16 @@
    },
    {
     "key": "spaceNames",
-    "label": "Space names",
+    "label": "Member spaces (comma-separated)",
     "type": "text",
     "default": "Room 101, Room 102"
+   },
+   {
+    "key": "coolingWPerM2",
+    "label": "Zone design cooling density [W/m²]",
+    "type": "number",
+    "default": 110.0,
+    "min": 10.0
    }
   ]
  },
@@ -7770,21 +7830,38 @@
   "id": "bimAdditions.assemblyTypes",
   "title": "Assembly Types",
   "part": "bim",
-  "help": "Defines reusable assembly templates.",
+  "help": "Group real 06 BIM elements by structural type and story to define prefab assembly types.",
   "requiresProject": true,
   "fields": [
    {
     "key": "typeName",
-    "label": "Assembly type",
+    "label": "Assembly group prefix",
     "type": "text",
     "default": "Modular-Frame"
    },
    {
-    "key": "quantity",
-    "label": "Typical quantity [ea]",
-    "type": "number",
-    "default": 1,
-    "min": 1
+    "key": "memberKind",
+    "label": "Group BIM elements by kind",
+    "type": "select",
+    "default": "all",
+    "options": [
+     {
+      "value": "all",
+      "label": "All elements"
+     },
+     {
+      "value": "beam",
+      "label": "Beams"
+     },
+     {
+      "value": "column",
+      "label": "Columns"
+     },
+     {
+      "value": "slab",
+      "label": "Slabs"
+     }
+    ]
    }
   ]
  },
@@ -7835,14 +7912,14 @@
   "id": "bimAdditions.explodeAssembly",
   "title": "Explode Assembly",
   "part": "bim",
-  "help": "Breaks an assembly back into single elements.",
+  "help": "Disaggregate structural assemblies into individual tracked element instances by story.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "assemblyName",
-    "label": "Assembly name",
+    "key": "storyFilter",
+    "label": "Story filter (blank = all assemblies)",
     "type": "text",
-    "default": "Frame Assembly"
+    "default": ""
    }
   ]
  },
@@ -7919,32 +7996,32 @@
   "id": "bimAdditions.placeByGrid",
   "title": "Place by Grid",
   "part": "bim",
-  "help": "Places a component at a grid intersection.",
+  "help": "Resolve real world (X, Y) coordinates from 05 Floor Plan grids plus placement offsets.",
   "requiresProject": true,
   "fields": [
    {
     "key": "gridX",
-    "label": "Grid X",
+    "label": "Grid X label",
     "type": "text",
     "default": "A"
    },
    {
     "key": "gridY",
-    "label": "Grid Y",
+    "label": "Grid Y label",
     "type": "text",
     "default": "1"
    },
    {
     "key": "offsetX",
-    "label": "Offset X [m]",
+    "label": "Local offset X [m]",
     "type": "number",
-    "default": 0
+    "default": 0.0
    },
    {
     "key": "offsetY",
-    "label": "Offset Y [m]",
+    "label": "Local offset Y [m]",
     "type": "number",
-    "default": 0
+    "default": 0.0
    }
   ]
  },
@@ -7952,32 +8029,32 @@
   "id": "bimAdditions.placeOnFace",
   "title": "Place on Face",
   "part": "bim",
-  "help": "Places the active component on a picked face.",
+  "help": "Compute host element face plane coordinates and normal vector from real 06 BIM geometry.",
   "requiresProject": true,
   "fields": [
    {
     "key": "elementId",
-    "label": "Component element id",
+    "label": "Host element ID",
     "type": "text",
     "default": "C1"
    },
    {
     "key": "face",
-    "label": "Target face",
+    "label": "Target face normal",
     "type": "select",
     "default": "top",
     "options": [
      {
       "value": "top",
-      "label": "Top"
+      "label": "Top (+Z)"
      },
      {
       "value": "side",
-      "label": "Side"
+      "label": "Side (+X/+Y)"
      },
      {
       "value": "bottom",
-      "label": "Bottom"
+      "label": "Bottom (-Z)"
      }
     ]
    }
@@ -7987,20 +8064,20 @@
   "id": "bimAdditions.spaceBoundaries",
   "title": "Space Boundaries",
   "part": "bim",
-  "help": "Calculates and lists boundaries for a building space.",
+  "help": "Extract architectural/structural bounding walls, columns, and slabs from 06 BIM.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "spaceName",
-    "label": "Space name",
+    "key": "storyFilter",
+    "label": "Story level filter (blank = all)",
     "type": "text",
-    "default": "Room 101"
+    "default": ""
    },
    {
     "key": "includeSecondLevel",
-    "label": "Include secondary boundaries",
+    "label": "Include slab/ceiling thermal boundaries",
     "type": "checkbox",
-    "default": false
+    "default": true
    }
   ]
  },
@@ -8029,7 +8106,7 @@
   "id": "bimAdditions.zoneEquipment",
   "title": "Zone Equipment",
   "part": "bim",
-  "help": "Assigns equipment to a building zone.",
+  "help": "Assign real 07 MEP plant or specified terminal units to a BIM zone and export schedule.",
   "requiresProject": true,
   "fields": [
    {
@@ -8040,9 +8117,9 @@
    },
    {
     "key": "equipmentNames",
-    "label": "Equipment names",
+    "label": "Equipment IDs (blank = read 07 MEP plant)",
     "type": "text",
-    "default": "FCU-1, FCU-2"
+    "default": ""
    }
   ]
  },
@@ -8050,29 +8127,36 @@
   "id": "bimAdditionsConnections.anchorRods",
   "title": "Anchor Rods",
   "part": "bim",
-  "help": "Schedules anchor rods.",
+  "help": "Compute anchor rod steel tensile yield/rupture and concrete cone breakout capacities.",
   "requiresProject": true,
   "fields": [
    {
     "key": "diameter",
-    "label": "Rod diameter [mm]",
+    "label": "Anchor rod diameter [mm]",
     "type": "number",
-    "default": 24,
-    "min": 6
+    "default": 24.0,
+    "min": 10.0
    },
    {
     "key": "count",
-    "label": "Rod count [ea]",
+    "label": "Total anchor rod count [ea]",
     "type": "number",
     "default": 4,
-    "min": 1
+    "min": 2
    },
    {
     "key": "embedment",
-    "label": "Embedment length [mm]",
+    "label": "Effective embedment hef [mm]",
     "type": "number",
-    "default": 300,
-    "min": 50
+    "default": 300.0,
+    "min": 50.0
+   },
+   {
+    "key": "fcMpa",
+    "label": "Pedestal concrete f'c [MPa]",
+    "type": "number",
+    "default": 28.0,
+    "min": 15.0
    }
   ]
  },
@@ -8080,26 +8164,70 @@
   "id": "bimAdditionsConnections.baseConnection",
   "title": "Base Connection",
   "part": "bim",
-  "help": "Creates a base connection record.",
+  "help": "Check column baseplate bearing, cantilever plate bending thickness, and anchor rod tension.",
   "requiresProject": true,
   "fields": [
    {
     "key": "column",
-    "label": "Column",
+    "label": "Column ID",
     "type": "text",
     "default": "C1"
    },
    {
     "key": "axial",
-    "label": "Axial force [kN]",
+    "label": "Factored axial compression N_u [kN]",
     "type": "number",
-    "default": 500
+    "default": 500.0,
+    "min": 0.0
    },
    {
     "key": "moment",
-    "label": "Base moment [kN·m]",
+    "label": "Factored base moment M_u [kN·m]",
     "type": "number",
-    "default": 50
+    "default": 50.0,
+    "min": 0.0
+   },
+   {
+    "key": "columnDepthMm",
+    "label": "Column section depth d [mm]",
+    "type": "number",
+    "default": 300.0,
+    "min": 100.0
+   },
+   {
+    "key": "columnWidthMm",
+    "label": "Column flange width b [mm]",
+    "type": "number",
+    "default": 300.0,
+    "min": 100.0
+   },
+   {
+    "key": "plateBmm",
+    "label": "Baseplate width B [mm]",
+    "type": "number",
+    "default": 420.0,
+    "min": 150.0
+   },
+   {
+    "key": "plateNmm",
+    "label": "Baseplate length N [mm]",
+    "type": "number",
+    "default": 420.0,
+    "min": 150.0
+   },
+   {
+    "key": "plateThickMm",
+    "label": "Baseplate thickness t_p [mm]",
+    "type": "number",
+    "default": 24.0,
+    "min": 8.0
+   },
+   {
+    "key": "fcMpa",
+    "label": "Pedestal concrete f'c [MPa]",
+    "type": "number",
+    "default": 28.0,
+    "min": 15.0
    }
   ]
  },
@@ -8204,26 +8332,41 @@
   "id": "bimAdditionsConnections.bracingConnection",
   "title": "Bracing Connection",
   "part": "bim",
-  "help": "Creates a brace-to-frame connection detail.",
+  "help": "Check brace-to-gusset bolts and Whitmore effective width yield resistance.",
   "requiresProject": true,
   "fields": [
    {
     "key": "brace",
-    "label": "Brace member",
+    "label": "Brace member ID",
     "type": "text",
     "default": "M2"
    },
    {
     "key": "frame",
-    "label": "Frame member",
+    "label": "Frame member ID",
     "type": "text",
     "default": "C1"
    },
    {
     "key": "axialForce",
-    "label": "Axial force [kN]",
+    "label": "Factored brace axial force N_u [kN]",
     "type": "number",
-    "default": 50
+    "default": 180.0,
+    "min": 1.0
+   },
+   {
+    "key": "gussetThicknessMm",
+    "label": "Gusset plate thickness [mm]",
+    "type": "number",
+    "default": 12.0,
+    "min": 6.0
+   },
+   {
+    "key": "boltDiameterMm",
+    "label": "Bolt diameter [mm]",
+    "type": "number",
+    "default": 20.0,
+    "min": 12.0
    }
   ]
  },
@@ -8261,29 +8404,37 @@
   "id": "bimAdditionsConnections.cleatPlate",
   "title": "Cleat Plate",
   "part": "bim",
-  "help": "Defines an angle cleat plate.",
+  "help": "Check web cleat angle/plate gross & net shear capacity with code-pack bolt shear.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
-    "label": "Leg length [mm]",
+    "label": "Cleat vertical height L [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 180.0,
+    "min": 40.0
    },
    {
     "key": "width",
-    "label": "Cleat width [mm]",
+    "label": "Cleat outstand leg width [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 100.0,
+    "min": 40.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Cleat thickness t [mm]",
     "type": "number",
-    "default": 10,
-    "min": 3
+    "default": 10.0,
+    "min": 4.0
+   },
+   {
+    "key": "boltCount",
+    "label": "Vertical bolt rows",
+    "type": "number",
+    "default": 2,
+    "min": 1,
+    "max": 12
    }
   ]
  },
@@ -8291,36 +8442,44 @@
   "id": "bimAdditionsConnections.clipAngle",
   "title": "Clip Angle",
   "part": "bim",
-  "help": "Defines a clip angle.",
+  "help": "Check web framing clip angle net shear & bolt group resistance.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
     "label": "Clip length [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 220.0,
+    "min": 60.0
    },
    {
     "key": "legA",
-    "label": "Leg A [mm]",
+    "label": "Web leg A [mm]",
     "type": "number",
-    "default": 75,
-    "min": 20
+    "default": 90.0,
+    "min": 40.0
    },
    {
     "key": "legB",
-    "label": "Leg B [mm]",
+    "label": "Support leg B [mm]",
     "type": "number",
-    "default": 75,
-    "min": 20
+    "default": 90.0,
+    "min": 40.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Angle thickness [mm]",
     "type": "number",
-    "default": 8,
-    "min": 3
+    "default": 8.0,
+    "min": 4.0
+   },
+   {
+    "key": "boltsPerLeg",
+    "label": "Bolts per leg row",
+    "type": "number",
+    "default": 3,
+    "min": 1,
+    "max": 10
    }
   ]
  },
@@ -8351,29 +8510,44 @@
   "id": "bimAdditionsConnections.embedPlate",
   "title": "Embed Plate",
   "part": "bim",
-  "help": "Defines a cast-in embed plate.",
+  "help": "Check cast-in steel embed plate minimum thickness ratio and headed stud shear capacity.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
     "label": "Plate length [mm]",
     "type": "number",
-    "default": 300,
-    "min": 20
+    "default": 300.0,
+    "min": 60.0
    },
    {
     "key": "width",
     "label": "Plate width [mm]",
     "type": "number",
-    "default": 300,
-    "min": 20
+    "default": 300.0,
+    "min": 60.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Plate thickness [mm]",
     "type": "number",
-    "default": 16,
-    "min": 3
+    "default": 16.0,
+    "min": 6.0
+   },
+   {
+    "key": "studCount",
+    "label": "Headed shear studs welded",
+    "type": "number",
+    "default": 4,
+    "min": 2,
+    "max": 24
+   },
+   {
+    "key": "studDiameterMm",
+    "label": "Headed stud diameter [mm]",
+    "type": "number",
+    "default": 19.0,
+    "min": 10.0
    }
   ]
  },
@@ -8408,29 +8582,36 @@
   "id": "bimAdditionsConnections.flangeStiffener",
   "title": "Flange Stiffener",
   "part": "bim",
-  "help": "Defines a member flange stiffener.",
+  "help": "Check column transverse continuity plate thickness vs beam flange and axial squash capacity.",
   "requiresProject": true,
   "fields": [
    {
     "key": "width",
-    "label": "Stiffener width [mm]",
+    "label": "Continuity plate width [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 150.0,
+    "min": 50.0
    },
    {
     "key": "length",
-    "label": "Stiffener length [mm]",
+    "label": "Column web depth length [mm]",
     "type": "number",
-    "default": 300,
-    "min": 20
+    "default": 300.0,
+    "min": 80.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Stiffener thickness [mm]",
     "type": "number",
-    "default": 12,
-    "min": 3
+    "default": 12.0,
+    "min": 6.0
+   },
+   {
+    "key": "beamFlangeThickMm",
+    "label": "Connected beam flange thickness [mm]",
+    "type": "number",
+    "default": 16.0,
+    "min": 5.0
    }
   ]
  },
@@ -8505,18 +8686,18 @@
   "id": "bimAdditionsConnections.momentConnection",
   "title": "Moment Connection",
   "part": "bim",
-  "help": "Creates a moment-resisting connection definition.",
+  "help": "Check beam-column end-plate moment connection bolt tension, flange couple, and welds.",
   "requiresProject": true,
   "fields": [
    {
     "key": "memberA",
-    "label": "Member A",
+    "label": "Beam member ID",
     "type": "text",
     "default": "B1"
    },
    {
     "key": "memberB",
-    "label": "Member B",
+    "label": "Column member ID",
     "type": "text",
     "default": "C1"
    },
@@ -8535,6 +8716,33 @@
       "label": "Partial moment"
      }
     ]
+   },
+   {
+    "key": "momentKnm",
+    "label": "Factored end moment M_u [kN·m]",
+    "type": "number",
+    "default": 120.0,
+    "min": 1.0
+   },
+   {
+    "key": "beamDepthMm",
+    "label": "Beam overall depth d [mm]",
+    "type": "number",
+    "default": 400.0,
+    "min": 150.0
+   },
+   {
+    "key": "boltGrade",
+    "label": "Bolt grade",
+    "type": "text",
+    "default": "8.8"
+   },
+   {
+    "key": "boltDiameterMm",
+    "label": "Bolt diameter [mm]",
+    "type": "number",
+    "default": 20.0,
+    "min": 12.0
    }
   ]
  },
@@ -8542,29 +8750,36 @@
   "id": "bimAdditionsConnections.seatAngle",
   "title": "Seat Angle",
   "part": "bim",
-  "help": "Defines a beam seat angle.",
+  "help": "Check unstiffened seated-beam angle bending thickness and bolt shear demand.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
-    "label": "Seat length [mm]",
+    "label": "Seat angle width [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 150.0,
+    "min": 50.0
    },
    {
     "key": "leg",
-    "label": "Angle leg [mm]",
+    "label": "Horizontal outstanding leg [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 100.0,
+    "min": 50.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Angle leg thickness [mm]",
     "type": "number",
-    "default": 10,
-    "min": 3
+    "default": 12.0,
+    "min": 6.0
+   },
+   {
+    "key": "reactionKn",
+    "label": "Factored beam end reaction [kN]",
+    "type": "number",
+    "default": 65.0,
+    "min": 1.0
    }
   ]
  },
@@ -8572,27 +8787,47 @@
   "id": "bimAdditionsConnections.shearConnection",
   "title": "Shear Connection",
   "part": "bim",
-  "help": "Records the beam reaction and connected members for connection design.",
+  "help": "Design fin-plate shear connection bolt count, bolt shear utilisation, and plate shear check.",
   "requiresProject": true,
   "fields": [
    {
     "key": "beam",
-    "label": "Beam",
+    "label": "Beam ID",
     "type": "text",
     "default": "B1"
    },
    {
     "key": "column",
-    "label": "Column",
+    "label": "Column ID",
     "type": "text",
     "default": "C1"
    },
    {
     "key": "reaction",
-    "label": "Reaction [kN]",
+    "label": "Factored end shear V_u [kN]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 100.0,
+    "min": 1.0
+   },
+   {
+    "key": "boltGrade",
+    "label": "Bolt grade",
+    "type": "text",
+    "default": "8.8"
+   },
+   {
+    "key": "boltDiameterMm",
+    "label": "Bolt diameter [mm]",
+    "type": "number",
+    "default": 20.0,
+    "min": 12.0
+   },
+   {
+    "key": "plateThicknessMm",
+    "label": "Fin plate thickness [mm]",
+    "type": "number",
+    "default": 10.0,
+    "min": 6.0
    }
   ]
  },
@@ -8600,27 +8835,42 @@
   "id": "bimAdditionsConnections.spliceConnection",
   "title": "Splice Connection",
   "part": "bim",
-  "help": "Defines a member splice location.",
+  "help": "Check steel column/beam bolted flange splice bolts & plate yield across real model height.",
   "requiresProject": true,
   "fields": [
    {
     "key": "member",
-    "label": "Member",
+    "label": "Column / Beam ID",
     "type": "text",
     "default": "C1"
    },
    {
     "key": "axial",
-    "label": "Axial force [kN]",
+    "label": "Factored axial force N_u [kN]",
     "type": "number",
-    "default": 300
+    "default": 300.0,
+    "min": 1.0
    },
    {
     "key": "height",
-    "label": "Splice height [mm]",
+    "label": "Splice elevation above base [mm]",
     "type": "number",
-    "default": 3200,
-    "min": 1
+    "default": 3200.0,
+    "min": 1.0
+   },
+   {
+    "key": "plateWidthMm",
+    "label": "Flange splice plate width [mm]",
+    "type": "number",
+    "default": 220.0,
+    "min": 80.0
+   },
+   {
+    "key": "plateThickMm",
+    "label": "Flange splice plate thickness [mm]",
+    "type": "number",
+    "default": 12.0,
+    "min": 6.0
    }
   ]
  },
@@ -8628,29 +8878,36 @@
   "id": "bimAdditionsConnections.stiffenerPlate",
   "title": "Stiffener Plate",
   "part": "bim",
-  "help": "Defines a stiffener plate.",
+  "help": "Check web stiffener plate outstand slenderness b/t and bearing capacity.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
-    "label": "Stiffener length [mm]",
+    "label": "Stiffener clear height h_s [mm]",
     "type": "number",
-    "default": 300,
-    "min": 20
+    "default": 300.0,
+    "min": 20.0
    },
    {
     "key": "width",
-    "label": "Stiffener width [mm]",
+    "label": "Outstand width b_s [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 100.0,
+    "min": 20.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Plate thickness t_s [mm]",
     "type": "number",
-    "default": 10,
-    "min": 3
+    "default": 10.0,
+    "min": 3.0
+   },
+   {
+    "key": "fyMpa",
+    "label": "Plate yield fy [MPa]",
+    "type": "number",
+    "default": 250.0,
+    "min": 150.0
    }
   ]
  },
@@ -8688,7 +8945,7 @@
   "id": "bimAdditionsConnections.weldSymbol",
   "title": "Weld Symbol",
   "part": "bim",
-  "help": "Adds a weld symbol specification.",
+  "help": "Compute weld design resistance per mm and total capacity via saengine.design.steel_connections.",
   "requiresProject": true,
   "fields": [
    {
@@ -8703,7 +8960,7 @@
      },
      {
       "value": "butt",
-      "label": "Butt"
+      "label": "Complete-joint penetration butt"
      },
      {
       "value": "plug",
@@ -8713,17 +8970,24 @@
    },
    {
     "key": "size",
-    "label": "Weld size [mm]",
+    "label": "Weld leg / throat size [mm]",
     "type": "number",
-    "default": 8,
-    "min": 1
+    "default": 8.0,
+    "min": 2.0
    },
    {
     "key": "length",
-    "label": "Weld length [mm]",
+    "label": "Effective weld length [mm]",
     "type": "number",
-    "default": 200,
-    "min": 1
+    "default": 200.0,
+    "min": 20.0
+   },
+   {
+    "key": "electrodeFexxMpa",
+    "label": "Electrode tensile strength FEXX [MPa]",
+    "type": "number",
+    "default": 480.0,
+    "min": 400.0
    }
   ]
  },
@@ -8731,7 +8995,7 @@
   "id": "bimAdditionsCurtain.addMullion",
   "title": "Add Mullion",
   "part": "bim",
-  "help": "Adds a curtain-wall mullion.",
+  "help": "Size curtain-wall mullion required inertia Ixx against L/175 deflection and bending moment.",
   "requiresProject": true,
   "fields": [
    {
@@ -8742,10 +9006,24 @@
    },
    {
     "key": "height",
-    "label": "Mullion height [m]",
+    "label": "Mullion clear span L [m]",
     "type": "number",
-    "default": 3.2,
-    "min": 0.1
+    "default": 3.6,
+    "min": 0.5
+   },
+   {
+    "key": "bayWidthM",
+    "label": "Tributary bay width [m]",
+    "type": "number",
+    "default": 1.5,
+    "min": 0.3
+   },
+   {
+    "key": "windKpa",
+    "label": "Design facade wind pressure [kPa]",
+    "type": "number",
+    "default": 1.5,
+    "min": 0.2
    }
   ]
  },
@@ -8753,7 +9031,7 @@
   "id": "bimAdditionsCurtain.cornerDetail",
   "title": "Corner Detail",
   "part": "bim",
-  "help": "Defines a curtain-wall corner detail.",
+  "help": "Compute miter cut bevel angle, bevel leg length, and thermal movement joint at corners.",
   "requiresProject": true,
   "fields": [
    {
@@ -8778,11 +9056,18 @@
    },
    {
     "key": "angle",
-    "label": "Corner angle [°]",
+    "label": "Corner included angle [°]",
     "type": "number",
-    "default": 90,
-    "min": 1,
-    "max": 180
+    "default": 90.0,
+    "min": 15.0,
+    "max": 175.0
+   },
+   {
+    "key": "wallDepthMm",
+    "label": "Curtain mullion system depth [mm]",
+    "type": "number",
+    "default": 150.0,
+    "min": 50.0
    }
   ]
  },
@@ -8790,12 +9075,12 @@
   "id": "bimAdditionsCurtain.cornerMullion",
   "title": "Corner Mullion",
   "part": "bim",
-  "help": "Adds a corner mullion profile.",
+  "help": "Compute biaxial corner mullion resultant wind load & required corner moment of inertia.",
   "requiresProject": true,
   "fields": [
    {
     "key": "profile",
-    "label": "Corner profile",
+    "label": "Corner mullion mark",
     "type": "text",
     "default": "CM200"
    },
@@ -8803,9 +9088,23 @@
     "key": "angle",
     "label": "Corner angle [°]",
     "type": "number",
-    "default": 90,
-    "min": 1,
-    "max": 180
+    "default": 90.0,
+    "min": 15.0,
+    "max": 175.0
+   },
+   {
+    "key": "edgeWindKpa",
+    "label": "Facade corner zone suction pressure [kPa]",
+    "type": "number",
+    "default": 2.1,
+    "min": 0.3
+   },
+   {
+    "key": "storeyHeightM",
+    "label": "Clear span between floor brackets [m]",
+    "type": "number",
+    "default": 3.6,
+    "min": 1.0
    }
   ]
  },
@@ -8979,28 +9278,35 @@
   "id": "bimAdditionsCurtain.mullionProfile",
   "title": "Mullion Profile",
   "part": "bim",
-  "help": "Defines a curtain mullion profile.",
+  "help": "Compute hollow aluminium box-mullion Ix, Sx, area, and extruded mass per metre.",
   "requiresProject": true,
   "fields": [
    {
     "key": "profile",
-    "label": "Profile name",
+    "label": "Profile mark",
     "type": "text",
     "default": "M150"
    },
    {
     "key": "depth",
-    "label": "Depth [mm]",
+    "label": "Profile overall depth [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 150.0,
+    "min": 40.0
    },
    {
     "key": "width",
-    "label": "Width [mm]",
+    "label": "Face width [mm]",
     "type": "number",
-    "default": 75,
-    "min": 20
+    "default": 60.0,
+    "min": 25.0
+   },
+   {
+    "key": "wallThickMm",
+    "label": "Hollow box wall thickness [mm]",
+    "type": "number",
+    "default": 3.5,
+    "min": 1.5
    }
   ]
  },
@@ -9008,19 +9314,27 @@
   "id": "bimAdditionsCurtain.panelSchedule",
   "title": "Panel Schedule",
   "part": "bim",
-  "help": "Schedules facade panels.",
+  "help": "Schedule facade glazing panels across real BIM stories in 06 BIM/bim.json.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "panelCount",
-    "label": "Panel count [ea]",
+    "key": "bayWidthM",
+    "label": "Standard curtain module width [m]",
     "type": "number",
-    "default": 20,
-    "min": 1
+    "default": 1.5,
+    "min": 0.4
+   },
+   {
+    "key": "panelCountPerLevel",
+    "label": "Panels per level [ea]",
+    "type": "number",
+    "default": 8,
+    "min": 1,
+    "max": 200
    },
    {
     "key": "prefix",
-    "label": "Panel prefix",
+    "label": "Panel mark prefix",
     "type": "text",
     "default": "CW"
    }
@@ -9030,34 +9344,41 @@
   "id": "bimAdditionsCurtain.replacePanel",
   "title": "Replace Panel",
   "part": "bim",
-  "help": "Replaces a facade panel type.",
+  "help": "Update persistent facade panel replacement register with thermal U-value & dead-weight impact.",
   "requiresProject": true,
   "fields": [
    {
     "key": "panelId",
-    "label": "Panel id",
+    "label": "Panel mark ID",
     "type": "text",
-    "default": "CW-1"
+    "default": "CW-BASE-1"
    },
    {
     "key": "replacement",
-    "label": "Replacement type",
+    "label": "Replacement infill",
     "type": "select",
     "default": "glazing",
     "options": [
      {
       "value": "glazing",
-      "label": "Glazing"
+      "label": "Vision DGU (U=1.8)"
      },
      {
       "value": "spandrel",
-      "label": "Spandrel"
+      "label": "Insulated Spandrel (U=0.35)"
      },
      {
       "value": "vent",
-      "label": "Vent"
+      "label": "Louvred Vent (U=4.5)"
      }
     ]
+   },
+   {
+    "key": "panelAreaM2",
+    "label": "Panel surface area [m²]",
+    "type": "number",
+    "default": 4.8,
+    "min": 0.2
    }
   ]
  },
@@ -9095,7 +9416,7 @@
   "id": "bimAdditionsCurtain.spiderFitting",
   "title": "Spider Fitting",
   "part": "bim",
-  "help": "Defines a structural-glass spider fitting.",
+  "help": "Calculate point-fixed stainless spider bolt wind tension & dead-weight shear reaction.",
   "requiresProject": true,
   "fields": [
    {
@@ -9120,10 +9441,24 @@
    },
    {
     "key": "diameter",
-    "label": "Fitting diameter [mm]",
+    "label": "Bolt PCD fitting diameter [mm]",
     "type": "number",
-    "default": 200,
-    "min": 50
+    "default": 220.0,
+    "min": 80.0
+   },
+   {
+    "key": "glassAreaM2",
+    "label": "Single glass lite area [m²]",
+    "type": "number",
+    "default": 4.5,
+    "min": 0.5
+   },
+   {
+    "key": "windKpa",
+    "label": "Design wind pressure [kPa]",
+    "type": "number",
+    "default": 1.8,
+    "min": 0.2
    }
   ]
  },
@@ -9191,22 +9526,36 @@
   "id": "bimAdditionsCurtain.structuralSilicone",
   "title": "Structural Silicone",
   "part": "bim",
-  "help": "Defines a structural-silicone joint.",
+  "help": "Size structural glazing silicone bite width against trapezoidal wind tributary tension.",
   "requiresProject": true,
   "fields": [
    {
     "key": "thickness",
-    "label": "Silicone bite [mm]",
+    "label": "Proposed silicone bite B [mm]",
     "type": "number",
-    "default": 12,
-    "min": 2
+    "default": 12.0,
+    "min": 4.0
    },
    {
     "key": "length",
-    "label": "Joint length [mm]",
+    "label": "Short glass edge length [mm]",
     "type": "number",
-    "default": 3000,
-    "min": 100
+    "default": 1500.0,
+    "min": 300.0
+   },
+   {
+    "key": "windKpa",
+    "label": "Design negative wind suction [kPa]",
+    "type": "number",
+    "default": 1.8,
+    "min": 0.2
+   },
+   {
+    "key": "gluelineMm",
+    "label": "Silicone glueline thickness t_g [mm]",
+    "type": "number",
+    "default": 6.0,
+    "min": 3.0
    }
   ]
  },
@@ -9214,26 +9563,26 @@
   "id": "bimAdditionsCurtain.sunshadeLouver",
   "title": "Sunshade Louver",
   "part": "bim",
-  "help": "Defines exterior sunshade louvers.",
+  "help": "Compute exterior solar shading cut-off angle and wind line force per blade.",
   "requiresProject": true,
   "fields": [
    {
     "key": "length",
-    "label": "Louver length [m]",
+    "label": "Blade clear span [m]",
     "type": "number",
     "default": 1.5,
-    "min": 0.1
+    "min": 0.3
    },
    {
     "key": "depth",
-    "label": "Louver depth [m]",
+    "label": "Blade chord projection depth [m]",
     "type": "number",
     "default": 0.3,
-    "min": 0.01
+    "min": 0.05
    },
    {
     "key": "spacing",
-    "label": "Louver spacing [m]",
+    "label": "Vertical blade pitch spacing [m]",
     "type": "number",
     "default": 0.3,
     "min": 0.05
@@ -9274,7 +9623,7 @@
   "id": "bimAdditionsCurtain.transomProfile",
   "title": "Transom Profile",
   "part": "bim",
-  "help": "Defines a curtain transom profile.",
+  "help": "Check transom vertical gravity deflection under two quarter-point setting-block loads.",
   "requiresProject": true,
   "fields": [
    {
@@ -9285,17 +9634,31 @@
    },
    {
     "key": "depth",
-    "label": "Depth [mm]",
+    "label": "Transom depth [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 120.0,
+    "min": 40.0
    },
    {
     "key": "width",
-    "label": "Width [mm]",
+    "label": "Face width [mm]",
     "type": "number",
-    "default": 50,
-    "min": 20
+    "default": 50.0,
+    "min": 25.0
+   },
+   {
+    "key": "baySpanM",
+    "label": "Mullion-to-mullion transom span [m]",
+    "type": "number",
+    "default": 1.5,
+    "min": 0.5
+   },
+   {
+    "key": "panelWeightKg",
+    "label": "Supported DGU panel dead weight [kg]",
+    "type": "number",
+    "default": 150.0,
+    "min": 10.0
    }
   ]
  },
@@ -9356,20 +9719,20 @@
   "id": "bimAdditionsFamilies.addParameter",
   "title": "Add Parameter",
   "part": "bim",
-  "help": "Adds a parameter definition to a BIM family.",
+  "help": "Validate parameter type & value syntax and append to family parameter schema ledger.",
   "requiresProject": true,
   "fields": [
    {
     "key": "name",
     "label": "Parameter name",
     "type": "text",
-    "default": "FireRating"
+    "default": "FireRatingHours"
    },
    {
     "key": "parameterType",
     "label": "Parameter type",
     "type": "select",
-    "default": "text",
+    "default": "number",
     "options": [
      {
       "value": "text",
@@ -9389,7 +9752,7 @@
     "key": "defaultValue",
     "label": "Default value",
     "type": "text",
-    "default": "N/A"
+    "default": "2"
    }
   ]
  },
@@ -9420,18 +9783,18 @@
   "id": "bimAdditionsFamilies.batchLoadFamilies",
   "title": "Batch Load Families",
   "part": "bim",
-  "help": "Loads multiple family names as a batch.",
+  "help": "Resolve requested family/type names against 04 Objects & 06 BIM definitions.",
   "requiresProject": true,
   "fields": [
    {
     "key": "familyNames",
-    "label": "Family names",
+    "label": "Type / family IDs to validate",
     "type": "text",
-    "default": "Beam,Column,Wall"
+    "default": "C1,B1,W1,S1"
    },
    {
     "key": "replaceExisting",
-    "label": "Replace existing types",
+    "label": "Overwrite existing entries",
     "type": "checkbox",
     "default": false
    }
@@ -9471,21 +9834,28 @@
   "id": "bimAdditionsFamilies.dimensionConstraint",
   "title": "Dimension Constraint",
   "part": "bim",
-  "help": "Adds or updates a family dimension constraint.",
+  "help": "Check family dimension constraint against real 06 BIM element lengths and tolerance.",
   "requiresProject": true,
   "fields": [
    {
     "key": "name",
-    "label": "Dimension name",
+    "label": "Constraint parameter name",
     "type": "text",
-    "default": "Length"
+    "default": "TargetLength"
    },
    {
-    "key": "value",
-    "label": "Constraint value [m]",
+    "key": "targetDimensionM",
+    "label": "Target constraint length [m]",
     "type": "number",
-    "default": 3.0,
-    "min": 0.001
+    "default": 6.0,
+    "min": 0.05
+   },
+   {
+    "key": "toleranceMm",
+    "label": "Maximum fabrication deviation [mm]",
+    "type": "number",
+    "default": 10.0,
+    "min": 0.5
    },
    {
     "key": "locked",
@@ -9499,20 +9869,20 @@
   "id": "bimAdditionsFamilies.duplicateType",
   "title": "Duplicate Type",
   "part": "bim",
-  "help": "Duplicates a BIM family type with a new name.",
+  "help": "Clone an existing 04 Objects / 06 BIM family type definition under a validated new name.",
   "requiresProject": true,
   "fields": [
    {
     "key": "sourceType",
-    "label": "Source type",
+    "label": "Source type ID",
     "type": "text",
     "default": "B300x500"
    },
    {
     "key": "newType",
-    "label": "New type",
+    "label": "New type ID",
     "type": "text",
-    "default": "B300x500-D"
+    "default": "B300x500-Heavy"
    }
   ]
  },
@@ -9559,12 +9929,12 @@
   "id": "bimAdditionsFamilies.familyTemplates",
   "title": "Family Templates",
   "part": "bim",
-  "help": "Selects a family template for new BIM components.",
+  "help": "Emit required analytical & geometric schema fields for the selected BIM component template.",
   "requiresProject": true,
   "fields": [
    {
     "key": "template",
-    "label": "Template",
+    "label": "Component template",
     "type": "select",
     "default": "structuralBeam",
     "options": [
@@ -9578,11 +9948,11 @@
      },
      {
       "value": "wall",
-      "label": "Wall"
+      "label": "Shear / bearing wall"
      },
      {
-      "value": "generic",
-      "label": "Generic"
+      "value": "slab",
+      "label": "Floor slab"
      }
     ]
    }
@@ -9592,20 +9962,20 @@
   "id": "bimAdditionsFamilies.loadNested",
   "title": "Load Nested",
   "part": "bim",
-  "help": "Loads a nested family into a host family.",
+  "help": "Validate host family against 04 Objects/06 BIM and guard against self-nesting cycles.",
   "requiresProject": true,
   "fields": [
    {
     "key": "nestedFamily",
-    "label": "Nested family",
+    "label": "Sub-component type",
     "type": "text",
     "default": "Plate-Detail"
    },
    {
     "key": "hostFamily",
-    "label": "Host family",
+    "label": "Host 04 Objects / BIM type",
     "type": "text",
-    "default": "Column"
+    "default": "B300x500"
    }
   ]
  },
@@ -9613,20 +9983,20 @@
   "id": "bimAdditionsFamilies.lockAlignment",
   "title": "Lock Alignment",
   "part": "bim",
-  "help": "Locks a family element to a reference.",
+  "help": "Verify host element existence in 06 BIM and persist datum alignment lock state.",
   "requiresProject": true,
   "fields": [
    {
     "key": "reference",
-    "label": "Reference object",
+    "label": "Reference grid or level (e.g. A, L1)",
     "type": "text",
-    "default": "Reference Plane"
+    "default": "L1"
    },
    {
     "key": "host",
-    "label": "Host object",
+    "label": "Target 06 BIM element ID",
     "type": "text",
-    "default": "Extrusion"
+    "default": "B1"
    },
    {
     "key": "locked",
@@ -9640,20 +10010,20 @@
   "id": "bimAdditionsFamilies.nestComponent",
   "title": "Nest Component",
   "part": "bim",
-  "help": "Adds a component to a parent family hierarchy.",
+  "help": "Append hierarchical parent-child component relation with cycle detection.",
   "requiresProject": true,
   "fields": [
    {
     "key": "parent",
-    "label": "Parent component",
+    "label": "Parent assembly / family",
     "type": "text",
     "default": "Frame"
    },
    {
     "key": "component",
-    "label": "Nested component",
+    "label": "Child sub-component",
     "type": "text",
-    "default": "Plate"
+    "default": "BasePlate"
    }
   ]
  },
@@ -9696,24 +10066,45 @@
   "id": "bimAdditionsFamilies.parameterFormula",
   "title": "Parameter Formula",
   "part": "bim",
-  "help": "Defines a parameter formula for a BIM family.",
+  "help": "Safely parse and evaluate parametric family formula over input dimensions.",
   "requiresProject": true,
   "fields": [
    {
     "key": "parameter",
-    "label": "Dependent parameter",
+    "label": "Target parameter",
     "type": "text",
     "default": "Volume"
    },
    {
     "key": "formula",
-    "label": "Formula",
+    "label": "Arithmetic formula (vars: Width, Height, Length)",
     "type": "text",
     "default": "Width * Height * Length"
    },
    {
+    "key": "width",
+    "label": "Width",
+    "type": "number",
+    "default": 0.3,
+    "min": 0.001
+   },
+   {
+    "key": "height",
+    "label": "Height",
+    "type": "number",
+    "default": 0.5,
+    "min": 0.001
+   },
+   {
+    "key": "length",
+    "label": "Length",
+    "type": "number",
+    "default": 6.0,
+    "min": 0.001
+   },
+   {
     "key": "units",
-    "label": "Units",
+    "label": "Output units",
     "type": "text",
     "default": "m³"
    }
@@ -9723,18 +10114,18 @@
   "id": "bimAdditionsFamilies.parameterMapping",
   "title": "Parameter Mapping",
   "part": "bim",
-  "help": "Maps a source parameter to a target BIM parameter.",
+  "help": "Preview and save source-to-target property mapping across real 06 BIM elements.",
   "requiresProject": true,
   "fields": [
    {
     "key": "sourceParameter",
-    "label": "Source parameter",
+    "label": "Source BIM attribute (e.g. id, kind, type, story)",
     "type": "text",
-    "default": "Mark"
+    "default": "type"
    },
    {
     "key": "targetParameter",
-    "label": "Target parameter",
+    "label": "Export schedule field",
     "type": "text",
     "default": "AssemblyMark"
    }
@@ -9744,12 +10135,12 @@
   "id": "bimAdditionsFamilies.purgeTypes",
   "title": "Purge Types",
   "part": "bim",
-  "help": "Identifies unused BIM family types.",
+  "help": "Diff 04 Objects catalog types against 06 BIM elements to isolate unused types.",
   "requiresProject": true,
   "fields": [
    {
     "key": "removeUnused",
-    "label": "Remove unused types",
+    "label": "Confirm purge candidates in output",
     "type": "checkbox",
     "default": true
    }
@@ -9759,14 +10150,14 @@
   "id": "bimAdditionsFamilies.purgeUnusedFamilies",
   "title": "Purge Unused Families",
   "part": "bim",
-  "help": "Reports unused family types and optionally confirms purge.",
+  "help": "Compare 04 Objects catalog vs 06 BIM elements to list used vs unused families.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "confirmPurge",
-    "label": "Confirm purge of unused families",
+    "key": "previewOnly",
+    "label": "Include purge preview report",
     "type": "checkbox",
-    "default": false
+    "default": true
    }
   ]
  },
@@ -9774,34 +10165,34 @@
   "id": "bimAdditionsFamilies.referencePlane",
   "title": "Reference Plane",
   "part": "bim",
-  "help": "Defines a family reference plane.",
+  "help": "Intersect work plane against real 06 BIM stories / 05 Floor Plan grids to count hosted elements.",
   "requiresProject": true,
   "fields": [
    {
     "key": "orientation",
-    "label": "Orientation",
+    "label": "Normal axis",
     "type": "select",
     "default": "z",
     "options": [
      {
       "value": "x",
-      "label": "X"
+      "label": "X (YZ plane)"
      },
      {
       "value": "y",
-      "label": "Y"
+      "label": "Y (XZ plane)"
      },
      {
       "value": "z",
-      "label": "Z"
+      "label": "Z (XY datum)"
      }
     ]
    },
    {
     "key": "position",
-    "label": "Plane position [m]",
+    "label": "Plane coordinate offset [m]",
     "type": "number",
-    "default": 0.0
+    "default": 3.2
    }
   ]
  },
@@ -9809,20 +10200,20 @@
   "id": "bimAdditionsFamilies.renameType",
   "title": "Rename Type",
   "part": "bim",
-  "help": "Renames a BIM family type.",
+  "help": "Validate and trace type rename impact count across 06 BIM elements and 04 Objects.",
   "requiresProject": true,
   "fields": [
    {
     "key": "oldType",
-    "label": "Existing type",
+    "label": "Existing type ID",
     "type": "text",
     "default": "B300x500"
    },
    {
     "key": "newType",
-    "label": "New type",
+    "label": "Replacement type ID",
     "type": "text",
-    "default": "Beam-300"
+    "default": "B300x500-R"
    }
   ]
  },
@@ -9830,18 +10221,18 @@
   "id": "bimAdditionsFamilies.sharedParameter",
   "title": "Shared Parameter",
   "part": "bim",
-  "help": "Creates or selects a shared BIM parameter.",
+  "help": "Register persistent deterministic GUID-tagged shared parameter definition.",
   "requiresProject": true,
   "fields": [
    {
     "key": "name",
-    "label": "Shared parameter",
+    "label": "Shared parameter GUID key",
     "type": "text",
     "default": "AssemblyCode"
    },
    {
     "key": "group",
-    "label": "Parameter group",
+    "label": "IFC / Schedule group",
     "type": "text",
     "default": "Identity Data"
    }
@@ -9881,15 +10272,19 @@
   "id": "bimAdditionsFamilies.typeCatalog",
   "title": "Type Catalog",
   "part": "bim",
-  "help": "Lists available BIM types for a category.",
+  "help": "Build catalog of 04 Objects & 06 BIM types with geometry, material, and placed counts.",
   "requiresProject": true,
   "fields": [
    {
     "key": "category",
-    "label": "Category",
+    "label": "Element category",
     "type": "select",
-    "default": "beam",
+    "default": "all",
     "options": [
+     {
+      "value": "all",
+      "label": "All categories"
+     },
      {
       "value": "beam",
       "label": "Beams"
@@ -9944,21 +10339,35 @@
   "id": "bimAdditionsMassing.applyPanel",
   "title": "Apply Panel",
   "part": "bim",
-  "help": "Applies a panel type to a divided mass surface.",
+  "help": "Calculate applied facade panel count, total cladding tonnage, and gravity facade line load.",
   "requiresProject": true,
   "fields": [
    {
     "key": "panelType",
-    "label": "Panel type",
+    "label": "Cladding family",
     "type": "text",
     "default": "CW-Glazing"
    },
    {
-    "key": "count",
-    "label": "Applied count [ea]",
+    "key": "facadeAreaM2",
+    "label": "Divided surface area (0 = use BIM extent) [m²]",
     "type": "number",
-    "default": 100,
-    "min": 1
+    "default": 0.0,
+    "min": 0.0
+   },
+   {
+    "key": "moduleAreaM2",
+    "label": "Single module area [m²]",
+    "type": "number",
+    "default": 4.5,
+    "min": 0.2
+   },
+   {
+    "key": "unitMassKgPerM2",
+    "label": "Cladding dead weight [kg/m²]",
+    "type": "number",
+    "default": 38.0,
+    "min": 5.0
    }
   ]
  },
@@ -10253,21 +10662,36 @@
   "id": "bimAdditionsMassing.massFloor",
   "title": "Mass Floor",
   "part": "bim",
-  "help": "Creates a conceptual mass floor.",
+  "help": "Compute mass floorplate net usable area and total gravity load kN for preliminary reactions.",
   "requiresProject": true,
   "fields": [
    {
     "key": "area",
-    "label": "Floor area [m²]",
+    "label": "Mass floorplate GFA [m²]",
     "type": "number",
     "default": 500.0,
-    "min": 0.1
+    "min": 10.0
    },
    {
     "key": "elevation",
     "label": "Floor elevation [m]",
     "type": "number",
     "default": 10.0
+   },
+   {
+    "key": "netEfficiency",
+    "label": "Net-to-gross efficiency factor",
+    "type": "number",
+    "default": 0.82,
+    "min": 0.5,
+    "max": 0.95
+   },
+   {
+    "key": "gravityKnPerM2",
+    "label": "Estimated floor DL+SDL+LL [kN/m²]",
+    "type": "number",
+    "default": 11.5,
+    "min": 3.0
    }
   ]
  },
@@ -10298,22 +10722,37 @@
   "id": "bimAdditionsMassing.planarizeFaces",
   "title": "Planarize Faces",
   "part": "bim",
-  "help": "Reports a planarization tolerance setup.",
+  "help": "Evaluate freeform quad panel corner out-of-plane warp vs tolerance & triangulation need.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "faceCount",
-    "label": "Face count [ea]",
+    "key": "panelWidthM",
+    "label": "Quad panel width [m]",
     "type": "number",
-    "default": 20,
-    "min": 1
+    "default": 1.5,
+    "min": 0.3
+   },
+   {
+    "key": "panelHeightM",
+    "label": "Quad panel height [m]",
+    "type": "number",
+    "default": 3.2,
+    "min": 0.3
+   },
+   {
+    "key": "twistAngleDeg",
+    "label": "Freeform surface twist across panel [°]",
+    "type": "number",
+    "default": 2.5,
+    "min": 0.0,
+    "max": 45.0
    },
    {
     "key": "tolerance",
-    "label": "Planarity tolerance [mm]",
+    "label": "Cold-warp fabrication tolerance [mm]",
     "type": "number",
-    "default": 10,
-    "min": 0
+    "default": 10.0,
+    "min": 0.5
    }
   ]
  },
@@ -10382,35 +10821,35 @@
   "id": "bimAdditionsMassing.surfacePattern",
   "title": "Surface Pattern",
   "part": "bim",
-  "help": "Defines a surface pattern.",
+  "help": "Compute facade envelope surface subdivision counts and mullion length over BIM model envelope.",
   "requiresProject": true,
   "fields": [
    {
     "key": "pattern",
-    "label": "Pattern",
+    "label": "Grid pattern",
     "type": "select",
     "default": "square",
     "options": [
      {
       "value": "diamond",
-      "label": "Diamond"
+      "label": "Diagrid Diamond"
      },
      {
       "value": "square",
-      "label": "Square"
+      "label": "Orthogonal Grid"
      },
      {
       "value": "triangular",
-      "label": "Triangular"
+      "label": "Triangulated Mesh"
      }
     ]
    },
    {
     "key": "spacing",
-    "label": "Pattern spacing [m]",
+    "label": "Module grid pitch [m]",
     "type": "number",
-    "default": 0.5,
-    "min": 0.01
+    "default": 1.5,
+    "min": 0.1
    }
   ]
  },
@@ -10495,21 +10934,21 @@
   "id": "bimAdditionsMassing.updateMass",
   "title": "Update Mass",
   "part": "bim",
-  "help": "Records an updated conceptual-mass height.",
+  "help": "Compare updated massing height against current BIM extent slenderness H/B and roof delta.",
   "requiresProject": true,
   "fields": [
    {
     "key": "massName",
-    "label": "Mass name",
+    "label": "Mass zone name",
     "type": "text",
     "default": "Tower Mass"
    },
    {
     "key": "height",
-    "label": "Updated height [m]",
+    "label": "Proposed roof height [m]",
     "type": "number",
     "default": 60.0,
-    "min": 0.1
+    "min": 3.0
    }
   ]
  },
@@ -10517,29 +10956,29 @@
   "id": "bimAdditionsOpenings.acousticSleeve",
   "title": "Acoustic Sleeve",
   "part": "bim",
-  "help": "Defines an acoustic penetration sleeve.",
+  "help": "Verify acoustic decoupling liner clearance between pipe OD and structural sleeve bore.",
   "requiresProject": true,
   "fields": [
    {
     "key": "pipeDiameter",
-    "label": "Pipe diameter [mm]",
+    "label": "Pipe outer diameter [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 100.0,
+    "min": 20.0
    },
    {
     "key": "sleeveDiameter",
-    "label": "Sleeve diameter [mm]",
+    "label": "Steel sleeve internal bore [mm]",
     "type": "number",
-    "default": 160,
-    "min": 30
+    "default": 160.0,
+    "min": 30.0
    },
    {
     "key": "linerThickness",
-    "label": "Acoustic liner thickness [mm]",
+    "label": "Mineral-wool liner thickness [mm]",
     "type": "number",
-    "default": 20,
-    "min": 1
+    "default": 20.0,
+    "min": 5.0
    }
   ]
  },
@@ -10575,7 +11014,7 @@
   "id": "bimAdditionsOpenings.approvalWorkflow",
   "title": "Approval Workflow",
   "part": "bim",
-  "help": "Assigns an approval stage to openings.",
+  "help": "Validate model opening IDs, enforce workflow state transitions, and persist opening approval ledger.",
   "requiresProject": true,
   "fields": [
    {
@@ -10633,21 +11072,15 @@
   "id": "bimAdditionsOpenings.conflictCheck",
   "title": "Conflict Check",
   "part": "bim",
-  "help": "Reports potential opening conflicts from a supplied id list.",
+  "help": "Detect geometric overlap or insufficient spacing between real BIM and MEP openings.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "openingIds",
-    "label": "Opening ids",
-    "type": "text",
-    "default": "O1,O2"
-   },
-   {
     "key": "tolerance",
-    "label": "Conflict tolerance [mm]",
+    "label": "Minimum clear separation gap between openings [mm]",
     "type": "number",
-    "default": 1,
-    "min": 0
+    "default": 150.0,
+    "min": 0.0
    }
   ]
  },
@@ -10708,29 +11141,29 @@
   "id": "bimAdditionsOpenings.edgeTrimAngle",
   "title": "Edge Trim Angle",
   "part": "bim",
-  "help": "Defines an edge trim angle.",
+  "help": "Compute equal steel edge-trim angle cross-section area, steel weight, and anchor count.",
   "requiresProject": true,
   "fields": [
    {
     "key": "leg",
-    "label": "Angle leg [mm]",
+    "label": "Angle equal leg width [mm]",
     "type": "number",
-    "default": 50,
-    "min": 10
+    "default": 65.0,
+    "min": 20.0
    },
    {
     "key": "thickness",
-    "label": "Thickness [mm]",
+    "label": "Angle thickness [mm]",
     "type": "number",
-    "default": 6,
-    "min": 2
+    "default": 6.0,
+    "min": 3.0
    },
    {
     "key": "length",
-    "label": "Trim length [m]",
+    "label": "Trimmed edge length [m]",
     "type": "number",
-    "default": 1.0,
-    "min": 0.1
+    "default": 2.4,
+    "min": 0.2
    }
   ]
  },
@@ -10738,22 +11171,29 @@
   "id": "bimAdditionsOpenings.firestopCollar",
   "title": "Firestop Collar",
   "part": "bim",
-  "help": "Defines a firestop collar.",
+  "help": "Size core-drilled slab/wall hole and intumescent fill volume around firestop collar.",
   "requiresProject": true,
   "fields": [
    {
     "key": "pipeDiameter",
-    "label": "Pipe diameter [mm]",
+    "label": "Combustible pipe OD [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 110.0,
+    "min": 20.0
    },
    {
     "key": "collarHeight",
-    "label": "Collar height [mm]",
+    "label": "Intumescent collar casing depth [mm]",
     "type": "number",
-    "default": 50,
-    "min": 5
+    "default": 50.0,
+    "min": 20.0
+   },
+   {
+    "key": "coreGapMm",
+    "label": "Target annular gap around pipe [mm]",
+    "type": "number",
+    "default": 15.0,
+    "min": 5.0
    }
   ]
  },
@@ -10791,35 +11231,49 @@
   "id": "bimAdditionsOpenings.openingFraming",
   "title": "Opening Framing",
   "part": "bim",
-  "help": "Defines framing around an opening.",
+  "help": "Size opening header trimmer bending moment M_u and required plastic section modulus Zx.",
   "requiresProject": true,
   "fields": [
    {
     "key": "framing",
-    "label": "Framing type",
+    "label": "Trimmer framing material",
     "type": "select",
     "default": "steel",
     "options": [
      {
       "value": "steel",
-      "label": "Steel"
+      "label": "Structural Steel"
      },
      {
       "value": "timber",
-      "label": "Timber"
+      "label": "Engineered Timber"
      },
      {
       "value": "concrete",
-      "label": "Concrete"
+      "label": "Embedded Rebar Band"
      }
     ]
    },
    {
-    "key": "width",
-    "label": "Framing width [mm]",
+    "key": "openingSpanM",
+    "label": "Trimmed opening span [m]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 1.8,
+    "min": 0.2
+   },
+   {
+    "key": "tributaryLoadKnPerM",
+    "label": "Factored trimmed slab line load [kN/m]",
+    "type": "number",
+    "default": 12.0,
+    "min": 0.5
+   },
+   {
+    "key": "width",
+    "label": "Trimmer flange/beam width [mm]",
+    "type": "number",
+    "default": 100.0,
+    "min": 40.0
    }
   ]
  },
@@ -10827,35 +11281,49 @@
   "id": "bimAdditionsOpenings.openingTrim",
   "title": "Opening Trim",
   "part": "bim",
-  "help": "Defines trim around an opening.",
+  "help": "Compute opening perimeter trim cut-length, miter waste allowance, and estimated mass.",
   "requiresProject": true,
   "fields": [
    {
     "key": "trim",
-    "label": "Trim type",
+    "label": "Trim material",
     "type": "select",
     "default": "metal",
     "options": [
      {
       "value": "metal",
-      "label": "Metal"
+      "label": "Galv Steel C-Channel"
      },
      {
       "value": "masonry",
-      "label": "Masonry"
+      "label": "Brick/Block Reveal"
      },
      {
       "value": "timber",
-      "label": "Timber"
+      "label": "Treated Timber"
      }
     ]
    },
    {
-    "key": "thickness",
-    "label": "Trim thickness [mm]",
+    "key": "widthMm",
+    "label": "Opening clear width [mm]",
     "type": "number",
-    "default": 25,
-    "min": 1
+    "default": 900.0,
+    "min": 100.0
+   },
+   {
+    "key": "heightMm",
+    "label": "Opening clear height [mm]",
+    "type": "number",
+    "default": 2100.0,
+    "min": 100.0
+   },
+   {
+    "key": "thickness",
+    "label": "Trim section thickness [mm]",
+    "type": "number",
+    "default": 25.0,
+    "min": 1.0
    }
   ]
  },
@@ -10863,21 +11331,14 @@
   "id": "bimAdditionsOpenings.penetrationSchedule",
   "title": "Penetration Schedule",
   "part": "bim",
-  "help": "Creates a scheduled list of penetrations.",
+  "help": "Build real penetration schedule across 06 BIM openings and 07 MEP sleeves.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "host",
-    "label": "Host element",
+    "key": "hostFilter",
+    "label": "Host member / slab filter (blank = all)",
     "type": "text",
-    "default": "S1"
-   },
-   {
-    "key": "count",
-    "label": "Penetration count [ea]",
-    "type": "number",
-    "default": 4,
-    "min": 1
+    "default": ""
    }
   ]
  },
@@ -10885,22 +11346,22 @@
   "id": "bimAdditionsOpenings.penetrationTrim",
   "title": "Penetration Trim",
   "part": "bim",
-  "help": "Defines trim around a service penetration.",
+  "help": "Compute circular penetration escutcheon ring outer diameter, area, and fastener count.",
   "requiresProject": true,
   "fields": [
    {
     "key": "diameter",
-    "label": "Penetration diameter [mm]",
+    "label": "Circular penetration bore [mm]",
     "type": "number",
-    "default": 150,
-    "min": 20
+    "default": 150.0,
+    "min": 20.0
    },
    {
     "key": "flangeWidth",
-    "label": "Flange width [mm]",
+    "label": "Escutcheon / trim flange width [mm]",
     "type": "number",
-    "default": 30,
-    "min": 5
+    "default": 30.0,
+    "min": 5.0
    },
    {
     "key": "material",
@@ -10914,7 +11375,7 @@
      },
      {
       "value": "plastic",
-      "label": "Plastic"
+      "label": "PVC / EPDM"
      },
      {
       "value": "timber",
@@ -10958,7 +11419,7 @@
   "id": "bimAdditionsOpenings.provisionForHole",
   "title": "Provision For Hole",
   "part": "bim",
-  "help": "Records a hole reservation for another discipline.",
+  "help": "Validate opening ID against 06 BIM / 07 MEP and maintain persistent PFH reservation register.",
   "requiresProject": true,
   "fields": [
    {
@@ -11096,22 +11557,29 @@
   "id": "bimAdditionsOpenings.thermalBreakSleeve",
   "title": "Thermal Break Sleeve",
   "part": "bim",
-  "help": "Defines a thermal-break sleeve.",
+  "help": "Compute insulated thermal-break sleeve bore OD and radial conductive heat loss through slab.",
   "requiresProject": true,
   "fields": [
    {
     "key": "pipeDiameter",
-    "label": "Pipe diameter [mm]",
+    "label": "Cold/chilled pipe outer diameter [mm]",
     "type": "number",
-    "default": 100,
-    "min": 20
+    "default": 100.0,
+    "min": 20.0
    },
    {
     "key": "breakThickness",
-    "label": "Break thickness [mm]",
+    "label": "Aerogel / rigid PUR break thickness [mm]",
     "type": "number",
-    "default": 10,
-    "min": 1
+    "default": 25.0,
+    "min": 5.0
+   },
+   {
+    "key": "deltaTK",
+    "label": "Pipe-to-slab temperature differential [K]",
+    "type": "number",
+    "default": 18.0,
+    "min": 1.0
    }
   ]
  },
@@ -11119,21 +11587,14 @@
   "id": "bimAdditionsOpenings.voidReservationList",
   "title": "Void Reservation List",
   "part": "bim",
-  "help": "Creates a void reservation list.",
+  "help": "Generate coordinated void reservation schedule from real 06 BIM & 07 MEP openings.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "service",
-    "label": "Service",
+    "key": "serviceFilter",
+    "label": "Filter service / host (blank = all)",
     "type": "text",
-    "default": "Drainage"
-   },
-   {
-    "key": "count",
-    "label": "Reservation count [ea]",
-    "type": "number",
-    "default": 5,
-    "min": 1
+    "default": ""
    }
   ]
  },
@@ -11141,7 +11602,7 @@
   "id": "bimExchange.clashTransfer",
   "title": "Clash Transfer",
   "part": "bim",
-  "help": "Send recorded clash results to the coordination payload.",
+  "help": "Transfer detected BIM+MEP interference issues into coordination payload.",
   "requiresProject": true,
   "fields": []
  },
@@ -11165,7 +11626,7 @@
   "id": "bimExchange.exportFbx",
   "title": "Export FBX",
   "part": "bim",
-  "help": "Export BIM element geometry metadata for visualisation interchange.",
+  "help": "Triangulate 06 BIM elements into 3D vertex/mesh descriptors for visualisation interchange.",
   "requiresProject": true,
   "fields": []
  },
@@ -11202,15 +11663,15 @@
   "id": "bimExchange.exportPointCloud",
   "title": "Export Point Cloud",
   "part": "bim",
-  "help": "Export element anchor points as an XYZ point-cloud source.",
+  "help": "Interpolate uniformly spaced 3D points along beams, columns, walls, and slabs.",
   "requiresProject": true,
   "fields": [
    {
     "key": "spacingMm",
-    "label": "Scan spacing [mm]",
+    "label": "Centerline / edge sample spacing [mm]",
     "type": "number",
     "default": 1000.0,
-    "min": 1
+    "min": 100.0
    }
   ]
  },
@@ -11242,14 +11703,14 @@
   "id": "bimExchange.ifcProperties",
   "title": "IFC Properties",
   "part": "bim",
-  "help": "Choose property sets to include in IFC exports.",
+  "help": "Map 06 BIM elements, 04 Objects profiles, and 03 Materials into IFC PropertySet payloads.",
   "requiresProject": true,
   "fields": [
    {
     "key": "propertySets",
     "label": "Property sets",
     "type": "text",
-    "default": "PSet_SAEngine_Element, PSet_SAEngine_Material"
+    "default": "PSet_BeamCommon, PSet_ColumnCommon, PSet_SlabCommon"
    }
   ]
  },
@@ -11272,7 +11733,7 @@
   "id": "bimExchange.issueSync",
   "title": "Issue Sync",
   "part": "bim",
-  "help": "Synchronise the issue register represented in the BIM model.",
+  "help": "Aggregate and synchronise BIM issues and clash review comments with open/closed counts.",
   "requiresProject": true,
   "fields": []
  },
@@ -11351,7 +11812,7 @@
   "id": "bimExchange.versionTagging",
   "title": "Version Tagging",
   "part": "bim",
-  "help": "Tag an export with model version and optional exchange timestamp.",
+  "help": "Hash 06 BIM elements via SHA-256 and stamp a verifiable exchange version record.",
   "requiresProject": true,
   "fields": [
    {
@@ -11362,7 +11823,7 @@
    },
    {
     "key": "timestamp",
-    "label": "Exchange timestamp",
+    "label": "Override UTC timestamp (blank = now)",
     "type": "text",
     "default": ""
    }
@@ -11372,7 +11833,7 @@
   "id": "bimFabrication.assemblyMarks",
   "title": "Assembly Marks",
   "part": "bim",
-  "help": "Allocates assembly marks from BIM elements.",
+  "help": "Assign shared fabrication marks to identical element (kind, type, length) prototypes.",
   "requiresProject": true,
   "fields": [
    {
@@ -11544,7 +12005,7 @@
   "id": "bimFabrication.boltsWelds",
   "title": "Bolts & Welds",
   "part": "bim",
-  "help": "Schedules bolts or weld symbols for fabrication.",
+  "help": "Compute fabrication fastener shear resistance via saengine.design.steel_connections.",
   "requiresProject": true,
   "fields": [
    {
@@ -11555,21 +12016,21 @@
     "options": [
      {
       "value": "bolt",
-      "label": "Bolts"
+      "label": "M20 Grade 8.8 Bolts"
      },
      {
       "value": "weld",
-      "label": "Weld"
+      "label": "8mm E48 Fillet Weld"
      },
      {
       "value": "hybrid",
-      "label": "Bolts and weld"
+      "label": "Slip-Critical + Weld"
      }
     ]
    },
    {
     "key": "quantity",
-    "label": "Fastener quantity [ea]",
+    "label": "Bolt count / weld decimetres [ea]",
     "type": "number",
     "default": 8,
     "min": 1
@@ -11615,29 +12076,36 @@
   "id": "bimFabrication.couplers",
   "title": "Couplers",
   "part": "bim",
-  "help": "Schedules mechanical reinforcing bar couplers.",
+  "help": "Compute Type-1/Type-2 mechanical bar coupler tensile demand and splice schedule.",
   "requiresProject": true,
   "fields": [
    {
     "key": "diameter",
-    "label": "Bar diameter [mm]",
+    "label": "Deformed bar diameter [mm]",
     "type": "number",
-    "default": 20,
-    "min": 6
+    "default": 20.0,
+    "min": 10.0
    },
    {
     "key": "count",
-    "label": "Coupler count [ea]",
+    "label": "Scheduled coupler count [ea]",
     "type": "number",
     "default": 10,
     "min": 1
    },
    {
     "key": "gripLength",
-    "label": "Grip length [mm]",
+    "label": "Sleeve thread engagement length [mm]",
     "type": "number",
-    "default": 120,
-    "min": 20
+    "default": 120.0,
+    "min": 30.0
+   },
+   {
+    "key": "fyMpa",
+    "label": "Bar yield strength fy [MPa]",
+    "type": "number",
+    "default": 500.0,
+    "min": 250.0
    }
   ]
  },
@@ -11668,12 +12136,12 @@
   "id": "bimFabrication.fabricationDrawings",
   "title": "Fabrication Drawings",
   "part": "bim",
-  "help": "Creates a fabrication drawing issue list.",
+  "help": "Allocate shop-drawing sheet packages across 06 BIM element categories and stories.",
   "requiresProject": true,
   "fields": [
    {
     "key": "sheet",
-    "label": "Sheet scale",
+    "label": "Detail scale",
     "type": "select",
     "default": "1:20",
     "options": [
@@ -11692,10 +12160,12 @@
     ]
    },
    {
-    "key": "includeNotes",
-    "label": "Include notes",
-    "type": "checkbox",
-    "default": true
+    "key": "detailsPerSheet",
+    "label": "Max fabrication details per A1 sheet",
+    "type": "number",
+    "default": 6,
+    "min": 1,
+    "max": 20
    }
   ]
  },
@@ -11733,7 +12203,7 @@
   "id": "bimFabrication.jointDetails",
   "title": "Joint Details",
   "part": "bim",
-  "help": "Documents a fabrication joint detail.",
+  "help": "Compute thermal expansion movement at fabrication joint and verify root/erection gap.",
   "requiresProject": true,
   "fields": [
    {
@@ -11744,28 +12214,42 @@
     "options": [
      {
       "value": "butt",
-      "label": "Butt"
+      "label": "Butt splice"
      },
      {
       "value": "lap",
-      "label": "Lap"
+      "label": "Lap plate"
      },
      {
       "value": "miter",
-      "label": "Miter"
+      "label": "Miter corner"
      },
      {
       "value": "dowel",
-      "label": "Dowel"
+      "label": "Precast dowel"
      }
     ]
    },
    {
     "key": "gap",
-    "label": "Joint gap [mm]",
+    "label": "Nominal fit-up root gap [mm]",
     "type": "number",
-    "default": 10,
-    "min": 0
+    "default": 10.0,
+    "min": 0.0
+   },
+   {
+    "key": "memberSpanM",
+    "label": "Segment length between joints [m]",
+    "type": "number",
+    "default": 9.0,
+    "min": 1.0
+   },
+   {
+    "key": "deltaTC",
+    "label": "Service thermal swing ΔT [°C]",
+    "type": "number",
+    "default": 35.0,
+    "min": 5.0
    }
   ]
  },
@@ -11931,12 +12415,12 @@
   "id": "bimFabrication.rebarSet",
   "title": "Rebar Set",
   "part": "bim",
-  "help": "Creates a BIM reinforcement set for fabrication.",
+  "help": "Compute fabricated rebar set count, As/m, unit mass, and total steel weight.",
   "requiresProject": true,
   "fields": [
    {
     "key": "host",
-    "label": "Host",
+    "label": "Concrete host",
     "type": "select",
     "default": "beam",
     "options": [
@@ -11962,15 +12446,29 @@
     "key": "diameter",
     "label": "Bar diameter [mm]",
     "type": "number",
-    "default": 16,
-    "min": 6
+    "default": 16.0,
+    "min": 6.0
    },
    {
     "key": "spacing",
-    "label": "Bar spacing [mm]",
+    "label": "Bar pitch spacing [mm]",
     "type": "number",
-    "default": 150,
-    "min": 25
+    "default": 150.0,
+    "min": 40.0
+   },
+   {
+    "key": "runWidthM",
+    "label": "Bar distribution width [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.2
+   },
+   {
+    "key": "barLengthM",
+    "label": "Individual cut length [m]",
+    "type": "number",
+    "default": 6.0,
+    "min": 0.3
    }
   ]
  },
@@ -12621,7 +13119,7 @@
   "id": "bimNavigation.walkthroughPath",
   "title": "Walkthrough Path",
   "part": "bim",
-  "help": "Create a walkthrough-path definition.",
+  "help": "Generate 3D camera waypoints around real 06 BIM perimeter extents and compute speed.",
   "requiresProject": true,
   "fields": [
    {
@@ -12632,14 +13130,14 @@
    },
    {
     "key": "duration",
-    "label": "Duration [s]",
+    "label": "Tour duration [s]",
     "type": "number",
     "default": 60.0,
-    "min": 1
+    "min": 2.0
    },
    {
     "key": "eyeHeight",
-    "label": "Camera eye height [m]",
+    "label": "Camera eye height above floor [m]",
     "type": "number",
     "default": 1.6,
     "min": 0.5
@@ -12708,7 +13206,7 @@
   "id": "bimQa.bcfExport",
   "title": "BCF Export",
   "part": "bim",
-  "help": "Export coordination issues in a JSON BCF-compatible interchange payload.",
+  "help": "Compile BIM QA & interference issues into BCF v3 interchange topics.",
   "requiresProject": true,
   "fields": []
  },
@@ -12772,7 +13270,7 @@
   "id": "bimQa.exportQaExcel",
   "title": "Export QA Excel",
   "part": "bim",
-  "help": "Export QA results as CSV for spreadsheet distribution.",
+  "help": "Cross-validate every BIM element against 04 Objects & 06 BIM stories and export QA CSV.",
   "requiresProject": true,
   "fields": []
  },
@@ -12875,7 +13373,7 @@
   "id": "bimQa.qaReport",
   "title": "QA Report",
   "part": "bim",
-  "help": "Compile BIM validation results into an exportable QA report.",
+  "help": "Run model integrity audit against 04 Objects and 06 BIM stories and export QA report.",
   "requiresProject": true,
   "fields": []
  },
@@ -12906,7 +13404,7 @@
   "id": "bimQa.reviewMeetingPack",
   "title": "Review Meeting Pack",
   "part": "bim",
-  "help": "Assemble issue and model metrics into a review pack export.",
+  "help": "Assemble live BIM+MEP coordination clash, opening conflict, and QA status meeting pack.",
   "requiresProject": true,
   "fields": []
  },
@@ -12993,7 +13491,7 @@
   "id": "bimQuantities.exportQuantities",
   "title": "Export Quantities",
   "part": "bim",
-  "help": "Export element quantities to a CSV file.",
+  "help": "Compute geometric length [m], area [m²], and volume [m³] quantities from 06 BIM & 04 Objects.",
   "requiresProject": true,
   "fields": [
    {
@@ -13049,14 +13547,26 @@
   "id": "bimQuantities.overrideNotes",
   "title": "Override Notes",
   "part": "bim",
-  "help": "Record the reason for a measured quantity override.",
+  "help": "Validate target element in 06 BIM and append audit-trailed quantity override ledger.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "reason",
-    "label": "Override reason",
+    "key": "elementId",
+    "label": "Target element ID",
     "type": "text",
-    "default": "No geometric measurement available"
+    "default": "S1"
+   },
+   {
+    "key": "reason",
+    "label": "Override justification",
+    "type": "text",
+    "default": "Net deduction adjusted for unmodelled drop panels"
+   },
+   {
+    "key": "overrideDeltaM3",
+    "label": "Volume adjustment [m³]",
+    "type": "number",
+    "default": 0.0
    }
   ]
  },
@@ -13072,7 +13582,7 @@
   "id": "bimQuantities.publishTakeoff",
   "title": "Publish Takeoff",
   "part": "bim",
-  "help": "Publish a reviewed element takeoff to the BIM export folder.",
+  "help": "Compute SHA-256 verified BIM takeoff quantities and publish revision bundle.",
   "requiresProject": true,
   "fields": [
    {
@@ -13127,7 +13637,7 @@
   "id": "bimQuantities.roomDataSheet",
   "title": "Room Data Sheet",
   "part": "bim",
-  "help": "Export room data recorded by the spatial model.",
+  "help": "Compile room/slab floorplate areas from spatial model or BIM slab polygons.",
   "requiresProject": true,
   "fields": []
  },
@@ -13381,7 +13891,7 @@
   "id": "bimStudies.optionSets",
   "title": "Option Sets",
   "part": "bim",
-  "help": "Save a set of design options.",
+  "help": "Build mutually-exclusive design option set tied to live 06 BIM element count & footprint.",
   "requiresProject": true,
   "fields": [
    {
@@ -13482,7 +13992,7 @@
   "id": "bimStudies.reportExport",
   "title": "Report Export",
   "part": "bim",
-  "help": "Export a basic BIM study report.",
+  "help": "Compile real BIM bounding extent, story heights, and category mix into a study report.",
   "requiresProject": true,
   "fields": [
    {
@@ -13498,10 +14008,6 @@
      {
       "value": "csv",
       "label": "CSV"
-     },
-     {
-      "value": "html",
-      "label": "HTML"
      }
     ]
    },
@@ -13517,7 +14023,7 @@
   "id": "bimStudies.resultCapture",
   "title": "Result Capture",
   "part": "bim",
-  "help": "Capture named study metadata.",
+  "help": "Snapshot real BIM metrics (counts, extents, slab area) and append comparison log.",
   "requiresProject": true,
   "fields": [
    {
@@ -13528,9 +14034,9 @@
    },
    {
     "key": "notes",
-    "label": "Capture notes",
+    "label": "Engineering takeaway",
     "type": "text",
-    "default": ""
+    "default": "Baseline structural framing metrics"
    }
   ]
  },
@@ -13538,7 +14044,7 @@
   "id": "bimStudies.scenarioBuilder",
   "title": "Scenario Builder",
   "part": "bim",
-  "help": "Record a named study scenario.",
+  "help": "Evaluate parametric structural/carbon scenario KPIs scaled across real BIM slab area.",
   "requiresProject": true,
   "fields": [
    {
@@ -13548,10 +14054,19 @@
     "default": "Peak demand"
    },
    {
-    "key": "parameters",
-    "label": "Parameters",
-    "type": "text",
-    "default": "loadFactor=1.2,windSpeed=25"
+    "key": "loadFactor",
+    "label": "Gravity / Demand multiplier",
+    "type": "number",
+    "default": 1.2,
+    "min": 0.5,
+    "max": 3.0
+   },
+   {
+    "key": "carbonFactorKgPerM2",
+    "label": "Benchmark embodied carbon intensity [kgCO2e/m²]",
+    "type": "number",
+    "default": 420.0,
+    "min": 50.0
    }
   ]
  },
@@ -13914,7 +14429,7 @@
   "id": "bimSummary.dataDrop",
   "title": "Data Drop",
   "part": "bim",
-  "help": "Package a model information summary for a contractual data drop.",
+  "help": "Package real model extent, story schedule, slab GFA, and element counts into a COBie-style drop.",
   "requiresProject": true,
   "fields": []
  },
@@ -13938,7 +14453,7 @@
   "id": "bimSummary.exportSnapshot",
   "title": "Export Snapshot",
   "part": "bim",
-  "help": "Export current model metrics for external reporting.",
+  "help": "Export SHA-256 verified BIM snapshot with extent bounds and story summary.",
   "requiresProject": true,
   "fields": []
  },
@@ -14002,12 +14517,12 @@
   "id": "bimSummary.progressSnapshot",
   "title": "Progress Snapshot",
   "part": "bim",
-  "help": "Capture current BIM metrics as a named progress snapshot.",
+  "help": "Capture timestamped BIM completeness KPIs and track element growth delta across runs.",
   "requiresProject": true,
   "fields": [
    {
     "key": "name",
-    "label": "Snapshot name",
+    "label": "Snapshot milestone name",
     "type": "text",
     "default": "Progress review"
    },
@@ -14023,14 +14538,14 @@
   "id": "bimSummary.projectMetadata",
   "title": "Project Metadata",
   "part": "bim",
-  "help": "Add exchange metadata for the model export.",
+  "help": "Merge live project settings (name, code pack, site) with BIM statistics into exchange metadata.",
   "requiresProject": true,
   "fields": [
    {
     "key": "projectName",
-    "label": "Project name",
+    "label": "Project name (blank = read 02 Project Settings)",
     "type": "text",
-    "default": "SAEngine Project"
+    "default": ""
    },
    {
     "key": "status",
@@ -14171,7 +14686,7 @@
   "id": "bimSummaryCarbonCost.carbonReport",
   "title": "Carbon Report",
   "part": "bim",
-  "help": "Issue a staged carbon report by element and material.",
+  "help": "Compute element embodied carbon (kgCO2e) from BIM geometry, 04 Objects & 03 Materials.",
   "requiresProject": true,
   "fields": []
  },
@@ -14751,12 +15266,12 @@
   "id": "bimSummaryVersioning.autoBaseline",
   "title": "Auto Baseline",
   "part": "bim",
-  "help": "Configure automatic snapshot capture on project milestones.",
+  "help": "Capture current BIM model hash & element IDs into a persistent baseline & check drift.",
   "requiresProject": true,
   "fields": [
    {
     "key": "schedule",
-    "label": "Snapshot schedule",
+    "label": "Baseline cadence (Milestone / Weekly / Issue)",
     "type": "text",
     "default": "Milestone"
    }
@@ -14811,7 +15326,7 @@
   "id": "bimSummaryVersioning.createBranch",
   "title": "Create Branch",
   "part": "bim",
-  "help": "Fork active model state into a named design branch.",
+  "help": "Fork active model state with SHA-256 digest and register branch in branch manifest.",
   "requiresProject": true,
   "fields": [
    {
@@ -14826,7 +15341,7 @@
   "id": "bimSummaryVersioning.createSnapshot",
   "title": "Create Snapshot",
   "part": "bim",
-  "help": "Create a named snapshot payload of the current model state.",
+  "help": "Create a SHA-256 verified BIM snapshot and register it in persistent snapshot index.",
   "requiresProject": true,
   "fields": [
    {
@@ -14855,7 +15370,7 @@
   "id": "bimSummaryVersioning.exportLog",
   "title": "Export Log",
   "part": "bim",
-  "help": "Export the recorded version log for the project record.",
+  "help": "Compile model activityLog, indexed snapshots, and frozen versions into an audit trail.",
   "requiresProject": true,
   "fields": []
  },
@@ -14863,7 +15378,7 @@
   "id": "bimSummaryVersioning.freezeVersion",
   "title": "Freeze Version",
   "part": "bim",
-  "help": "Lock a named model version to prevent further geometric modifications.",
+  "help": "Lock a named model version with SHA-256 hash and refuse re-freezing an already frozen tag.",
   "requiresProject": true,
   "fields": [
    {
@@ -14917,7 +15432,7 @@
   "id": "bimSummaryVersioning.publishModel",
   "title": "Publish Model",
   "part": "bim",
-  "help": "Package the validated model state for formal client issue.",
+  "help": "Validate frozen status & QA completeness, then package signed BIM model issue.",
   "requiresProject": true,
   "fields": [
    {
@@ -14955,7 +15470,7 @@
   "id": "bimSummaryVersioning.revisionPackage",
   "title": "Revision Package",
   "part": "bim",
-  "help": "Assemble revision delta drawings and change logs into an issuance payload.",
+  "help": "Compute element diff (added/removed/modified) vs previous baseline and package transmittal.",
   "requiresProject": true,
   "fields": []
  },
@@ -14963,7 +15478,7 @@
   "id": "bimSummaryVersioning.snapshotNotes",
   "title": "Snapshot Notes",
   "part": "bim",
-  "help": "Record purpose and author notes for a snapshot.",
+  "help": "Attach purpose notes to an indexed BIM snapshot or record validation warning.",
   "requiresProject": true,
   "fields": [
    {
@@ -14976,7 +15491,7 @@
     "key": "notes",
     "label": "Purpose and author",
     "type": "text",
-    "default": ""
+    "default": "Milestone baseline"
    }
   ]
  },
@@ -15170,7 +15685,7 @@
   "id": "bimView.exportImage",
   "title": "Export Image",
   "part": "bim",
-  "help": "Record an image-export request for the current view.",
+  "help": "Compute camera frustum, pixel dimensions, and BIM model bounding extents for view capture.",
   "requiresProject": true,
   "fields": [
    {
@@ -17152,7 +17667,7 @@
   "id": "boqReconcile.auditPack",
   "title": "Audit Pack",
   "part": "boq",
-  "help": "Bundle priced BOQ, rate schedule, carbon factors, and source stamps into an audit JSON pack.",
+  "help": "Bundle priced BOQ, rate coverage, duplicate checks, and carbon factors into an audit JSON pack.",
   "requiresProject": true,
   "fields": []
  },
@@ -17887,7 +18402,7 @@
   "id": "boqReports.reportBinder",
   "title": "Report Binder",
   "part": "boq",
-  "help": "Assemble cost summary, carbon ledger, and notes into a unified Markdown binder in 10 BOQ/exports.",
+  "help": "Assemble elemental cost, trade summary, line items, carbon ledger, and notes into a Markdown binder.",
   "requiresProject": true,
   "fields": [
    {
@@ -17981,12 +18496,12 @@
   "id": "boqSchedule.baseline",
   "title": "Baseline",
   "part": "boq",
-  "help": "Capture and inspect the CPM baseline programme dates and critical path milestones.",
+  "help": "Capture the CPM baseline programme and compute schedule variance against any saved baseline.",
   "requiresProject": true,
   "fields": [
    {
     "key": "exportBaseline",
-    "label": "Save baseline CSV to 10 BOQ/exports",
+    "label": "Save/update baseline snapshot in 10 BOQ/exports",
     "type": "checkbox",
     "default": false
    }
@@ -37774,7 +38289,7 @@
   "id": "exportsPublish.coverLetter",
   "title": "Cover Letter",
   "part": "settings",
-  "help": "Generate a plain-text cover letter from user-supplied project and recipient details.",
+  "help": "Assemble a cover letter citing project settings title and packaged deliverables.",
   "requiresProject": true,
   "fields": [
    {
@@ -42771,7 +43286,7 @@
   "id": "femCharts.chartTemplates",
   "title": "Chart Templates",
   "part": "fem",
-  "help": "Save a reusable chart template configuration against analyzed project results.",
+  "help": "Validate available result tables for the requested chart kind and save a template preset.",
   "requiresProject": true,
   "fields": [
    {
@@ -44362,7 +44877,7 @@
   "id": "femCode.reviewerNotes",
   "title": "Reviewer Notes",
   "part": "fem",
-  "help": "Attach peer-review comments to the design check record and export QA note.",
+  "help": "Attach peer-review comments tied to governing DCR checks and maintain review register.",
   "requiresProject": true,
   "fields": [
    {
@@ -44376,6 +44891,26 @@
     "label": "Review note",
     "type": "text",
     "default": "Verified governing column interaction and beam shear checks."
+   },
+   {
+    "key": "status",
+    "label": "Review decision",
+    "type": "select",
+    "default": "Commented",
+    "options": [
+     {
+      "value": "Accepted",
+      "label": "Accepted"
+     },
+     {
+      "value": "Commented",
+      "label": "Commented"
+     },
+     {
+      "value": "ActionRequired",
+      "label": "Action Required"
+     }
+    ]
    }
   ]
  },
@@ -51465,7 +52000,7 @@
   "id": "femNonlinear.restartPoint",
   "title": "Restart Point",
   "part": "fem",
-  "help": "Record nonlinear solver checkpoint metadata against 08 FEM/model.osmodel.",
+  "help": "Compute checkpoint schedule and estimate storage overhead against 08 FEM/model.osmodel.",
   "requiresProject": true,
   "fields": [
    {
@@ -52715,7 +53250,7 @@
   "id": "femPushoverPerformance.exportAssessment",
   "title": "Export Assessment",
   "part": "fem",
-  "help": "Export full pushover performance evaluation payload to JSON.",
+  "help": "Evaluate IO/LS/CP drift performance levels for all pushover cases and export JSON assessment.",
   "requiresProject": true,
   "fields": [
    {
@@ -52918,7 +53453,7 @@
   "id": "femPushoverTarget.acceptTarget",
   "title": "Accept Target",
   "part": "fem",
-  "help": "Commit accepted target displacement to 08 FEM/exports/target-displacement.json.",
+  "help": "Validate accepted target displacement against achieved pushover curve displacement and commit.",
   "requiresProject": true,
   "fields": [
    {
@@ -53066,7 +53601,7 @@
   "id": "femPushoverTarget.exportTarget",
   "title": "Export Target",
   "part": "fem",
-  "help": "Export target displacement metrics for downstream seismic report assembly.",
+  "help": "Compute target roof drift ratios against allowable threshold and export JSON deliverable.",
   "requiresProject": true,
   "fields": [
    {
@@ -53802,7 +54337,7 @@
   "id": "femServiceability.acceptanceReview",
   "title": "Acceptance Review",
   "part": "fem",
-  "help": "Record engineering sign-off against marginal serviceability checks and export QA log.",
+  "help": "Verify story drift ratios against limit and log serviceability QA sign-off.",
   "requiresProject": true,
   "fields": [
    {
@@ -53812,10 +54347,32 @@
     "default": "Lead Structural Engineer"
    },
    {
+    "key": "driftLimit",
+    "label": "Allowable inter-storey drift ratio",
+    "type": "number",
+    "default": 0.005,
+    "min": 0.001,
+    "max": 0.05
+   },
+   {
     "key": "decision",
-    "label": "Disposition note",
-    "type": "text",
-    "default": "Accepted within serviceability tolerances"
+    "label": "Disposition",
+    "type": "select",
+    "default": "Accepted",
+    "options": [
+     {
+      "value": "Accepted",
+      "label": "Accepted"
+     },
+     {
+      "value": "Conditional",
+      "label": "Conditional"
+     },
+     {
+      "value": "Revise",
+      "label": "Revise Required"
+     }
+    ]
    }
   ]
  },
@@ -55308,7 +55865,7 @@
   "id": "femStmRegions.designNotes",
   "title": "Design Notes",
   "part": "fem",
-  "help": "Record project-specific region assumptions with the checked model identity.",
+  "help": "Validate STM region model checks and append persistent design assumption register.",
   "requiresProject": true,
   "fields": [
    {
@@ -55321,7 +55878,7 @@
     "key": "reviewer",
     "label": "Author",
     "type": "text",
-    "default": ""
+    "default": "SE"
    }
   ]
  },
@@ -64213,7 +64770,7 @@
   "id": "foundationsReport.checkerComments",
   "title": "Checker Comments",
   "part": "substructure",
-  "help": "Log and track independent checker comments and resolution status.",
+  "help": "Validate and maintain a persistent independent checker comments register.",
   "requiresProject": false,
   "fields": [
    {
@@ -64449,7 +65006,7 @@
   "id": "foundationsReport.revisionNotes",
   "title": "Revision Notes",
   "part": "substructure",
-  "help": "Record report revision history notes and date.",
+  "help": "Record and track sequential substructure report revisions against open comments.",
   "requiresProject": false,
   "fields": [
    {
@@ -73309,7 +73866,7 @@
   "requiresProject": false,
   "fields": [
    {
-    "key": "value",
+    "key": "density",
     "label": "Input density / unit weight",
     "type": "number",
     "default": 2400.0,
@@ -73338,6 +73895,12 @@
       "label": "lb/ft3 (pcf)"
      }
     ]
+   },
+   {
+    "key": "materialId",
+    "label": "Optional project material ID (blank = use input)",
+    "type": "text",
+    "default": ""
    }
   ]
  },
@@ -76700,15 +77263,14 @@
   "id": "mepBrowser.designChecks",
   "title": "Design Checks",
   "part": "mep",
-  "help": "Design Checks: Analysis.",
+  "help": "Run full integrated MEP systems verification across 07 MEP/mep.json.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
-    "type": "number",
-    "default": 100,
-    "min": 0
+    "key": "discipline",
+    "label": "Filter discipline (blank=all, plumbing/hvac/electrical/fire)",
+    "type": "text",
+    "default": ""
    }
   ]
  },
@@ -77574,15 +78136,30 @@
   "id": "mepCommissioning.airBalance",
   "title": "Air Balance",
   "part": "mep",
-  "help": "Air Balance: Testing.",
-  "requiresProject": true,
+  "help": "Check measured vs design airflow deviation and fan-speed proportional adjustment.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "designFlowLps",
+    "label": "Design branch / diffuser airflow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 280.0,
+    "min": 5.0
+   },
+   {
+    "key": "measuredFlowLps",
+    "label": "Pre-balance traverse measured airflow [L/s]",
+    "type": "number",
+    "default": 235.0,
+    "min": 1.0
+   },
+   {
+    "key": "tolerancePct",
+    "label": "TAB allowable deviation [%]",
+    "type": "number",
+    "default": 10.0,
+    "min": 2.0,
+    "max": 25.0
    }
   ]
  },
@@ -77635,15 +78212,35 @@
   "id": "mepCommissioning.controlsCheckout",
   "title": "Controls Checkout",
   "part": "mep",
-  "help": "Controls Checkout: Start-Up.",
-  "requiresProject": true,
+  "help": "Check BMS sensor end-to-end calibration offset and percent-of-span accuracy.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "spanRange",
+    "label": "BMS sensor measurement span (e.g. 50 °C or 500 Pa)",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 50.0,
+    "min": 1.0
+   },
+   {
+    "key": "referenceValue",
+    "label": "Calibrated reference instrument reading",
+    "type": "number",
+    "default": 22.4
+   },
+   {
+    "key": "bmsReading",
+    "label": "BMS trended point value",
+    "type": "number",
+    "default": 23.1
+   },
+   {
+    "key": "maxErrorPctSpan",
+    "label": "Maximum allowable calibration error [% span]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.2,
+    "max": 10.0
    }
   ]
  },
@@ -77666,15 +78263,36 @@
   "id": "mepCommissioning.energyVerify",
   "title": "Energy Verify",
   "part": "mep",
-  "help": "Energy Verify: Verification.",
-  "requiresProject": true,
+  "help": "Verify M&V Energy Use Intensity (EUI), annual energy saving %, and cost saving.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "floorAreaM2",
+    "label": "Conditioned gross floor area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 5000.0,
+    "min": 20.0
+   },
+   {
+    "key": "baselineKwhPerYr",
+    "label": "Adjusted baseline annual MEP energy [kWh/yr]",
+    "type": "number",
+    "default": 620000.0,
+    "min": 100.0
+   },
+   {
+    "key": "measuredKwhPerYr",
+    "label": "Verified post-Cx metered energy [kWh/yr]",
+    "type": "number",
+    "default": 510000.0,
+    "min": 100.0
+   },
+   {
+    "key": "tariffPerKwh",
+    "label": "Electricity unit tariff",
+    "type": "number",
+    "default": 0.14,
+    "min": 0.01
    }
   ]
  },
@@ -77742,15 +78360,36 @@
   "id": "mepCommissioning.performanceVerify",
   "title": "Performance Verify",
   "part": "mep",
-  "help": "Performance Verify: Verification.",
-  "requiresProject": true,
+  "help": "Verify field cooling plant functional duty, COP, and capacity shortfall vs submittal.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "ratedCoolingKw",
+    "label": "Submittal design cooling duty [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 320.0,
+    "min": 1.0
+   },
+   {
+    "key": "chwFlowLps",
+    "label": "Measured chilled-water flow [L/s]",
+    "type": "number",
+    "default": 14.8,
+    "min": 0.5
+   },
+   {
+    "key": "chwDeltaTK",
+    "label": "Measured CHW delta-T [K]",
+    "type": "number",
+    "default": 5.0,
+    "min": 1.0
+   },
+   {
+    "key": "measuredInputKw",
+    "label": "Measured electrical input power [kW]",
+    "type": "number",
+    "default": 72.0,
+    "min": 0.5
    }
   ]
  },
@@ -77758,21 +78397,20 @@
   "id": "mepCommissioning.preStartupChecklist",
   "title": "Pre-Startup Checklist",
   "part": "mep",
-  "help": "Pre-Startup Checklist: Start-Up.",
+  "help": "Generate a discipline-specific pre-startup checklist from active 07 MEP/mep.json systems.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
-    "type": "number",
-    "default": 100,
-    "min": 0
+    "key": "reviewer",
+    "label": "Commissioning lead",
+    "type": "text",
+    "default": "Cx Authority"
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Checklist export prefix",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "preStartupChecklist"
    }
   ]
  },
@@ -77992,15 +78630,39 @@
   "id": "mepContainment.conduitBends",
   "title": "Conduit Bends",
   "part": "mep",
-  "help": "Conduit Bends: Fittings.",
-  "requiresProject": true,
+  "help": "Verify cumulative conduit bend angle (<= 360°) and capstan pulling tension factor.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "bends90",
+    "label": "Number of 90° bends",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 2,
+    "min": 0,
+    "max": 10
+   },
+   {
+    "key": "bends45",
+    "label": "Number of 45° bends / offsets",
+    "type": "number",
+    "default": 2,
+    "min": 0,
+    "max": 12
+   },
+   {
+    "key": "frictionCoeff",
+    "label": "Cable jacket friction coefficient mu",
+    "type": "number",
+    "default": 0.35,
+    "min": 0.1,
+    "max": 0.8
+   },
+   {
+    "key": "straightTensionKn",
+    "label": "Straight-run pulling tension [kN]",
+    "type": "number",
+    "default": 0.8,
+    "min": 0.05
    }
   ]
  },
@@ -78008,15 +78670,30 @@
   "id": "mepContainment.conduitFill",
   "title": "Conduit Fill",
   "part": "mep",
-  "help": "Conduit Fill: Fill.",
-  "requiresProject": true,
+  "help": "Check conductor area fill ratio against standard 53%/31%/40% conduit fill limits.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "conduitIdMm",
+    "label": "Conduit internal diameter [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 25.0,
+    "min": 12.0
+   },
+   {
+    "key": "cableCount",
+    "label": "Number of insulated conductors",
+    "type": "number",
+    "default": 4,
+    "min": 1,
+    "max": 50
+   },
+   {
+    "key": "cableOdMm",
+    "label": "Single conductor outer diameter [mm]",
+    "type": "number",
+    "default": 6.2,
+    "min": 2.0
    }
   ]
  },
@@ -78099,15 +78776,36 @@
   "id": "mepContainment.earthContinuity",
   "title": "Earth Continuity",
   "part": "mep",
-  "help": "Earth Continuity: Earthing.",
-  "requiresProject": true,
+  "help": "Verify adiabatic thermal withstand and end-to-end DC continuity resistance of CPC.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "faultCurrentKa",
+    "label": "Prospective earth fault current Ik1 [kA]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 4.5,
+    "min": 0.1
+   },
+   {
+    "key": "clearingTimeS",
+    "label": "Protective device disconnection time t [s]",
+    "type": "number",
+    "default": 0.4,
+    "min": 0.02
+   },
+   {
+    "key": "cpcAreaMm2",
+    "label": "Selected CPC / tray bonding area [mm²]",
+    "type": "number",
+    "default": 16.0,
+    "min": 1.5
+   },
+   {
+    "key": "runLengthM",
+    "label": "Protective conductor run length [m]",
+    "type": "number",
+    "default": 45.0,
+    "min": 1.0
    }
   ]
  },
@@ -78115,15 +78813,44 @@
   "id": "mepContainment.earthingResistance",
   "title": "Earthing Resistance",
   "part": "mep",
-  "help": "Earthing Resistance: Earthing.",
-  "requiresProject": true,
+  "help": "Compute driven earth-electrode array resistance using Dwight's formula with mutual coupling.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "soilResistivityOhmM",
+    "label": "Measured soil resistivity rho [Ω·m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 80.0,
+    "min": 1.0
+   },
+   {
+    "key": "rodLengthM",
+    "label": "Earth electrode rod length L [m]",
+    "type": "number",
+    "default": 3.0,
+    "min": 1.0
+   },
+   {
+    "key": "rodDiameterMm",
+    "label": "Electrode rod diameter [mm]",
+    "type": "number",
+    "default": 16.0,
+    "min": 8.0
+   },
+   {
+    "key": "rodCount",
+    "label": "Number of parallel rods",
+    "type": "number",
+    "default": 4,
+    "min": 1,
+    "max": 40
+   },
+   {
+    "key": "targetMaxOhm",
+    "label": "Maximum target earth resistance [Ω]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.2
    }
   ]
  },
@@ -78161,15 +78888,29 @@
   "id": "mepContainment.mixedVoltageCheck",
   "title": "Mixed Voltage Check",
   "part": "mep",
-  "help": "Mixed Voltage Check: Route Checks.",
-  "requiresProject": true,
+  "help": "Check insulation rating compatibility and physical divider requirement for mixed-voltage containment.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "highestCircuitV",
+    "label": "Highest circuit nominal voltage (Band II) [V]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 400.0,
+    "min": 50.0
+   },
+   {
+    "key": "elvInsulationRatingV",
+    "label": "Lowest insulation voltage rating on tray [V]",
+    "type": "number",
+    "default": 450.0,
+    "min": 50.0
+   },
+   {
+    "key": "barrierProvidedMm",
+    "label": "Solid divider / clear air gap [mm]",
+    "type": "number",
+    "default": 25.0,
+    "min": 0.0
    }
   ]
  },
@@ -78222,15 +78963,37 @@
   "id": "mepContainment.segregationCheck",
   "title": "Segregation Check",
   "part": "mep",
-  "help": "Segregation Check: Route Checks.",
-  "requiresProject": true,
+  "help": "Check EMI minimum separation between power feeders and data cabling.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "powerCurrentA",
+    "label": "Adjacent 3-phase feeder current [A]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 250.0,
+    "min": 1.0
+   },
+   {
+    "key": "parallelRunM",
+    "label": "Parallel power/data run length [m]",
+    "type": "number",
+    "default": 30.0,
+    "min": 1.0
+   },
+   {
+    "key": "providedSpacingMm",
+    "label": "Clear horizontal separation distance [mm]",
+    "type": "number",
+    "default": 150.0,
+    "min": 0.0
+   },
+   {
+    "key": "screenFactor",
+    "label": "Screened data/tray attenuation factor (1.0=unshielded, 0.3=metal divider)",
+    "type": "number",
+    "default": 0.5,
+    "min": 0.1,
+    "max": 1.0
    }
   ]
  },
@@ -78238,15 +79001,30 @@
   "id": "mepContainment.supportSpacing",
   "title": "Support Spacing",
   "part": "mep",
-  "help": "Support Spacing: Fill.",
-  "requiresProject": true,
+  "help": "Check cable tray support bracket gravity reaction and safe working load utilisation.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "cableLoadKgPerM",
+    "label": "Uniform cable + tray mass load [kg/m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 28.0,
+    "min": 1.0
+   },
+   {
+    "key": "supportSpanM",
+    "label": "Trapese hanger / bracket spacing [m]",
+    "type": "number",
+    "default": 1.8,
+    "min": 0.5,
+    "max": 6.0
+   },
+   {
+    "key": "trayRatedLoadKgPerM",
+    "label": "Selected tray SWL at span [kg/m]",
+    "type": "number",
+    "default": 45.0,
+    "min": 5.0
    }
   ]
  },
@@ -78254,15 +79032,30 @@
   "id": "mepContainment.trayBends",
   "title": "Tray Bends",
   "part": "mep",
-  "help": "Tray Bends: Fittings.",
-  "requiresProject": true,
+  "help": "Verify horizontal/vertical cable tray fitting radius against largest cable minimum bend radius.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "largestCableOdMm",
+    "label": "Largest cable outer diameter on tray [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 38.0,
+    "min": 5.0
+   },
+   {
+    "key": "minBendMultiplier",
+    "label": "Minimum cable bend radius multiplier (x OD)",
+    "type": "number",
+    "default": 12.0,
+    "min": 4.0,
+    "max": 20.0
+   },
+   {
+    "key": "trayBendRadiusMm",
+    "label": "Tray flat bend inner radius [mm]",
+    "type": "number",
+    "default": 450.0,
+    "min": 50.0
    }
   ]
  },
@@ -78270,15 +79063,37 @@
   "id": "mepContainment.trayFillCheck",
   "title": "Tray Fill Check",
   "part": "mep",
-  "help": "Tray Fill Check: Fill.",
-  "requiresProject": true,
+  "help": "Evaluate cable tray percentage fill against area limit and project trays when open.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "trayWidthMm",
+    "label": "Nominal cable tray width [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 300.0,
+    "min": 50.0
+   },
+   {
+    "key": "trayDepthMm",
+    "label": "Useful side flange depth [mm]",
+    "type": "number",
+    "default": 50.0,
+    "min": 25.0
+   },
+   {
+    "key": "cablesAreaMm2",
+    "label": "Sum of cable outer cross-sections [mm²]",
+    "type": "number",
+    "default": 4800.0,
+    "min": 10.0
+   },
+   {
+    "key": "maxFillPct",
+    "label": "Maximum allowable area fill [%]",
+    "type": "number",
+    "default": 40.0,
+    "min": 10.0,
+    "max": 60.0
    }
   ]
  },
@@ -78798,21 +79613,21 @@
   "id": "mepCoordinationClearances.clearanceReport",
   "title": "Clearance Report",
   "part": "mep",
-  "help": "Clearance Report: Check.",
+  "help": "Run MEP clash & structural opening clearance coordination checks and export report.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "minGapMm",
+    "label": "Required service-to-service gap [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 50.0,
+    "min": 0.0
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Export report filename prefix",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "clearanceReport"
    }
   ]
  },
@@ -78820,21 +79635,20 @@
   "id": "mepCoordinationClearances.clearanceSignoff",
   "title": "Clearance Signoff",
   "part": "mep",
-  "help": "Clearance Signoff: Resolution Workflow.",
+  "help": "Validate zero hard clashes across MEP coordination model and record clearance sign-off.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
-    "type": "number",
-    "default": 100,
-    "min": 0
+    "key": "reviewer",
+    "label": "Coordination lead initials",
+    "type": "text",
+    "default": "MEP-BIM"
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Signoff register file prefix",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "clearanceSignoff"
    }
   ]
  },
@@ -78872,15 +79686,29 @@
   "id": "mepCoordinationClearances.insulatedClearance",
   "title": "Insulated Clearance",
   "part": "mep",
-  "help": "Insulated Clearance: Spatial Buffers.",
-  "requiresProject": true,
+  "help": "Calculate total coordinated envelope width/radius including insulation jacket and buffer.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "bareOdMm",
+    "label": "Bare pipe outer diameter / duct width [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 114.3,
+    "min": 10.0
+   },
+   {
+    "key": "insulationMm",
+    "label": "Thermal insulation jacket thickness [mm]",
+    "type": "number",
+    "default": 32.0,
+    "min": 0.0
+   },
+   {
+    "key": "workingClearanceMm",
+    "label": "Clear tool / vapour-barrier gap [mm]",
+    "type": "number",
+    "default": 25.0,
+    "min": 10.0
    }
   ]
  },
@@ -78918,15 +79746,57 @@
   "id": "mepCoordinationClearances.minClearance",
   "title": "Min Clearance",
   "part": "mep",
-  "help": "Min Clearance: Define.",
-  "requiresProject": true,
+  "help": "Compute minimum required service-to-service clearance and check provided gap.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "material",
+    "label": "Pipe material",
+    "type": "select",
+    "default": "GI",
+    "options": [
+     {
+      "value": "GI",
+      "label": "GI"
+     },
+     {
+      "value": "PPR",
+      "label": "PPR"
+     },
+     {
+      "value": "uPVC",
+      "label": "uPVC"
+     },
+     {
+      "value": "HDPE",
+      "label": "HDPE"
+     },
+     {
+      "value": "CI",
+      "label": "CI"
+     }
+    ]
+   },
+   {
+    "key": "diameterMm",
+    "label": "Larger adjacent pipe/duct dimension [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 200.0,
+    "min": 15.0
+   },
+   {
+    "key": "flangeAllowanceMm",
+    "label": "Flange / valve handwheel projection [mm]",
+    "type": "number",
+    "default": 35.0,
+    "min": 0.0
+   },
+   {
+    "key": "providedGapMm",
+    "label": "Modelled centre-to-clear surface gap [mm]",
+    "type": "number",
+    "default": 85.0,
+    "min": 0.0
    }
   ]
  },
@@ -78964,15 +79834,29 @@
   "id": "mepCoordinationClearances.runClearance",
   "title": "Run Clearance",
   "part": "mep",
-  "help": "Run Clearance: Check.",
-  "requiresProject": true,
+  "help": "Check horizontal ceiling plenum depth vs service stack + hanger clearance.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "slabSoffitMm",
+    "label": "Structural slab soffit elevation [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 3200.0,
+    "min": 1500.0
+   },
+   {
+    "key": "ceilingElevationMm",
+    "label": "Suspended ceiling plane elevation [mm]",
+    "type": "number",
+    "default": 2700.0,
+    "min": 1500.0
+   },
+   {
+    "key": "serviceDepthMm",
+    "label": "Largest duct + hanger + insulation depth [mm]",
+    "type": "number",
+    "default": 380.0,
+    "min": 50.0
    }
   ]
  },
@@ -79759,15 +80643,36 @@
   "id": "mepCoordinationSequencing.accessPathCheck",
   "title": "Access Path Check",
   "part": "mep",
-  "help": "Access Path Check: Constructability.",
-  "requiresProject": true,
+  "help": "Check plant replacement rigging corridor clearance margin and dolly bearing pressure.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "equipmentWidthMm",
+    "label": "Largest skid / chiller rig width [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1450.0,
+    "min": 200.0
+   },
+   {
+    "key": "corridorClearWidthMm",
+    "label": "Rigging corridor / doorway clear width [mm]",
+    "type": "number",
+    "default": 1800.0,
+    "min": 400.0
+   },
+   {
+    "key": "equipmentWeightKg",
+    "label": "Skid rigging mass [kg]",
+    "type": "number",
+    "default": 1800.0,
+    "min": 20.0
+   },
+   {
+    "key": "slabLiveLoadKnPerM2",
+    "label": "Corridor floor slab rigging rating [kN/m²]",
+    "type": "number",
+    "default": 5.0,
+    "min": 1.0
    }
   ]
  },
@@ -79865,15 +80770,30 @@
   "id": "mepCoordinationSequencing.duration",
   "title": "Duration",
   "part": "mep",
-  "help": "Duration: Time.",
-  "requiresProject": true,
+  "help": "Compute MEP trade installation working days and total labour-hours.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "quantityUnits",
+    "label": "Linear run / installation quantity [m / pts]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 450.0,
+    "min": 1.0
+   },
+   {
+    "key": "crewProductivityPerDay",
+    "label": "Output per crew per shift [units/day]",
+    "type": "number",
+    "default": 32.0,
+    "min": 0.5
+   },
+   {
+    "key": "crews",
+    "label": "Parallel MEP installation crews",
+    "type": "number",
+    "default": 2,
+    "min": 1,
+    "max": 20
    }
   ]
  },
@@ -80047,14 +80967,29 @@
   "id": "mepCoordinationSequencing.taskLag",
   "title": "Task Lag",
   "part": "mep",
-  "help": "Task Lag: Time.",
-  "requiresProject": true,
+  "help": "Compute zoned start-to-start trade lead/lag days separating gravity, ducts, piping, and trays.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "predecessorDurationD",
+    "label": "Upstream trade rough-in duration [days]",
     "type": "number",
-    "default": 100,
+    "default": 12,
+    "min": 1
+   },
+   {
+    "key": "overlapPct",
+    "label": "Staggered zone start-to-start overlap [%]",
+    "type": "number",
+    "default": 40.0,
+    "min": 0.0,
+    "max": 90.0
+   },
+   {
+    "key": "inspectionBufferD",
+    "label": "Pressure-test / QA inspection hold lag [days]",
+    "type": "number",
+    "default": 2,
     "min": 0
    }
   ]
@@ -86084,15 +87019,36 @@
   "id": "mepFireDampers.accessClearanceCheck",
   "title": "Access Clearance Check",
   "part": "mep",
-  "help": "Access Clearance Check: Maintenance Access.",
-  "requiresProject": true,
+  "help": "Verify fire/smoke damper access door opening size and unobstructed maintenance reach.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "ductWidthMm",
+    "label": "Duct / damper clear width [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 600.0,
+    "min": 150.0
+   },
+   {
+    "key": "accessPanelWidthMm",
+    "label": "Inspection access panel width [mm]",
+    "type": "number",
+    "default": 450.0,
+    "min": 150.0
+   },
+   {
+    "key": "clearFrontMm",
+    "label": "Clear maintenance space in front of door [mm]",
+    "type": "number",
+    "default": 600.0,
+    "min": 100.0
+   },
+   {
+    "key": "minClearanceMm",
+    "label": "Minimum maintenance access clearance [mm]",
+    "type": "number",
+    "default": 500.0,
+    "min": 300.0
    }
   ]
  },
@@ -86342,15 +87298,29 @@
   "id": "mepFireDampers.ratingCheck",
   "title": "Rating Check",
   "part": "mep",
-  "help": "Rating Check: Checks.",
-  "requiresProject": true,
+  "help": "Verify fire damper assembly hour rating meets or exceeds compartment wall/slab rating.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "barrierRatingMin",
+    "label": "Fire barrier / floor separation rating [min]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 120.0,
+    "min": 30.0
+   },
+   {
+    "key": "damperRatingMin",
+    "label": "Damper tested fire endurance rating [min]",
+    "type": "number",
+    "default": 90.0,
+    "min": 30.0
+   },
+   {
+    "key": "staticPressurePa",
+    "label": "System duct closing pressure [Pa]",
+    "type": "number",
+    "default": 350.0,
+    "min": 50.0
    }
   ]
  },
@@ -86358,15 +87328,36 @@
   "id": "mepFireDampers.sealCheck",
   "title": "Seal Check",
   "part": "mep",
-  "help": "Seal Check: Checks.",
-  "requiresProject": true,
+  "help": "Compute total closed-damper smoke leakage flow and verify leakage-class limit.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "damperAreaM2",
+    "label": "Damper nominal face area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.48,
+    "min": 0.02
+   },
+   {
+    "key": "testPressurePa",
+    "label": "Compartment test pressure differential [Pa]",
+    "type": "number",
+    "default": 1000.0,
+    "min": 100.0
+   },
+   {
+    "key": "leakageRateLpsPerM2",
+    "label": "Manufacturer blade seal leakage [L/(s·m²)]",
+    "type": "number",
+    "default": 18.0,
+    "min": 0.5
+   },
+   {
+    "key": "maxClassLimitLpsPerM2",
+    "label": "Class I / II maximum allowable leakage [L/(s·m²)]",
+    "type": "number",
+    "default": 20.3,
+    "min": 2.0
    }
   ]
  },
@@ -86471,15 +87462,29 @@
   "id": "mepFireExtinguishers.deadEndCheck",
   "title": "Dead End Check",
   "part": "mep",
-  "help": "Dead End Check: Coverage Mapping.",
-  "requiresProject": true,
+  "help": "Verify dead-end corridor extinguisher access & exit travel distance bounds.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "deadEndLengthM",
+    "label": "Corridor dead-end length [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 5.5,
+    "min": 0.0
+   },
+   {
+    "key": "limitLengthM",
+    "label": "Allowable dead-end pocket limit [m]",
+    "type": "number",
+    "default": 6.0,
+    "min": 1.0
+   },
+   {
+    "key": "travelToExtinguisherM",
+    "label": "Actual travel distance to extinguisher [m]",
+    "type": "number",
+    "default": 14.0,
+    "min": 0.5
    }
   ]
  },
@@ -86487,15 +87492,30 @@
   "id": "mepFireExtinguishers.expiryCheck",
   "title": "Expiry Check",
   "part": "mep",
-  "help": "Expiry Check: Schedule.",
-  "requiresProject": true,
+  "help": "Compute next annual service and hydrostatic pressure test due year for fire extinguishers.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "manufactureYear",
+    "label": "Cylinder test/service year (YYYY)",
+    "type": "text",
+    "default": "2023"
+   },
+   {
+    "key": "hydroIntervalYr",
+    "label": "Hydrostatic / refill test interval [yr]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 5.0,
+    "min": 1.0,
+    "max": 12.0
+   },
+   {
+    "key": "annualCheckMonths",
+    "label": "Annual inspection interval [months]",
+    "type": "number",
+    "default": 12.0,
+    "min": 3.0,
+    "max": 24.0
    }
   ]
  },
@@ -86564,15 +87584,29 @@
   "id": "mepFireExtinguishers.flammableStorageCheck",
   "title": "Flammable Storage Check",
   "part": "mep",
-  "help": "Flammable Storage Check: Hazard Assessment.",
-  "requiresProject": true,
+  "help": "Calculate Class B portable extinguisher count and coverage radius for flammable storage.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "storageAreaM2",
+    "label": "Flammable liquid room / bund area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 180.0,
+    "min": 5.0
+   },
+   {
+    "key": "maxTravelLimitM",
+    "label": "Maximum Class B travel distance [m]",
+    "type": "number",
+    "default": 15.0,
+    "min": 5.0
+   },
+   {
+    "key": "unitBRating",
+    "label": "Individual extinguisher B-rating",
+    "type": "number",
+    "default": 40.0,
+    "min": 10.0
    }
   ]
  },
@@ -88950,38 +89984,37 @@
   "id": "mepHvacAnalysis.ductSizing",
   "title": "Duct Sizing",
   "part": "mep",
-  "help": "",
+  "help": "Equal-friction duct size: the round diameter whose Darcy-Weisbach friction loss equals",
   "requiresProject": false,
   "fields": [
    {
     "key": "flow",
-    "label": "Flow [l/s]",
+    "label": "Air flow [l/s]",
     "type": "number",
     "default": 1000,
-    "min": 0
-   },
-   {
-    "key": "shape",
-    "label": "Shape",
-    "type": "select",
-    "default": "round",
-    "options": [
-     {
-      "value": "round",
-      "label": "Round"
-     },
-     {
-      "value": "rect",
-      "label": "Rectangular"
-     }
-    ]
+    "min": 1
    },
    {
     "key": "friction",
-    "label": "Friction rate [Pa/m]",
+    "label": "Design friction rate [Pa/m]",
     "type": "number",
-    "default": 1,
+    "default": 1.0,
     "min": 0.1
+   },
+   {
+    "key": "roughnessMm",
+    "label": "Duct roughness [mm]",
+    "type": "number",
+    "default": 0.09,
+    "min": 0.0
+   },
+   {
+    "key": "aspect",
+    "label": "Rectangular aspect ratio a/b",
+    "type": "number",
+    "default": 2.0,
+    "min": 1.0,
+    "max": 8.0
    }
   ]
  },
@@ -89345,15 +90378,32 @@
   "id": "mepHvacControls.controlDeadband",
   "title": "Control Deadband",
   "part": "mep",
-  "help": "Control Deadband: Setpoints.",
-  "requiresProject": true,
+  "help": "Evaluate heating/cooling neutral deadband width to avoid simultaneous bucking.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "heatingSetpointC",
+    "label": "Zone heating setpoint [°C]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 21.0,
+    "min": 10.0,
+    "max": 25.0
+   },
+   {
+    "key": "coolingSetpointC",
+    "label": "Zone cooling setpoint [°C]",
+    "type": "number",
+    "default": 24.5,
+    "min": 18.0,
+    "max": 32.0
+   },
+   {
+    "key": "sensorUncertaintyK",
+    "label": "Thermostat sensor drift + hysteresis [K]",
+    "type": "number",
+    "default": 0.5,
+    "min": 0.1,
+    "max": 2.0
    }
   ]
  },
@@ -89481,15 +90531,43 @@
   "id": "mepHvacControls.occupancySetpoint",
   "title": "Occupancy Setpoint",
   "part": "mep",
-  "help": "Occupancy Setpoint: Setpoints.",
-  "requiresProject": true,
+  "help": "Compute unoccupied setup setpoint, envelope gradient reduction, and ventilation saving.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "occupiedCoolC",
+    "label": "Occupied cooling setpoint [°C]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 24.0
+   },
+   {
+    "key": "unoccupiedSetupK",
+    "label": "Unoccupied temperature setup [K]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.0,
+    "max": 10.0
+   },
+   {
+    "key": "outdoorTempC",
+    "label": "Design outdoor temperature [°C]",
+    "type": "number",
+    "default": 34.0
+   },
+   {
+    "key": "designFlowLps",
+    "label": "Zone full outdoor-air ventilation [L/s]",
+    "type": "number",
+    "default": 350.0,
+    "min": 10.0
+   },
+   {
+    "key": "standbyFlowRatio",
+    "label": "Standby minimum outdoor-air fraction",
+    "type": "number",
+    "default": 0.3,
+    "min": 0.0,
+    "max": 1.0
    }
   ]
  },
@@ -89497,15 +90575,29 @@
   "id": "mepHvacControls.pidTuning",
   "title": "PID Tuning",
   "part": "mep",
-  "help": "PID Tuning: Controllers.",
-  "requiresProject": true,
+  "help": "Compute Cohen-Coon / Ziegler-Nichols PI and PID controller gains from FOPDT parameters.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "processGain",
+    "label": "Steady-state process gain K_p",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1.5,
+    "min": 0.05
+   },
+   {
+    "key": "timeConstantS",
+    "label": "Loop dominant time constant tau [s]",
+    "type": "number",
+    "default": 45.0,
+    "min": 1.0
+   },
+   {
+    "key": "deadTimeS",
+    "label": "Transport dead time L [s]",
+    "type": "number",
+    "default": 8.0,
+    "min": 0.5
    }
   ]
  },
@@ -90346,15 +91438,29 @@
   "id": "mepHvacTerminals.adpiCalculation",
   "title": "ADPI Calculation",
   "part": "mep",
-  "help": "ADPI Calculation: Comfort Analysis.",
-  "requiresProject": true,
+  "help": "Estimate Air Diffusion Performance Index (ADPI) from throw-to-length ratio T50/L.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "throwT50M",
+    "label": "Catalog diffuser isothermal throw T50 [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 3.6,
+    "min": 0.2
+   },
+   {
+    "key": "characteristicLengthM",
+    "label": "Room characteristic length L [m]",
+    "type": "number",
+    "default": 4.0,
+    "min": 0.5
+   },
+   {
+    "key": "coolingLoadWPerM2",
+    "label": "Zone cooling load density [W/m²]",
+    "type": "number",
+    "default": 75.0,
+    "min": 5.0
    }
   ]
  },
@@ -90454,15 +91560,39 @@
   "id": "mepHvacTerminals.noiseLevel",
   "title": "Noise Level",
   "part": "mep",
-  "help": "Noise Level: Diffusers.",
-  "requiresProject": true,
+  "help": "Predict combined diffuser room sound level with distance and multi-source addition.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "catalogNcPerUnit",
+    "label": "Single diffuser catalog rating at flow [NC]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 28.0,
+    "min": 10.0,
+    "max": 65.0
+   },
+   {
+    "key": "diffuserCount",
+    "label": "Active diffusers contributing in room",
+    "type": "number",
+    "default": 4,
+    "min": 1,
+    "max": 40
+   },
+   {
+    "key": "distanceM",
+    "label": "Distance from nearest diffuser to listener [m]",
+    "type": "number",
+    "default": 2.5,
+    "min": 0.5
+   },
+   {
+    "key": "roomLimitNc",
+    "label": "Target room background limit [NC]",
+    "type": "number",
+    "default": 35.0,
+    "min": 20.0,
+    "max": 55.0
    }
   ]
  },
@@ -90501,15 +91631,29 @@
   "id": "mepHvacTerminals.regeneratedNoise",
   "title": "Regenerated Noise",
   "part": "mep",
-  "help": "Regenerated Noise: Acoustics.",
-  "requiresProject": true,
+  "help": "Estimate damper/fitting regenerated sound power Lw and attenuated room contribution.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "faceAreaM2",
+    "label": "Damper / terminal cross-section area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.08,
+    "min": 0.005
+   },
+   {
+    "key": "staticDropPa",
+    "label": "Throttled static pressure drop ΔP [Pa]",
+    "type": "number",
+    "default": 120.0,
+    "min": 5.0
+   },
+   {
+    "key": "downstreamAttenDb",
+    "label": "Lined plenum + branch insertion loss [dB]",
+    "type": "number",
+    "default": 14.0,
+    "min": 0.0
    }
   ]
  },
@@ -90517,15 +91661,36 @@
   "id": "mepHvacTerminals.reheatCoilCalculation",
   "title": "Reheat Coil Calculation",
   "part": "mep",
-  "help": "Reheat Coil Calculation: VAV Units.",
-  "requiresProject": true,
+  "help": "Size VAV hydronic/electric reheat coil thermal duty and hot water mass flow.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "minAirflowLps",
+    "label": "VAV minimum heating airflow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 140.0,
+    "min": 10.0
+   },
+   {
+    "key": "enteringAirC",
+    "label": "Primary supply air temperature [°C]",
+    "type": "number",
+    "default": 13.0
+   },
+   {
+    "key": "leavingAirC",
+    "label": "Target discharge heating temperature [°C]",
+    "type": "number",
+    "default": 32.0,
+    "min": 20.0,
+    "max": 42.0
+   },
+   {
+    "key": "waterDeltaTK",
+    "label": "Hot water coil ΔT [K]",
+    "type": "number",
+    "default": 11.0,
+    "min": 3.0
    }
   ]
  },
@@ -90670,15 +91835,31 @@
   "id": "mepHvacTerminals.vavBoxSizing",
   "title": "VAV Box Sizing",
   "part": "mep",
-  "help": "VAV Box Sizing: VAV Units.",
-  "requiresProject": true,
+  "help": "Select circular VAV inlet collar diameter meeting peak velocity and turndown bounds.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "peakAirflowLps",
+    "label": "Zone peak cooling airflow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 420.0,
+    "min": 20.0
+   },
+   {
+    "key": "minFlowRatio",
+    "label": "Minimum ventilation turndown ratio",
+    "type": "number",
+    "default": 0.3,
+    "min": 0.1,
+    "max": 0.8
+   },
+   {
+    "key": "maxInletVelMs",
+    "label": "Maximum collar velocity limit [m/s]",
+    "type": "number",
+    "default": 10.0,
+    "min": 4.0,
+    "max": 15.0
    }
   ]
  },
@@ -91934,15 +93115,38 @@
   "id": "mepLowVoltage.bandwidthCheck",
   "title": "Bandwidth Check",
   "part": "mep",
-  "help": "Bandwidth Check: Checks.",
-  "requiresProject": true,
+  "help": "Check structured-cabling uplink throughput utilisation and spare bandwidth headroom.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "endpoints",
+    "label": "Active endpoints / IP cameras / APs",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 24,
+    "min": 1,
+    "max": 500
+   },
+   {
+    "key": "perEndpointMbps",
+    "label": "Average stream throughput per endpoint [Mbps]",
+    "type": "number",
+    "default": 12.0,
+    "min": 0.5
+   },
+   {
+    "key": "uplinkGbps",
+    "label": "Core switch uplink capacity [Gbps]",
+    "type": "number",
+    "default": 1.0,
+    "min": 0.1
+   },
+   {
+    "key": "maxUtilPct",
+    "label": "Target peak link utilisation limit [%]",
+    "type": "number",
+    "default": 70.0,
+    "min": 20.0,
+    "max": 95.0
    }
   ]
  },
@@ -92160,15 +93364,45 @@
   "id": "mepLowVoltage.signalLossCheck",
   "title": "Signal Loss Check",
   "part": "mep",
-  "help": "Signal Loss Check: Testing.",
-  "requiresProject": true,
+  "help": "Calculate optical fiber / structured link insertion loss budget and margin.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "fiberLengthM",
+    "label": "Optical link path length [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 350.0,
+    "min": 5.0
+   },
+   {
+    "key": "attenuationDbPerKm",
+    "label": "Fiber attenuation rate [dB/km]",
+    "type": "number",
+    "default": 3.0,
+    "min": 0.2
+   },
+   {
+    "key": "connectorPairs",
+    "label": "Mated connector pairs",
+    "type": "number",
+    "default": 4,
+    "min": 0,
+    "max": 20
+   },
+   {
+    "key": "fusionSplices",
+    "label": "Fusion splices",
+    "type": "number",
+    "default": 2,
+    "min": 0,
+    "max": 30
+   },
+   {
+    "key": "linkBudgetDb",
+    "label": "Transceiver optical power budget [dB]",
+    "type": "number",
+    "default": 7.5,
+    "min": 1.0
    }
   ]
  },
@@ -92236,15 +93470,38 @@
   "id": "mepLowVoltage.upsSizing",
   "title": "UPS Sizing",
   "part": "mep",
-  "help": "UPS Sizing: Checks.",
-  "requiresProject": true,
+  "help": "Size critical-power UPS frame kVA and battery bank via saengine.electrical.supply.ups.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "criticalLoadKw",
+    "label": "Critical IT / ELV load [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 24.0,
+    "min": 0.5
+   },
+   {
+    "key": "autonomyMin",
+    "label": "Battery backup autonomy [min]",
+    "type": "number",
+    "default": 15.0,
+    "min": 5.0,
+    "max": 240.0
+   },
+   {
+    "key": "loadPf",
+    "label": "UPS output power factor",
+    "type": "number",
+    "default": 0.9,
+    "min": 0.7,
+    "max": 1.0
+   },
+   {
+    "key": "dcBusV",
+    "label": "Battery string nominal DC bus [V]",
+    "type": "number",
+    "default": 240.0,
+    "min": 24.0
    }
   ]
  },
@@ -93556,15 +94813,30 @@
   "id": "mepPlumbingHeating.balanceValves",
   "title": "Balance Valves",
   "part": "mep",
-  "help": "Balance Valves: Distribution.",
-  "requiresProject": true,
+  "help": "Size thermostatic/manual balancing valve Kv and preset drop for hot-water return loops.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "flowLps",
+    "label": "Branch design flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.45,
+    "min": 0.01
+   },
+   {
+    "key": "excessHeadKpa",
+    "label": "Excess circuit differential head to throttle [kPa]",
+    "type": "number",
+    "default": 22.0,
+    "min": 1.0
+   },
+   {
+    "key": "authorityTarget",
+    "label": "Minimum valve authority",
+    "type": "number",
+    "default": 0.5,
+    "min": 0.2,
+    "max": 0.9
    }
   ]
  },
@@ -93602,21 +94874,30 @@
   "id": "mepPlumbingHeating.cylinderSchedule",
   "title": "Cylinder Schedule",
   "part": "mep",
-  "help": "Cylinder Schedule: Storage.",
+  "help": "Build a scheduled hot-water cylinder/calorifier table from project plumbing fixtures & occupancy.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "coldTempC",
+    "label": "Cold water inlet temp [°C]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 15.0,
+    "min": 2.0,
+    "max": 35.0
+   },
+   {
+    "key": "storageTempC",
+    "label": "Hot water storage temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 45.0,
+    "max": 80.0
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Output schedule filename prefix",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "cylinderSchedule"
    }
   ]
  },
@@ -93624,15 +94905,79 @@
   "id": "mepPlumbingHeating.cylinderSize",
   "title": "Cylinder Size",
   "part": "mep",
-  "help": "Cylinder Size: Storage.",
-  "requiresProject": true,
+  "help": "Size hot water storage cylinder nominal volume and heat input via hot_water.heater_sizing.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "occupancy",
+    "label": "Building occupancy",
+    "type": "select",
+    "default": "office",
+    "options": [
+     {
+      "value": "office",
+      "label": "Office"
+     },
+     {
+      "value": "residential",
+      "label": "Residential"
+     },
+     {
+      "value": "hotel",
+      "label": "Hotel"
+     },
+     {
+      "value": "school",
+      "label": "School"
+     },
+     {
+      "value": "hospital",
+      "label": "Hospital"
+     }
+    ]
+   },
+   {
+    "key": "occupants",
+    "label": "Design occupant count",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 120,
+    "min": 1
+   },
+   {
+    "key": "lphPerPerson",
+    "label": "Peak hot water allowance per occupant [L/(person·h)]",
+    "type": "number",
+    "default": 10.0,
+    "min": 1.0
+   },
+   {
+    "key": "peakDurationHr",
+    "label": "Peak draw-off duration [h]",
+    "type": "number",
+    "default": 2.0,
+    "min": 0.5
+   },
+   {
+    "key": "usableFraction",
+    "label": "Tank usable storage fraction",
+    "type": "number",
+    "default": 0.75,
+    "min": 0.5,
+    "max": 0.95
+   },
+   {
+    "key": "coldTempC",
+    "label": "Cold inlet temp [°C]",
+    "type": "number",
+    "default": 15.0,
+    "min": 2.0
+   },
+   {
+    "key": "storageTempC",
+    "label": "Storage temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 45.0
    }
   ]
  },
@@ -93655,15 +95000,46 @@
   "id": "mepPlumbingHeating.heatExchanger",
   "title": "Heat Exchanger",
   "part": "mep",
-  "help": "Heat Exchanger: Solar Thermal.",
-  "requiresProject": true,
+  "help": "Compute counter-flow LMTD, UA conductance, heat-transfer area, and mass flow rates.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "dutyKw",
+    "label": "Thermal duty Q [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 80.0,
+    "min": 0.5
+   },
+   {
+    "key": "primaryInC",
+    "label": "Primary flow in [°C]",
+    "type": "number",
+    "default": 80.0
+   },
+   {
+    "key": "primaryOutC",
+    "label": "Primary return out [°C]",
+    "type": "number",
+    "default": 60.0
+   },
+   {
+    "key": "secondaryInC",
+    "label": "Cold water inlet [°C]",
+    "type": "number",
+    "default": 15.0
+   },
+   {
+    "key": "secondaryOutC",
+    "label": "Hot water outlet [°C]",
+    "type": "number",
+    "default": 60.0
+   },
+   {
+    "key": "uValueWPerM2K",
+    "label": "Overall U-value [W/(m²·K)]",
+    "type": "number",
+    "default": 2500.0,
+    "min": 100.0
    }
   ]
  },
@@ -93671,15 +95047,37 @@
   "id": "mepPlumbingHeating.heaterCapacity",
   "title": "Heater Capacity",
   "part": "mep",
-  "help": "Heater Capacity: Heaters.",
-  "requiresProject": true,
+  "help": "Compute required water heater thermal output and fuel/electrical input power [kW].",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "recoveryRateLph",
+    "label": "Required recovery rate [L/h]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 600.0,
+    "min": 10.0
+   },
+   {
+    "key": "coldTempC",
+    "label": "Cold water temp [°C]",
+    "type": "number",
+    "default": 15.0,
+    "min": 2.0
+   },
+   {
+    "key": "hotTempC",
+    "label": "Heated water temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 40.0
+   },
+   {
+    "key": "thermalEfficiency",
+    "label": "Heater thermal efficiency",
+    "type": "number",
+    "default": 0.92,
+    "min": 0.5,
+    "max": 4.5
    }
   ]
  },
@@ -93687,15 +95085,29 @@
   "id": "mepPlumbingHeating.heaterType",
   "title": "Heater Type",
   "part": "mep",
-  "help": "Heater Type: Heaters.",
-  "requiresProject": true,
+  "help": "Compare water heating technologies by thermal duty, input energy, and daily kWh.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "dailyHotWaterL",
+    "label": "Daily hot water demand at 60°C [L/day]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 4000.0,
+    "min": 50.0
+   },
+   {
+    "key": "coldTempC",
+    "label": "Cold water temp [°C]",
+    "type": "number",
+    "default": 15.0,
+    "min": 2.0
+   },
+   {
+    "key": "hotTempC",
+    "label": "Hot water temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 45.0
    }
   ]
  },
@@ -93719,15 +95131,31 @@
   "id": "mepPlumbingHeating.pumpControl",
   "title": "Pump Control",
   "part": "mep",
-  "help": "Pump Control: Pumping.",
-  "requiresProject": true,
+  "help": "Compare constant-speed vs VFD proportional differential-pressure pump power via affinity laws.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "ratedPowerKw",
+    "label": "Design full-flow pump shaft power [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1.5,
+    "min": 0.05
+   },
+   {
+    "key": "partLoadRatio",
+    "label": "Average flow turn-down ratio (Q/Q0)",
+    "type": "number",
+    "default": 0.65,
+    "min": 0.2,
+    "max": 1.0
+   },
+   {
+    "key": "staticHeadShare",
+    "label": "Static lift fraction of design head",
+    "type": "number",
+    "default": 0.15,
+    "min": 0.0,
+    "max": 0.8
    }
   ]
  },
@@ -93735,15 +95163,37 @@
   "id": "mepPlumbingHeating.recirculationPump",
   "title": "Recirculation Pump",
   "part": "mep",
-  "help": "Recirculation Pump: Pumping.",
-  "requiresProject": true,
+  "help": "Size hot-water return circulation flow rate and pump duty via saengine.plumbing.hot_water.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "loopLengthM",
+    "label": "Total hot water loop length (flow + return) [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 120.0,
+    "min": 5.0
+   },
+   {
+    "key": "heatLossWPerM",
+    "label": "Insulated pipe heat loss rate [W/m]",
+    "type": "number",
+    "default": 12.0,
+    "min": 2.0
+   },
+   {
+    "key": "returnDropC",
+    "label": "Allowable loop temperature drop ΔT [°C]",
+    "type": "number",
+    "default": 5.0,
+    "min": 1.0,
+    "max": 15.0
+   },
+   {
+    "key": "headLossM",
+    "label": "Circulating circuit friction head [m]",
+    "type": "number",
+    "default": 3.5,
+    "min": 0.2
    }
   ]
  },
@@ -93751,15 +95201,36 @@
   "id": "mepPlumbingHeating.recoveryRate",
   "title": "Recovery Rate",
   "part": "mep",
-  "help": "Recovery Rate: Heaters.",
-  "requiresProject": true,
+  "help": "Compute cylinder thermal recovery rate [L/h] and full reheat duration [min].",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "tankVolumeL",
+    "label": "Cylinder water volume [L]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1000.0,
+    "min": 20.0
+   },
+   {
+    "key": "heaterOutputKw",
+    "label": "Net heater thermal output [kW]",
+    "type": "number",
+    "default": 45.0,
+    "min": 1.0
+   },
+   {
+    "key": "coldTempC",
+    "label": "Cold supply temp [°C]",
+    "type": "number",
+    "default": 15.0,
+    "min": 2.0
+   },
+   {
+    "key": "targetTempC",
+    "label": "Stored setpoint temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 40.0
    }
   ]
  },
@@ -93827,15 +95298,35 @@
   "id": "mepPlumbingHeating.standbyLoss",
   "title": "Standby Loss",
   "part": "mep",
-  "help": "Standby Loss: Heaters.",
-  "requiresProject": true,
+  "help": "Estimate insulated storage cylinder standby heat loss and daily energy decay.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "tankVolumeL",
+    "label": "Storage cylinder capacity [L]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1000.0,
+    "min": 50.0
+   },
+   {
+    "key": "insulationMm",
+    "label": "PU foam jacket thickness [mm]",
+    "type": "number",
+    "default": 50.0,
+    "min": 10.0
+   },
+   {
+    "key": "storageTempC",
+    "label": "Stored water temp [°C]",
+    "type": "number",
+    "default": 60.0,
+    "min": 40.0
+   },
+   {
+    "key": "ambientTempC",
+    "label": "Plantroom ambient temp [°C]",
+    "type": "number",
+    "default": 22.0
    }
   ]
  },
@@ -93873,21 +95364,47 @@
   "id": "mepPlumbingHeating.traceHeating",
   "title": "Trace Heating",
   "part": "mep",
-  "help": "Trace Heating: Distribution.",
-  "requiresProject": true,
+  "help": "Compute linear pipe heat-trace tape output [W/m], circuit load, and breaker current.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "pipeLengthM",
+    "label": "Maintained pipework length [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 85.0,
+    "min": 1.0
+   },
+   {
+    "key": "pipeOdMm",
+    "label": "Pipe outer diameter [mm]",
+    "type": "number",
+    "default": 54.0,
+    "min": 12.0
+   },
+   {
+    "key": "insulationMm",
+    "label": "Insulation thickness [mm]",
+    "type": "number",
+    "default": 25.0,
+    "min": 5.0
+   },
+   {
+    "key": "maintainTempC",
+    "label": "Maintained water temperature [°C]",
+    "type": "number",
+    "default": 55.0
+   },
+   {
+    "key": "ambientTempC",
+    "label": "Minimum ambient temperature [°C]",
+    "type": "number",
+    "default": 10.0
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Output schedule name",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "traceHeating"
    }
   ]
  },
@@ -93940,15 +95457,44 @@
   "id": "mepPlumbingQuality.chlorineLevel",
   "title": "Chlorine Level",
   "part": "mep",
-  "help": "Chlorine Level: Testing.",
-  "requiresProject": true,
+  "help": "Compute first-order free chlorine decay over storage residence time and dosing check.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "dosedMgPerL",
+    "label": "Dosed free chlorine [mg/L]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1.0,
+    "min": 0.05,
+    "max": 10.0
+   },
+   {
+    "key": "tankVolumeM3",
+    "label": "Storage tank volume [m³]",
+    "type": "number",
+    "default": 40.0,
+    "min": 0.5
+   },
+   {
+    "key": "dailyDemandM3",
+    "label": "Daily throughput [m³/d]",
+    "type": "number",
+    "default": 60.0,
+    "min": 0.5
+   },
+   {
+    "key": "decayRatePerHr",
+    "label": "First-order bulk/wall decay k [/h]",
+    "type": "number",
+    "default": 0.04,
+    "min": 0.0
+   },
+   {
+    "key": "minResidualMgPerL",
+    "label": "Minimum residual target [mg/L]",
+    "type": "number",
+    "default": 0.2,
+    "min": 0.05
    }
   ]
  },
@@ -93956,15 +95502,29 @@
   "id": "mepPlumbingQuality.deadLegCheck",
   "title": "Dead Leg Check",
   "part": "mep",
-  "help": "Dead Leg Check: Temperature.",
-  "requiresProject": true,
+  "help": "Evaluate dead-leg stagnation length ratio (L/D) and trapped water volume.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "pipeDiameterMm",
+    "label": "Nominal pipe bore [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 25.0,
+    "min": 10.0
+   },
+   {
+    "key": "deadLegLengthM",
+    "label": "Unflushed branch length L [m]",
+    "type": "number",
+    "default": 2.2,
+    "min": 0.05
+   },
+   {
+    "key": "maxLengthLimitM",
+    "label": "Project dead-leg length limit [m]",
+    "type": "number",
+    "default": 1.5,
+    "min": 0.1
    }
   ]
  },
@@ -94252,15 +95812,44 @@
   "id": "mepPlumbingRainwater.distributionPump",
   "title": "Distribution Pump",
   "part": "mep",
-  "help": "Distribution Pump: Treatment.",
-  "requiresProject": true,
+  "help": "Size reclaimed rainwater distribution booster pump total dynamic head and motor power.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "flowLps",
+    "label": "Harvested reuse booster flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1.2,
+    "min": 0.05
+   },
+   {
+    "key": "staticHeadM",
+    "label": "Static lift to highest outlet [m]",
+    "type": "number",
+    "default": 18.0,
+    "min": 0.0
+   },
+   {
+    "key": "frictionHeadM",
+    "label": "Pipework & filter head loss [m]",
+    "type": "number",
+    "default": 6.5,
+    "min": 0.5
+   },
+   {
+    "key": "residualHeadM",
+    "label": "Required outlet residual head [m]",
+    "type": "number",
+    "default": 10.0,
+    "min": 2.0
+   },
+   {
+    "key": "pumpEff",
+    "label": "Pump + motor combined efficiency",
+    "type": "number",
+    "default": 0.58,
+    "min": 0.2,
+    "max": 0.9
    }
   ]
  },
@@ -94268,15 +95857,30 @@
   "id": "mepPlumbingRainwater.downpipe",
   "title": "Downpipe",
   "part": "mep",
-  "help": "Downpipe: Collection.",
-  "requiresProject": true,
+  "help": "Size circular rainwater leader/downpipe diameter and peak flow via saengine.plumbing.rainwater.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "catchmentAreaM2",
+    "label": "Roof catchment area per downpipe [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 180.0,
+    "min": 5.0
+   },
+   {
+    "key": "rainfallMmPerHr",
+    "label": "Design rainfall intensity [mm/h]",
+    "type": "number",
+    "default": 100.0,
+    "min": 10.0
+   },
+   {
+    "key": "runoffCoeff",
+    "label": "Roof runoff coefficient C",
+    "type": "number",
+    "default": 0.95,
+    "min": 0.2,
+    "max": 1.0
    }
   ]
  },
@@ -94284,15 +95888,31 @@
   "id": "mepPlumbingRainwater.dualPumpController",
   "title": "Dual Pump Controller",
   "part": "mep",
-  "help": "Dual Pump Controller: Pumping Systems.",
-  "requiresProject": true,
+  "help": "Size duty/standby alternation wet-well working volume to cap motor start frequency.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "dutyFlowLps",
+    "label": "Single pump rated flow Q [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 2.0,
+    "min": 0.1
+   },
+   {
+    "key": "maxStartsPerHour",
+    "label": "Maximum motor starts per hour",
+    "type": "number",
+    "default": 12.0,
+    "min": 2.0,
+    "max": 30.0
+   },
+   {
+    "key": "leadLagFactor",
+    "label": "Total peak duty ratio (Duty+Assist / Single)",
+    "type": "number",
+    "default": 1.6,
+    "min": 1.0,
+    "max": 2.0
    }
   ]
  },
@@ -94330,15 +95950,30 @@
   "id": "mepPlumbingRainwater.gutterSize",
   "title": "Gutter Size",
   "part": "mep",
-  "help": "Gutter Size: Collection.",
-  "requiresProject": true,
+  "help": "Size semicircular roof gutter width/diameter via saengine.plumbing.rainwater.gutter_size.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "catchmentAreaM2",
+    "label": "Roof area draining to gutter [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 200.0,
+    "min": 5.0
+   },
+   {
+    "key": "rainfallMmPerHr",
+    "label": "Design rainfall intensity [mm/h]",
+    "type": "number",
+    "default": 100.0,
+    "min": 10.0
+   },
+   {
+    "key": "slopePct",
+    "label": "Gutter longitudinal slope [%]",
+    "type": "number",
+    "default": 1.0,
+    "min": 0.25,
+    "max": 5.0
    }
   ]
  },
@@ -94408,15 +96043,44 @@
   "id": "mepPlumbingRainwater.retentionBasin",
   "title": "Retention Basin",
   "part": "mep",
-  "help": "Retention Basin: Storm Runoff.",
-  "requiresProject": true,
+  "help": "Compute stormwater detention/retention basin storage volume via Rational mass balance.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "catchmentM2",
+    "label": "Contributing site area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 2500.0,
+    "min": 50.0
+   },
+   {
+    "key": "runoffCoeff",
+    "label": "Composite runoff coefficient C",
+    "type": "number",
+    "default": 0.75,
+    "min": 0.1,
+    "max": 1.0
+   },
+   {
+    "key": "rainfallMmPerHr",
+    "label": "Design storm intensity [mm/h]",
+    "type": "number",
+    "default": 80.0,
+    "min": 5.0
+   },
+   {
+    "key": "durationMin",
+    "label": "Critical storm duration [min]",
+    "type": "number",
+    "default": 60.0,
+    "min": 5.0
+   },
+   {
+    "key": "allowableOutflowLps",
+    "label": "Throttled orifice discharge limit [L/s]",
+    "type": "number",
+    "default": 15.0,
+    "min": 0.5
    }
   ]
  },
@@ -94424,15 +96088,36 @@
   "id": "mepPlumbingRainwater.runoffCoefficient",
   "title": "Runoff Coefficient",
   "part": "mep",
-  "help": "Runoff Coefficient: Storm Runoff.",
-  "requiresProject": true,
+  "help": "Compute area-weighted composite runoff coefficient and peak stormwater runoff flow.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "roofAreaM2",
+    "label": "Impervious roof area (C=0.95) [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 800.0,
+    "min": 0.0
+   },
+   {
+    "key": "pavedAreaM2",
+    "label": "Paved hardscape area (C=0.85) [m²]",
+    "type": "number",
+    "default": 400.0,
+    "min": 0.0
+   },
+   {
+    "key": "greenAreaM2",
+    "label": "Landscaped soil area (C=0.25) [m²]",
+    "type": "number",
+    "default": 300.0,
+    "min": 0.0
+   },
+   {
+    "key": "rainfallMmPerHr",
+    "label": "Design rainfall intensity [mm/h]",
+    "type": "number",
+    "default": 100.0,
+    "min": 5.0
    }
   ]
  },
@@ -94440,15 +96125,29 @@
   "id": "mepPlumbingRainwater.sedimentTrap",
   "title": "Sediment Trap",
   "part": "mep",
-  "help": "Sediment Trap: Water Quality.",
-  "requiresProject": true,
+  "help": "Size stormwater sediment/grit trap chamber volume, plan area, and surface overflow rate.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "inflowLps",
+    "label": "Design first-flush / inlet flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 8.0,
+    "min": 0.2
+   },
+   {
+    "key": "detentionSec",
+    "label": "Minimum grit settling detention time [s]",
+    "type": "number",
+    "default": 45.0,
+    "min": 10.0
+   },
+   {
+    "key": "chamberDepthM",
+    "label": "Liquid settling depth [m]",
+    "type": "number",
+    "default": 1.2,
+    "min": 0.5
    }
   ]
  },
@@ -94456,15 +96155,44 @@
   "id": "mepPlumbingRainwater.sizingMethod",
   "title": "Sizing Method",
   "part": "mep",
-  "help": "Sizing Method: Storage.",
-  "requiresProject": true,
+  "help": "Compare supply-limited vs demand-limited rainwater cistern sizing balance.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "roofAreaM2",
+    "label": "Roof collection area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 600.0,
+    "min": 10.0
+   },
+   {
+    "key": "annualRainfallMm",
+    "label": "Mean annual rainfall [mm/yr]",
+    "type": "number",
+    "default": 1800.0,
+    "min": 50.0
+   },
+   {
+    "key": "runoffCoeff",
+    "label": "Runoff & filter efficiency",
+    "type": "number",
+    "default": 0.85,
+    "min": 0.2,
+    "max": 0.95
+   },
+   {
+    "key": "dailyNonPotableM3",
+    "label": "Daily non-potable demand [m³/d]",
+    "type": "number",
+    "default": 2.5,
+    "min": 0.1
+   },
+   {
+    "key": "dryDays",
+    "label": "Dry-spell reserve window [days]",
+    "type": "number",
+    "default": 20.0,
+    "min": 1.0
    }
   ]
  },
@@ -94472,15 +96200,36 @@
   "id": "mepPlumbingRainwater.submersiblePump",
   "title": "Submersible Pump",
   "part": "mep",
-  "help": "Submersible Pump: Pumping Systems.",
-  "requiresProject": true,
+  "help": "Size basement stormwater sump submersible pump head, power, and NPSHa margin.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "flowLps",
+    "label": "Sump discharge flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 3.5,
+    "min": 0.2
+   },
+   {
+    "key": "liftM",
+    "label": "Vertical static discharge lift [m]",
+    "type": "number",
+    "default": 6.0,
+    "min": 0.5
+   },
+   {
+    "key": "pipeLossM",
+    "label": "Discharge pipe + check valve loss [m]",
+    "type": "number",
+    "default": 2.8,
+    "min": 0.2
+   },
+   {
+    "key": "submergenceMm",
+    "label": "Minimum pump impeller submergence [mm]",
+    "type": "number",
+    "default": 450.0,
+    "min": 100.0
    }
   ]
  },
@@ -94488,15 +96237,23 @@
   "id": "mepPlumbingRainwater.tankInlet",
   "title": "Tank Inlet",
   "part": "mep",
-  "help": "Tank Inlet: Storage.",
-  "requiresProject": true,
+  "help": "Size smoothed tank inlet header and overflow pipe diameter one size larger than inlet.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "inflowLps",
+    "label": "Design peak inlet flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 12.0,
+    "min": 0.5
+   },
+   {
+    "key": "maxInletVelMs",
+    "label": "Calmed inlet velocity limit [m/s]",
+    "type": "number",
+    "default": 0.9,
+    "min": 0.3,
+    "max": 2.0
    }
   ]
  },
@@ -94504,15 +96261,29 @@
   "id": "mepPlumbingRainwater.tankSize",
   "title": "Tank Size",
   "part": "mep",
-  "help": "Tank Size: Storage.",
-  "requiresProject": true,
+  "help": "Estimate rainwater harvesting tank capacity via saengine.plumbing.rainwater & 07 MEP if open.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "population",
+    "label": "Building equivalent population",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 200.0,
+    "min": 1.0
+   },
+   {
+    "key": "catchmentAreaM2",
+    "label": "Roof collection area [m²]",
+    "type": "number",
+    "default": 800.0,
+    "min": 10.0
+   },
+   {
+    "key": "annualRainfallMm",
+    "label": "Mean annual rainfall [mm/yr]",
+    "type": "number",
+    "default": 1800.0,
+    "min": 50.0
    }
   ]
  },
@@ -95027,15 +96798,46 @@
   "id": "mepSmoke.airBalanceSmoke",
   "title": "Air Balance Smoke",
   "part": "mep",
-  "help": "Air Balance Smoke: Ventilation.",
-  "requiresProject": true,
+  "help": "Compute stairwell smoke-control pressurisation supply fan airflow (closed + open doors).",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "pressurisedFloorCount",
+    "label": "Pressurised stairwell doors closed + 1 open",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 10,
+    "min": 1,
+    "max": 80
+   },
+   {
+    "key": "closedDoorGapAreaM2",
+    "label": "Leakage gap area per closed door [m²]",
+    "type": "number",
+    "default": 0.02,
+    "min": 0.005
+   },
+   {
+    "key": "openDoorsCount",
+    "label": "Assumed simultaneously open egress doors",
+    "type": "number",
+    "default": 1,
+    "min": 0,
+    "max": 4
+   },
+   {
+    "key": "openDoorAreaM2",
+    "label": "Single open door leaf area [m²]",
+    "type": "number",
+    "default": 1.8,
+    "min": 1.0
+   },
+   {
+    "key": "targetPressurePa",
+    "label": "Design stairwell overpressure [Pa]",
+    "type": "number",
+    "default": 50.0,
+    "min": 12.5,
+    "max": 80.0
    }
   ]
  },
@@ -95058,15 +96860,45 @@
   "id": "mepSmoke.doorForceCheck",
   "title": "Door Force Check",
   "part": "mep",
-  "help": "Door Force Check: Stairwells.",
-  "requiresProject": true,
+  "help": "Calculate stairwell egress door handle opening force under smoke pressurisation.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "doorWidthM",
+    "label": "Door leaf width W [m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.9,
+    "min": 0.6,
+    "max": 1.5
+   },
+   {
+    "key": "doorHeightM",
+    "label": "Door leaf height H [m]",
+    "type": "number",
+    "default": 2.1,
+    "min": 1.8,
+    "max": 2.8
+   },
+   {
+    "key": "closerForceN",
+    "label": "Door closer latch resistance F_dc [N]",
+    "type": "number",
+    "default": 45.0,
+    "min": 10.0
+   },
+   {
+    "key": "pressureDiffPa",
+    "label": "Maximum stairwell pressure difference ΔP [Pa]",
+    "type": "number",
+    "default": 50.0,
+    "min": 5.0
+   },
+   {
+    "key": "maxAllowedForceN",
+    "label": "Maximum handle opening force limit [N]",
+    "type": "number",
+    "default": 133.0,
+    "min": 50.0
    }
   ]
  },
@@ -95089,15 +96921,29 @@
   "id": "mepSmoke.egressWidthCheck",
   "title": "Egress Width Check",
   "part": "mep",
-  "help": "Egress Width Check: Egress.",
-  "requiresProject": true,
+  "help": "Check clear smoke-protected egress width against occupant capacity and minimum width.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "occupantLoad",
+    "label": "Floor or stairwell design occupant load",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 180,
+    "min": 1
+   },
+   {
+    "key": "widthPerPersonMm",
+    "label": "Stair width factor per occupant [mm/person]",
+    "type": "number",
+    "default": 7.6,
+    "min": 4.0
+   },
+   {
+    "key": "providedClearMm",
+    "label": "Provided clear exit stair / door width [mm]",
+    "type": "number",
+    "default": 1500.0,
+    "min": 600.0
    }
   ]
  },
@@ -95150,15 +96996,30 @@
   "id": "mepSmoke.extractionRate",
   "title": "Extraction Rate",
   "part": "mep",
-  "help": "Extraction Rate: Simulation.",
-  "requiresProject": true,
+  "help": "Calculate axisymmetric plume mass flow and volumetric mechanical smoke extraction rate.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "heatReleaseKw",
+    "label": "Design fire convective heat release Qc [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 3500.0,
+    "min": 200.0
+   },
+   {
+    "key": "clearHeightM",
+    "label": "Clear smoke-free height Z above fuel [m]",
+    "type": "number",
+    "default": 6.0,
+    "min": 2.0,
+    "max": 40.0
+   },
+   {
+    "key": "smokeTempC",
+    "label": "Upper smoke layer temperature Ts [°C]",
+    "type": "number",
+    "default": 85.0,
+    "min": 30.0
    }
   ]
  },
@@ -95289,15 +97150,29 @@
   "id": "mepSmoke.smokeReservoirs",
   "title": "Smoke Reservoirs",
   "part": "mep",
-  "help": "Smoke Reservoirs: Smoke Control.",
-  "requiresProject": true,
+  "help": "Evaluate smoke reservoir zoning area (<= 2600 m² mechanical), aspect length, and storage volume.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "zoneAreaM2",
+    "label": "Compartment smoke reservoir area [m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 2200.0,
+    "min": 50.0
+   },
+   {
+    "key": "maxSideM",
+    "label": "Longest reservoir dimension [m]",
+    "type": "number",
+    "default": 52.0,
+    "min": 5.0
+   },
+   {
+    "key": "layerDepthM",
+    "label": "Ceiling smoke screen drop depth d [m]",
+    "type": "number",
+    "default": 1.8,
+    "min": 0.5
    }
   ]
  },
@@ -95305,15 +97180,43 @@
   "id": "mepSmoke.smokeVents",
   "title": "Smoke Vents",
   "part": "mep",
-  "help": "Smoke Vents: Smoke Control.",
-  "requiresProject": true,
+  "help": "Size natural buoyancy smoke ventilator free geometric area via BRE/EN-style stack formula.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "plumeMassKgPerS",
+    "label": "Smoke mass flow rate M_s [kg/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 18.0,
+    "min": 0.5
+   },
+   {
+    "key": "smokeLayerDepthM",
+    "label": "Hot smoke layer buoyancy depth d [m]",
+    "type": "number",
+    "default": 1.6,
+    "min": 0.4
+   },
+   {
+    "key": "smokeTempC",
+    "label": "Mean smoke layer temperature [°C]",
+    "type": "number",
+    "default": 90.0,
+    "min": 35.0
+   },
+   {
+    "key": "ambientTempC",
+    "label": "Ambient outside air temperature [°C]",
+    "type": "number",
+    "default": 25.0
+   },
+   {
+    "key": "dischargeCoeff",
+    "label": "Vent aerodynamic Cv factor",
+    "type": "number",
+    "default": 0.6,
+    "min": 0.4,
+    "max": 0.8
    }
   ]
  },
@@ -95351,15 +97254,29 @@
   "id": "mepSmoke.tenability",
   "title": "Tenability",
   "part": "mep",
-  "help": "Tenability: Analysis.",
-  "requiresProject": true,
+  "help": "Verify ASET egress tenability limits for visibility (>= 10 m), gas temp (<= 60 °C), and radiation (<= 2.5 kW/m²).",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "opticalDensityPerM",
+    "label": "Smoke optical extinction coeff alpha [/m]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.18,
+    "min": 0.01
+   },
+   {
+    "key": "airTempC",
+    "label": "Occupant-head gas temperature (2.0 m) [°C]",
+    "type": "number",
+    "default": 42.0,
+    "min": 15.0
+   },
+   {
+    "key": "radiationKwPerM2",
+    "label": "Radiant heat flux from upper layer [kW/m²]",
+    "type": "number",
+    "default": 1.2,
+    "min": 0.0
    }
   ]
  },
@@ -96204,15 +98121,22 @@
   "id": "mepSystems.sizeMismatch",
   "title": "Size Mismatch",
   "part": "mep",
-  "help": "Size Mismatch: Checks.",
-  "requiresProject": true,
+  "help": "Check pipe/duct diameter transitions and flag unexpected downstream upsizing or excessive reduction.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "upstreamSizeMm",
+    "label": "Upstream header / duct / pipe ID [mm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 150.0,
+    "min": 10.0
+   },
+   {
+    "key": "downstreamSizeMm",
+    "label": "Downstream continuation bore [mm]",
+    "type": "number",
+    "default": 200.0,
+    "min": 10.0
    }
   ]
  },
@@ -96220,15 +98144,16 @@
   "id": "mepSystems.systemCapacity",
   "title": "System Capacity",
   "part": "mep",
-  "help": "System Capacity: Analysis.",
+  "help": "Audit installed MEP plant capacities (chiller/VRF, transformer, tanks) vs project stories in 07 MEP.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "demandReservePct",
+    "label": "Required capacity reserve margin [%]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 10.0,
+    "min": 0.0,
+    "max": 50.0
    }
   ]
  },
@@ -96402,15 +98327,29 @@
   "id": "mepSystemsBalancing.balanceMode",
   "title": "Balance Mode",
   "part": "mep",
-  "help": "Balance Mode: Commissioning.",
-  "requiresProject": true,
+  "help": "Determine excess differential head to balance and PICV vs manual balancing valve authority.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "indexLossKpa",
+    "label": "Index (worst-path) circuit loss [kPa]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 145.0,
+    "min": 1.0
+   },
+   {
+    "key": "subBranchLossKpa",
+    "label": "Favoured parallel branch loss [kPa]",
+    "type": "number",
+    "default": 85.0,
+    "min": 1.0
+   },
+   {
+    "key": "branchFlowLps",
+    "label": "Favoured branch design flow [L/s]",
+    "type": "number",
+    "default": 2.2,
+    "min": 0.05
    }
   ]
  },
@@ -96418,21 +98357,22 @@
   "id": "mepSystemsBalancing.balanceReport",
   "title": "Balance Report",
   "part": "mep",
-  "help": "Balance Report: Results.",
+  "help": "Compute hydraulic & air system balancing summary across 07 MEP risers/ducts and export JSON.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "tolerancePct",
+    "label": "Allowable flow tolerance (±%) [%]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 10.0,
+    "min": 1.0,
+    "max": 25.0
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Export balance report filename prefix",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "balanceReport"
    }
   ]
  },
@@ -96593,21 +98533,27 @@
   "id": "mepSystemsBalancing.imbalanceList",
   "title": "Imbalance List",
   "part": "mep",
-  "help": "Imbalance List: Results.",
-  "requiresProject": true,
+  "help": "Flag out-of-tolerance terminal branches from measured vs design flow pairs.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "measuredPairs",
+    "label": "Branch measurements name=design:actual;...",
+    "type": "text",
+    "default": "B1=100:82;B2=100:118;B3=100:96"
+   },
+   {
+    "key": "tolerancePct",
+    "label": "Allowable % deviation [%]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 10.0,
+    "min": 1.0
    },
    {
     "key": "name",
-    "label": "Output name",
+    "label": "Export imbalance JSON filename",
     "type": "text",
-    "default": "MEP schedule"
+    "default": "imbalanceList"
    }
   ]
  },
@@ -96615,15 +98561,31 @@
   "id": "mepSystemsBalancing.iterateBalance",
   "title": "Iterate Balance",
   "part": "mep",
-  "help": "Iterate Balance: Adjust.",
-  "requiresProject": true,
+  "help": "Compute proportional valve throttling & pump speed scaling convergence for hydronic balancing.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "minBranchRatio",
+    "label": "Lowest starved branch (Q_meas/Q_des)",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 0.72,
+    "min": 0.2,
+    "max": 1.5
+   },
+   {
+    "key": "maxBranchRatio",
+    "label": "Highest overflowed branch (Q_meas/Q_des)",
+    "type": "number",
+    "default": 1.28,
+    "min": 0.5,
+    "max": 2.5
+   },
+   {
+    "key": "currentPumpHeadKpa",
+    "label": "Current pump operating head [kPa]",
+    "type": "number",
+    "default": 160.0,
+    "min": 10.0
    }
   ]
  },
@@ -96662,15 +98624,36 @@
   "id": "mepSystemsBalancing.pumpSpeed",
   "title": "Pump Speed",
   "part": "mep",
-  "help": "Pump Speed: Adjust.",
-  "requiresProject": true,
+  "help": "Trim VFD pump speed using centrifugal affinity laws to eliminate excess throttling head.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "ratedRpm",
+    "label": "Motor synchronous / rated speed N1 [rpm]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 1450.0,
+    "min": 300.0
+   },
+   {
+    "key": "measuredFlowLps",
+    "label": "Balanced full-throttle flow Q1 [L/s]",
+    "type": "number",
+    "default": 14.5,
+    "min": 0.2
+   },
+   {
+    "key": "targetFlowLps",
+    "label": "Design required system flow Q2 [L/s]",
+    "type": "number",
+    "default": 12.0,
+    "min": 0.2
+   },
+   {
+    "key": "ratedPowerKw",
+    "label": "Pump input power P1 at N1 [kW]",
+    "type": "number",
+    "default": 11.0,
+    "min": 0.1
    }
   ]
  },
@@ -96678,15 +98661,28 @@
   "id": "mepSystemsBalancing.saveBalanceSet",
   "title": "Save Balance Set",
   "part": "mep",
-  "help": "Save Balance Set: Results.",
+  "help": "Persist validated TAB balance-set record against project MEP circuits in 11 Exports.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "setName",
+    "label": "Commissioned balance set ID",
+    "type": "text",
+    "default": "CHW-Primary-Riser1"
+   },
+   {
+    "key": "totalFlowLps",
+    "label": "Commissioned total loop flow [L/s]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 12.0,
+    "min": 0.1
+   },
+   {
+    "key": "residualDpKpa",
+    "label": "Verified index differential pressure [kPa]",
+    "type": "number",
+    "default": 38.0,
+    "min": 1.0
    }
   ]
  },
@@ -96790,7 +98786,7 @@
   "id": "mepSystemsMaintenance.assetTag",
   "title": "Asset Tag",
   "part": "mep",
-  "help": "Prepare a tagged asset schedule row from a real model equipment item.",
+  "help": "Assign a unique maintenance tag to a real MEP equipment item and persist the tag register.",
   "requiresProject": true,
   "fields": [
    {
@@ -96811,7 +98807,7 @@
   "id": "mepSystemsMaintenance.complianceCert",
   "title": "Compliance Cert",
   "part": "mep",
-  "help": "Prepare a certificate register record linked to a model equipment asset.",
+  "help": "Validate certificate expiry date, compute days remaining, and update register.",
   "requiresProject": true,
   "fields": [
    {
@@ -96946,7 +98942,7 @@
   "id": "mepSystemsMaintenance.maintenanceLog",
   "title": "Maintenance Log",
   "part": "mep",
-  "help": "Create a maintenance log entry that references the selected model equipment.",
+  "help": "Append a dated service entry tied to a model asset and maintain cumulative service count.",
   "requiresProject": true,
   "fields": [
    {
@@ -97339,7 +99335,7 @@
   "id": "mepSystemsMaintenance.workOrder",
   "title": "Work Order",
   "part": "mep",
-  "help": "Create a work-order report linked to an equipment item and its operating data.",
+  "help": "Issue a numbered work order linked to real equipment operating data and append to WO register.",
   "requiresProject": true,
   "fields": [
    {
@@ -97353,6 +99349,26 @@
     "label": "Service task",
     "type": "text",
     "default": "Inspect and service"
+   },
+   {
+    "key": "priority",
+    "label": "Priority",
+    "type": "select",
+    "default": "Routine",
+    "options": [
+     {
+      "value": "Routine",
+      "label": "Routine"
+     },
+     {
+      "value": "Urgent",
+      "label": "Urgent"
+     },
+     {
+      "value": "Shutdown",
+      "label": "Shutdown"
+     }
+    ]
    }
   ]
  },
@@ -97443,15 +99459,22 @@
   "id": "mepSystemsZoning.diversityFactor",
   "title": "Diversity Factor",
   "part": "mep",
-  "help": "Diversity Factor: Diversity.",
-  "requiresProject": true,
+  "help": "Calculate system diversity & coincidence factors separating block central plant from terminal totals.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "connectedTotalKw",
+    "label": "Sum of connected zone loads [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 450.0,
+    "min": 1.0
+   },
+   {
+    "key": "coincidentPeakKw",
+    "label": "Block coincident peak load [kW]",
+    "type": "number",
+    "default": 315.0,
+    "min": 0.5
    }
   ]
  },
@@ -97519,15 +99542,15 @@
   "id": "mepSystemsZoning.loadByZone",
   "title": "Load By Zone",
   "part": "mep",
-  "help": "Load By Zone: Report.",
+  "help": "Aggregate storey/zone cooling, lighting, and ventilation loads from 07 MEP/mep.json.",
   "requiresProject": true,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "coolingWPerM2",
+    "label": "Fallback specific cooling intensity [W/m²]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 110.0,
+    "min": 10.0
    }
   ]
  },
@@ -97565,15 +99588,39 @@
   "id": "mepSystemsZoning.peakLoadShift",
   "title": "Peak Load Shift",
   "part": "mep",
-  "help": "Peak Load Shift: Diversity.",
-  "requiresProject": true,
+  "help": "Size thermal energy storage capacity and on-peak kW demand shave from load shifting.",
+  "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Design value [units]",
+    "key": "dayPeakKw",
+    "label": "On-peak chiller cooling power demand [kW]",
     "type": "number",
-    "default": 100,
-    "min": 0
+    "default": 180.0,
+    "min": 5.0
+   },
+   {
+    "key": "shiftFraction",
+    "label": "Fraction shifted to thermal storage / precooling",
+    "type": "number",
+    "default": 0.35,
+    "min": 0.05,
+    "max": 0.8
+   },
+   {
+    "key": "peakHours",
+    "label": "Daily peak tariff window duration [h]",
+    "type": "number",
+    "default": 6.0,
+    "min": 1.0,
+    "max": 12.0
+   },
+   {
+    "key": "chillerCop",
+    "label": "Day vs night chiller effective COP",
+    "type": "number",
+    "default": 4.2,
+    "min": 1.5,
+    "max": 7.0
    }
   ]
  },
@@ -102396,7 +104443,7 @@
   "id": "overviewActivity.broadcastNote",
   "title": "Broadcast Note",
   "part": "settings",
-  "help": "Write a project broadcast note export.",
+  "help": "Attach a timestamped note linked to the latest project version and update broadcast-note.md.",
   "requiresProject": true,
   "fields": [
    {
@@ -102614,7 +104661,7 @@
   "id": "overviewDashboard.addKpi",
   "title": "Add KPI",
   "part": "settings",
-  "help": "Write a KPI record for the project dashboard.",
+  "help": "Store a KPI in persistent dashboard state and compare against any existing target.",
   "requiresProject": true,
   "fields": [
    {
@@ -102624,8 +104671,8 @@
     "default": ""
    },
    {
-    "key": "value",
-    "label": "Value [value]",
+    "key": "kpiValue",
+    "label": "KPI value [value]",
     "type": "number",
     "default": 0.0
    }
@@ -102635,7 +104682,7 @@
   "id": "overviewDashboard.addWidget",
   "title": "Add Widget",
   "part": "settings",
-  "help": "Write a dashboard widget configuration.",
+  "help": "Append a widget populated with live project metrics to dashboard state.",
   "requiresProject": true,
   "fields": [
    {
@@ -102650,7 +104697,7 @@
   "id": "overviewDashboard.alertRecipients",
   "title": "Alert Recipients",
   "part": "settings",
-  "help": "Write alert recipients to a local export.",
+  "help": "Validate alert recipient addresses and update persistent dashboard alert subscribers.",
   "requiresProject": true,
   "fields": [
    {
@@ -102665,7 +104712,7 @@
   "id": "overviewDashboard.arrangeLayout",
   "title": "Arrange Layout",
   "part": "settings",
-  "help": "Write a dashboard layout name export.",
+  "help": "Update active dashboard layout and compute widget grid slot allocation.",
   "requiresProject": true,
   "fields": [
    {
@@ -102731,7 +104778,7 @@
   "id": "overviewDashboard.exportPdf",
   "title": "Export PDF",
   "part": "settings",
-  "help": "Export a Markdown dashboard report in place of a binary PDF.",
+  "help": "Assemble live project metrics, BIM breakdowns, BOQ cost totals, and KPIs into Markdown.",
   "requiresProject": true,
   "fields": [
    {
@@ -102746,7 +104793,7 @@
   "id": "overviewDashboard.filterControls",
   "title": "Filter Controls",
   "part": "settings",
-  "help": "Store a dashboard filter expression.",
+  "help": "Apply a filter keyword across live project BIM elements and BOQ items and store it.",
   "requiresProject": true,
   "fields": [
    {
@@ -102825,7 +104872,7 @@
   "id": "overviewDashboard.reportTemplate",
   "title": "Report Template",
   "part": "settings",
-  "help": "Write a report-template manifest.",
+  "help": "Bind project live metrics and section schema into a persistent dashboard report template.",
   "requiresProject": true,
   "fields": [
    {
@@ -102840,7 +104887,7 @@
   "id": "overviewDashboard.scheduledEmail",
   "title": "Scheduled Email",
   "part": "settings",
-  "help": "Write scheduled-report metadata locally; no email is sent.",
+  "help": "Validate recipient address and update persistent scheduled-digest subscriptions.",
   "requiresProject": true,
   "fields": [
    {
@@ -102861,7 +104908,7 @@
   "id": "overviewDashboard.setTarget",
   "title": "Set Target",
   "part": "settings",
-  "help": "Write a KPI target.",
+  "help": "Set a KPI target and evaluate variance against stored or live project KPI values.",
   "requiresProject": true,
   "fields": [
    {
@@ -102918,7 +104965,7 @@
   "id": "overviewDashboard.snoozeAlert",
   "title": "Snooze Alert",
   "part": "settings",
-  "help": "Write an alert snooze record.",
+  "help": "Compute snooze expiry UTC timestamp and persist muted dashboard alerts.",
   "requiresProject": true,
   "fields": [
    {
@@ -102976,7 +105023,7 @@
   "id": "overviewDashboard.widgetProperties",
   "title": "Widget Properties",
   "part": "settings",
-  "help": "Write widget properties JSON.",
+  "help": "Validate and merge JSON configuration onto a dashboard widget.",
   "requiresProject": true,
   "fields": [
    {
@@ -103069,7 +105116,7 @@
   "id": "overviewLearning.featureRequests",
   "title": "Feature Requests",
   "part": "settings",
-  "help": "Write a local feature-request file.",
+  "help": "Log an indexed feature request with project context to feature-requests.json and Markdown.",
   "requiresProject": true,
   "fields": [
    {
@@ -103129,7 +105176,7 @@
   "id": "overviewLearning.remoteSession",
   "title": "Remote Session",
   "part": "settings",
-  "help": "Record a remote-session identifier locally without opening a network connection.",
+  "help": "Capture project workspace metrics under a named local remote-session checkpoint.",
   "requiresProject": true,
   "fields": [
    {
@@ -103144,7 +105191,7 @@
   "id": "overviewLearning.reportIssue",
   "title": "Report Issue",
   "part": "settings",
-  "help": "Write a local issue report for later review.",
+  "help": "Capture project JSON diagnostics and append the issue to a persistent Markdown/JSON report.",
   "requiresProject": true,
   "fields": [
    {
@@ -103188,7 +105235,7 @@
   "id": "overviewLearning.submitLog",
   "title": "Submit Log",
   "part": "settings",
-  "help": "Create a local diagnostic log export without network submission.",
+  "help": "Build a project file inventory with per-folder counts, byte totals, and SHA-256 digests.",
   "requiresProject": true,
   "fields": [
    {
@@ -103651,7 +105698,7 @@
   "id": "overviewTasks.approvals",
   "title": "Approvals",
   "part": "settings",
-  "help": "Write an approval record.",
+  "help": "Record item approval status in the workflow register and compute approval rate.",
   "requiresProject": true,
   "fields": [
    {
@@ -103672,7 +105719,7 @@
   "id": "overviewTasks.assignTask",
   "title": "Assign Task",
   "part": "settings",
-  "help": "Write a task assignment to the project export folder.",
+  "help": "Assign a task in the persistent workflow register, validating configured team members.",
   "requiresProject": true,
   "fields": [
    {
@@ -103732,7 +105779,7 @@
   "id": "overviewTasks.delegateReview",
   "title": "Delegate Review",
   "part": "settings",
-  "help": "Write a review delegation record.",
+  "help": "Match reviewable project objects by scope and record review delegation in workflow state.",
   "requiresProject": true,
   "fields": [
    {
@@ -103782,7 +105829,7 @@
   "id": "overviewTasks.discussion",
   "title": "Discussion",
   "part": "settings",
-  "help": "Write a discussion comment as Markdown.",
+  "help": "Append a timestamped comment to the project discussion thread and Markdown log.",
   "requiresProject": true,
   "fields": [
    {
@@ -103803,7 +105850,7 @@
   "id": "overviewTasks.dueDates",
   "title": "Due Dates",
   "part": "settings",
-  "help": "Write a task due-date record.",
+  "help": "Validate an ISO due date, update the workflow register, and count overdue tasks.",
   "requiresProject": true,
   "fields": [
    {
@@ -103839,7 +105886,7 @@
   "id": "overviewTasks.issueLog",
   "title": "Issue Log",
   "part": "settings",
-  "help": "Write an issue-log record.",
+  "help": "Append an indexed issue to persistent issue-log.json and summarize open issues.",
   "requiresProject": true,
   "fields": [
    {
@@ -103860,7 +105907,7 @@
   "id": "overviewTasks.milestoneTracker",
   "title": "Milestone Tracker",
   "part": "settings",
-  "help": "Write a milestone record.",
+  "help": "Validate optional ISO milestone date, update persistent milestones, and compute overdue counts.",
   "requiresProject": true,
   "fields": [
    {
@@ -103912,7 +105959,7 @@
   "id": "overviewTasks.resolutionTracking",
   "title": "Resolution Tracking",
   "part": "settings",
-  "help": "Write issue-resolution tracking data.",
+  "help": "Resolve a logged issue, update issue status in issue-log.json, and compute resolution rate.",
   "requiresProject": true,
   "fields": [
    {
@@ -103955,7 +106002,7 @@
   "id": "overviewTasks.reviewChecklist",
   "title": "Review Checklist",
   "part": "settings",
-  "help": "Create a review checklist export.",
+  "help": "Evaluate requested review domains against live BIM/loads/BOQ parts and save the checklist.",
   "requiresProject": true,
   "fields": [
    {
@@ -103993,7 +106040,7 @@
   "id": "overviewTasks.taskDependency",
   "title": "Task Dependency",
   "part": "settings",
-  "help": "Record a task dependency.",
+  "help": "Register a task dependency edge after checking the graph for cyclic dependencies.",
   "requiresProject": true,
   "fields": [
    {
@@ -104247,7 +106294,7 @@
   "id": "overviewTeam.notificationRule",
   "title": "Notification Rule",
   "part": "settings",
-  "help": "Write a local notification rule.",
+  "help": "Validate notification recipient against the project team or email format and store the rule.",
   "requiresProject": true,
   "fields": [
    {
@@ -104276,7 +106323,7 @@
   "id": "overviewTeam.projectAccess",
   "title": "Project Access",
   "part": "settings",
-  "help": "Write a project-access record.",
+  "help": "Validate target member or group against settings and update the project access matrix.",
   "requiresProject": true,
   "fields": [
    {
@@ -104400,7 +106447,7 @@
   "id": "overviewTeam.teamBulletin",
   "title": "Team Bulletin",
   "part": "settings",
-  "help": "Write a team bulletin Markdown file.",
+  "help": "Append a dated bulletin post citing active team headcount and regenerate team-bulletin.md.",
   "requiresProject": true,
   "fields": [
    {
@@ -107477,7 +109524,7 @@
   "id": "planGridsSite.coordinateUnits",
   "title": "Coordinate Units",
   "part": "floorPlan",
-  "help": "Convert a linear site coordinate between millimetres, metres and international feet.",
+  "help": "Convert linear coordinates between mm, m and ft and summarize project grid bounds.",
   "requiresProject": false,
   "fields": [
    {
@@ -107521,10 +109568,10 @@
     ]
    },
    {
-    "key": "value",
-    "label": "Coordinate value",
+    "key": "coordinate",
+    "label": "Coordinate length",
     "type": "number",
-    "default": 1000
+    "default": 1000.0
    }
   ]
  },
@@ -114419,7 +116466,7 @@
   "id": "project.projectBaseline",
   "title": "Project Baseline",
   "part": "settings",
-  "help": "Create a baseline record and save it as a project export.",
+  "help": "Compute SHA-256 checksums across core part files and BOQ/BIM totals in a baseline JSON.",
   "requiresProject": true,
   "fields": [
    {
@@ -114501,7 +116548,7 @@
   "id": "project.projectTemplates",
   "title": "Project Templates",
   "part": "settings",
-  "help": "Create a JSON template manifest from the open project's settings.",
+  "help": "Extract settings, stories, units, and object-type schemas into a reusable template JSON.",
   "requiresProject": true,
   "fields": [
    {
@@ -114750,7 +116797,7 @@
   "id": "results.resultViews",
   "title": "Result Views",
   "part": "fem",
-  "help": "Store camera orientation and active result diagram state in 08 FEM/exports/.",
+  "help": "Validate requested diagram table availability in results and store camera preset.",
   "requiresProject": true,
   "fields": [
    {
@@ -115519,9 +117566,15 @@
   "id": "settingsAudit.restorePoint",
   "title": "Restore Point",
   "part": "settings",
-  "help": "Create a validated settings restore point in 02 Project Settings/exports.",
+  "help": "Create and verify a SHA-256 checksummed settings restore point in 02 Project Settings/exports.",
   "requiresProject": false,
   "fields": [
+   {
+    "key": "label",
+    "label": "Restore point label",
+    "type": "text",
+    "default": "pre-check-baseline"
+   },
    {
     "key": "createBackup",
     "label": "Create restore point JSON in exports",
@@ -116596,14 +118649,22 @@
   "id": "settingsCodeLocalisation.numberFormat",
   "title": "Number Format",
   "part": "settings",
-  "help": "Preview Western vs South Asian lakh/crore digit grouping conventions.",
+  "help": "Preview Western vs South Asian digit grouping conventions using project precision.",
   "requiresProject": false,
   "fields": [
    {
-    "key": "value",
-    "label": "Sample numeric value",
+    "key": "sampleNumber",
+    "label": "Sample engineering value",
     "type": "number",
     "default": 98765.432
+   },
+   {
+    "key": "decimals",
+    "label": "Decimal places",
+    "type": "number",
+    "default": 2,
+    "min": 0,
+    "max": 6
    },
    {
     "key": "grouping",
@@ -119863,7 +121924,7 @@
   "id": "settingsDrawingsPenSets.savePenSet",
   "title": "Save Pen Set",
   "part": "settings",
-  "help": "Save the current office pen set definition to 02 Project Settings/exports.",
+  "help": "Validate ISO 128 pen widths scaled from DraftingStandard layers and persist the pen set.",
   "requiresProject": false,
   "fields": [
    {
@@ -119871,6 +121932,14 @@
     "label": "Pen set name",
     "type": "text",
     "default": "office-monochrome"
+   },
+   {
+    "key": "scale",
+    "label": "Drawing plot scale denominator (1:N)",
+    "type": "number",
+    "default": 100.0,
+    "min": 10.0,
+    "max": 1000.0
    },
    {
     "key": "writeFile",
@@ -134159,7 +136228,7 @@
   "id": "studies.activeOption",
   "title": "Active Option",
   "part": "settings",
-  "help": "Save the active option identifier and revision in the study output folder.",
+  "help": "Validate and switch the active design option in the study state ledger.",
   "requiresProject": true,
   "fields": [
    {
@@ -135780,20 +137849,27 @@
   "id": "studiesEnvironment.exportMaps",
   "title": "Export Maps",
   "part": "mep",
-  "help": "Write supplied environmental map coordinates and values to the project's Exports folder.",
+  "help": "Compute environmental grid field statistics & gradient vectors and export GeoJSON.",
   "requiresProject": true,
   "fields": [
    {
     "key": "mapRows",
     "label": "Map data rows",
     "type": "text",
-    "default": "[{\"x\":0,\"y\":0,\"value\":22,\"unit\":\"°C\"},{\"x\":1,\"y\":0,\"value\":24,\"unit\":\"°C\"}]"
+    "default": "[{\"x\":0,\"y\":0,\"value\":22,\"unit\":\"°C\"},{\"x\":1,\"y\":0,\"value\":24,\"unit\":\"°C\"},{\"x\":0,\"y\":1,\"value\":25,\"unit\":\"°C\"}]"
    },
    {
     "key": "mapName",
     "label": "Map name",
     "type": "text",
     "default": "comfort-map"
+   },
+   {
+    "key": "gridCellM",
+    "label": "Grid spacing [m]",
+    "type": "number",
+    "default": 1.0,
+    "min": 0.1
    }
   ]
  },
@@ -136654,14 +138730,22 @@
   "id": "studiesOptimisation.applyBest",
   "title": "Apply Best",
   "part": "settings",
-  "help": "Save the reviewed best-design record for traceability without mutating structural model inputs.",
+  "help": "Select the lowest-cost feasible candidate meeting DCR <= limit and persist selection.",
   "requiresProject": true,
   "fields": [
    {
     "key": "design",
-    "label": "Best design JSON",
+    "label": "Candidate designs JSON (object or list of feasible candidates)",
     "type": "text",
-    "default": "{\"name\":\"Scheme B\",\"variables\":{\"spanM\":6,\"depthMm\":550},\"objectives\":{\"cost\":950000}}"
+    "default": "[{\"name\":\"Scheme A\",\"variables\":{\"spanM\":6,\"depthMm\":600},\"objectives\":{\"cost\":1020000},\"maxDcr\":0.78},{\"name\":\"Scheme B\",\"variables\":{\"spanM\":6,\"depthMm\":550},\"objectives\":{\"cost\":950000},\"maxDcr\":0.89}]"
+   },
+   {
+    "key": "dcrLimit",
+    "label": "Maximum allowed DCR",
+    "type": "number",
+    "default": 1.0,
+    "min": 0.5,
+    "max": 1.0
    }
   ]
  },

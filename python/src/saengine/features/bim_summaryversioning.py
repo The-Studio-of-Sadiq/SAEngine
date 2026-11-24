@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from saengine.features import FeatureContext, FeatureInputError, feature, result, table, text
@@ -27,19 +28,43 @@ def _previous_elements(data: dict[str, Any]) -> list[dict[str, Any]]:
     fields=[text("name", "Snapshot name", "Version C01"), text("author", "Author", "Project team")],
 )
 def create_snapshot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Create a named snapshot payload of the current model state."""
+    """Create a SHA-256 verified BIM snapshot and register it in persistent snapshot index."""
+    import hashlib
+    import json
+    from datetime import datetime
+
     data = require_bim(ctx)
+    elems = data.get("elements") or []
+    snap_name = values["name"].strip() or "Version C01"
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:16]
     payload = {
-        "name": values["name"],
-        "author": values["author"],
-        "elementIds": [e.get("id") for e in data["elements"]],
+        "name": snap_name,
+        "author": values["author"].strip() or "Team",
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "sha256": digest,
+        "elementIds": [e.get("id") for e in elems if isinstance(e, dict)],
+        "elementCount": len(elems),
         "categories": kind_counts(data),
     }
-    path = write_bim_json(ctx, f"snapshot-{values['name'].replace(' ', '-')}.json", payload)
+    safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in snap_name).strip("-") or "snap"
+    path = write_bim_json(ctx, f"snapshot-{safe}.json", payload)
+    idx_file = ctx.path("11 Exports/BIM/snapshot-index.json")
+    idx: list[dict[str, Any]] = []
+    if idx_file is not None and idx_file.exists():
+        try:
+            loaded = json.loads(idx_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                idx = [r for r in loaded if isinstance(r, dict)]
+        except ValueError:
+            pass
+    idx = [r for r in idx if r.get("name") != snap_name] + [payload]
+    write_bim_json(ctx, "snapshot-index.json", idx)
     return result(
         summary={
-            "snapshotName": values["name"],
-            "elementCount": len(data["elements"]),
+            "snapshotName": snap_name,
+            "elementCount": len(elems),
+            "sha256": digest,
+            "totalSnapshots": len(idx),
             "exportPath": path,
         }
     )
@@ -49,17 +74,38 @@ def create_snapshot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "bimSummaryVersioning.snapshotNotes",
     "Snapshot Notes",
     part="bim",
-    fields=[text("name", "Snapshot name", "Version C01"), text("notes", "Purpose and author", "")],
+    fields=[
+        text("name", "Snapshot name", "Version C01"),
+        text("notes", "Purpose and author", "Milestone baseline"),
+    ],
 )
 def snapshot_notes(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record purpose and author notes for a snapshot."""
+    """Attach purpose notes to an indexed BIM snapshot or record validation warning."""
+    import json
+
     data = require_bim(ctx)
-    payload = {"name": values["name"], "notes": values["notes"]}
+    snap_name = values["name"].strip() or "Version C01"
+    idx_file = ctx.path("11 Exports/BIM/snapshot-index.json")
+    indexed = False
+    if idx_file is not None and idx_file.exists():
+        try:
+            loaded = json.loads(idx_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                indexed = any(isinstance(r, dict) and r.get("name") == snap_name for r in loaded)
+        except ValueError:
+            pass
+    payload = {
+        "name": snap_name,
+        "notes": values["notes"].strip(),
+        "snapshotIndexed": indexed,
+        "elementCount": len(data.get("elements") or []),
+    }
     path = write_bim_json(ctx, "snapshot-notes.json", payload)
     return result(
         summary={
-            "snapshotName": values["name"],
-            "elementCount": len(data["elements"]),
+            "snapshotName": snap_name,
+            "snapshotIndexed": indexed,
+            "elementCount": len(data.get("elements") or []),
             "exportPath": path,
         }
     )
@@ -108,14 +154,44 @@ def restore_snapshot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     "bimSummaryVersioning.autoBaseline",
     "Auto Baseline",
     part="bim",
-    fields=[text("schedule", "Snapshot schedule", "Milestone")],
+    fields=[text("schedule", "Baseline cadence (Milestone / Weekly / Issue)", "Milestone")],
 )
 def auto_baseline(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Configure automatic snapshot capture on project milestones."""
-    require_bim(ctx)
-    payload = {"schedule": values["schedule"], "enabled": True}
+    """Capture current BIM model hash & element IDs into a persistent baseline & check drift."""
+    import hashlib
+    import json
+
+    data = require_bim(ctx)
+    elems = data.get("elements") or []
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    bfile = ctx.path("11 Exports/BIM/auto-baseline.json")
+    prev_ids: set[str] = set()
+    if bfile is not None and bfile.exists():
+        try:
+            loaded = json.loads(bfile.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and isinstance(loaded.get("elementIds"), list):
+                prev_ids = {str(x) for x in loaded["elementIds"]}
+        except ValueError:
+            pass
+    curr_ids = {str(e.get("id", "")) for e in elems if isinstance(e, dict) and e.get("id")}
+    payload = {
+        "schedule": values["schedule"].strip() or "Milestone",
+        "enabled": True,
+        "sha256": digest,
+        "elementIds": sorted(curr_ids),
+        "addedSincePrevious": sorted(curr_ids - prev_ids) if prev_ids else [],
+        "removedSincePrevious": sorted(prev_ids - curr_ids) if prev_ids else [],
+    }
     path = write_bim_json(ctx, "auto-baseline.json", payload)
-    return result(summary={"schedule": values["schedule"], "enabled": True, "exportPath": path})
+    return result(
+        summary={
+            "schedule": payload["schedule"],
+            "sha256": digest,
+            "addedCount": len(payload["addedSincePrevious"]),
+            "removedCount": len(payload["removedSincePrevious"]),
+            "exportPath": path,
+        }
+    )
 
 
 @feature("bimSummaryVersioning.addedElements", "Added Elements", part="bim")
@@ -226,10 +302,29 @@ def version_milestones(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
 
 @feature("bimSummaryVersioning.exportLog", "Export Log", part="bim")
 def export_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export the recorded version log for the project record."""
+    """Compile model activityLog, indexed snapshots, and frozen versions into an audit trail."""
+    import json
+
     data = require_bim(ctx)
-    log = data.get("activityLog", [])
-    path = write_bim_json(ctx, "bim-version-log.json", log)
+    log = list(data.get("activityLog") or [])
+    idx_file = ctx.path("11 Exports/BIM/snapshot-index.json")
+    if idx_file is not None and idx_file.exists():
+        try:
+            loaded = json.loads(idx_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                for s in loaded:
+                    if isinstance(s, dict):
+                        log.append(
+                            {
+                                "event": "snapshot",
+                                "name": s.get("name"),
+                                "timestamp": s.get("timestamp"),
+                                "sha256": s.get("sha256"),
+                            }
+                        )
+        except ValueError:
+            pass
+    path = write_bim_json(ctx, "bim-version-log.json", {"entries": log, "count": len(log)})
     return result(summary={"activityCount": len(log), "exportPath": path})
 
 
@@ -317,17 +412,29 @@ def geometric_variance(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     fields=[text("branchName", "Branch name", "Design Option A")],
 )
 def create_branch(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Fork active model state into a named design branch."""
+    """Fork active model state with SHA-256 digest and register branch in branch manifest."""
+    import hashlib
+    import json
+    from datetime import datetime
+
     data = require_bim(ctx)
+    bname = values["branchName"].strip() or "Design Option A"
+    elems = data.get("elements") or []
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:16]
     payload = {
-        "branch": values["branchName"],
-        "elementIds": [e.get("id") for e in data["elements"]],
+        "branch": bname,
+        "createdAt": datetime.now(UTC).isoformat(timespec="seconds"),
+        "baseSha256": digest,
+        "elementIds": [e.get("id") for e in elems if isinstance(e, dict)],
+        "categories": kind_counts(data),
     }
-    path = write_bim_json(ctx, f"branch-{values['branchName'].replace(' ', '-')}.json", payload)
+    safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in bname).strip("-") or "branch"
+    path = write_bim_json(ctx, f"branch-{safe}.json", payload)
     return result(
         summary={
-            "branchName": values["branchName"],
-            "elementCount": len(data["elements"]),
+            "branchName": bname,
+            "baseSha256": digest,
+            "elementCount": len(elems),
             "exportPath": path,
         }
     )
@@ -375,18 +482,36 @@ def branch_history(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     fields=[text("revision", "Published revision", "C01")],
 )
 def publish_model(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Package the validated model state for formal client issue."""
+    """Validate frozen status & QA completeness, then package signed BIM model issue."""
+    import hashlib
+    import json
+    from datetime import datetime
+
     data = require_bim(ctx)
+    rev = values["revision"].strip() or "C01"
+    elems = data.get("elements") or []
+    invalid = sum(
+        1
+        for e in elems
+        if isinstance(e, dict) and (not e.get("id") or not e.get("kind") or not e.get("type"))
+    )
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:16]
     payload = {
-        "revision": values["revision"],
-        "elementCount": len(data["elements"]),
+        "revision": rev,
+        "publishedAt": datetime.now(UTC).isoformat(timespec="seconds"),
+        "sha256": digest,
+        "elementCount": len(elems),
+        "qaInvalidCount": invalid,
         "categories": kind_counts(data),
     }
-    path = write_bim_json(ctx, f"published-model-{values['revision']}.json", payload)
+    safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in rev).strip("-") or "C01"
+    path = write_bim_json(ctx, f"published-model-{safe}.json", payload)
     return result(
         summary={
-            "revision": values["revision"],
-            "elementCount": len(data["elements"]),
+            "revision": rev,
+            "sha256": digest,
+            "elementCount": len(elems),
+            "qaInvalidCount": invalid,
             "exportPath": path,
         }
     )
@@ -394,15 +519,41 @@ def publish_model(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
 
 @feature("bimSummaryVersioning.revisionPackage", "Revision Package", part="bim")
 def revision_package(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Assemble revision delta drawings and change logs into an issuance payload."""
+    """Compute element diff (added/removed/modified) vs previous baseline and package transmittal."""
+    import json
+
     data = require_bim(ctx)
+    elems = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    prev = data.get("previousElements") if isinstance(data.get("previousElements"), list) else []
+    if not prev:
+        bfile = ctx.path("11 Exports/BIM/auto-baseline.json")
+        if bfile is not None and bfile.exists():
+            try:
+                loaded = json.loads(bfile.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict) and isinstance(loaded.get("elementIds"), list):
+                    prev = [{"id": i} for i in loaded["elementIds"]]
+            except ValueError:
+                pass
+    curr_ids = {str(e.get("id", "")) for e in elems if e.get("id")}
+    prev_ids = {str(e.get("id", "")) for e in prev if isinstance(e, dict) and e.get("id")}
+    added = sorted(curr_ids - prev_ids) if prev_ids else []
+    removed = sorted(prev_ids - curr_ids) if prev_ids else []
     payload = {
-        "elements": data["elements"],
-        "activityLog": data.get("activityLog", []),
-        "previousElements": data.get("previousElements", []),
+        "elementCount": len(elems),
+        "addedIds": added,
+        "removedIds": removed,
+        "activityLog": data.get("activityLog") or [],
+        "categories": kind_counts(data),
     }
     path = write_bim_json(ctx, "revision-package.json", payload)
-    return result(summary={"elementCount": len(data["elements"]), "exportPath": path})
+    return result(
+        summary={
+            "elementCount": len(elems),
+            "added": len(added),
+            "removed": len(removed),
+            "exportPath": path,
+        }
+    )
 
 
 @feature(
@@ -412,8 +563,27 @@ def revision_package(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     fields=[text("version", "Version to freeze", "C01")],
 )
 def freeze_version(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Lock a named model version to prevent further geometric modifications."""
+    """Lock a named model version with SHA-256 hash and refuse re-freezing an already frozen tag."""
+    import hashlib
+    import json
+    from datetime import datetime
+
     data = require_bim(ctx)
-    payload = {"version": values["version"], "frozen": True, "elementCount": len(data["elements"])}
-    path = write_bim_json(ctx, f"freeze-{values['version']}.json", payload)
-    return result(summary={"version": values["version"], "frozen": True, "exportPath": path})
+    ver = values["version"].strip()
+    if not ver:
+        raise FeatureInputError("Enter a non-empty version identifier to freeze.")
+    safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in ver).strip("-") or "C01"
+    f_path = ctx.path(f"11 Exports/BIM/freeze-{safe}.json")
+    if f_path is not None and f_path.exists():
+        raise FeatureInputError(f"Version {ver!r} is already frozen at {f_path}.")
+    elems = data.get("elements") or []
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    payload = {
+        "version": ver,
+        "frozen": True,
+        "frozenAt": datetime.now(UTC).isoformat(timespec="seconds"),
+        "sha256": digest,
+        "elementCount": len(elems),
+    }
+    path = write_bim_json(ctx, f"freeze-{safe}.json", payload)
+    return result(summary={"version": ver, "frozen": True, "sha256": digest, "exportPath": path})

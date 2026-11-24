@@ -155,7 +155,8 @@ def apply_language(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     "Number Format",
     part="settings",
     fields=[
-        number("value", "Sample numeric value", 98765.432),
+        number("sampleNumber", "Sample engineering value", 98765.432),
+        number("decimals", "Decimal places", 2, min=0, max=6),
         select(
             "grouping",
             "Digit grouping",
@@ -169,34 +170,46 @@ def apply_language(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     requires_project=False,
 )
 def loc_number_format(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Preview Western vs South Asian lakh/crore digit grouping conventions."""
-    v = values["value"]
+    """Preview Western vs South Asian digit grouping conventions using project precision."""
+    v = float(values["sampleNumber"])
+    dec = int(values["decimals"])
+    sign = "-" if v < 0 else ""
+    abs_v = abs(v)
+    fixed = f"{abs_v:.{dec}f}"
+    whole, *frac_part = fixed.split(".")
+    frac = f".{frac_part[0]}" if frac_part else ""
     if values["grouping"] == "western":
-        out = f"{v:,.2f}"
+        grouped_whole = f"{int(whole):,}"
+    elif len(whole) > 3:
+        last3 = whole[-3:]
+        rest = whole[:-3]
+        groups = []
+        while len(rest) > 2:
+            groups.append(rest[-2:])
+            rest = rest[:-2]
+        if rest:
+            groups.append(rest)
+        grouped_whole = ",".join(reversed(groups)) + "," + last3
     else:
-        whole, frac = f"{v:.2f}".split(".")
-        if len(whole) > 3:
-            last3 = whole[-3:]
-            rest = whole[:-3]
-            groups = []
-            while len(rest) > 2:
-                groups.append(rest[-2:])
-                rest = rest[:-2]
-            if rest:
-                groups.append(rest)
-            out = ",".join(reversed(groups)) + "," + last3 + "." + frac
-        else:
-            out = f"{v:.2f}"
+        grouped_whole = whole
+    out = sign + grouped_whole + frac
+    st = load_settings(ctx)
+    lang = getattr(getattr(st, "project", None), "language", None) or "en"
     return result(
-        summary={"grouping": values["grouping"], "formatted": out},
+        summary={
+            "grouping": values["grouping"],
+            "decimals": dec,
+            "formatted": out,
+            "language": lang,
+        },
         tables=[
             table(
                 "Number grouping preview",
-                [("style", "Style"), ("formatted", "Output")],
-                [{"style": values["grouping"], "formatted": out}],
+                [("style", "Style"), ("decimals", "Decimals"), ("formatted", "Output")],
+                [{"style": values["grouping"], "decimals": dec, "formatted": out}],
             )
         ],
-        notes=["Supports international and South Asian regional numeric grouping."],
+        notes=[f"Formatted with {dec} decimal places; project language={lang}."],
     )
 
 

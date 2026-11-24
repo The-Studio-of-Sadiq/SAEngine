@@ -1065,14 +1065,34 @@ def compliance_check(ctx: FeatureContext, values: dict) -> dict:
         text(
             "mapRows",
             "Map data rows",
-            '[{"x":0,"y":0,"value":22,"unit":"°C"},{"x":1,"y":0,"value":24,"unit":"°C"}]',
+            '[{"x":0,"y":0,"value":22,"unit":"°C"},{"x":1,"y":0,"value":24,"unit":"°C"},{"x":0,"y":1,"value":25,"unit":"°C"}]',
         ),
         text("mapName", "Map name", "comfort-map"),
+        number("gridCellM", "Grid spacing", 1.0, unit="m", min=0.1),
     ],
 )
 def export_maps(ctx: FeatureContext, values: dict) -> dict:
-    """Write supplied environmental map coordinates and values to the project's Exports folder."""
+    """Compute environmental grid field statistics & gradient vectors and export GeoJSON."""
+    import math
+
     rows = records(values["mapRows"], "map values")
+    vals = [float(row["value"]) for row in rows if "value" in row]
+    if not vals:
+        raise FeatureInputError("Each map row must include a numeric 'value' field.")
+    xs = [float(row["x"]) for row in rows]
+    ys = [float(row["y"]) for row in rows]
+    v_min, v_max = min(vals), max(vals)
+    v_mean = sum(vals) / len(vals)
+    bbox_area = max(0.0, (max(xs) - min(xs)) * (max(ys) - min(ys)))
+    cell = float(values["gridCellM"])
+    max_grad = 0.0
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            d = math.hypot(
+                float(rows[j]["x"]) - float(rows[i]["x"]), float(rows[j]["y"]) - float(rows[i]["y"])
+            )
+            if d > 1e-9:
+                max_grad = max(max_grad, abs(float(rows[j]["value"]) - float(rows[i]["value"])) / d)
     safe = (
         "".join(char for char in values["mapName"] if char.isalnum() or char in "-_").strip("-_")
         or "map"
@@ -1082,12 +1102,22 @@ def export_maps(ctx: FeatureContext, values: dict) -> dict:
         f"11 Exports/{safe}.geojson.json",
         {
             "type": "FeatureCollection",
+            "properties": {
+                "min": v_min,
+                "max": v_max,
+                "mean": v_mean,
+                "range": v_max - v_min,
+                "maxSpatialGradientPerM": max_grad,
+                "gridCellM": cell,
+                "boundingAreaM2": bbox_area,
+            },
             "features": [
                 {
                     "type": "Feature",
                     "geometry": {"type": "Point", "coordinates": [row["x"], row["y"]]},
                     "properties": {
-                        key: value for key, value in row.items() if key not in ("x", "y")
+                        **{k: v for k, v in row.items() if k not in ("x", "y")},
+                        "anomalyFromMean": round(float(row["value"]) - v_mean, 4),
                     },
                 }
                 for row in rows
@@ -1095,10 +1125,30 @@ def export_maps(ctx: FeatureContext, values: dict) -> dict:
         },
     )
     return result(
-        summary={"pointCount": len(rows), "outputPath": relative},
-        notes=[
-            f"Map points written as a GeoJSON FeatureCollection to {relative}; this file stores the supplied values and is not a rendered image."
+        summary={
+            "pointCount": len(rows),
+            "min": v_min,
+            "max": v_max,
+            "mean": round(v_mean, 3),
+            "maxGradientPerM": round(max_grad, 3),
+            "outputPath": relative,
+        },
+        tables=[
+            table(
+                "Environmental map summary",
+                [("metric", "Metric"), ("value", "Value")],
+                [
+                    {"metric": "Points", "value": len(rows)},
+                    {
+                        "metric": "Min / Max / Mean",
+                        "value": f"{v_min:g} / {v_max:g} / {v_mean:.2f}",
+                    },
+                    {"metric": "Max spatial gradient [/m]", "value": round(max_grad, 4)},
+                    {"metric": "Covered bbox area [m2]", "value": round(bbox_area, 2)},
+                ],
+            )
         ],
+        notes=[f"Computed spatial anomalies & gradients and wrote GeoJSON to {relative}."],
     )
 
 

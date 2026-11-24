@@ -13,7 +13,16 @@ from saengine.features import (
     table,
     text,
 )
-from saengine.features.overview_common import csv_text, json_text, require_project, write_export
+from saengine.features.overview_common import (
+    csv_text,
+    json_text,
+    load_export_json,
+    now_iso,
+    project_name,
+    require_project,
+    save_export_json,
+    write_export,
+)
 
 
 def _history(ctx: FeatureContext) -> list[dict[str, Any]]:
@@ -374,15 +383,35 @@ def session_history(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     requires_project=True,
 )
 def broadcast_note(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a project broadcast note export."""
-    if not values["note"].strip():
+    """Attach a timestamped note linked to the latest project version and update broadcast-note.md."""
+    note_text = values["note"].strip()
+    if not note_text:
         raise FeatureInputError("Enter a project note.")
-    path = write_export(
-        ctx, "11 Exports", "broadcast-note.md", f"# Project Broadcast\n\n{values['note'].strip()}\n"
-    )
+    history = _history(ctx)
+    latest_ver = history[0]["id"] if history else "uncommitted"
+    entries = load_export_json(ctx, "11 Exports", "broadcast-log.json", [])
+    log = [e for e in (entries if isinstance(entries, list) else []) if isinstance(e, dict)]
+    log.append({"timestamp": now_iso(), "version": latest_ver, "note": note_text})
+    save_export_json(ctx, "11 Exports", "broadcast-log.json", log)
+    md = [f"# {project_name(ctx)} — Project Broadcast Log", ""]
+    for item in reversed(log):
+        md.append(f"- **{item['timestamp']}** (`{item['version']}`): {item['note']}")
+    path = write_export(ctx, "11 Exports", "broadcast-note.md", "\n".join(md) + "\n")
     return result(
-        summary={"noteLength": len(values["note"]), "exportPath": str(path)},
-        notes=[f"Broadcast note written to {path}."],
+        summary={
+            "noteLength": len(note_text),
+            "entryCount": len(log),
+            "version": latest_ver,
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Broadcast notes",
+                [("timestamp", "UTC"), ("version", "Version"), ("note", "Note")],
+                log,
+            )
+        ],
+        notes=[f"Broadcast note appended to {path}."],
     )
 
 

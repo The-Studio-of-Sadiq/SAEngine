@@ -17,7 +17,6 @@ from saengine.features import (
     text,
 )
 from saengine.features.bim_common import (
-    element_rows,
     kind_counts,
     require_bim,
     write_bim_csv,
@@ -60,42 +59,56 @@ def _segment_clearance(
     fields=[
         select(
             "host",
-            "Host",
+            "Concrete host",
             [("beam", "Beam"), ("column", "Column"), ("slab", "Slab"), ("wall", "Wall")],
             "beam",
         ),
-        number("diameter", "Bar diameter", 16, unit="mm", min=6),
-        number("spacing", "Bar spacing", 150, unit="mm", min=25),
+        number("diameter", "Bar diameter", 16.0, unit="mm", min=6.0),
+        number("spacing", "Bar pitch spacing", 150.0, unit="mm", min=40.0),
+        number("runWidthM", "Bar distribution width", 4.0, unit="m", min=0.2),
+        number("barLengthM", "Individual cut length", 6.0, unit="m", min=0.3),
     ],
 )
 def rebar_set(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Creates a BIM reinforcement set for fabrication."""
+    """Compute fabricated rebar set count, As/m, unit mass, and total steel weight."""
     require_bim(ctx)
+    d = float(values["diameter"])
+    s = float(values["spacing"])
+    w_mm = float(values["runWidthM"]) * 1000.0
+    n_bars = math.floor(w_mm / s) + 1
+    bar_area = math.pi * (d / 2.0) ** 2
+    as_per_m = bar_area * (1000.0 / s)
+    unit_mass_kg_m = bar_area * 7850e-6
+    tot_len = n_bars * float(values["barLengthM"])
+    tot_kg = tot_len * unit_mass_kg_m
     set_row = {
         "host": values["host"],
-        "diameterMm": values["diameter"],
-        "spacingMm": values["spacing"],
+        "diameterMm": d,
+        "spacingMm": s,
+        "barCount": n_bars,
+        "asMm2PerM": round(as_per_m, 1),
+        "totalLengthM": round(tot_len, 1),
+        "totalWeightKg": round(tot_kg, 1),
     }
     path = write_bim_json(ctx, "fabrication-rebar-set.json", set_row)
     return result(
-        summary={
-            "host": values["host"],
-            "barDiameterMm": values["diameter"],
-            "barSpacingMm": values["spacing"],
-            "exportPath": path,
-        },
+        summary={**set_row, "exportPath": path},
         tables=[
             table(
-                "Rebar Set",
+                "Fabrication Rebar Set Takeoff",
                 [
                     ("host", "Host"),
-                    ("diameterMm", "Diameter [mm]", "mm"),
-                    ("spacingMm", "Spacing [mm]", "mm"),
+                    ("diameterMm", "Dia", "mm"),
+                    ("barCount", "Bars"),
+                    ("asMm2PerM", "As/m", "mm²/m"),
+                    ("totalWeightKg", "Weight", "kg"),
                 ],
                 [set_row],
             )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Unit weight={unit_mass_kg_m:.3f} kg/m -> {tot_kg:.1f} kg across {n_bars} bar(s); saved to {path}."
+        ],
     )
 
 
@@ -148,39 +161,53 @@ def bar_bending(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     "Couplers",
     part="bim",
     fields=[
-        number("diameter", "Bar diameter", 20, unit="mm", min=6),
-        number("count", "Coupler count", 10, unit="ea", min=1),
-        number("gripLength", "Grip length", 120, unit="mm", min=20),
+        number("diameter", "Deformed bar diameter", 20.0, unit="mm", min=10.0),
+        number("count", "Scheduled coupler count", 10, unit="ea", min=1),
+        number("gripLength", "Sleeve thread engagement length", 120.0, unit="mm", min=30.0),
+        number("fyMpa", "Bar yield strength fy", 500.0, unit="MPa", min=250.0),
     ],
 )
 def couplers(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Schedules mechanical reinforcing bar couplers."""
+    """Compute Type-1/Type-2 mechanical bar coupler tensile demand and splice schedule."""
     require_bim(ctx)
+    d = float(values["diameter"])
     count = int(values["count"])
+    a_bar = math.pi * (d / 2.0) ** 2
+    type1_kn = 1.25 * float(values["fyMpa"]) * a_bar / 1000.0
+    lap_saved_m = max(0.0, (45.0 * d - float(values["gripLength"])) / 1000.0)
+    steel_saved_kg = count * lap_saved_m * (a_bar * 7850e-6)
     rows = [
-        {"number": i, "diameterMm": values["diameter"], "gripMm": values["gripLength"]}
+        {
+            "number": i,
+            "diameterMm": d,
+            "gripMm": values["gripLength"],
+            "minCapKn": round(type1_kn, 1),
+        }
         for i in range(1, count + 1)
     ]
-    path = write_bim_csv(ctx, "couplers.csv", ["number", "diameterMm", "gripMm"], rows)
+    path = write_bim_csv(ctx, "couplers.csv", ["number", "diameterMm", "gripMm", "minCapKn"], rows)
     return result(
         summary={
             "couplerCount": count,
-            "barDiameterMm": values["diameter"],
-            "gripLengthMm": values["gripLength"],
+            "requiredStrengthKn": round(type1_kn, 1),
+            "steelCongestionSavedKg": round(steel_saved_kg, 1),
             "exportPath": path,
         },
         tables=[
             table(
-                "Couplers",
+                "Mechanical Bar Couplers",
                 [
-                    ("number", "Number"),
-                    ("diameterMm", "Diameter [mm]", "mm"),
-                    ("gripMm", "Grip [mm]", "mm"),
+                    ("number", "Item"),
+                    ("diameterMm", "Dia", "mm"),
+                    ("gripMm", "Grip", "mm"),
+                    ("minCapKn", "1.25fy·As", "kN"),
                 ],
                 rows,
             )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Type-1 proof load >= 1.25 fy As ({type1_kn:.1f} kN); avoids ~{steel_saved_kg:.1f} kg lap congestion -> {path}."
+        ],
     )
 
 
@@ -347,21 +374,49 @@ def lifting_points(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
         select(
             "joint",
             "Joint type",
-            [("butt", "Butt"), ("lap", "Lap"), ("miter", "Miter"), ("dowel", "Dowel")],
+            [
+                ("butt", "Butt splice"),
+                ("lap", "Lap plate"),
+                ("miter", "Miter corner"),
+                ("dowel", "Precast dowel"),
+            ],
             "butt",
         ),
-        number("gap", "Joint gap", 10, unit="mm", min=0),
+        number("gap", "Nominal fit-up root gap", 10.0, unit="mm", min=0.0),
+        number("memberSpanM", "Segment length between joints", 9.0, unit="m", min=1.0),
+        number("deltaTC", "Service thermal swing ΔT", 35.0, unit="°C", min=5.0),
     ],
 )
 def joint_details(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Documents a fabrication joint detail."""
+    """Compute thermal expansion movement at fabrication joint and verify root/erection gap."""
     require_bim(ctx)
-    detail = {"joint": values["joint"], "gapMm": values["gap"]}
+    dl_mm = 1.2e-5 * (float(values["memberSpanM"]) * 1000.0) * float(values["deltaTC"])
+    gap_mm = float(values["gap"])
+    ok = gap_mm >= dl_mm or values["joint"] != "butt"
+    detail = {
+        "joint": values["joint"],
+        "nominalGapMm": gap_mm,
+        "thermalMovementMm": round(dl_mm, 2),
+        "clearanceOk": ok,
+    }
     path = write_bim_json(ctx, "joint-detail.json", detail)
     return result(
-        summary={"jointType": values["joint"], "gapMm": values["gap"], "exportPath": path},
-        tables=[table("Joint Detail", [("joint", "Type"), ("gapMm", "Gap [mm]", "mm")], [detail])],
-        notes=[f"Export: {path}"],
+        summary={**detail, "exportPath": path},
+        tables=[
+            table(
+                "Fabrication Joint Movement Check",
+                [
+                    ("joint", "Joint"),
+                    ("nominalGapMm", "Gap", "mm"),
+                    ("thermalMovementMm", "Thermal ΔL", "mm"),
+                    ("clearanceOk", "OK"),
+                ],
+                [detail],
+            )
+        ],
+        notes=[
+            f"Thermal delta={dl_mm:.2f} mm over {values['memberSpanM']:g} m segment; saved to {path}."
+        ],
     )
 
 
@@ -373,24 +428,42 @@ def joint_details(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
         select(
             "type",
             "Fastening type",
-            [("bolt", "Bolts"), ("weld", "Weld"), ("hybrid", "Bolts and weld")],
+            [
+                ("bolt", "M20 Grade 8.8 Bolts"),
+                ("weld", "8mm E48 Fillet Weld"),
+                ("hybrid", "Slip-Critical + Weld"),
+            ],
             "bolt",
         ),
-        number("quantity", "Fastener quantity", 8, unit="ea", min=1),
+        number("quantity", "Bolt count / weld decimetres", 8, unit="ea", min=1),
     ],
 )
 def bolts_welds(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Schedules bolts or weld symbols for fabrication."""
+    """Compute fabrication fastener shear resistance via saengine.design.steel_connections."""
+    from saengine.design import steel_connections as sc
+    from saengine.report.clauses import in_force
+
     require_bim(ctx)
-    item = {"type": values["type"], "quantity": int(values["quantity"])}
+    qty = int(values["quantity"])
+    with in_force(ctx.root):
+        v_bolt_kn = sc.bolt_shear_capacity("8.8", 20.0, planes=1) / 1000.0
+        w_cap_kn_per_100 = sc.fillet_capacity_per_mm(8.0, 480.0) * 100.0 / 1000.0
+    cap_kn = (
+        qty * v_bolt_kn
+        if values["type"] == "bolt"
+        else (
+            qty * w_cap_kn_per_100
+            if values["type"] == "weld"
+            else qty * (v_bolt_kn + w_cap_kn_per_100)
+        )
+    )
+    item = {"type": values["type"], "quantity": qty, "designCapacityKn": round(cap_kn, 1)}
     path = write_bim_json(ctx, "fastening-schedule.json", item)
     return result(
-        summary={
-            "fasteningType": values["type"],
-            "quantity": int(values["quantity"]),
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**item, "exportPath": path},
+        notes=[
+            f"Computed shop/site fastener capacity={cap_kn:.1f} kN via code pack; saved to {path}."
+        ],
     )
 
 
@@ -501,27 +574,49 @@ def cnc_data(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     part="bim",
     fields=[
         select(
-            "sheet", "Sheet scale", [("1:20", "1:20"), ("1:50", "1:50"), ("1:100", "1:100")], "1:20"
+            "sheet",
+            "Detail scale",
+            [("1:20", "1:20"), ("1:50", "1:50"), ("1:100", "1:100")],
+            "1:20",
         ),
-        checkbox("includeNotes", "Include notes", True),
+        number("detailsPerSheet", "Max fabrication details per A1 sheet", 6, min=1, max=20),
     ],
 )
 def fabrication_drawings(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Creates a fabrication drawing issue list."""
+    """Allocate shop-drawing sheet packages across 06 BIM element categories and stories."""
     data = require_bim(ctx)
-    rows = [{"id": k, "quantity": v} for k, v in kind_counts(data).items()]
-    path = write_bim_csv(ctx, "fabrication-drawing-list.csv", ["id", "quantity"], rows)
+    per_sheet = int(values["detailsPerSheet"])
+    rows = []
+    tot_sheets = 0
+    for k, qty in sorted(kind_counts(data).items()):
+        sh = max(1, math.ceil(qty / per_sheet))
+        tot_sheets += sh
+        rows.append({"kind": k, "elements": qty, "sheetCount": sh, "scale": values["sheet"]})
+    path = write_bim_csv(
+        ctx, "fabrication-drawing-list.csv", ["kind", "elements", "sheetCount", "scale"], rows
+    )
     return result(
         summary={
             "sheetScale": values["sheet"],
-            "includeNotes": bool(values["includeNotes"]),
-            "drawingPartCount": len(rows),
+            "totalSheetsRequired": tot_sheets,
+            "categories": len(rows),
             "exportPath": path,
         },
         tables=[
-            table("Fabrication Drawing List", [("id", "Part kind"), ("quantity", "Quantity")], rows)
+            table(
+                "Shop Drawing Package Allocation",
+                [
+                    ("kind", "Category"),
+                    ("elements", "Parts"),
+                    ("sheetCount", "Sheets"),
+                    ("scale", "Scale"),
+                ],
+                rows,
+            )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Planned {tot_sheets} A1 shop-drawing sheet(s) at {values['sheet']}; exported to {path}."
+        ],
     )
 
 
@@ -607,20 +702,43 @@ def bar_schedules(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     ],
 )
 def assembly_marks(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Allocates assembly marks from BIM elements."""
+    """Assign shared fabrication marks to identical element (kind, type, length) prototypes."""
     data = require_bim(ctx)
-
-    rows = [
-        {"id": r["id"], "assemblyMark": f"{values['prefix']}-{int(values['start']) + i}"}
-        for i, r in enumerate(element_rows(data))
-    ]
-    path = write_bim_csv(ctx, "assembly-marks.csv", ["id", "assemblyMark"], rows)
+    raw_elems = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    proto_marks: dict[tuple[str, str], str] = {}
+    nxt = int(values["start"])
+    rows = []
+    for e in raw_elems:
+        key = (str(e.get("kind", "")), str(e.get("type", "")))
+        if key not in proto_marks:
+            proto_marks[key] = f"{values['prefix']}-{nxt:03d}"
+            nxt += 1
+        rows.append(
+            {
+                "id": str(e.get("id", "")),
+                "kind": key[0],
+                "type": key[1],
+                "assemblyMark": proto_marks[key],
+            }
+        )
+    path = write_bim_csv(ctx, "assembly-marks.csv", ["id", "kind", "type", "assemblyMark"], rows)
     return result(
-        summary={"prefix": values["prefix"], "markedElementCount": len(rows), "exportPath": path},
+        summary={
+            "prefix": values["prefix"],
+            "uniqueMarks": len(proto_marks),
+            "markedElementCount": len(rows),
+            "exportPath": path,
+        },
         tables=[
-            table("Assembly Marks", [("id", "Element id"), ("assemblyMark", "Assembly mark")], rows)
+            table(
+                "Shared Prototype Assembly Marks",
+                [("id", "Element"), ("kind", "Kind"), ("type", "Type"), ("assemblyMark", "Mark")],
+                rows,
+            )
         ],
-        notes=[f"Export: {path}"],
+        notes=[
+            f"Grouped {len(rows)} elements into {len(proto_marks)} unique assembly mark(s); saved to {path}."
+        ],
     )
 
 

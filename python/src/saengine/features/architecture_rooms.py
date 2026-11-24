@@ -192,15 +192,61 @@ def room_properties(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     ],
 )
 def room_styles(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a room-style finish mapping for later assignment to room types."""
-    payload = {
-        "roomType": values["roomType"],
-        "floorFinish": values["floorFinish"],
-        "wallFinish": values["wallFinish"],
-        "ceilingFinish": values["ceilingFinish"],
+    """Validate optional finish types, match rooms, and update the room-style register."""
+    import json
+
+    arch = require_arch(ctx)
+    known_finishes = {f.id for f in arch.finishTypes}
+    for key in ("floorFinish", "wallFinish", "ceilingFinish"):
+        val = values[key].strip()
+        if val and known_finishes and val not in known_finishes:
+            raise FeatureInputError(
+                f"Finish type '{val}' was not found in architecture finish types."
+            )
+    room_type = values["roomType"].strip() or "General"
+    matched = [
+        r for r in arch.rooms if (r.occupancy or "General").casefold() == room_type.casefold()
+    ]
+    assert ctx.root is not None
+    reg_path = ctx.root / "11 Exports" / "Architecture" / "room-style.json"
+    styles: dict[str, Any] = {}
+    if reg_path.is_file():
+        try:
+            loaded = json.loads(reg_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and "roomType" not in loaded:
+                styles = loaded
+        except (OSError, ValueError):
+            styles = {}
+    styles[room_type] = {
+        "roomType": room_type,
+        "floorFinish": values["floorFinish"].strip() or "Unassigned",
+        "wallFinish": values["wallFinish"].strip() or "Unassigned",
+        "ceilingFinish": values["ceilingFinish"].strip() or "Unassigned",
+        "matchedRoomCount": len(matched),
     }
-    path = write_json(ctx, "room-style.json", payload)
-    return result(summary={"roomType": values["roomType"], "exportPath": path})
+    path = write_json(ctx, "room-style.json", styles)
+    rows = list(styles.values())
+    return result(
+        summary={
+            "roomType": room_type,
+            "matchedRoomCount": len(matched),
+            "styleCount": len(rows),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Room styles",
+                [
+                    ("roomType", "Room type"),
+                    ("floorFinish", "Floor"),
+                    ("wallFinish", "Wall"),
+                    ("ceilingFinish", "Ceiling"),
+                    ("matchedRoomCount", "Matched rooms"),
+                ],
+                rows,
+            )
+        ],
+    )
 
 
 @feature(
@@ -337,12 +383,52 @@ def area_rules(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def room_tag_styles(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write the selected room tag style and text height."""
+    """Compute paper/model tag text heights and preview formatted room tags."""
+    arch = require_arch(ctx)
+    text_h = float(values["textHeight"])
+    model_h_100 = round(text_h * 100.0, 1)
+    model_h_50 = round(text_h * 50.0, 1)
+    preview = [
+        {
+            "room": r.id,
+            "tagLabel": f"{r.number or r.id} — {r.name}".strip(" —"),
+            "paperHeightMm": text_h,
+            "modelHeight1to100Mm": model_h_100,
+        }
+        for r in arch.rooms
+    ]
     path = write_json(
-        ctx, "room-tag-style.json", {"style": values["style"], "textHeight": values["textHeight"]}
+        ctx,
+        "room-tag-style.json",
+        {
+            "style": values["style"],
+            "textHeightMm": text_h,
+            "modelHeight1to100Mm": model_h_100,
+            "modelHeight1to50Mm": model_h_50,
+            "roomCount": len(preview),
+            "tags": preview,
+        },
     )
     return result(
-        summary={"style": values["style"], "textHeightMm": values["textHeight"], "exportPath": path}
+        summary={
+            "style": values["style"],
+            "textHeightMm": text_h,
+            "modelHeight1to100Mm": model_h_100,
+            "roomCount": len(preview),
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Room tag preview",
+                [
+                    ("room", "Room"),
+                    ("tagLabel", "Tag label"),
+                    ("paperHeightMm", "Paper height", "mm"),
+                    ("modelHeight1to100Mm", "1:100 height", "mm"),
+                ],
+                preview,
+            )
+        ],
     )
 
 
@@ -380,29 +466,64 @@ def tag_all_rooms(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     ],
 )
 def legend_views(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Prepare a room legend from live occupancy, finish or area categories."""
+    """Compile a room legend with live room counts, net areas, and area share."""
     arch = require_arch(ctx)
-    if values["legendType"] == "occupancy":
-        categories = sorted({r.occupancy or "Unassigned" for r in arch.rooms})
-    elif values["legendType"] == "finish":
-        categories = sorted(
-            {r.floorFinish or r.wallFinish or r.ceilingFinish or "Unassigned" for r in arch.rooms}
-        )
-    else:
-        categories = ["Small", "Medium", "Large"]
+    metrics = room_metrics(ctx, arch)
+    rooms_by_id = {r.id: r for r in arch.rooms}
+    totals: dict[str, dict[str, float]] = {}
+    for m in metrics:
+        src = rooms_by_id.get(m["room"])
+        if values["legendType"] == "occupancy":
+            cat = (src.occupancy if src else None) or "Unassigned"
+        elif values["legendType"] == "finish":
+            cat = (
+                (src.floorFinish or src.wallFinish or src.ceilingFinish) if src else None
+            ) or "Unassigned"
+        else:
+            cat = "Small" if m["netAreaM2"] < 20 else "Medium" if m["netAreaM2"] < 50 else "Large"
+        bucket = totals.setdefault(cat, {"roomCount": 0, "areaM2": 0.0})
+        bucket["roomCount"] += 1
+        bucket["areaM2"] += m["netAreaM2"]
+    grand_area = sum(b["areaM2"] for b in totals.values())
+    rows = [
+        {
+            "category": cat,
+            "roomCount": int(bucket["roomCount"]),
+            "areaM2": round(bucket["areaM2"], 2),
+            "sharePercent": round(bucket["areaM2"] / grand_area * 100.0, 1)
+            if grand_area > 0
+            else 0.0,
+        }
+        for cat, bucket in sorted(totals.items())
+    ]
     path = write_json(
         ctx,
         "room-legend.json",
-        {"name": values["legendName"], "type": values["legendType"], "categories": categories},
+        {
+            "name": values["legendName"],
+            "type": values["legendType"],
+            "totalAreaM2": round(grand_area, 2),
+            "categories": rows,
+        },
     )
     return result(
         summary={
             "legendName": values["legendName"],
-            "categoryCount": len(categories),
+            "categoryCount": len(rows),
+            "totalAreaM2": round(grand_area, 2),
             "exportPath": path,
         },
         tables=[
-            table("Room legend", [("category", "Category")], [{"category": c} for c in categories])
+            table(
+                "Room legend",
+                [
+                    ("category", "Category"),
+                    ("roomCount", "Rooms"),
+                    ("areaM2", "Net area", "m²"),
+                    ("sharePercent", "Share", "%"),
+                ],
+                rows,
+            )
         ],
     )
 
@@ -466,17 +587,52 @@ def keynote_assign(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     ],
 )
 def schedule_template(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a room schedule field template."""
+    """Generate a populated room-schedule template preview from live architecture rooms."""
+    arch = require_arch(ctx)
     fields = {
         "standard": ["room", "name", "number", "story"],
         "areas": ["room", "name", "grossAreaM2", "netAreaM2"],
         "finishes": ["room", "floorFinish", "wallFinish", "ceilingFinish"],
     }[values["template"]]
+    metrics_by_id = {m["room"]: m for m in room_metrics(ctx, arch)}
+    preview = []
+    for r in arch.rooms:
+        m = metrics_by_id.get(r.id, {})
+        if values["template"] == "standard":
+            preview.append(
+                {"room": r.id, "name": r.name, "number": r.number or "", "story": r.story}
+            )
+        elif values["template"] == "areas":
+            preview.append(
+                {
+                    "room": r.id,
+                    "name": r.name,
+                    "grossAreaM2": round(m.get("grossAreaM2", 0.0), 2),
+                    "netAreaM2": round(m.get("netAreaM2", 0.0), 2),
+                }
+            )
+        else:
+            preview.append(
+                {
+                    "room": r.id,
+                    "floorFinish": r.floorFinish or "Unassigned",
+                    "wallFinish": r.wallFinish or "Unassigned",
+                    "ceilingFinish": r.ceilingFinish or "Unassigned",
+                }
+            )
     path = write_json(
-        ctx, "room-schedule-template.json", {"template": values["template"], "fields": fields}
+        ctx,
+        "room-schedule-template.json",
+        {"template": values["template"], "fields": fields, "rows": preview},
     )
     return result(
-        summary={"template": values["template"], "fieldCount": len(fields), "exportPath": path}
+        summary={
+            "template": values["template"],
+            "fieldCount": len(fields),
+            "rowCount": len(preview),
+            "exportPath": path,
+        },
+        tables=[table("Room schedule template", [(f, f) for f in fields], preview)],
     )
 
 
@@ -552,11 +708,24 @@ def schedule_filter(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     fields=[select("format", "Export format", [("csv", "CSV"), ("json", "JSON")], "csv")],
 )
 def schedule_export(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export room data to CSV or JSON."""
+    """Compute room area totals and export the live room schedule to CSV or JSON."""
     arch = require_arch(ctx)
     rows = room_metrics(ctx, arch)
+    total_gross = round(sum(r["grossAreaM2"] for r in rows), 3)
+    total_net = round(sum(r["netAreaM2"] for r in rows), 3)
+    bounded = sum(1 for r in rows if r["bounded"])
     if values["format"] == "json":
-        path = write_json(ctx, "room-schedule.json", rows)
+        path = write_json(
+            ctx,
+            "room-schedule.json",
+            {
+                "roomCount": len(rows),
+                "boundedCount": bounded,
+                "totalGrossAreaM2": total_gross,
+                "totalNetAreaM2": total_net,
+                "rooms": rows,
+            },
+        )
     else:
         path = write_arch_export(
             ctx,
@@ -565,7 +734,28 @@ def schedule_export(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
                 ["room", "name", "number", "story", "bounded", "grossAreaM2", "netAreaM2"], rows
             ),
         )
-    return result(summary={"roomCount": len(rows), "format": values["format"], "exportPath": path})
+    return result(
+        summary={
+            "roomCount": len(rows),
+            "boundedCount": bounded,
+            "totalGrossAreaM2": total_gross,
+            "totalNetAreaM2": total_net,
+            "format": values["format"],
+            "exportPath": path,
+        },
+        tables=[
+            table(
+                "Exported room schedule",
+                [
+                    ("room", "Room"),
+                    ("name", "Name"),
+                    ("story", "Story"),
+                    ("netAreaM2", "Net area", "m²"),
+                ],
+                rows,
+            )
+        ],
+    )
 
 
 @feature(

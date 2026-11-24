@@ -16,7 +16,11 @@ from saengine.features import (
 from saengine.features.overview_common import (
     csv_text,
     json_text,
+    load_export_json,
+    now_iso,
+    project_name,
     require_project,
+    save_export_json,
     settings_dict,
     write_export,
 )
@@ -379,15 +383,47 @@ def user_group(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def project_access(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a project-access record."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "project-access.json",
-        json_text({"member": values["member"], "access": values["access"]}),
+    """Validate target member or group against settings and update the project access matrix."""
+    root = require_project(ctx, "updating project access")
+    member = values["member"].strip()
+    if not member:
+        raise FeatureInputError("Enter an existing team member or permission group.")
+    raw = settings_dict(ctx)
+    team = [m for m in raw.get("team", []) if isinstance(m, dict)]
+    groups = {m.get("group") for m in team if m.get("group")} | set(
+        raw.get("permissions", {}).keys()
     )
+    found = next((m for m in team if m.get("name") == member), None)
+    if found is None and member not in groups and team:
+        raise FeatureInputError(
+            f"Team member or group '{member}' was not found in project settings."
+        )
+    if found is not None:
+        found["access"] = values["access"]
+        (root / "02 Project Settings/project-settings.json").write_text(
+            json_text(raw), encoding="utf-8"
+        )
+        ctx._cache.pop("settings", None)
+    entries = load_export_json(ctx, "11 Exports", "project-access.json", [])
+    entries = [
+        e for e in (entries if isinstance(entries, list) else []) if e.get("member") != member
+    ]
+    entries.append({"member": member, "access": values["access"], "updatedAt": now_iso()})
+    path = save_export_json(ctx, "11 Exports", "project-access.json", entries)
     return result(
-        summary={"member": values["member"], "access": values["access"], "exportPath": str(path)}
+        summary={
+            "member": member,
+            "access": values["access"],
+            "entryCount": len(entries),
+            "exportPath": str(path),
+        },
+        tables=[
+            table(
+                "Project access register",
+                [("member", "Member / Group"), ("access", "Access"), ("updatedAt", "Updated UTC")],
+                entries,
+            )
+        ],
     )
 
 
@@ -492,11 +528,28 @@ def training_log(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def team_bulletin(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a team bulletin Markdown file."""
-    path = write_export(
-        ctx, "11 Exports", "team-bulletin.md", f"# Team Bulletin\n\n{values['message']}\n"
+    """Append a dated bulletin post citing active team headcount and regenerate team-bulletin.md."""
+    msg = values["message"].strip()
+    if not msg:
+        raise FeatureInputError("Enter a team bulletin message.")
+    entries = load_export_json(ctx, "11 Exports", "team-bulletin.json", [])
+    posts = [e for e in (entries if isinstance(entries, list) else []) if isinstance(e, dict)]
+    posts.append({"timestamp": now_iso(), "teamSize": len(_team(ctx)), "message": msg})
+    save_export_json(ctx, "11 Exports", "team-bulletin.json", posts)
+    md = [f"# {project_name(ctx)} — Team Bulletin", ""]
+    for p in reversed(posts):
+        md.append(f"- **{p['timestamp']}** ({p['teamSize']} members): {p['message']}")
+    path = write_export(ctx, "11 Exports", "team-bulletin.md", "\n".join(md) + "\n")
+    return result(
+        summary={"postCount": len(posts), "messageLength": len(msg), "exportPath": str(path)},
+        tables=[
+            table(
+                "Team bulletin",
+                [("timestamp", "UTC"), ("teamSize", "Members"), ("message", "Message")],
+                posts,
+            )
+        ],
     )
-    return result(summary={"messageLength": len(values["message"]), "exportPath": str(path)})
 
 
 @feature(
@@ -507,19 +560,41 @@ def team_bulletin(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     requires_project=True,
 )
 def notification_rule(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Write a local notification rule."""
-    path = write_export(
-        ctx,
-        "11 Exports",
-        "notification-rule.json",
-        json_text({"event": values["event"], "recipient": values["recipient"]}),
+    """Validate notification recipient against the project team or email format and store the rule."""
+    recipient = values["recipient"].strip()
+    if not recipient:
+        raise FeatureInputError("Enter a notification recipient.")
+    team_names = {m.get("name") for m in _team(ctx) if m.get("name")}
+    if recipient not in team_names and (
+        "@" not in recipient or "." not in recipient.rsplit("@", 1)[-1]
+    ):
+        raise FeatureInputError(
+            f"Recipient '{recipient}' is neither a team member nor a valid email."
+        )
+    loaded = load_export_json(ctx, "11 Exports", "notification-rule.json", [])
+    rules = [r for r in (loaded if isinstance(loaded, list) else []) if isinstance(r, dict)]
+    rules.append(
+        {
+            "event": values["event"].strip() or "Task due",
+            "recipient": recipient,
+            "updatedAt": now_iso(),
+        }
     )
+    path = save_export_json(ctx, "11 Exports", "notification-rule.json", rules)
     return result(
         summary={
-            "event": values["event"],
-            "recipient": values["recipient"],
+            "event": rules[-1]["event"],
+            "recipient": recipient,
+            "ruleCount": len(rules),
             "exportPath": str(path),
-        }
+        },
+        tables=[
+            table(
+                "Notification rules",
+                [("event", "Event"), ("recipient", "Recipient"), ("updatedAt", "Updated UTC")],
+                rules,
+            )
+        ],
     )
 
 

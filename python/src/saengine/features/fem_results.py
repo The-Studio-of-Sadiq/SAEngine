@@ -523,22 +523,43 @@ def result_sets(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     requires_project=True,
 )
 def result_views(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Store camera orientation and active result diagram state in 08 FEM/exports/."""
-    require_results(ctx)
-    view = {"camera": values["viewPreset"], "diagram": values["diagram"]}
+    """Validate requested diagram table availability in results and store camera preset."""
+    out_dir, model_path = require_results(ctx)
+    idx = result_tables.table_index(out_dir, model_path)
+    needed = "nodes" if values["diagram"] == "deformed" else "members"
+    cases = [
+        str(e.get("label") or e.get("key") or "")
+        for e in idx.get("results", [])
+        if any(t.get("id") == needed for t in e.get("tables", []))
+    ]
+    cameras = {
+        "iso": {"azimuthDeg": 45.0, "elevationDeg": 30.0},
+        "plan": {"azimuthDeg": 0.0, "elevationDeg": 90.0},
+        "elevX": {"azimuthDeg": 0.0, "elevationDeg": 0.0},
+        "elevY": {"azimuthDeg": 90.0, "elevationDeg": 0.0},
+    }
+    cam = cameras[values["viewPreset"]]
+    view = {
+        "camera": values["viewPreset"],
+        **cam,
+        "diagram": values["diagram"],
+        "sourceTable": needed,
+        "availableCases": len(cases),
+    }
     path = export_fem_file(ctx, f"result-view-{values['viewPreset']}.json", format_json(view))
     return result(
         summary={
             "camera": values["viewPreset"],
             "diagram": values["diagram"],
+            "availableCases": len(cases),
             "viewPath": str(path),
         },
         tables=[
             table(
-                "Saved result view",
+                "Validated result view",
                 [("setting", "Setting"), ("value", "Value")],
-                [{"setting": k, "value": v} for k, v in view.items()],
+                [{"setting": k, "value": str(v)} for k, v in view.items()],
             )
         ],
-        notes=[f"View configuration written to {path}"],
+        notes=[f"Validated against {len(cases)} {needed} table(s); preset saved to {path}."],
     )

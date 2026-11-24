@@ -21,6 +21,19 @@ def require_bim(ctx: FeatureContext) -> dict[str, Any]:
     return data
 
 
+def element_story(data: dict[str, Any], element: dict[str, Any]) -> str:
+    if element.get("story"):
+        return str(element["story"])
+    stories = [s for s in (data.get("stories") or []) if isinstance(s, dict)]
+    elev = element.get("elevation", element.get("top", element.get("bottom")))
+    if isinstance(elev, (int, float)):
+        for story in stories:
+            s_elev = story.get("elevation")
+            if isinstance(s_elev, (int, float)) and abs(float(s_elev) - float(elev)) < 1.0:
+                return str(story.get("id") or story.get("name") or "Unassigned")
+    return "Unassigned"
+
+
 def element_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for element in data["elements"]:
@@ -32,9 +45,21 @@ def element_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
                 "kind": str(element.get("kind", "")),
                 "type": str(element.get("type", "")),
                 "source": str(element.get("source", "")),
+                "story": element_story(data, element),
             }
         )
     return rows
+
+
+def slab_area_m2(data: dict[str, Any]) -> float:
+    total = 0.0
+    for element in data.get("elements") or []:
+        if not isinstance(element, dict) or element.get("kind") != "slab":
+            continue
+        pts = element.get("boundary") or element.get("polygon")
+        if isinstance(pts, list):
+            total += polygon_area(pts) / 1e6
+    return round(total, 2)
 
 
 def kind_counts(data: dict[str, Any]) -> dict[str, int]:

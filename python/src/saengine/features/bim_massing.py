@@ -192,19 +192,46 @@ def divide_surface(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
     fields=[
         select(
             "pattern",
-            "Pattern",
-            [("diamond", "Diamond"), ("square", "Square"), ("triangular", "Triangular")],
+            "Grid pattern",
+            [
+                ("diamond", "Diagrid Diamond"),
+                ("square", "Orthogonal Grid"),
+                ("triangular", "Triangulated Mesh"),
+            ],
             "square",
         ),
-        number("spacing", "Pattern spacing", 0.5, unit="m", min=0.01),
+        number("spacing", "Module grid pitch", 1.5, unit="m", min=0.1),
     ],
 )
 def surface_pattern(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Defines a surface pattern."""
-    require_bim(ctx)
-    record = {"pattern": values["pattern"], "spacingM": values["spacing"]}
+    """Compute facade envelope surface subdivision counts and mullion length over BIM model envelope."""
+    from saengine.features.bim_common import element_extent
+
+    data = require_bim(ctx)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    perim_m = max(12.0, 2.0 * ((xmax - xmin) + (ymax - ymin)) / 1000.0)
+    stories = data.get("stories") or []
+    max_z_m = max((float(s.get("elevation", 0.0)) for s in stories), default=9600.0) / 1000.0 or 9.6
+    facade_area = perim_m * max_z_m
+    pitch = float(values["spacing"])
+    mult = {"square": 1.0, "triangular": 2.0, "diamond": 1.15}[values["pattern"]]
+    panels = max(1, math.ceil(facade_area / (pitch**2) * mult))
+    mullion_len_m = round(panels * 2.0 * pitch, 0)
+    record = {
+        "pattern": values["pattern"],
+        "spacingM": pitch,
+        "facadeAreaM2": round(facade_area, 1),
+        "moduleCount": panels,
+        "framingLengthM": mullion_len_m,
+    }
     path = write_bim_json(ctx, "surface-pattern.json", record)
-    return result(summary={**record, "exportPath": path}, notes=[f"Export: {path}"])
+    return result(
+        summary={**record, "exportPath": path},
+        notes=[
+            f"Subdivided {facade_area:.0f} m² BIM envelope into {panels} module(s); saved to {path}."
+        ],
+    )
 
 
 @feature(
@@ -212,23 +239,47 @@ def surface_pattern(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
     "Apply Panel",
     part="bim",
     fields=[
-        text("panelType", "Panel type", "CW-Glazing"),
-        number("count", "Applied count", 100, unit="ea", min=1),
+        text("panelType", "Cladding family", "CW-Glazing"),
+        number(
+            "facadeAreaM2", "Divided surface area (0 = use BIM extent)", 0.0, unit="m²", min=0.0
+        ),
+        number("moduleAreaM2", "Single module area", 4.5, unit="m²", min=0.2),
+        number("unitMassKgPerM2", "Cladding dead weight", 38.0, unit="kg/m²", min=5.0),
     ],
 )
 def apply_panel(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Applies a panel type to a divided mass surface."""
-    require_bim(ctx)
-    path = write_bim_json(
-        ctx, "applied-panel.json", {"panelType": values["panelType"], "count": int(values["count"])}
-    )
+    """Calculate applied facade panel count, total cladding tonnage, and gravity facade line load."""
+    from saengine.features.bim_common import element_extent
+
+    data = require_bim(ctx)
+    area = float(values["facadeAreaM2"])
+    if area <= 0:
+        ext = element_extent(data)
+        xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+        perim_m = max(12.0, 2.0 * ((xmax - xmin) + (ymax - ymin)) / 1000.0)
+        h_m = (
+            max(
+                (float(s.get("elevation", 0.0)) for s in (data.get("stories") or [])),
+                default=9600.0,
+            )
+            / 1000.0
+            or 9.6
+        )
+        area = perim_m * h_m
+    n_panels = max(1, math.ceil(area / float(values["moduleAreaM2"])))
+    total_tonnes = area * float(values["unitMassKgPerM2"]) / 1000.0
+    payload = {
+        "panelType": values["panelType"],
+        "facadeAreaM2": round(area, 1),
+        "panelCount": n_panels,
+        "totalTonnes": round(total_tonnes, 2),
+    }
+    path = write_bim_json(ctx, "applied-panel.json", payload)
     return result(
-        summary={
-            "panelType": values["panelType"],
-            "panelCount": int(values["count"]),
-            "exportPath": path,
-        },
-        notes=[f"Export: {path}"],
+        summary={**payload, "exportPath": path},
+        notes=[
+            f"Computed {n_panels} panels (~{total_tonnes:.1f} t dead weight) over {area:.0f} m² -> {path}."
+        ],
     )
 
 
@@ -325,19 +376,40 @@ def to_floors(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     "Update Mass",
     part="bim",
     fields=[
-        text("massName", "Mass name", "Tower Mass"),
-        number("height", "Updated height", 60.0, unit="m", min=0.1),
+        text("massName", "Mass zone name", "Tower Mass"),
+        number("height", "Proposed roof height", 60.0, unit="m", min=3.0),
     ],
 )
 def update_mass(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Records an updated conceptual-mass height."""
-    require_bim(ctx)
-    path = write_bim_json(
-        ctx, "updated-mass.json", {"name": values["massName"], "heightM": values["height"]}
+    """Compare updated massing height against current BIM extent slenderness H/B and roof delta."""
+    from saengine.features.bim_common import element_extent
+
+    data = require_bim(ctx)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    b_min_m = max(1.0, min((xmax - xmin), (ymax - ymin)) / 1000.0)
+    curr_h_m = (
+        max((float(s.get("elevation", 0.0)) for s in (data.get("stories") or [])), default=10000.0)
+        / 1000.0
     )
+    h_new = float(values["height"])
+    slenderness = h_new / b_min_m
+    payload = {
+        "name": values["massName"],
+        "previousHeightM": round(curr_h_m, 2),
+        "updatedHeightM": h_new,
+        "heightDeltaM": round(h_new - curr_h_m, 2),
+        "slendernessRatioHOverB": round(slenderness, 2),
+    }
+    path = write_bim_json(ctx, "updated-mass.json", payload)
     return result(
-        summary={"massName": values["massName"], "heightM": values["height"], "exportPath": path},
-        notes=[f"Export: {path}"],
+        summary={
+            "massName": values["massName"],
+            "heightM": h_new,
+            "slenderness": payload["slendernessRatioHOverB"],
+            "exportPath": path,
+        },
+        notes=[f"Height delta={h_new - curr_h_m:+.1f} m; aspect H/B={slenderness:.2f} -> {path}."],
     )
 
 
@@ -346,16 +418,31 @@ def update_mass(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     "Mass Floor",
     part="bim",
     fields=[
-        number("area", "Floor area", 500.0, unit="m²", min=0.1),
+        number("area", "Mass floorplate GFA", 500.0, unit="m²", min=10.0),
         number("elevation", "Floor elevation", 10.0, unit="m"),
+        number("netEfficiency", "Net-to-gross efficiency factor", 0.82, min=0.5, max=0.95),
+        number("gravityKnPerM2", "Estimated floor DL+SDL+LL", 11.5, unit="kN/m²", min=3.0),
     ],
 )
 def mass_floor(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Creates a conceptual mass floor."""
+    """Compute mass floorplate net usable area and total gravity load kN for preliminary reactions."""
     require_bim(ctx)
-    floor = {"areaM2": values["area"], "elevationM": values["elevation"]}
+    gfa = float(values["area"])
+    nfa = gfa * float(values["netEfficiency"])
+    load_kn = gfa * float(values["gravityKnPerM2"])
+    floor = {
+        "grossAreaM2": gfa,
+        "netUsableM2": round(nfa, 1),
+        "elevationM": float(values["elevation"]),
+        "totalFloorLoadKn": round(load_kn, 0),
+    }
     path = write_bim_json(ctx, "mass-floor.json", floor)
-    return result(summary={**floor, "exportPath": path}, notes=[f"Export: {path}"])
+    return result(
+        summary={**floor, "exportPath": path},
+        notes=[
+            f"Net floorplate={nfa:.1f} m²; total floor gravity load={load_kn:,.0f} kN -> {path}."
+        ],
+    )
 
 
 @feature(
@@ -434,31 +521,56 @@ def panel_optimization(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     "Planarize Faces",
     part="bim",
     fields=[
-        number("faceCount", "Face count", 20, unit="ea", min=1),
-        number("tolerance", "Planarity tolerance", 10, unit="mm", min=0),
+        number("panelWidthM", "Quad panel width", 1.5, unit="m", min=0.3),
+        number("panelHeightM", "Quad panel height", 3.2, unit="m", min=0.3),
+        number(
+            "twistAngleDeg", "Freeform surface twist across panel", 2.5, unit="°", min=0.0, max=45.0
+        ),
+        number("tolerance", "Cold-warp fabrication tolerance", 10.0, unit="mm", min=0.5),
     ],
 )
 def planarize_faces(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Reports a planarization tolerance setup."""
+    """Evaluate freeform quad panel corner out-of-plane warp vs tolerance & triangulation need."""
     require_bim(ctx)
+    w_mm = float(values["panelWidthM"]) * 1000.0
+    theta = math.radians(float(values["twistAngleDeg"]))
+    warp_mm = 0.5 * w_mm * math.sin(theta)
+    tol = float(values["tolerance"])
+    needs_tris = warp_mm > tol
     rows = [
-        {"face": i + 1, "toleranceMm": values["tolerance"]} for i in range(int(values["faceCount"]))
+        {
+            "panelSizeM": f"{values['panelWidthM']}x{values['panelHeightM']}",
+            "outOfPlaneWarpMm": round(warp_mm, 1),
+            "toleranceMm": tol,
+            "action": "Triangulate (2 tris)" if needs_tris else "Flat Quad OK",
+        }
     ]
-    path = write_bim_csv(ctx, "planarized-faces.csv", ["face", "toleranceMm"], rows)
+    path = write_bim_csv(
+        ctx,
+        "planarized-faces.csv",
+        ["panelSizeM", "outOfPlaneWarpMm", "toleranceMm", "action"],
+        rows,
+    )
     return result(
         summary={
-            "faceCount": int(values["faceCount"]),
-            "toleranceMm": values["tolerance"],
+            "warpMm": round(warp_mm, 1),
+            "toleranceMm": tol,
+            "triangulateRequired": needs_tris,
             "exportPath": path,
         },
         tables=[
             table(
-                "Planarized Faces",
-                [("face", "Face"), ("toleranceMm", "Tolerance [mm]", "mm")],
-                rows[:100],
+                "Facade Quad Planarity Audit",
+                [
+                    ("panelSizeM", "Panel"),
+                    ("outOfPlaneWarpMm", "Warp", "mm"),
+                    ("toleranceMm", "Tol", "mm"),
+                    ("action", "Result"),
+                ],
+                rows,
             )
         ],
-        notes=["Planarization coordinates require the mass face geometry.", f"Export: {path}"],
+        notes=[f"Corner warp={warp_mm:.1f} mm vs {tol:g} mm cold-bending limit; saved to {path}."],
     )
 
 

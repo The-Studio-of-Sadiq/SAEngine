@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC
 from typing import Any
 
 from saengine.design import crack_control, deflection
@@ -982,38 +983,76 @@ def long_term_factors(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
     part="fem",
     fields=[
         text("reviewer", "Reviewer initials / name", "Lead Structural Engineer"),
-        text("decision", "Disposition note", "Accepted within serviceability tolerances"),
+        number("driftLimit", "Allowable inter-storey drift ratio", 0.005, min=0.001, max=0.05),
+        select(
+            "decision",
+            "Disposition",
+            [
+                ("Accepted", "Accepted"),
+                ("Conditional", "Conditional"),
+                ("Revise", "Revise Required"),
+            ],
+        ),
     ],
     requires_project=True,
 )
 def acceptance_review(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Record engineering sign-off against marginal serviceability checks and export QA log."""
+    """Verify story drift ratios against limit and log serviceability QA sign-off."""
+    import json
+    from datetime import datetime
+
     out_dir, model_path = require_results(ctx)
     resp = story_response.story_response(out_dir, model_path)
+    cases = resp.get("cases", [])
+    peak_drift = 0.0
+    for c in cases:
+        for st_row in c.get("storeys", []):
+            peak_drift = max(
+                peak_drift,
+                abs(float(st_row.get("driftX", 0.0) or 0.0)),
+                abs(float(st_row.get("driftY", 0.0) or 0.0)),
+                abs(float(st_row.get("drift", 0.0) or 0.0)),
+            )
+    within_limit = peak_drift <= float(values["driftLimit"])
     row = {
-        "reviewer": values["reviewer"],
-        "casesReviewed": len(resp.get("cases", [])),
+        "reviewer": values["reviewer"].strip() or "Reviewer",
+        "date": datetime.now(UTC).isoformat(timespec="seconds"),
+        "casesReviewed": len(cases),
+        "peakDrift": round(peak_drift, 5),
+        "driftLimit": float(values["driftLimit"]),
+        "withinLimit": within_limit,
         "decision": values["decision"],
     }
+    export_fem_file(ctx, "serviceability-acceptance.json", json.dumps(row, indent=2) + "\n")
     path = export_fem_file(
         ctx,
         "serviceability-acceptance.md",
-        f"# Serviceability Acceptance\n\n- Reviewer: {values['reviewer']}\n- Cases: {row['casesReviewed']}\n- Decision: {values['decision']}\n",
+        f"# Serviceability Acceptance\n\n- Reviewer: {row['reviewer']}\n- Date: {row['date']}\n- Cases: {row['casesReviewed']}\n- Peak Drift: {row['peakDrift']:.5f} (limit {row['driftLimit']:.5f}, pass={within_limit})\n- Decision: {row['decision']}\n",
     )
     return result(
         summary={
-            "reviewer": values["reviewer"],
+            "reviewer": row["reviewer"],
             "casesReviewed": row["casesReviewed"],
+            "peakDrift": row["peakDrift"],
+            "withinLimit": within_limit,
             "logPath": str(path),
         },
         tables=[
             table(
                 "Serviceability QA sign-off",
-                [("reviewer", "Reviewer"), ("casesReviewed", "Cases"), ("decision", "Decision")],
+                [
+                    ("reviewer", "Reviewer"),
+                    ("casesReviewed", "Cases"),
+                    ("peakDrift", "Peak Drift"),
+                    ("withinLimit", "Pass"),
+                    ("decision", "Decision"),
+                ],
                 [row],
             )
         ],
-        notes=[f"Acceptance log written to {path}"],
+        notes=[
+            f"Acceptance verified against drift <= {row['driftLimit']:.4f} and written to {path}."
+        ],
     )
 
 

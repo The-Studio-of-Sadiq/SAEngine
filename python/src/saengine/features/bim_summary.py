@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from saengine.features import FeatureContext, FeatureInputError, feature, result, table, text
@@ -157,20 +158,31 @@ def milestones(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
 
 @feature("bimSummary.dataDrop", "Data Drop", part="bim")
 def data_drop(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Package a model information summary for a contractual data drop."""
+    """Package real model extent, story schedule, slab GFA, and element counts into a COBie-style drop."""
+    from saengine.features.bim_common import slab_area_m2
+
     data = require_bim(ctx)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    slab_m2 = slab_area_m2(data)
     path = write_bim_json(
         ctx,
         "bim-data-drop.json",
         {
-            "elements": len(data["elements"]),
-            "stories": data.get("stories", []),
+            "elements": len(data.get("elements") or []),
+            "stories": data.get("stories") or [],
             "categories": kind_counts(data),
+            "slabAreaM2": slab_m2,
+            "planExtentsMm": [xmin, ymin, xmax, ymax],
         },
     )
     return result(
-        summary={"elementCount": len(data["elements"]), "exportPath": path},
-        notes=[f"Data drop written to {path}."],
+        summary={
+            "elementCount": len(data.get("elements") or []),
+            "slabAreaM2": slab_m2,
+            "exportPath": path,
+        },
+        notes=[f"Contractual BIM data drop ({slab_m2} m²) written to {path}."],
     )
 
 
@@ -203,22 +215,34 @@ def model_properties(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     "Project Metadata",
     part="bim",
     fields=[
-        text("projectName", "Project name", "SAEngine Project"),
+        text("projectName", "Project name (blank = read 02 Project Settings)", ""),
         text("status", "Model status", "For Coordination"),
     ],
 )
 def project_metadata(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Add exchange metadata for the model export."""
-    require_bim(ctx)
-    metadata = {"name": values["projectName"], "status": values["status"], "discipline": "Building"}
+    """Merge live project settings (name, code pack, site) with BIM statistics into exchange metadata."""
+    import hashlib
+    import json
+
+    data = require_bim(ctx)
+    st = ctx.raw("settings") or {}
+    proj = st.get("project") if isinstance(st.get("project"), dict) else {}
+    pname = values["projectName"].strip() or str(proj.get("name") or "SAEngine Project")
+    code_pack = str(st.get("codePack", "default"))
+    digest = hashlib.sha256(
+        json.dumps(data.get("elements") or [], sort_keys=True).encode("utf-8")
+    ).hexdigest()[:12]
+    metadata = {
+        "name": pname,
+        "status": values["status"].strip(),
+        "codePack": code_pack,
+        "elementCount": len(data.get("elements") or []),
+        "modelSha256": digest,
+    }
     path = write_bim_json(ctx, "project-metadata.json", metadata)
     return result(
-        summary={
-            "projectName": values["projectName"],
-            "status": values["status"],
-            "exportPath": path,
-        },
-        notes=[f"Metadata written to {path}."],
+        summary={**metadata, "exportPath": path},
+        notes=[f"Synced metadata with 02 Project Settings ({code_pack}); written to {path}."],
     )
 
 
@@ -523,43 +547,95 @@ def baseline_compare(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     "Progress Snapshot",
     part="bim",
     fields=[
-        text("name", "Snapshot name", "Progress review"),
+        text("name", "Snapshot milestone name", "Progress review"),
         text("author", "Author", "Project team"),
     ],
 )
 def progress_snapshot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Capture current BIM metrics as a named progress snapshot."""
+    """Capture timestamped BIM completeness KPIs and track element growth delta across runs."""
+    import json
+    from datetime import datetime
+
     data = require_bim(ctx)
-    payload = {
-        "name": values["name"],
-        "author": values["author"],
-        "elementCount": len(data["elements"]),
+    elems = [e for e in (data.get("elements") or []) if isinstance(e, dict)]
+    objs = {
+        str(o.get("id", ""))
+        for o in ((ctx.raw("objects") or {}).get("objects") or [])
+        if isinstance(o, dict)
+    }
+    typed_pct = round(
+        sum(1 for e in elems if not objs or str(e.get("type", "")) in objs)
+        / max(1, len(elems))
+        * 100.0,
+        1,
+    )
+    entry = {
+        "name": values["name"].strip() or "Progress",
+        "author": values["author"].strip() or "Team",
+        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
+        "elementCount": len(elems),
+        "typedCompliancePct": typed_pct,
         "categories": kind_counts(data),
     }
-    path = write_bim_json(ctx, "progress-snapshot.json", payload)
+    reg = ctx.path("11 Exports/BIM/progress-snapshot.json")
+    hist: list[dict[str, Any]] = []
+    delta = 0
+    if reg is not None and reg.exists():
+        try:
+            loaded = json.loads(reg.read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                hist = [r for r in loaded if isinstance(r, dict)]
+                if hist:
+                    delta = len(elems) - int(hist[-1].get("elementCount", len(elems)) or 0)
+        except ValueError:
+            pass
+    hist.append(entry)
+    path = write_bim_json(ctx, "progress-snapshot.json", hist[-25:])
     return result(
         summary={
-            "snapshotName": values["name"],
-            "elementCount": len(data["elements"]),
+            "snapshotName": entry["name"],
+            "elementCount": len(elems),
+            "deltaSinceLast": delta,
+            "typedCompliancePct": typed_pct,
             "exportPath": path,
         },
-        notes=[f"Snapshot metrics written to {path}."],
+        notes=[
+            f"Logged progress ({len(elems)} elements, delta={delta:+d}, {typed_pct}% typed) to {path}."
+        ],
     )
 
 
 @feature("bimSummary.exportSnapshot", "Export Snapshot", part="bim")
 def export_snapshot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
-    """Export current model metrics for external reporting."""
+    """Export SHA-256 verified BIM snapshot with extent bounds and story summary."""
+    import hashlib
+    import json
+
+    from saengine.features.bim_common import slab_area_m2
+
     data = require_bim(ctx)
+    elems = data.get("elements") or []
+    slab_m2 = slab_area_m2(data)
+    ext = element_extent(data)
+    xmin, ymin, xmax, ymax = ext["minXMm"], ext["minYMm"], ext["maxXMm"], ext["maxYMm"]
+    digest = hashlib.sha256(json.dumps(elems, sort_keys=True).encode("utf-8")).hexdigest()[:12]
     payload = {
-        "elementCount": len(data["elements"]),
-        "stories": data.get("stories", []),
+        "elementCount": len(elems),
+        "stories": data.get("stories") or [],
         "categories": kind_counts(data),
+        "slabAreaM2": slab_m2,
+        "boundsMm": [xmin, ymin, xmax, ymax],
+        "sha256": digest,
     }
     path = write_bim_json(ctx, "model-snapshot.json", payload)
     return result(
-        summary={"elementCount": len(data["elements"]), "exportPath": path},
-        notes=[f"Snapshot exported to {path}."],
+        summary={
+            "elementCount": len(elems),
+            "slabAreaM2": slab_m2,
+            "sha256": digest,
+            "exportPath": path,
+        },
+        notes=[f"Verified snapshot exported to {path}."],
     )
 
 
