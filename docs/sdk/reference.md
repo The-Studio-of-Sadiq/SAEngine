@@ -218,6 +218,8 @@ Python API version **1.1.0** (`saengine.api.API_VERSION`). The guide, the versio
 | `fabrication/bvbs` | — |  |  |
 | `fabrication/nc` | — |  |  |
 | `fabrication/shopDrawings` | — |  |  |
+| `features/list` | — |  |  |
+| `features/run` | projectRoot, values, id |  |  |
 | `fem/capacitySeismicDetailing` | **projectRoot** | `fem_capacity_seismic_detailing` |  |
 | `fem/columnInteraction` | **outDir**, **projectPath**, member | `column_interaction` (worker) | The P-M interaction diagrams of the run's concrete columns with their demand points (worked out once per run by the design checks; ``saengine.fem.member_detail``). |
 | `fem/crackControl` | **projectRoot**, exposure, momentKnm, bMm, hMm, barMm, asMm2 | `fem_crack_control` |  |

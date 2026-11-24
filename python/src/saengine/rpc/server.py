@@ -1753,6 +1753,7 @@ def create_server() -> JsonRPCServer:
     _register_l12(server)
     _register_u6d(server)
     _register_u6e(server)
+    _register_features(server)
     return server
 
 
@@ -2467,6 +2468,22 @@ def _register_u6d(server: JsonRPCServer) -> None:
     @server.feature("boq/takeoffSummary")
     def _boq_takeoff_summary(params: Any) -> dict[str, Any]:
         return handlers.boq_takeoff_summary(_plain(params)["projectRoot"])
+
+
+def _register_features(server: JsonRPCServer) -> None:
+    """The ribbon buttons' features (saengine.features): their inputs and runs."""
+    from saengine import features
+
+    @server.feature("features/list")
+    def _features_list(params: Any) -> list[dict[str, Any]]:
+        return features.describe()
+
+    @server.feature("features/run")
+    def _features_run(params: Any) -> dict[str, Any]:
+        args = _plain(params) or {}
+        return features.run(
+            str(args.get("id") or ""), args.get("projectRoot"), args.get("values") or {}
+        )
 
 
 def _register_u6e(server: JsonRPCServer) -> None:
