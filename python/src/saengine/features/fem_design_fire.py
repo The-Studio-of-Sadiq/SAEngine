@@ -259,7 +259,7 @@ def reduced_strength(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
 )
 def thermal_expansion(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute free thermal strain ε_th and unrestrained axial elongation ΔL at fire temperature."""
-    alpha = 1.4e-5 if values["material"] == "steel" else 1.0e-5
+    alpha = 1.2e-5 if values["material"] == "steel" else 1.0e-5
     eps_th = alpha * values["tempRiseC"]
     dl_mm = eps_th * values["memberLengthM"] * 1000.0
     rows = [
@@ -309,7 +309,7 @@ def insulation_layer(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     dp_m = values["thicknessMm"] / 1000.0
     r_val = dp_m / values["conductivityWmK"]
     c_areal = values["densityKgM3"] * values["specificHeatJKgK"] * dp_m
-    rows = [{"rValueM2KW": r_val, "heatCapacityJm2K": c_areal}]
+    rows = [{"rValueM2KW": r_val, "arealHeatCapacityJm2K": c_areal}]
     return result(
         summary={"thermalResistanceM2KW": r_val, "arealHeatCapacityJm2K": c_areal},
         tables=[

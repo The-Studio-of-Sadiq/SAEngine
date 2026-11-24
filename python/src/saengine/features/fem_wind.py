@@ -541,19 +541,56 @@ def external_coefficients(ctx: FeatureContext, values: dict[str, Any]) -> dict[s
         lp = local_pressures.local_pressures(
             h_m, w_m, d_m, vb, exp, imp, area=values["tributaryAreaM2"], parapet=values["parapetM"]
         )
+        if lp is None:
+            lp = loads.cladding_pressures(
+                h_m,
+                min(w_m, d_m),
+                vb,
+                exp,
+                imp,
+                area=values["tributaryAreaM2"],
+                parapet=values["parapetM"] or None,
+            )
+    zones = (lp or {}).get("zones") or []
     rows = [
-        {"zone": k, "value": v} for k, v in (lp or {}).items() if isinstance(v, (int, float, str))
+        {
+            "zone": f"{z['surface']} {z['zone']} ({z['label']})",
+            "gcpPos": z.get("GCpPos"),
+            "gcpNeg": z.get("GCpNeg"),
+            "pPosKpa": z.get("pPos_kPa"),
+            "pNegKpa": z.get("pNeg_kPa"),
+        }
+        for z in zones
     ]
     return result(
-        summary={"areaM2": values["tributaryAreaM2"], "zonesEvaluated": len(rows)},
+        summary={
+            "areaM2": values["tributaryAreaM2"],
+            "qhKpa": (lp or {}).get("qh_kPa"),
+            "zonesEvaluated": len(rows),
+        },
         tables=[
             table(
                 "External C&C pressure coefficients & zones",
-                [("zone", "Zone / Term"), ("value", "Value")],
-                rows or [{"zone": "C&C", "value": "Evaluated"}],
+                [
+                    ("zone", "Zone"),
+                    ("gcpPos", "GCp+"),
+                    ("gcpNeg", "GCp-"),
+                    ("pPosKpa", "p+", "kPa"),
+                    ("pNegKpa", "p-", "kPa"),
+                ],
+                rows
+                or [
+                    {
+                        "zone": "C&C",
+                        "gcpPos": None,
+                        "gcpNeg": None,
+                        "pPosKpa": None,
+                        "pNegKpa": None,
+                    }
+                ],
             )
         ],
-        notes=["Uses saengine.fem.local_pressures for roof corners, edges, and wall zones."],
+        notes=["Uses active code pack local cladding & roof zone pressures."],
     )
 
 
@@ -675,16 +712,23 @@ def torsion_from_wind(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, 
 )
 def along_wind_load(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Compute dynamic along-wind peak velocity pressure and structural factor CsCd."""
+    from types import SimpleNamespace
+
     settings = load_settings(ctx)
     _, _, vb, _, imp, exp = site_params(settings)
-    with in_force(ctx.root):
-        qp = peak_velocity_pressure.peak_velocity_pressure(
-            values["heightM"], vb, exp, imp, settings.wind
-        )
+    wind_cfg = SimpleNamespace(
+        directionality=getattr(settings.wind, "directionality", None),
+        topographic=getattr(settings.wind, "topographic", None),
+        gust=getattr(settings.wind, "gust", None),
+        topography=getattr(settings.wind, "topography", None),
+        naturalFrequency=values["n1Hz"],
+        damping=values["damping"],
+    )
+    with in_force(ctx.root), loads.wind_overrides(wind_cfg):
+        qp = peak_velocity_pressure.peak_velocity_pressure(values["heightM"], vb, exp, imp)
         cs_cd, desc = peak_velocity_pressure.structural_factor(
             values["heightM"],
             values["depthM"],
-            settings.wind,
             width=values["widthM"],
             speed=vb,
             terrain=exp,
@@ -850,20 +894,40 @@ def acceleration_check(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
             raise FeatureInputError(
                 "Active code pack does not define wind comfort acceleration tables."
             )
-        res = wind_comfort.along_wind_gust(
-            h_m,
-            w_m,
-            d_m,
-            values["frequencyHz"],
-            vb,
-            exp,
-            values["damping"],
-            values["modalMassTonnes"] * 1000.0,
-            values["damping"],
-            rules,
-        )
+        v_t = vb * wind_comfort.speed_ratio(rules)
+        xi = 1.0  # linear fundamental mode shape exponent
+        if rules.response == "alongWindGust":
+            res = wind_comfort.along_wind_gust(
+                h_m,
+                w_m,
+                d_m,
+                values["frequencyHz"],
+                v_t,
+                exp,
+                values["damping"],
+                values["modalMassTonnes"] * 1000.0,
+                xi,
+                rules,
+            )
+        else:
+            res = wind_comfort.turbulence_spectrum(
+                h_m,
+                w_m,
+                values["frequencyHz"],
+                v_t,
+                exp,
+                values["damping"],
+                values["modalMassTonnes"] * 1000.0,
+                xi,
+                rules,
+            )
+        g_peak = wind_comfort.peak_factor(values["frequencyHz"], rules)
         lim = wind_comfort.limit_of(occ, values["frequencyHz"], rules)
-    acc_mg = float((res or {}).get("peakAccelMg", 0.0)) if isinstance(res, dict) else 0.0
+    acc_mg = (
+        g_peak * float(res["sigma"]) / wind_comfort.G * 1e3
+        if isinstance(res, dict) and "sigma" in res
+        else 0.0
+    )
     rows = [{"occupancy": occ, "peakAccelMg": acc_mg, "limitMg": lim, "ok": acc_mg <= lim}]
     return result(
         summary={"peakAccelMg": acc_mg, "limitMg": lim, "passes": acc_mg <= lim},
