@@ -2481,7 +2481,9 @@ def _register_features(server: JsonRPCServer) -> None:
     @server.feature("features/run")
     def _features_run(params: Any) -> dict[str, Any]:
         args = _plain(params) or {}
-        return features.run(str(args.get("id") or ""), args.get("projectRoot"), args.get("values") or {})
+        return features.run(
+            str(args.get("id") or ""), args.get("projectRoot"), args.get("values") or {}
+        )
 
 
 def _register_u6e(server: JsonRPCServer) -> None:
