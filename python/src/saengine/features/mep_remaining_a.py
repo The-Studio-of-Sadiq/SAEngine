@@ -41,7 +41,7 @@ def rainfall_intensity(ctx, v):
 )
 def rainwater_pipes(ctx, v):
     q = v["area"] * v["rain"] * v["runoff"] / 3600
-    d = max(75, math.ceil(math.sqrt(4 * q / (math.pi * 2)) * 1000 / 25) * 25)
+    d = max(75, math.ceil(math.sqrt(4 * (q / 1000) / (math.pi * 2)) * 1000 / 25) * 25)
     return result(
         summary={"flowLPerS": q, "diameterMm": d},
         tables=[
@@ -229,7 +229,7 @@ def attenuation_tank(ctx, v):
 )
 def soakaway_design(ctx, v):
     q = v["infiltration"] * v["area"] * 3600
-    drawdown = v["inflow"] * 1000 / q / 3600
+    drawdown = v["inflow"] / q if q > 0 else 0.0
     return result(
         summary={"drawdownHours": drawdown, "infiltrationLPerH": q * 1000},
         tables=[

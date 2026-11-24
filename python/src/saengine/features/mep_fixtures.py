@@ -527,7 +527,7 @@ def peak_demand(ctx: FeatureContext, values: dict) -> dict:
     """Estimate probable peak flow from fixture units."""
     from saengine.plumbing.hot_water import hunter_flow
 
-    flow = hunter_flow(values["fixtureUnits"])
+    flow = hunter_flow(values["fixtureUnits"]) / 60.0
     return result(
         summary={"fixtureUnits": values["fixtureUnits"], "probableFlowLps": flow},
         notes=[
@@ -744,12 +744,13 @@ def waste_connection(ctx: FeatureContext, values: dict) -> dict:
     """Check the selected waste outlet size against the engine drainage capacity table."""
     from saengine.plumbing.drainage import drain_size
 
-    required, capacity = drain_size(values["fixtureUnits"], values["branchSlopePercent"] / 100)
+    required, selected_slope = drain_size(
+        values["fixtureUnits"], values["branchSlopePercent"] / 100
+    )
     adequate = (
         required is not None
         and values["wasteDiameterMm"] >= required
-        and capacity is not None
-        and capacity >= values["fixtureUnits"]
+        and selected_slope is not None
     )
     return result(
         summary={

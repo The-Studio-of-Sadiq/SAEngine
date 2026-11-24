@@ -525,14 +525,17 @@ def sizing_method(ctx: FeatureContext, values: dict) -> dict:
 )
 def friction_rate(ctx: FeatureContext, values: dict) -> dict:
     """Size a duct using the engine equal-friction method."""
-    from saengine.hvac.air import size_duct
+    from saengine.hvac.air import equivalent_diameter, size_duct
 
     sizing = size_duct(
         values["flowM3s"], values["system"], values["shape"], values["frictionRatePaM"]
     )
+    eq_d = sizing.get("diameter")
+    if eq_d is None and "width" in sizing and "height" in sizing:
+        eq_d = equivalent_diameter(sizing["width"], sizing["height"])
     return result(
         summary={
-            "equivalentDiameterMm": sizing.get("diameter"),
+            "equivalentDiameterMm": eq_d,
             "velocityMs": sizing.get("velocity"),
             "frictionRatePaM": values["frictionRatePaM"],
         },

@@ -360,11 +360,11 @@ def earthContinuity(ctx: FeatureContext, values: dict) -> dict:
     """Verify adiabatic thermal withstand and end-to-end DC continuity resistance of CPC."""
     from saengine.electrical import cables
 
-    ik_a = float(values["faultCurrentKa"]) * 1000.0
+    ik_ka = float(values["faultCurrentKa"])
     t_s = float(values["clearingTimeS"])
     s_cpc = float(values["cpcAreaMm2"])
-    # Copper XLPE/PVC standard k=143/115 via cables.adiabatic_min_size
-    s_min_mm2 = float(cables.adiabatic_min_size(ik_a, t_s))
+    # Copper XLPE/PVC standard k=143/115 via cables.adiabatic_min_size (expects kA)
+    s_min_mm2 = float(cables.adiabatic_min_size(ik_ka, t_s))
     r_ohm = 0.0225 * float(values["runLengthM"]) / s_cpc  # 22.5 mOhm·mm²/m warm Cu at 70°C
     ok = s_cpc >= s_min_mm2
     return result(

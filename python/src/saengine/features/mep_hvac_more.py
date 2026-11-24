@@ -61,7 +61,7 @@ def zone_cooling(ctx: FeatureContext, values: dict) -> dict:
         raise FeatureInputError("Supply air temperature must be below the room cooling setpoint.")
     from saengine.hvac.air import supply_airflow
 
-    flow = supply_airflow(values["sensibleLoadKw"], dt)
+    flow = supply_airflow(values["sensibleLoadKw"], dt) * 1000
     return result(
         summary={"totalCoolingKw": total, "sensibleAirflowLs": flow},
         notes=[

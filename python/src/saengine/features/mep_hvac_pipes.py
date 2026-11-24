@@ -255,7 +255,7 @@ def elbow_fitting(ctx: FeatureContext, v: dict) -> dict:
 )
 def valve_insert(ctx: FeatureContext, v: dict) -> dict:
     """Estimate pressure drop through a water valve using its Kv coefficient."""
-    drop = (v["flowLs"] * 3.6 / v["valveKv"]) ** 2
+    drop = (v["flowLs"] * 3.6 / v["valveKv"]) ** 2 * 100
     return result(
         {"valvePressureDropKpa": drop, "flowLs": v["flowLs"]},
         notes=[
@@ -425,7 +425,7 @@ def balancing_valve_set(ctx: FeatureContext, v: dict) -> dict:
         else 0
     )
     kv = (
-        v["measuredFlowLs"] * 3.6 / math.sqrt(v["measuredDropKpa"])
+        v["measuredFlowLs"] * 3.6 / math.sqrt(v["measuredDropKpa"] / 100)
         if v["measuredDropKpa"]
         else None
     )

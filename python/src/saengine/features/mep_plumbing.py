@@ -680,13 +680,9 @@ def shower_flow_rate(ctx, v):
     requires_project=False,
 )
 def roof_drain_sizing(ctx, v):
-    flow = v["area"] / 3600 * v["rainfall"] * v["runoff"] * 1000
+    flow = v["area"] * v["rainfall"] * v["runoff"] / 3600
     diameter = next(
-        (
-            d
-            for d in (75, 100, 150, 200, 250, 300)
-            if math.pi * (d / 2000) ** 2 * 2 * 1000 >= flow / 1000
-        ),
+        (d for d in (75, 100, 150, 200, 250, 300) if math.pi * (d / 2000) ** 2 * 2 * 1000 >= flow),
         300,
     )
     return result(
