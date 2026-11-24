@@ -338,12 +338,18 @@ def sheet_pile_wall(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
             values["propDepthM"] if values["support"] == "propped" else None,
             values["surcharge"],
         )
+    if not res.get("ok", False):
+        raise FeatureInputError(res.get("reason", "Embedded wall embedment could not be solved."))
+    embedment = float(res.get("d", 0.0))
+    total_len = values["excavationDepthM"] + embedment
+    m_max = float(res.get("Mmax", 0.0))
+    prop_force = float(res.get("T", 0.0) or 0.0)
     return result(
         summary={
-            "embedmentM": res.get("embedment", 0.0),
-            "totalLengthM": res.get("length", values["excavationDepthM"]),
-            "maxMomentKnmPerM": res.get("moment", 0.0),
-            "propForceKnPerM": res.get("propForce", 0.0) or 0.0,
+            "embedmentM": embedment,
+            "totalLengthM": total_len,
+            "maxMomentKnmPerM": m_max,
+            "propForceKnPerM": prop_force,
         },
         tables=[
             table(
@@ -351,26 +357,14 @@ def sheet_pile_wall(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, An
                 [("param", "Parameter"), ("value", "Value"), ("unit", "Unit")],
                 [
                     {"param": "Retained height", "value": values["excavationDepthM"], "unit": "m"},
-                    {
-                        "param": "Required embedment depth",
-                        "value": res.get("embedment", 0.0),
-                        "unit": "m",
-                    },
-                    {"param": "Total pile length", "value": res.get("length", 0.0), "unit": "m"},
-                    {
-                        "param": "Design bending moment",
-                        "value": res.get("moment", 0.0),
-                        "unit": "kN·m/m",
-                    },
-                    {
-                        "param": "Design prop force",
-                        "value": res.get("propForce", 0.0) or 0.0,
-                        "unit": "kN/m",
-                    },
+                    {"param": "Required embedment depth", "value": embedment, "unit": "m"},
+                    {"param": "Total pile length", "value": total_len, "unit": "m"},
+                    {"param": "Design bending moment", "value": m_max, "unit": "kN·m/m"},
+                    {"param": "Design prop force", "value": prop_force, "unit": "kN/m"},
                 ],
             )
         ],
-        notes=[res.get("note", "Designed using factored soil strength limit equilibrium.")],
+        notes=[res.get("basis", "Designed using factored soil strength limit equilibrium.")],
     )
 
 
@@ -668,11 +662,11 @@ def global_stability(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     )
     sec = slope_stability.Section(
         surface=surf_pts,
-        lines=[surf_pts],
+        lines=[],
         soils=[soil_props],
         base=-8.0,
         surcharges=[(0.5, 10.0, values["surcharge"], False)] if values["surcharge"] > 0 else [],
-    )
+    ).mirror()
     case = slope_stability.Case(name="Static", required=1.5)
     with in_force(ctx.root):
         rules = slope_stability.table()
@@ -687,7 +681,7 @@ def global_stability(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
                     res = slope_stability.evaluate(sec, circle_surf, "bishop", case, 20, rules)
                     if res is not None and res.fs < best_fs:
                         best_fs = res.fs
-                        best_c = (xc, zc, rad)
+                        best_c = (-xc, zc, rad)
     if best_fs > 90.0:
         raise FeatureInputError("No valid deep-seated slip circle intersected the section.")
     return result(
@@ -832,7 +826,7 @@ def surcharge_effect(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
     pts = []
     for i in range(11):
         z = h * i / 10.0
-        p = excavation_support.strip_pressure(z, q, near, w, h)
+        p = 2.0 * excavation_support.strip_pressure(z, q, near, w, 0.0)
         pts.append((z, p))
         rows.append({"depthM": z, "pressureKpa": p})
     force = sum(0.5 * (pts[i][1] + pts[i + 1][1]) * (pts[i + 1][0] - pts[i][0]) for i in range(10))

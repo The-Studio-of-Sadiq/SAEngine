@@ -389,7 +389,10 @@ def measure_rules(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
 )
 def deduct_openings(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Deduct openings and voids exceeding minimum threshold from gross concrete and formwork quantities."""
-    raw = parse_csv_rows(values["openingsCsv"])
+    raw = parse_csv_rows(
+        values["openingsCsv"],
+        default_headers=("id", "width_m", "height_m", "count"),
+    )
     thresh = values["minDeductAreaM2"]
     rows = []
     tot_deduct = 0.0

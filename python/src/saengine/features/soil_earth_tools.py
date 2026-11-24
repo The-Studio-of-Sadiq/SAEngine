@@ -162,7 +162,7 @@ def _handle(fid: str, ctx: Any, values: dict[str, Any]) -> dict[str, Any]:
             mu = math.tan(math.radians(values["wallFrictionDeg"]))
             k = 1 - math.sin(math.radians(phi))
             perimeter_area = 2 * radius / 4
-            characteristic = gamma * radius / max(k * mu, 1e-8)
+            characteristic = gamma * perimeter_area / max(k * mu, 1e-8)
             rows = []
             for i in range(11):
                 z = h * i / 10

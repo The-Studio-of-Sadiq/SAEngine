@@ -302,10 +302,7 @@ def standard_library(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, A
 def code_equivalence(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
     """Map concrete cylinder/cube and steel strength designations between design bases."""
     fc_in = values["concreteStrengthMpa"]
-    if (
-        values["sourceSystem"] == values["targetSystem"]
-        or values["sourceSystem"] == "cylinder_strength"
-    ):
+    if values["sourceSystem"] == "cylinder_strength":
         fc_cyl = fc_in
         fc_cube = fc_in * 1.25
     else:

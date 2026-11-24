@@ -136,11 +136,32 @@ def price_project_bill(
     return bill, rates, carbon, costing
 
 
-def parse_csv_rows(raw: str) -> list[dict[str, str]]:
-    """Parse CSV text with a header row into stripped dict rows."""
+def parse_csv_rows(
+    raw: str,
+    default_headers: tuple[str, ...] | None = None,
+) -> list[dict[str, str]]:
+    """Parse CSV text into stripped dict rows, falling back to ``default_headers`` if headerless."""
     text_clean = raw.strip()
     if not text_clean:
         raise FeatureInputError("Provide CSV input with a header row.")
+    parsed_rows = [
+        [c.strip() for c in row]
+        for row in csv.reader(io.StringIO(text_clean))
+        if any(c.strip() for c in row)
+    ]
+    if not parsed_rows:
+        raise FeatureInputError("CSV input contains no data rows.")
+    if default_headers is not None:
+        first_lower = {c.lower() for c in parsed_rows[0]}
+        expected_lower = {h.lower() for h in default_headers}
+        if not (first_lower & expected_lower):
+            return [
+                {
+                    hdr: (row[idx] if idx < len(row) else "")
+                    for idx, hdr in enumerate(default_headers)
+                }
+                for row in parsed_rows
+            ]
     reader = csv.DictReader(io.StringIO(text_clean))
     if not reader.fieldnames:
         raise FeatureInputError("CSV input needs a header row.")
