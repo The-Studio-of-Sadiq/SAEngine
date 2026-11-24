@@ -451,10 +451,16 @@ def spectral_reduction(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
     """Compute spectral damping reduction factor B(β_eff) for capacity spectrum intersection."""
     beta = values["effectiveDamping"]
     b_factor = 4.0 / (5.6 - math.log(beta * 100.0))
-    rows = [
-        {"dampingPct": d * 100.0, "reductionB": 4.0 / (5.6 - math.log(d * 100.0))}
-        for d in (0.05, 0.10, beta, 0.20, 0.30)
-    ]
+    rows = []
+    for d in (0.05, 0.10, beta, 0.20, 0.30):
+        b_val = 4.0 / (5.6 - math.log(d * 100.0))
+        rows.append(
+            {
+                "dampingPct": d * 100.0,
+                "reductionB": b_val,
+                "spectralMultiplier": 1.0 / b_val,
+            }
+        )
     return result(
         summary={
             "effectiveDamping": beta,

@@ -597,7 +597,10 @@ def coherence_plot(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any
         syy = (np.abs(fb) ** 2) if syy is None else (syy + np.abs(fb) ** 2)
         sxy = (fa * np.conj(fb)) if sxy is None else (sxy + fa * np.conj(fb))
     freqs = np.fft.rfftfreq(seg, d=dt)
-    coh = np.where((sxx * syy) > 1e-18, (np.abs(sxy) ** 2) / (sxx * syy), 0.0)
+    denom = sxx * syy
+    coh = np.divide(
+        np.abs(sxy) ** 2, denom, out=np.zeros_like(denom, dtype=float), where=denom > 1e-18
+    )
     rows = [{"freqHz": float(f), "coherence": float(c)} for f, c in zip(freqs, coh, strict=True)]
     return result(
         summary={"meanCoherence": float(np.mean(coh)), "peakCoherence": float(np.max(coh))},
