@@ -4,6 +4,19 @@ What changed in each release, for engineers. Each release's full notes and setup
 [Releases](https://github.com/The-Studio-of-Sadiq/SAEngine/releases). SAEngine is alpha:
 check every result independently.
 
+## Alpha 3 — 0.0.52 (25 Nov 2026)
+
+- **Start page:** no ribbon until a project is open; a translucent (acrylic) backdrop on
+  Windows 11.
+- **Project stages:** a stage after the analysis no longer shows as done or in progress while the
+  analysis is not done or out of date (#274).
+- **Output log:** the log panel stays out of the way unless you open it or a run asks for it
+  (#272).
+- **Faster reruns:** buckling results are kept between runs of the same model (#278); section
+  properties are worked out one by one, which removes a worker crash on 20- and 30-storey
+  buildings (#277).
+- **Release builds:** the setup is now built and smoke-tested on GitHub Actions (#275).
+
 ## Alpha 2 — 0.0.51 (25 Nov 2026)
 
 - **A full ribbon in every window:** Office-style ribbons with tabs and groups for each part and

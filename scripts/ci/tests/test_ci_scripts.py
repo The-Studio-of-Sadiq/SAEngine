@@ -569,6 +569,7 @@ def test_release_version() -> None:
         release.release_number("v1.0")
     assert release.release_version("Alpha-v1", None, "v0.0.50") == "0.0.50-alpha.1"
     assert release.release_version("Alpha-v2", None, "v0.0.51") == "0.0.51-alpha.2"
+    assert release.release_version("Alpha-v3", None, "v0.0.52") == "0.0.52-alpha.3"
     # #275: the tag sits on the merge of beta into main; x.y.z from workbench/package.json.
     merge = "Merge pull request #373 from The-Studio-of-Sadiq/beta"
     assert release.release_version("Alpha-v2", None, merge, "0.0.51") == "0.0.51-alpha.2"
