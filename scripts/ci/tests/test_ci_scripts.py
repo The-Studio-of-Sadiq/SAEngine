@@ -569,6 +569,15 @@ def test_release_version() -> None:
         release.release_number("v1.0")
     assert release.release_version("Alpha-v1", None, "v0.0.50") == "0.0.50-alpha.1"
     assert release.release_version("Alpha-v2", None, "v0.0.51") == "0.0.51-alpha.2"
+    # #275: the tag sits on the merge of beta into main; x.y.z from workbench/package.json.
+    merge = "Merge pull request #373 from The-Studio-of-Sadiq/beta"
+    assert release.release_version("Alpha-v2", None, merge, "0.0.51") == "0.0.51-alpha.2"
+    old = "Merge beta into main: Pre-Alpha 10 (0.0.49)"
+    assert release.release_version("Pre-Alpha-v10", None, old, "0.0.49") == "0.0.49-alpha.10"
+    with pytest.raises(release.ReleaseError, match="release commit"):
+        release.release_version("Alpha-v3", None, "Merge pull request #9 from x/side/a", "0.0.52")
+    with pytest.raises(release.ReleaseError, match="release commit"):
+        release.release_version("Alpha-v3", None, merge)
 
 
 def test_test_build_version() -> None:
