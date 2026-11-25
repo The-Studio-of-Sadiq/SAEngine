@@ -2645,3 +2645,14 @@ Each is a pack value or method id, overridable in Code Values; the default pack 
   modes, inquiry and grips. Layouts, viewports and plotting stay in 11 Drawings. This replaces
   the earlier decision that trim, extend, fillet and the like were out of scope because LibreCAD
   is bundled.
+- **AutoCAD gaps closed in the floor plan's CAD editor (2026-11-19, owner).** After the parity round
+  the owner asked for the remaining AutoCAD 2D commands: PEDIT, SPLINEDIT, OVERKILL, ARRAYPATH and
+  editable arrays, UNITS, dimension styles and dimension editing, lasso and selection cycling,
+  the block editor, REFEDIT, xrefs, ATTSYNC, dynamic blocks (linear/stretch, flip, visibility,
+  rotation), parametric constraints with a solver, WIPEOUT, regions with MASSPROP, gradients,
+  tolerance frames, centre lines, BLEND, QLEADER, draw order, FIND, fields, the style managers,
+  AUDIT/RECOVER, data extraction, LAYWALK and a Properties panel for drafting. Where the data
+  model has no native object (associative arrays, ACIS regions, constraint networks, dimension
+  associativity, dynamic-block grips) SAEngine stores its own form in the drawing and says so;
+  packages/cad-editor/COMMANDS.md lists each command's status. Revit parity is a separate round
+  to be scoped with the owner.

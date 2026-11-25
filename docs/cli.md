@@ -68,7 +68,7 @@ Results go to **stdout** (text, or one JSON document with `--json`); progress go
 | `saengine report <project>` | Builds `11 Exports/report.pdf`. |
 | `saengine check <project>` | The checks for CI: Run All without the bill and the report. |
 | `saengine status <project>` | The status of each part, as the app's part list shows it. |
-| `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil [--out PATH] [--size A1\|A2\|A3]` | Writes an export (`drawings`: the structural drawing set), or a `.civil` archive. |
+| `saengine export <project> --format ifc\|dxf\|csv\|pdf\|drawings\|civil [--out PATH] [--size A1\|A2\|A3] [--schema IFC4\|IFC2X3] [--analysis] [--crs CRS]` | Writes an export (`drawings`: the structural drawing set; `ifc`: IFC4 or IFC2X3 with optional structural analysis view and CRS georeferencing), or a `.civil` archive. |
 | `saengine export --format e2k <project> [<out.e2k>] [--units kN-m\|N-mm] [--lateral loads\|coefficient]` | An ETABS text model of the building and its export report (see [import.md](import.md#exporting-to-etabs)). |
 | `saengine import <file.civil> <dest>` | Extracts an archive into `<dest>/<project name>`. |
 | `saengine import <file.e2k\|.std\|.s2k> <dest>` | A new project from an ETABS, STAAD.Pro or SAP2000 model (see [import.md](import.md)). |
@@ -249,7 +249,9 @@ Wrote Sample Frame.export-report.json
 goes to `11 Exports/ETABS/<project>.e2k`. See [import.md](import.md#exporting-to-etabs).
 
 The files go where the Exports page puts them: the IFC of the building model in
-`11 Exports/IFC/<project>.ifc`, the structural plan of every story in
+`11 Exports/IFC/<project>.ifc` (`--schema IFC2X3` selects IFC2x3, `--analysis` adds the
+`IfcStructuralAnalysisModel` view, and `--crs BTM|UTM|EPSG:<code>` overrides Project Settings'
+georeferencing CRS), the structural plan of every story in
 `11 Exports/Floor Plan/<story id> <story name>.dxf` (layers `S-GRID`, `S-COLS`, `S-BEAM`, ...,
 as the app draws them), the bill of quantities in `11 Exports/boq.csv` and the design report in
 `11 Exports/report.pdf`. The structural drawings (`drawings`) go to `11 Exports/Drawings`: one

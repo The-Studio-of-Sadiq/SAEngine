@@ -166,6 +166,9 @@ def _build(t: Any) -> dict[str, Any]:
         if t.fittings is None
         else {k: tuple(v) for k, v in t.fittings.lengths.items()},
         "TANKS": t.tanks,
+        "HOT_WATER": t.hotWater,
+        "GAS": t.gas,
+        "MEDICAL_GAS": t.medicalGas,
         "SOURCES": dict(t.sources),
     }
 

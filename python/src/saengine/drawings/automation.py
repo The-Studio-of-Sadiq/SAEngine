@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +38,17 @@ TEXT_LAYER = "S-TEXT"
 #: Layers whose texts :func:`auto_arrange` may move.
 ANNOTATION_LAYERS = ("S-TEXT", "M-ANNO", "A-AREA-IDEN", "S-DIMS")
 #: Layers of the members :func:`auto_tag` marks.
-MEMBER_LAYERS = ("S-COLS", "S-BEAM", "S-WALL", "S-STEEL", "S-FNDN", "S-PILE")
+MEMBER_LAYERS = (
+    "S-COLS",
+    "S-BEAM",
+    "S-WALL",
+    "S-STEEL",
+    "S-FNDN",
+    "S-PILE",
+    "A-WALL",
+    "A-DOOR",
+    "A-GLAZ",
+)
 ACTIONS = ("dimension", "tag", "arrange")
 AUTO = "auto"
 
@@ -198,43 +208,76 @@ def _texts(msp: Any) -> list[tuple[Any, str, tuple[float, float]]]:
     return out
 
 
-def auto_tag(doc: Any) -> dict[str, Any]:
-    """Marks the members that carry a mark in XDATA and have none near them (see the module)."""
+def auto_tag(doc: Any, keynotes: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Place missing marks and assigned element/material keynote tags from XDATA."""
     msp = doc.modelspace()
     scale = _scale(doc)
     height = 2.5 * scale
     near = 15 * scale
     texts = _texts(msp)
     added = 0
+    keynotes_added = 0
+    problems: list[str] = []
     seen: set[tuple[str, int, int]] = set()
+    seen_keynotes: set[tuple[str, str, int, int]] = set()
     for entity in msp.query("LWPOLYLINE LINE CIRCLE INSERT"):
         if entity.dxf.layer not in MEMBER_LAYERS:
             continue
         tags = read_tags(entity)
         mark = tags.get("mark") or tags.get("id")
+        element_key = tags.get("keynote")
+        material_key = tags.get("materialKeynote")
         centre = _centre(entity)
-        if not mark or centre is None:
+        if not (mark or element_key or material_key) or centre is None:
             continue
-        key = (mark, round(centre[0] / near), round(centre[1] / near))
-        if key in seen:
-            continue
-        seen.add(key)
-        if any(mark in text and math.dist(at, centre) < near for _, text, at in texts):
-            continue
-        at = (centre[0] + 1.5 * scale, centre[1] + 1.5 * scale)
-        label = msp.add_text(
-            mark,
-            height=height,
-            dxfattribs={
-                "layer": TEXT_LAYER,
-                "style": "SAE" if "SAE" in doc.styles else "Standard",
-                "insert": at,
-            },
-        )
-        _mark(label, "tag")
-        texts.append((label, mark, at))
-        added += 1
-    return {"added": added}
+        cell = (round(centre[0] / near), round(centre[1] / near))
+        if mark:
+            key = (mark, *cell)
+            if key not in seen:
+                seen.add(key)
+                if not any(mark in text and math.dist(at, centre) < near for _, text, at in texts):
+                    at = (centre[0] + 1.5 * scale, centre[1] + 1.5 * scale)
+                    label = msp.add_text(
+                        mark,
+                        height=height,
+                        dxfattribs={
+                            "layer": TEXT_LAYER,
+                            "style": "SAE" if "SAE" in doc.styles else "Standard",
+                            "insert": at,
+                        },
+                    )
+                    _mark(label, "tag")
+                    texts.append((label, mark, at))
+                    added += 1
+        for tag_name, keynote in (("keynote", element_key), ("materialKeynote", material_key)):
+            if not keynote:
+                continue
+            if keynotes is not None and keynote not in keynotes:
+                problem = f"{tag_name} '{keynote}' has no keynote description"
+                if problem not in problems:
+                    problems.append(problem)
+                continue
+            key = (tag_name, keynote, *cell)
+            if key in seen_keynotes:
+                continue
+            seen_keynotes.add(key)
+            if any(keynote in text and math.dist(at, centre) < near for _, text, at in texts):
+                continue
+            offset = 1.5 * scale if tag_name == "keynote" else -1.5 * scale
+            at = (centre[0] + 1.5 * scale, centre[1] + offset)
+            label = msp.add_text(
+                keynote,
+                height=height,
+                dxfattribs={
+                    "layer": TEXT_LAYER,
+                    "style": "SAE" if "SAE" in doc.styles else "Standard",
+                    "insert": at,
+                },
+            )
+            _mark(label, "tag", **{tag_name: keynote})
+            texts.append((label, keynote, at))
+            keynotes_added += 1
+    return {"added": added, "keynotesAdded": keynotes_added, "problems": problems}
 
 
 def _rect(

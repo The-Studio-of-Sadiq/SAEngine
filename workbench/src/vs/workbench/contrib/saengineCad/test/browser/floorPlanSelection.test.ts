@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMemberShape } from '../../browser/floorPlanDrawing.js';
-import { combine, commonFields, prune, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from '../../browser/floorPlanSelection.js';
+import { combine, commonFields, isFreehandLasso, lassoMode, prune, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from '../../browser/floorPlanSelection.js';
 
 suite('SAEngine - Floor plan selection', () => {
 
@@ -46,6 +46,16 @@ suite('SAEngine - Floor plan selection', () => {
 			nearCircle: [],
 			everything: ['C1', 'C2', 'B1', 'S1'],
 		});
+	});
+
+	test('a straight diagonal drag stays a window; a loop is a lasso', () => {
+		assert.deepStrictEqual([
+			isFreehandLasso([[0, 0], [5, 5.1], [10, 10]]),
+			isFreehandLasso([[0, 0], [10, 0], [10, 10], [0, 10]]),
+			isFreehandLasso([[0, 0], [10, 0]]),
+		], [false, true, false]);
+		// A loop that starts moving left is a crossing lasso, even though it ends at its start.
+		assert.deepStrictEqual([lassoMode([[0, 0], [-5, 2], [0, 8], [5, 2], [0, 0]]), lassoMode([[0, 0], [5, 2], [0, 8], [0, 0]])], ['crossing', 'window']);
 	});
 
 	test('selections combine, toggle, prune and summarise', () => {

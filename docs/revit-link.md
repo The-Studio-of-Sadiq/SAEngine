@@ -120,3 +120,19 @@ There is one entry per bar mark of a beam or a column:
 - `lines`: one polyline per physical bar, along its centreline.
 
 SAEngine writes the bars and never reads them back.
+
+## The Revit 2027 add-in (`revit-addin/`)
+
+An independent **MIT-licensed** Revit 2027 add-in (.NET 10) lives in the top-level `revit-addin/` folder (`SAEngine.RevitLink.Core` + `SAEngine.RevitLink`, with its own `LICENSE` and `.gitignore`, referencing no AGPL SAEngine code):
+
+- **Ribbon tab `SAEngine`:**
+  - **Import from SAEngine:** reads `<project>.exchange.json`, creates/updates levels, grids, materials, and structural family/wall/floor types (loading default Revit structural families by name if present, or duplicating loaded types), places columns, beams, braces, walls, slabs (with openings), and isolated footings with the exchange id stored in the `SAEngine Id` shared/extensible-storage parameter, and places designed rebar where host and planar shapes allow, reporting unmatched types and skipped bars in a summary dialog.
+  - **Export to SAEngine:** writes `<project>.exchange.json` back with `revitId` (`UniqueId`), preserving `SAEngine Id` on linked elements and omitting `id` on elements created in Revit.
+- **Build:** requires the .NET 10 SDK (Revit 2027's API targets .NET 10) and Revit 2027 (`RevitAPI.dll` / `RevitAPIUI.dll` referenced with `Private=false` via `$(RevitInstallDir)` defaulting to `$(ProgramW6432)\Autodesk\Revit 2027`; note that Revit 2027 v27.3.0.0 assemblies target `net10.0`, so compiling `SAEngine.RevitLink` requires a .NET 10 SDK/targeting pack when building against Revit 2027):
+
+  ```powershell
+  dotnet build revit-addin -c Release
+  ```
+
+- **Install:** copy `SAEngine.RevitLink.dll`, `SAEngine.RevitLink.Core.dll`, and `revit-addin/SAEngine.RevitLink.addin` into `%ProgramData%\Autodesk\Revit\Addins\2027\`.
+

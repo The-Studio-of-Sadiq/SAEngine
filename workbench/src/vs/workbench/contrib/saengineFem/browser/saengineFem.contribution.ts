@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './analyzeSteps.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -34,7 +35,7 @@ import { FemStrutAndTieEditor } from './femStrutAndTieEditor.js';
 import { FemStrutAndTieInput, FemStrutAndTieInputSerializer } from './femStrutAndTieInput.js';
 import { FemModelEditorInput, FemModelEditorInputSerializer } from './femModelEditorInput.js';
 import { PUSHOVER_FILE } from './femDerivationBar.js';
-import { FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
+import { FemDisplayShow, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_MEMBER_COMMAND } from './femResultsBar.js';
 import { FemResultsEditor, FemResultsInput, FemResultsInputSerializer, IFemResultsEditorOptions, memberNames } from './femResultsView.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
 
@@ -780,3 +781,72 @@ registerPlannedFeature({
 });
 
 // T31 / B34: confined masonry is built (design/confined_masonry.py, Sec 7.11).
+
+// ─────────────────────── Contextual Ribbon Commands (U4) ───────────────────────
+
+async function activeFemModelEditor(accessor: ServicesAccessor): Promise<FemModelEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof FemModelEditor) {
+		return editorService.activeEditorPane;
+	}
+	const target = analysisModel(accessor, undefined);
+	if (!target) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor(new FemModelEditorInput(target), { pinned: true });
+	return pane instanceof FemModelEditor ? pane : undefined;
+}
+
+function registerFemEditorCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	icon: typeof Codicon[keyof typeof Codicon] | undefined,
+	runWithEditor: (editor: FemModelEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: false,
+				precondition: ProjectOpenContext,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeFemModelEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+}
+
+registerFemEditorCommand('saengine.fem.deriveModel', localize2('saengine.fem.deriveModel', "Derive Analysis Model"), Codicon.symbolStructure, e => e.deriveModel());
+registerFemEditorCommand('saengine.fem.toggleMeshNodes', localize2('saengine.fem.toggleMeshNodes', "Toggle Mesh Nodes"), Codicon.circleSmallFilled, e => e.toggleMeshNodes());
+registerFemEditorCommand('saengine.fem.fitView', localize2('saengine.fem.fitView', "Zoom to Fit"), Codicon.screenFull, e => e.fitView());
+registerFemEditorCommand('saengine.fem.toggleTables', localize2('saengine.fem.toggleTables', "Toggle Result Tables"), Codicon.table, e => e.toggleTables());
+registerFemEditorCommand('saengine.fem.exportResultTables', localize2('saengine.fem.exportResultTables', "Export Result Tables..."), Codicon.export, e => e.exportResultTables());
+registerFemEditorCommand('saengine.fem.exportAnimation', localize2('saengine.fem.exportAnimation', "Export Animation..."), Codicon.deviceCameraVideo, e => e.exportResultAnimation());
+registerFemEditorCommand('saengine.fem.sectionBox', localize2('saengine.fem.sectionBox', "Toggle Section Box"), Codicon.symbolMisc, e => e.toggleSectionBox());
+registerFemEditorCommand('saengine.fem.measure', localize2('saengine.fem.measure', "Measure Tool"), Codicon.symbolRuler, e => e.toggleMeasure());
+registerFemEditorCommand('saengine.fem.revealHidden', localize2('saengine.fem.revealHidden', "Reveal Hidden Elements"), Codicon.lightbulb, e => e.toggleRevealHidden());
+registerFemEditorCommand('saengine.fem.toggleDesignUtilisation', localize2('saengine.fem.toggleDesignUtilisation', "Design Utilisation"), Codicon.checklist, e => e.toggleDesignUtilisation());
+
+for (const [show, title] of [
+	['none', localize2('saengine.fem.display.none', "Display: Model Only")],
+	['deformed', localize2('saengine.fem.display.deformed', "Display: Deflected Shape")],
+	['reactions', localize2('saengine.fem.display.reactions', "Display: Support Reactions")],
+	['N', localize2('saengine.fem.display.N', "Display: Axial Force N")],
+	['Vy', localize2('saengine.fem.display.Vy', "Display: Shear Force V2")],
+	['Vz', localize2('saengine.fem.display.Vz', "Display: Shear Force V3")],
+	['T', localize2('saengine.fem.display.T', "Display: Torsion T")],
+	['My', localize2('saengine.fem.display.My', "Display: Moment M2")],
+	['Mz', localize2('saengine.fem.display.Mz', "Display: Moment M3")],
+	['M11', localize2('saengine.fem.display.M11', "Display: Shell Moment M11")],
+	['M22', localize2('saengine.fem.display.M22', "Display: Shell Moment M22")],
+] as readonly [FemDisplayShow, ReturnType<typeof localize2>][]) {
+	registerFemEditorCommand(`saengine.fem.display.${show}`, title, Codicon.graphLine, e => e.setResultDisplay(show));
+}

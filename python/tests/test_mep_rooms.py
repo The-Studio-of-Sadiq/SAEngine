@@ -269,10 +269,14 @@ def test_project_files_feed_the_reports(bim: Any, tmp_path: Any) -> None:
     floors = {f["story"]: f for f in full["hydraulics"]["floors"]}
     [story] = report["demand"]["stories"]
     assert floors["L1"]["units"] == pytest.approx(story["supplyUnits"]) and story["supplyUnits"]
-    loads = hvac_loads(tmp_path, use_energyplus=False, cache=False)
-    [zone] = [z for z in loads["zones"] if z["story"] == "L1"]
+    loads_story = hvac_loads(tmp_path, use_energyplus=False, cache=False, zoning="story")
+    [zone] = [z for z in loads_story["zones"] if z["story"] == "L1"]
     assert zone["gainsFrom"] == "rooms" and zone["occupants"] == pytest.approx(5.0)
     assert {g["use"] for g in zone["rooms"]} >= {"livingArea", "corridor"}
+    loads = hvac_loads(tmp_path, use_energyplus=False, cache=False)
+    l1_rooms = [z for z in loads["zones"] if z["story"] == "L1"]
+    assert len(l1_rooms) == 4
+    assert sum(z["occupants"] for z in l1_rooms) == pytest.approx(5.0)
 
 
 def test_wet_rooms_start_the_plumbing(bim: Any) -> None:

@@ -53,6 +53,7 @@ function shortGroupName(group: BoqGroup): string {
 		case 'concrete': return localize('boq.short.concrete', "Concrete");
 		case 'masonry': return localize('boq.short.masonry', "Masonry");
 		case 'finishes': return localize('boq.short.finishes', "Finishes");
+		case 'furniture': return localize('boq.short.furniture', "Furniture");
 		case 'reinforcement': return localize('boq.short.reinforcement', "Reinforcement");
 		case 'formwork': return localize('boq.short.formwork', "Formwork");
 		case 'steel': return localize('boq.short.steel', "Steel");
@@ -121,21 +122,21 @@ export class BoqEditor extends EditorPane {
 	private readonly propertyDisposables = this._register(new DisposableStore());
 	private readonly pill = this._register(new MutableDisposable());
 
-	private readonly updateAction = this._register(new Action('saengine.boq.editor.update', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
-	private readonly updateAgainAction = this._register(new Action('saengine.boq.editor.updateAgain', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
-	private readonly excelAction = this._register(new Action('saengine.boq.editor.exportXlsx', localize('boq.exportXlsx', "Export Excel..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportXlsx()));
-	private readonly exportAction = this._register(new Action('saengine.boq.editor.export', localize('boq.exportCsv', "Export CSV..."), undefined, true, () => this.exportCsv()));
-	private readonly ratesAction = this._register(new Action('saengine.boq.editor.rates', localize('boq.editRates', "Edit Schedule of Rates"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editRates')));
-	private readonly carbonAction = this._register(new Action('saengine.boq.editor.carbon', localize('boq.editCarbon', "Edit Embodied Carbon Factors"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editCarbon')));
+	private readonly updateAction = this._register(new Action('saengine.boq.measure', localize('boq.update', "Update from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.compute()));
+	private readonly updateAgainAction = this._register(new Action('saengine.boq.measure', localize('boq.update', "Update from Building Model"), undefined, true, () => this.compute()));
+	private readonly excelAction = this._register(new Action('saengine.boq.exportXlsx', localize('boq.exportXlsx', "Export Excel..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportXlsx()));
+	private readonly exportAction = this._register(new Action('saengine.boq.exportCsv', localize('boq.exportCsv', "Export CSV..."), undefined, true, () => this.exportCsv()));
+	private readonly ratesAction = this._register(new Action('saengine.boq.editRates', localize('boq.editRates', "Edit Schedule of Rates"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editRates')));
+	private readonly carbonAction = this._register(new Action('saengine.boq.editCarbon', localize('boq.editCarbon', "Edit Embodied Carbon Factors"), undefined, true, () => this.commandService.executeCommand('saengine.boq.editCarbon')));
 
 	/** The bill priced by the project's schedule of rates, with its embodied carbon; for the texts of `costingKey`. */
 	private costing: IBoqCostResult | undefined;
 	private costingKey: string | undefined;
 	private costingVersion = 0;
-	private readonly expandAllAction = this._register(new Action('saengine.boq.editor.expandAll', localize('boq.expandAll', "Expand All"), undefined, true, async () => this.setAllExpanded(true)));
-	private readonly collapseAllAction = this._register(new Action('saengine.boq.editor.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
+	private readonly expandAllAction = this._register(new Action('saengine.boq.expandAll', localize('boq.expandAll', "Expand All"), undefined, true, async () => this.setAllExpanded(true)));
+	private readonly collapseAllAction = this._register(new Action('saengine.boq.collapseAll', localize('boq.collapseAll', "Collapse All"), undefined, true, async () => this.setAllExpanded(false)));
 	private readonly openJsonAction = this._register(new Action('saengine.boq.editor.openJson', localize('boq.openJson', "Open as JSON"), undefined, true, () => this.openAsJson()));
-	private readonly imperialAction = this._register(new Action('saengine.boq.editor.imperial', localize('boq.imperial', "Show in Feet (cft, sft, rft)"), undefined, true, async () => this.setImperial(!this.imperial)));
+	private readonly imperialAction = this._register(new Action('saengine.boq.toggleImperial', localize('boq.imperial', "Show in Feet (cft, sft, rft)"), undefined, true, async () => this.setImperial(!this.imperial)));
 
 	constructor(
 		group: IEditorGroup,
@@ -605,7 +606,7 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private async compute(): Promise<void> {
+	async compute(): Promise<void> {
 		const model = this.model;
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
 		const { args, missing } = boqComputeArgs(new Map(BOQ_SOURCES.map(({ part }) => [part, this.sources.get(part)?.getValue()])), this.projectService.project?.root.fsPath);
@@ -653,14 +654,14 @@ export class BoqEditor extends EditorPane {
 		}
 	}
 
-	private async openAsJson(): Promise<void> {
+	async openAsJson(): Promise<void> {
 		const resource = (this.input as BoqEditorInput | undefined)?.resource;
 		if (resource) {
 			await this.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } }, this.group);
 		}
 	}
 
-	private setAllExpanded(expanded: boolean): void {
+	setAllExpanded(expanded: boolean): void {
 		this.expanded.clear();
 		if (expanded) {
 			for (const item of this.document?.items ?? []) {
@@ -668,6 +669,10 @@ export class BoqEditor extends EditorPane {
 			}
 		}
 		this.renderBody(this.selected);
+	}
+
+	toggleImperialUnits(): void {
+		this.setImperial(!this.imperial);
 	}
 
 	private toggle(code: string, expanded = !this.expanded.has(code)): void {

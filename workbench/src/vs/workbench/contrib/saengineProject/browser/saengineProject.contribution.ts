@@ -5,13 +5,13 @@
 
 import './media/projectFlow.css';
 import './saengineShell.contribution.js';
-import './projectStageBar.js';
 import './progressView.js';
 import './propertiesDock.js';
 import './tablesView.js';
 import './modelView.js';
 import './truncatedText.contribution.js';
 import './actions.contribution.js';
+import './u3Panels.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -22,9 +22,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { EditorExtensions } from '../../../common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { EngineDataPanelEditor } from './engineDataPanelEditor.js';
+import { EngineDataPanelInput, EngineDataPanelInputSerializer } from './engineDataPanelInput.js';
 import { ProjectOpener } from './projectOpener.js';
 import { StartEditor } from './startEditor.js';
 import { StartEditorInput } from './startEditorInput.js';
@@ -45,6 +47,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(StartEditor, StartEditorInput.EDITOR_ID, localize('saengineStartEditor', "SAEngine Start")),
 	[new SyncDescriptor(StartEditorInput)]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(EngineDataPanelEditor, EngineDataPanelInput.EDITOR_ID, localize('saengineDataPanelEditor', "SAEngine Data Panel")),
+	[new SyncDescriptor(EngineDataPanelInput)]
+);
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	EngineDataPanelInput.ID,
+	EngineDataPanelInputSerializer
 );
 
 function openStart(editorService: IEditorService): Promise<unknown> {

@@ -3,14 +3,17 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './mepDataPanels.contribution.js';
 import { getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,9 +25,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { OPEN_PLANNED_FEATURE_COMMAND } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { MepEditor } from './mepEditor.js';
 import { MepEditorInput, MepEditorInputSerializer } from './mepEditorInput.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 /** Opens the MEP editor and asks the backend for the sleeves the MEP IFC models' clashes need. */
 export const MEP_SUGGEST_SLEEVES_EDITOR_COMMAND = 'saengine.mep.editor.suggestSleeves';
@@ -52,6 +59,7 @@ class MepEditorResolverContribution extends Disposable implements IWorkbenchCont
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, MepEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{
@@ -98,6 +106,20 @@ function undoRedo(accessor: ServicesAccessor, redo: boolean): boolean | Promise<
 UndoCommand.addImplementation(110, 'saengine-mep', accessor => undoRedo(accessor, false));
 RedoCommand.addImplementation(110, 'saengine-mep', accessor => undoRedo(accessor, true));
 
+async function activeMepEditor(accessor: ServicesAccessor): Promise<MepEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof MepEditor) {
+		return editorService.activeEditorPane;
+	}
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('mep');
+	if (!project || !part?.mainFile) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } });
+	return pane instanceof MepEditor ? pane : undefined;
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -111,14 +133,131 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const project = accessor.get(ISaengineProjectService).project;
-		const active = editorService.activeEditorPane;
-		const part = partById('mep');
-		const pane = active instanceof MepEditor ? active
-			: project && part?.mainFile ? await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } }) : undefined;
-		if (pane instanceof MepEditor) {
-			await pane.suggestSleeves();
+		await (await activeMepEditor(accessor))?.suggestSleeves();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.mep.editor.importIfc',
+			title: localize2('saengine.mep.importIfcTitle', "Import MEP IFC Model..."),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.cloudDownload,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await (await activeMepEditor(accessor))?.importIfc();
+	}
+});
+
+function registerMepEditorCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	icon: ThemeIcon,
+	runWithEditor: (editor: MepEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			});
 		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeMepEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+}
+
+registerMepEditorCommand('saengine.mep.editor.addShaft', localize2('mep.rib.shaftTitle', "Add MEP Shaft"), Codicon.layers, e => e.addShaft());
+registerMepEditorCommand('saengine.mep.editor.sizeTanks', localize2('mep.rib.sizeTanksTitle', "Size Plumbing Tanks"), Codicon.wand, e => e.sizeTanks());
+registerMepEditorCommand('saengine.mep.editor.addDrain', localize2('mep.rib.addDrainTitle', "Add Roof Drain"), Codicon.arrowCircleDown, e => e.addDrain());
+registerMepEditorCommand('saengine.mep.editor.riserSleeves', localize2('mep.rib.riserSleevesTitle', "Add Sleeves for Plumbing Risers"), Codicon.circleLargeOutline, e => e.addRiserSleeves());
+registerMepEditorCommand('saengine.mep.editor.proposePlant', localize2('mep.rib.proposePlantTitle', "Propose HVAC Plant"), Codicon.wand, e => e.proposePlant());
+registerMepEditorCommand('saengine.mep.editor.calculateLoads', localize2('mep.rib.calcLoadsTitle', "Calculate HVAC Loads"), Codicon.play, e => e.calculateLoads());
+registerMepEditorCommand('saengine.mep.editor.proposeEquipment', localize2('mep.rib.proposeElecTitle', "Propose Electrical Equipment"), Codicon.wand, e => e.proposeEquipment());
+registerMepEditorCommand('saengine.mep.editor.proposeFire', localize2('mep.rib.proposeFireTitle', "Propose Fire Pumps and Tank"), Codicon.wand, e => e.proposeFire());
+
+registerMepEditorCommand('saengine.mep.editor.recompute', localize2('mep.rib.recomputeTitle', "Check MEP Openings and Clashes Again"), Codicon.refresh, e => e.computeReport());
+registerMepEditorCommand('saengine.mep.editor.runClashTests', localize2('mep.rib.runClashTestsTitle', "Run MEP Clash Tests"), Codicon.runAll, e => e.runClashTests());
+registerMepEditorCommand('saengine.mep.editor.addExternalModel', localize2('mep.rib.addExternalModelTitle', "Add External IFC Model to MEP Coordination..."), Codicon.add, e => e.addExternalModel());
+registerMepEditorCommand('saengine.mep.editor.exportBcf', localize2('mep.rib.exportBcfTitle', "Export MEP Issues to BCF..."), Codicon.export, e => e.exportBcf());
+registerMepEditorCommand('saengine.mep.editor.importBcf', localize2('mep.rib.importBcfTitle', "Import MEP Issues from BCF..."), Codicon.cloudDownload, e => e.importBcf());
+registerMepEditorCommand('saengine.mep.editor.addIdsFile', localize2('mep.rib.addIdsFileTitle', "Add IDS Specification File..."), Codicon.newFile, e => e.addIdsFile());
+registerMepEditorCommand('saengine.mep.editor.recomputeSystems', localize2('mep.rib.recomputeSystemsTitle', "Check MEP Systems"), Codicon.refresh, e => e.computeSystemsReport());
+registerMepEditorCommand('saengine.mep.editor.exportSystemBcf', localize2('mep.rib.exportSystemBcfTitle', "Export System Warnings to BCF..."), Codicon.export, e => e.exportSystemIssuesToBcf());
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.mep.editor.cancelHvacLoads',
+			title: localize2('mep.rib.cancelHvacLoadsTitle', "Cancel HVAC Load Run"),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.debugStop,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const editor = await activeMepEditor(accessor);
+		editor?.cancelLoads();
+		try {
+			await commandService.executeCommand('saengine.engine.request', 'mep/hvacCancelLoads', {});
+		} catch {
+			// Backend may not be running in browser-only sessions.
+		}
+	}
+});
+
+const FIRE_CHAPTER_FEATURE = 'mep.fire.chapter';
+
+registerPlannedFeature({
+	id: FIRE_CHAPTER_FEATURE,
+	part: 'mep',
+	title: localize('mep.planned.fireChapter', "Fire Protection Report Chapter"),
+	summary: localize('mep.planned.fireChapterSummary', "Compiles the standalone Fire Protection chapter for the project design report (requirements, floor hazard tables, water demand, reservoir, pump sets, tank designs, support loads, missing sleeves and code checks)."),
+	steps: [
+		localize('mep.planned.fireChapter1', "Collect the fire protection requirements and storey classifications from the active code pack."),
+		localize('mep.planned.fireChapter2', "Tabulate hydraulic demand, reservoir storage, pump duties and tank support loads on the structure."),
+		localize('mep.planned.fireChapter3', "Format the pipe hanger loads, missing slab/beam sleeves and code compliance checks into the printable report chapter."),
+	],
+	inputs: [
+		{ label: localize('mep.planned.fireChapterIn1', "Active fire protection setup"), example: '07 MEP/mep.json (fire)' },
+		{ label: localize('mep.planned.fireChapterIn2', "Code pack fire provisions"), example: defaultCodeName() },
+	],
+	outputs: [
+		localize('mep.planned.fireChapterOut1', "Structured Fire Protection report tables and clause citations"),
+		localize('mep.planned.fireChapterOut2', "Printable report chapter section integrated into Design Report"),
+	],
+	references: [localize('mep.planned.fireChapterRef', "{0} Part 4 (Fire Protection)", defaultCodeName()), 'NFPA 13 / NFPA 14 / NFPA 20'],
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.mep.fire.chapter',
+			title: localize2('mep.planned.fireChapterTitle', "Fire Protection Report Chapter"),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.fileText,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand(OPEN_PLANNED_FEATURE_COMMAND, FIRE_CHAPTER_FEATURE);
 	}
 });

@@ -22,13 +22,24 @@
        (scripts\installer\smoke-app.mjs).
     4. Uninstalls silently and checks the folder is gone (unless -KeepInstall).
 
+    The script deletes only its own work folder (-WorkDir, marked by a .saengine-smoke file it
+    writes there) and the install folder when that lies inside the work folder. It refuses to
+    clean a folder it did not create, and to install into a non-empty folder outside it.
+
+.PARAMETER WorkDir
+    The script's own scratch folder (projects, user data, logs). Default: %TEMP%\SAEngine-smoke.
+.PARAMETER InstallDir
+    Where to install. Default: <WorkDir>\install. A folder outside -WorkDir must be empty or
+    missing (for example the default %LOCALAPPDATA%\Programs\SAEngine when nothing is installed).
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\installer\smoke-test.ps1
 #>
 [CmdletBinding()]
 param(
     [string]$Setup,
-    [string]$InstallDir = (Join-Path ([IO.Path]::GetTempPath()) 'SAEngine-smoke\install'),
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) 'SAEngine-smoke'),
+    [string]$InstallDir,
     [int]$DebugPort = 9339,
     [switch]$KeepInstall
 )
@@ -38,11 +49,29 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $workbench = Join-Path $repoRoot 'workbench'
-$smokeRoot = Split-Path -Parent $InstallDir
+$smokeRoot = [IO.Path]::GetFullPath($WorkDir)
+if (-not $InstallDir) { $InstallDir = Join-Path $smokeRoot 'install' }
+$InstallDir = [IO.Path]::GetFullPath($InstallDir)
+$installInWork = $InstallDir.StartsWith($smokeRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)
+$marker = Join-Path $smokeRoot '.saengine-smoke'
+# Never clean a folder this script did not create (2026-11-25: an -InstallDir under
+# %LOCALAPPDATA%\Programs made the old parent-of-InstallDir clean delete other programs).
+if ((Test-Path -LiteralPath $smokeRoot) -and (Get-ChildItem -LiteralPath $smokeRoot -Force | Select-Object -First 1) -and -not (Test-Path -LiteralPath $marker)) {
+    throw "Refusing to clean ${smokeRoot}: it is not empty and has no .saengine-smoke marker. Pass an empty or new -WorkDir."
+}
+if (-not $installInWork -and (Test-Path -LiteralPath $InstallDir) -and (Get-ChildItem -LiteralPath $InstallDir -Force | Select-Object -First 1)) {
+    throw "Refusing to install into ${InstallDir}: it is outside -WorkDir and not empty. Uninstall first or pass an empty folder."
+}
 $project = Join-Path $smokeRoot 'Smoke Project'
 $userData = Join-Path $smokeRoot 'user-data'
 $extensions = Join-Path $smokeRoot 'extensions'
 $results = [ordered]@{}
+# The test checks the bundled programs: a developer's overrides (for example SAENGINE_LIBREDWG
+# pointing at an unpacked LibreDWG) would make the backend find those instead. Cleared for this
+# process only.
+foreach ($name in 'SAENGINE_LIBREDWG', 'SAENGINE_ENERGYPLUS', 'SAENGINE_DATA', 'SAENGINE_DOCS_DIR', 'SAENGINE_WEB_VIEWER_BUNDLE') {
+    Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+}
 
 if (-not $Setup) {
     $latest = Get-ChildItem -Path (Join-Path $repoRoot 'dist') -Filter 'SAEngine-x64-user-setup-*.exe' -ErrorAction SilentlyContinue |
@@ -57,7 +86,9 @@ if (Test-Path -LiteralPath $smokeRoot) {
         # The git extension creates its askpass folder in the user-data folder with an ACL the
         # user cannot delete through; a leftover of an earlier run must not stop this one.
         Write-Warning "Could not clean $smokeRoot completely ($($_.Exception.Message)); using fresh subfolders."
-        foreach ($path in @($InstallDir, $project)) {
+        $leftovers = @($project)
+        if ($installInWork) { $leftovers += $InstallDir }
+        foreach ($path in $leftovers) {
             if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
         }
     }
@@ -65,6 +96,7 @@ if (Test-Path -LiteralPath $smokeRoot) {
 # A fresh user-data folder per run (see above).
 $userData = Join-Path $smokeRoot ('user-data-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $null = New-Item -ItemType Directory -Path $smokeRoot -Force
+Set-Content -LiteralPath $marker -Value 'Scratch folder of scripts\installer\smoke-test.ps1; deleted on its next run.'
 
 function Measure-Step([string]$Name, [scriptblock]$Body) {
     $watch = [Diagnostics.Stopwatch]::StartNew()

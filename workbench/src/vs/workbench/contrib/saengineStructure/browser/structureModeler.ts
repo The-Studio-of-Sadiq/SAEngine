@@ -11,7 +11,6 @@ import { $, addDisposableListener, append, clearNode, Dimension, EventType, isKe
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -35,11 +34,10 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import type { IStructureEdit, IStructureGeometry, IStructureScriptResult, StructureGeometryResult } from '../../../../platform/saengine/common/femSolver.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { chartsBlue, chartsGreen, chartsLines, chartsOrange, chartsPurple, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground, editorForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -51,6 +49,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { loadViewerModule } from '../../saengineFem/browser/viewerModule.js';
 import { formatPropertyValue, schemaUnit } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonElementControl, RibbonSegmentedModel, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { appendPlannedFeatureChip } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { humanize, ISchemaFormContext, JsonObject, SchemaForm } from '../../saengineLibrary/browser/schemaForm.js';
@@ -58,7 +57,9 @@ import { addArea, addBlock, addMember, addSupport, copyElements, divideMember, E
 import { gridGeometry, Json, list, modelerScene, typeKinds } from './structureGeometry.js';
 import { CODES_CODED_GEOMETRY_COMMAND, CODES_TEMPLATES_COMMAND, groupPresets, IStructurePreset, readStructurePresets } from '../../saengineLibrary/common/packageTemplates.js';
 
-type Tool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
+export type StructureTool = 'select' | 'member' | 'area' | 'block' | 'support' | 'move' | 'copy' | 'mirror' | 'divide' | 'delete';
+type Tool = StructureTool;
+export type StructureView = ModelerView;
 
 const TOOLS: readonly { readonly tool: Tool; readonly label: string; readonly icon: ThemeIcon }[] = [
 	{ tool: 'select', label: localize('modeler.select', "Select"), icon: Codicon.inspect },
@@ -180,21 +181,19 @@ export class StructureModelerEditor extends EditorPane {
 	private root!: HTMLElement;
 	private viewport!: HTMLElement;
 	private message!: HTMLElement;
-	private typePicker!: SelectBox;
-	private levelPicker!: SelectBox;
+	private viewControl!: RibbonSegmentedModel;
+	private levelControl!: RibbonSelectModel;
+	private typeControl!: RibbonSelectModel;
+	private valueControl!: RibbonElementControl;
 	private valueBox!: InputBox;
-	private typeGroup!: HTMLElement;
 	private valueGroup!: HTMLElement;
 	private readonly toolActions = new Map<Tool, Action>();
-	private readonly viewButtons = new Map<ModelerView, HTMLButtonElement>();
 	private view: ModelerView = '3d';
 	/** A narrow editor keeps the drawing tools as buttons and moves the rest to "...". */
 	private compact: boolean | undefined;
 	/** A very narrow editor also moves the editing tools and the work level picker to "...". */
 	private narrow = false;
 	private readonly levelAction = this._register(new Action('saengine.structure.level', localize('modeler.levelMenu', "Work Level..."), undefined, true, () => this.pickLevel()));
-	private readonly undoAction = this._register(new Action('saengine.structure.undo', localize('modeler.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.structure.redo', localize('modeler.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly fitAction = this._register(new Action('saengine.structure.fit', localize('modeler.fit', "Zoom to Fit"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => this.modeler?.fit()));
 	private readonly generateAction = this._register(new Action('saengine.structure.generate', localize('modeler.generateTitle', "Add a parametric shape: space truss, plane truss, arch, dome, barrel vault or cable net"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openShape()));
 	private readonly importAction = this._register(new Action('saengine.structure.import', localize('modeler.importTitle', "Add the members and surfaces of a DXF, DWG, IFC or Rhino (.3dm) file"), ThemeIcon.asClassName(Codicon.cloudDownload), true, () => this.openImport()));
@@ -270,7 +269,6 @@ export class StructureModelerEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super(StructureModelerEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -285,13 +283,14 @@ export class StructureModelerEditor extends EditorPane {
 		this.root.classList.add('saengine-structure-modeler');
 		this.root.tabIndex = -1;
 
-		// The view direction: a segmented control, the only text in the toolbar.
-		const views = append(frame.titleSlot, $('.sa-segmented', { role: 'tablist', 'aria-label': localize('modeler.viewsAria', "View direction") }));
-		for (const { view, label } of VIEWS) {
-			const button = append(views, $<HTMLButtonElement>('button.sa-segment', { type: 'button', role: 'tab' }, label));
-			this._register(addDisposableListener(button, EventType.CLICK, () => this.setView(view)));
-			this.viewButtons.set(view, button);
-		}
+		this.viewControl = this._register(new RibbonSegmentedModel({
+			id: 'saengine.structure.views',
+			ariaLabel: localize('modeler.viewsAria', "View direction"),
+			items: VIEWS.map(({ view, label }) => ({ id: view, label })),
+			selectedId: this.view,
+		}));
+		this._register(this.viewControl.onDidSelect(id => this.setView(id as ModelerView)));
+		this._register(frame.addViewControl(this.viewControl));
 		this.setView(this.view);
 
 		for (const { tool, label, icon } of TOOLS) {
@@ -299,22 +298,35 @@ export class StructureModelerEditor extends EditorPane {
 		}
 
 		// Inline controls: the work level always, the type and the typed value of the active tool.
-		const levels = append(frame.controlsSlot, $('.modeler-inline.modeler-level'));
-		append(levels, $('span.sa-frame-label.modeler-level-label', undefined, localize('modeler.level', "Work level")));
-		this.levelPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('modeler.levelAria', "Level free points are drawn on") }));
-		this.levelPicker.render(append(levels, $('.modeler-select.level')));
-		this._register(this.levelPicker.onDidSelect(({ index }) => {
-			this.level = this.levels[index - 1]?.z;
+		this.levelControl = this._register(new RibbonSelectModel({
+			id: 'saengine.structure.level',
+			label: localize('modeler.level', "Work level"),
+			ariaLabel: localize('modeler.levelAria', "Level free points are drawn on"),
+			items: [],
+			width: 'normal',
+		}));
+		this._register(this.levelControl.onDidSelect(({ id }) => {
+			this.level = id === '__none__' ? undefined : this.levels[Number(id)]?.z;
 			this.modeler?.setWorkPlane(this.level);
 		}));
+		this._register(frame.addViewControl(this.levelControl));
 
-		this.typeGroup = append(frame.controlsSlot, $('.modeler-inline'));
-		append(this.typeGroup, $('span.sa-frame-label', undefined, localize('modeler.type', "Type")));
-		this.typePicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('modeler.typeAria', "Object type to draw") }));
-		this.typePicker.render(append(this.typeGroup, $('.modeler-select.type')));
-		this._register(this.typePicker.onDidSelect(({ index }) => this.types.set(this.tool, this.typeOptions[index])));
+		this.typeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.structure.type',
+			label: localize('modeler.type', "Type"),
+			ariaLabel: localize('modeler.typeAria', "Object type to draw"),
+			items: [],
+			visible: false,
+			width: 'normal',
+		}));
+		this._register(this.typeControl.onDidSelect(({ id }) => {
+			if (id) {
+				this.types.set(this.tool, id);
+			}
+		}));
+		this._register(frame.addToolControl(this.typeControl));
 
-		this.valueGroup = append(frame.controlsSlot, $('.modeler-inline.value'));
+		this.valueGroup = $('.modeler-inline.value');
 		this.valueBox = this._register(new InputBox(this.valueGroup, this.contextViewService, { inputBoxStyles: defaultInputBoxStyles }));
 		this._register(addDisposableListener(this.valueBox.inputElement, EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter') {
@@ -323,6 +335,12 @@ export class StructureModelerEditor extends EditorPane {
 				this.applyTyped();
 			}
 		}));
+		this.valueControl = this._register(new RibbonElementControl({
+			id: 'saengine.structure.value',
+			element: this.valueGroup,
+			visible: false,
+		}));
+		this._register(frame.addToolControl(this.valueControl));
 
 		this.viewport = append(frame.main, $('.modeler-viewport'));
 		this.message = append(this.viewport, $('.modeler-message'));
@@ -374,14 +392,13 @@ export class StructureModelerEditor extends EditorPane {
 			...tools(['member', 'area', 'block', 'support']),
 			new Separator(),
 			...(narrow ? [] : [...tools(['move', 'copy', 'mirror', 'divide', 'delete']), new Separator()]),
-			...(compact ? [] : [this.generateAction, this.importAction, this.scriptAction, new Separator(), this.undoAction, this.redoAction, new Separator()]),
+			...(compact ? [] : [this.generateAction, this.importAction, this.scriptAction, new Separator()]),
 			this.fitAction, this.frame.togglePropertiesAction,
 		];
 		const secondary: IAction[] = [
 			this.formAction,
 			new Separator(),
 			this.generateMenuAction, this.importMenuAction, this.scriptMenuAction,
-			...(compact ? [new Separator(), this.undoAction, this.redoAction] : []),
 			...(narrow ? [new Separator(), ...tools(['move', 'copy', 'mirror', 'divide', 'delete'])] : []),
 			new Separator(),
 			this.levelAction,
@@ -391,10 +408,7 @@ export class StructureModelerEditor extends EditorPane {
 
 	private setView(view: ModelerView): void {
 		this.view = view;
-		for (const [id, button] of this.viewButtons) {
-			button.classList.toggle('active', id === view);
-			button.setAttribute('aria-selected', String(id === view));
-		}
+		this.viewControl.selectedId = view;
 		void this.modeler?.setView(view);
 	}
 
@@ -407,17 +421,10 @@ export class StructureModelerEditor extends EditorPane {
 		const pick = await this.quickInputService.pick(items, { placeHolder: localize('modeler.levelPick', "Level free points are drawn on"), activeItem: items.find(i => i.z === this.level) });
 		if (pick) {
 			this.level = pick.z;
-			this.levelPicker.select(Math.max(0, this.levels.findIndex(l => l.z === pick.z) + 1));
+			const idx = this.levels.findIndex(l => l.z === pick.z);
+			this.levelControl.selectedId = idx >= 0 ? String(idx) : '__none__';
 			this.modeler?.setWorkPlane(this.level);
 		}
-	}
-
-	private async undoRedo(redo: boolean): Promise<void> {
-		const resource = (this.input as LibraryEditorInput | undefined)?.resource;
-		if (resource) {
-			await (redo ? this.undoRedoService.redo(resource) : this.undoRedoService.undo(resource));
-		}
-		this.updateToolbar();
 	}
 
 	override async setInput(input: LibraryEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -546,10 +553,11 @@ export class StructureModelerEditor extends EditorPane {
 			if (this.level === undefined || !levels.some(l => l.z === this.level)) {
 				this.level = levels[0]?.z;
 			}
-			this.levelPicker.setOptions([
-				{ text: localize('modeler.snapOnly', "None (snap points only)") },
-				...levels.map(l => ({ text: `${l.label} (${l.z} mm)` })),
-			], Math.max(0, levels.findIndex(l => l.z === this.level) + 1));
+			const levelIdx = this.level === undefined ? -1 : levels.findIndex(l => l.z === this.level);
+			this.levelControl.setItems([
+				{ id: '__none__', label: localize('modeler.snapOnly', "None (snap points only)") },
+				...levels.map((l, i) => ({ id: String(i), label: `${l.label} (${l.z} mm)` })),
+			], levelIdx >= 0 ? String(levelIdx) : '__none__');
 		}
 		this.modeler?.setWorkPlane(this.level);
 		this.modeler?.setScene(modelerScene(parsed, this.kinds));
@@ -563,25 +571,29 @@ export class StructureModelerEditor extends EditorPane {
 		for (const [tool, action] of this.toolActions) {
 			action.checked = tool === this.tool;
 		}
-		const resource = (this.input as LibraryEditorInput | undefined)?.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
 		const kinds = TOOL_KINDS[this.tool];
-		this.typeGroup.classList.toggle('hidden', !kinds && this.tool !== 'support');
+		this.typeControl.visible = !!kinds || this.tool === 'support';
 		if (kinds) {
 			this.typeOptions = [...this.kinds].filter(([, kind]) => kinds.includes(kind)).map(([id]) => id);
 			const chosen = this.types.get(this.tool);
 			const index = chosen ? this.typeOptions.indexOf(chosen) : -1;
-			this.typePicker.setOptions(this.typeOptions.length ? this.typeOptions.map(id => ({ text: `${id} (${this.kinds.get(id)})` })) : [{ text: localize('modeler.noTypes', "No types: add them in Object Types") }], Math.max(0, index));
+			const selected = index >= 0 ? chosen! : (this.typeOptions[0] ?? '');
+			this.typeControl.setItems(
+				this.typeOptions.length ? this.typeOptions.map(id => ({ id, label: `${id} (${this.kinds.get(id)})` })) : [{ id: '', label: localize('modeler.noTypes', "No types: add them in Object Types") }],
+				selected,
+			);
 			if (index < 0 && this.typeOptions.length) {
 				this.types.set(this.tool, this.typeOptions[0]);
 			}
 		} else if (this.tool === 'support') {
 			this.typeOptions = [...SUPPORT_FIXITIES];
-			this.typePicker.setOptions([{ text: localize('modeler.fixed', "Fixed") }, { text: localize('modeler.pinned', "Pinned") }], Math.max(0, this.typeOptions.indexOf(this.types.get('support') ?? 'fixed')));
+			this.typeControl.setItems([
+				{ id: 'fixed', label: localize('modeler.fixed', "Fixed") },
+				{ id: 'pinned', label: localize('modeler.pinned', "Pinned") },
+			], this.types.get('support') ?? 'fixed');
 		}
 		const typed = this.tool === 'move' || this.tool === 'copy' || this.tool === 'divide' || this.tool === 'block';
-		this.valueGroup.classList.toggle('hidden', !typed);
+		this.valueControl.visible = typed;
 		if (typed) {
 			this.valueBox.setPlaceHolder(this.tool === 'divide' ? localize('modeler.partsPlaceholder', "Parts (e.g. 4)") : this.tool === 'block' ? localize('modeler.thicknessPlaceholder', "Thickness (mm), e.g. 1000") : this.tool === 'copy' ? localize('modeler.copyPlaceholder', "dx, dy, dz[, copies] (mm)") : localize('modeler.movePlaceholder', "dx, dy, dz (mm)"));
 		}
@@ -1329,6 +1341,38 @@ export class StructureModelerEditor extends EditorPane {
 		if (input) {
 			void this.editorService.openEditor({ resource: input.resource, options: { override: LibraryEditorInput.STRUCTURE_EDITOR_ID, pinned: true } }, SIDE_GROUP);
 		}
+	}
+
+	selectTool(tool: Tool): void {
+		this.setTool(tool);
+	}
+
+	selectView(view: ModelerView): void {
+		this.setView(view);
+	}
+
+	fitView(): Promise<void> | undefined {
+		return this.modeler?.fit();
+	}
+
+	openShapeDialog(): void {
+		this.openShape();
+	}
+
+	openImportDialog(): Promise<void> {
+		return this.openImport();
+	}
+
+	openScriptPicker(): Promise<void> {
+		return this.pickScript();
+	}
+
+	openLevelPicker(): Promise<void> {
+		return this.pickLevel();
+	}
+
+	openGridsForm(): void {
+		this.openForm();
 	}
 
 	private computeTheme(): Partial<ModelerTheme> {

@@ -201,7 +201,8 @@
     "electrical": [
       "BNBC 2020 Part 8 Chapter 1 (pp. 763-828)",
       "BNBC 2020 Part 8 Appendix A (pp. 1167-1168)",
-      "BNBC 2020 Part 8 Sec 4.2.1 (pp. 982-983)"
+      "BNBC 2020 Part 8 Sec 4.2.1 (pp. 982-983)",
+      "IEC 60364-5-52 Annex B and Annex G (cable ampacity, correction factors, voltage drop), IEC 60364-4-43 (adiabatic fault withstand), IEC 60364-4-41 / IEC 60898-1 (disconnection), IEC 60909-0 (simplified short-circuit method)"
     ],
     "fire": [
       "BNBC 2020 Part 4 Chapters 4-5 (pp. 321-355)",

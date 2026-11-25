@@ -99,6 +99,87 @@ def _has(name: str, words: str) -> bool:
     return re.search(rf"(?<![a-z])({words})(?![a-z])", name.lower()) is not None
 
 
+def room_grid(
+    outline: Any,
+    *,
+    min_count: int = 1,
+    max_sx: float,
+    max_sy: float,
+    max_area_per_point: float | None = None,
+) -> dict[str, Any]:
+    """Place an even rectangular grid of points inside a room polygon (``outline`` in mm).
+
+    Returns ``{"nx", "ny", "sx", "sy", "points"}`` where ``sx``, ``sy`` are in m and
+    ``points`` are ``(x_mm, y_mm)`` inside ``outline``. Used uniformly by lighting,
+    sprinkler and fire-alarm device placement.
+    """
+    import math
+
+    from shapely.geometry import Point
+
+    minx, miny, maxx, maxy = outline.bounds
+    length_m = max((maxx - minx) / 1000.0, 0.01)
+    width_m = max((maxy - miny) / 1000.0, 0.01)
+    nx_min = max(1, math.ceil(length_m / max_sx - 1e-9))
+    ny_min = max(1, math.ceil(width_m / max_sy - 1e-9))
+    area_need = (
+        math.ceil((length_m * width_m) / max_area_per_point - 1e-9) if max_area_per_point else 1
+    )
+    target = max(1, min_count, area_need)
+
+    def _pick(min_x: int, min_y: int, need: int) -> tuple[int, int]:
+        best: tuple[int, float, int, int] | None = None
+        limit_x = max(min_x, need) + 2
+        limit_y = max(min_y, need) + 2
+        for nx in range(min_x, limit_x + 1):
+            ny = max(min_y, math.ceil(need / nx))
+            if ny > limit_y:
+                continue
+            sx, sy = length_m / nx, width_m / ny
+            if max_area_per_point and sx * sy > max_area_per_point + 1e-9:
+                continue
+            key = (nx * ny, abs(sx - sy), nx, ny)
+            if best is None or key < best:
+                best = key
+        if best is None:
+            return min_x, max(min_y, math.ceil(need / min_x))
+        return best[2], best[3]
+
+    def _sample(nx: int, ny: int) -> list[tuple[float, float]]:
+        dx = (maxx - minx) / nx
+        dy = (maxy - miny) / ny
+        pts = []
+        covered = outline.buffer(1.0)
+        for j in range(ny):
+            y = miny + (j + 0.5) * dy
+            for i in range(nx):
+                x = minx + (i + 0.5) * dx
+                if covered.covers(Point(x, y)):
+                    pts.append((round(x, 1), round(y, 1)))
+        return pts
+
+    nx, ny = _pick(nx_min, ny_min, target)
+    pts = _sample(nx, ny)
+    for _ in range(8):
+        if len(pts) >= min_count:
+            break
+        if length_m / nx >= width_m / ny:
+            nx += 1
+        else:
+            ny += 1
+        pts = _sample(nx, ny)
+    if not pts:
+        rp = outline.representative_point()
+        pts = [(round(rp.x, 1), round(rp.y, 1))]
+    return {
+        "nx": nx,
+        "ny": ny,
+        "sx": length_m / nx,
+        "sy": width_m / ny,
+        "points": pts,
+    }
+
+
 def wet_kind(name: str) -> str:
     """The kind of a wet room (:data:`saengine.plumbing.tables.WET_ROOM_KINDS`) from its
     name; a name that says nothing is an other wet area (a floor drain)."""
@@ -499,3 +580,42 @@ def stamp(root: str | Path) -> str:
     except OSError:
         return ""
     return hashlib.sha1(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
+def check_ceiling_voids(
+    arch: Any, building: Any, mep: Any, objects: Any = None, clearance: float = 0.0
+) -> list[dict[str, Any]]:
+    """Check HVAC ducts and electrical cable trays against ceiling voids on their story."""
+    from saengine.library import architecture as arch_lib
+    from saengine.library.objects import ObjectLibrary
+
+    if arch is None or building is None or mep is None or not getattr(arch, "ceilings", None):
+        return []
+    if objects is None:
+        objects = ObjectLibrary(objects=[])
+    results: list[dict[str, Any]] = []
+
+    def check_run(service_id: str, story: str, path: list[Any], depth: float) -> None:
+        if depth <= 0 or not path:
+            return
+        pts = [(float(p[0]), float(p[1])) for p in path]
+        mid = pts[len(pts) // 2]
+        void = arch_lib.ceiling_void_check(arch, building, objects, mid, story=story)
+        if void is not None:
+            results.append(void.check_service(depth, clearance=clearance, name=service_id))
+
+    hvac = getattr(mep, "hvac", None)
+    if hvac is not None:
+        for duct in getattr(hvac, "ducts", []):
+            if getattr(duct, "riser", None) is not None:
+                continue
+            depth = float(duct.diameter or duct.height or 0.0)
+            check_run(duct.id, duct.story, duct.path, depth)
+
+    electrical = getattr(mep, "electrical", None)
+    if electrical is not None:
+        for tray in getattr(electrical, "trays", []):
+            depth = float(getattr(tray, "height", 0.0) or 0.0)
+            check_run(tray.id, tray.story, tray.path, depth)
+
+    return results

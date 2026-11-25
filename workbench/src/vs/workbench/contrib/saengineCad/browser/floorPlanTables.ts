@@ -56,7 +56,7 @@ class MembersTab extends Disposable implements ISaengineTable {
 		@ISaengineProjectService projectService: ISaengineProjectService,
 	) {
 		super();
-		this.frame = this._register(instantiationService.createInstance(EditorFrame, container, { id: 'saengine.tables.membersTable', ariaLabel: localize('tables.members', "Members") }));
+		this.frame = this._register(instantiationService.createInstance(EditorFrame, container, { id: 'saengine.tables.membersTable', ariaLabel: localize('tables.members', "Members"), inlineToolbar: true }));
 		this.table = this._register(instantiationService.createInstance(MembersTable, this.frame, { followStory: true }));
 		this._register(projectService.onDidChangeProject(project => void this.table.setFloorPlan(floorPlanOf(project))));
 		void this.table.setFloorPlan(floorPlanOf(projectService.project));
@@ -98,7 +98,7 @@ class StoreysTab extends Disposable implements ISaengineTable {
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
-		this.frame = this._register(instantiationService.createInstance(EditorFrame, container, { id: 'saengine.tables.storeysTable', ariaLabel: localize('tables.storeys', "Storeys") }));
+		this.frame = this._register(instantiationService.createInstance(EditorFrame, container, { id: 'saengine.tables.storeysTable', ariaLabel: localize('tables.storeys', "Storeys"), inlineToolbar: true }));
 		this.frame.element.classList.add('saengine-members-table', 'saengine-storeys-table');
 		this.frame.setTitle(localize('storeys.title', "Storeys"));
 		this.frame.setActions([this.editAction]);

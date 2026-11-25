@@ -3,6 +3,7 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './boqDataPanels.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
@@ -32,6 +33,7 @@ import { BOQ_RATES_FILE, BOQ_CARBON_FILE, ensureBoqFile } from './boqCosting.js'
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { LibraryEditorInput } from '../../saengineLibrary/browser/libraryEditorInput.js';
 import { RatesEditor } from './ratesEditor.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(BoqEditor, BoqEditor.ID, localize('boqEditorPane', "SAEngine Bill of Quantities")),
@@ -56,6 +58,7 @@ class BoqEditorResolverContribution extends Disposable implements IWorkbenchCont
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, BoqEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{
@@ -240,6 +243,63 @@ for (const [kind, id, title, file] of [
 				}
 			} catch (error) {
 				notificationService.error(localize('boq.editFileFailed', "{0} could not be created: {1}", file, String(error)));
+			}
+		}
+	});
+}
+
+async function activeBoqEditor(accessor: ServicesAccessor): Promise<BoqEditor | undefined> {
+	const editorService = accessor.get(IEditorService);
+	if (editorService.activeEditorPane instanceof BoqEditor) {
+		return editorService.activeEditorPane;
+	}
+	const project = accessor.get(ISaengineProjectService).project;
+	const part = partById('boq');
+	if (!project || !part?.mainFile) {
+		return undefined;
+	}
+	const pane = await editorService.openEditor({ resource: joinPath(project.root, part.folder, part.mainFile), options: { pinned: true } });
+	return pane instanceof BoqEditor ? pane : undefined;
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.boq.measure',
+			title: localize2('boq.rib.measureTitle', "Measure / Update from Building Model"),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.refresh,
+			f1: true,
+			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await (await activeBoqEditor(accessor))?.compute();
+	}
+});
+
+for (const [id, title, icon, run] of [
+	['saengine.boq.toggleImperial', localize2('boq.rib.imperialTitle', "Toggle Feet Units (cft, sft, rft)"), Codicon.symbolRuler, (e: BoqEditor) => e.toggleImperialUnits()],
+	['saengine.boq.expandAll', localize2('boq.rib.expandTitle', "Expand All Breakdowns"), Codicon.expandAll, (e: BoqEditor) => e.setAllExpanded(true)],
+	['saengine.boq.collapseAll', localize2('boq.rib.collapseTitle', "Collapse All Breakdowns"), Codicon.collapseAll, (e: BoqEditor) => e.setAllExpanded(false)],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await activeBoqEditor(accessor);
+			if (editor) {
+				run(editor);
 			}
 		}
 	});

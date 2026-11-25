@@ -366,6 +366,16 @@ export async function gripEditCommand(ctx: CadCommandContext): Promise<void> {
 		}
 	}
 
+	try {
+		const { reSolveConstraintsAfterEdit } = await import('./constraintCommands.js');
+		await reSolveConstraintsAfterEdit(ctx);
+	} catch (err) {
+		if (err instanceof Error && err.message.includes('over-constrain')) {
+			ctx.message(err.message);
+			throw err;
+		}
+	}
+
 	setActiveGripContext(undefined);
 }
 

@@ -41,7 +41,7 @@ const OSNAP_MODES: readonly OsnapModeItem[] = [
 	{ bit: 512, name: 'Nearest', code: 'NEA' },
 ];
 
-const STANDARD_COLORS: readonly { readonly name: string; readonly value: number; readonly hex: string }[] = [
+export const STANDARD_COLORS: readonly { readonly name: string; readonly value: number; readonly hex: string }[] = [
 	{ name: 'Red', value: 1, hex: '#ff0000' },
 	{ name: 'Yellow', value: 2, hex: '#ffff00' },
 	{ name: 'Green', value: 3, hex: '#00ff00' },
@@ -53,7 +53,7 @@ const STANDARD_COLORS: readonly { readonly name: string; readonly value: number;
 	{ name: '9 (Light Grey)', value: 9, hex: '#c0c0c0' },
 ];
 
-const STANDARD_LINETYPES: readonly string[] = [
+export const STANDARD_LINETYPES: readonly string[] = [
 	'Continuous',
 	'Dashed',
 	'Dashed2',
@@ -66,11 +66,11 @@ const STANDARD_LINETYPES: readonly string[] = [
 	'Divide',
 ];
 
-const STANDARD_LINEWEIGHTS: readonly number[] = [
+export const STANDARD_LINEWEIGHTS: readonly number[] = [
 	0.00, 0.05, 0.09, 0.13, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.20, 1.40, 2.00,
 ];
 
-function aciToCss(color: CadColorValue | 'varies', isLight: boolean): string {
+export function aciToCss(color: CadColorValue | 'varies', isLight: boolean): string {
 	if (color === 'varies') {
 		return 'linear-gradient(135deg, #ff0000, #00ff00, #0000ff)';
 	}
@@ -95,6 +95,65 @@ function aciToCss(color: CadColorValue | 'varies', isLight: boolean): string {
 
 interface LayerPickItem extends IQuickPickItem {
 	readonly layer: CadLayerInfo;
+}
+
+export async function pickCadLayer(
+	editor: CadEditorApi,
+	quickInputService: IQuickInputService,
+	notificationService: INotificationService,
+): Promise<boolean> {
+	const layers = editor.layers.list();
+	const selectedIds = editor.selection.get();
+	const isSelected = selectedIds.length > 0;
+
+	const items: LayerPickItem[] = layers.map(layer => {
+		let stateDesc = '';
+		if (layer.current) {
+			stateDesc += localize('layer.current', "[Current] ");
+		}
+		if (layer.generated) {
+			stateDesc += localize('layer.generated', "[Structural, Read-only] ");
+		}
+		if (layer.locked) {
+			stateDesc += '🔒 ';
+		}
+		if (layer.frozen) {
+			stateDesc += '❄️ ';
+		}
+		if (!layer.on) {
+			stateDesc += localize('layer.off', "(Off) ");
+		}
+
+		return {
+			id: layer.name,
+			label: layer.name,
+			description: stateDesc.trim(),
+			layer,
+		};
+	});
+
+	const picked = await quickInputService.pick(items, {
+		title: isSelected
+			? localize('cad.moveSelectionLayer', "Move Selection to Layer")
+			: localize('cad.setCurrentLayer', "Set Current Layer"),
+		placeHolder: localize('cad.chooseLayer', "Select layer..."),
+	});
+
+	if (!picked) {
+		return false;
+	}
+
+	if (picked.layer.generated) {
+		notificationService.warn(localize('layer.generatedReadOnly', "Generated structural layers cannot be modified or made current."));
+		return false;
+	}
+
+	if (isSelected) {
+		editor.properties.set(selectedIds, { layer: picked.layer.name });
+	} else {
+		editor.layers.setCurrent(picked.layer.name);
+	}
+	return true;
 }
 
 export class FloorPlanCadBar extends Disposable {
@@ -146,6 +205,7 @@ export class FloorPlanCadBar extends Disposable {
 		}));
 
 		this.element = append(container, $('.floor-plan-status-bar'));
+		container.classList.add('with-cad-bar');
 
 		// 1. Left: Cursor coordinates in mm
 		const left = append(this.element, $('.cad-bar-left'));
@@ -245,9 +305,9 @@ export class FloorPlanCadBar extends Disposable {
 		this.layerBtn = append(props, $('button.cad-bar-btn.cad-prop-btn.cad-layer-btn', { title: localize('cad.layerTooltip', "Current Layer / Move Selection to Layer") }));
 		this.layerSwatch = append(this.layerBtn, $('span.cad-swatch'));
 		this.layerStateIcon = append(this.layerBtn, $('span.cad-layer-state'));
-		this.layerLabel = append(this.layerBtn, $('span.cad-layer-name', undefined, 'DRAFT'));
+		this.layerLabel = append(this.layerBtn, $('span.cad-layer-name', undefined, '0'));
 		append(this.layerBtn, $(ThemeIcon.asCSSSelector(Codicon.chevronDown)));
-		this._register(addDisposableListener(this.layerBtn, EventType.CLICK, () => this.showLayerPicker()));
+		this._register(addDisposableListener(this.layerBtn, EventType.CLICK, () => { void this.showLayerPicker(); }));
 
 		// Color picker
 		this.colorBtn = append(props, $('button.cad-bar-btn.cad-prop-btn.cad-color-btn', { title: localize('cad.colorTooltip', "Object Color") }));
@@ -472,62 +532,13 @@ export class FloorPlanCadBar extends Disposable {
 		});
 	}
 
-	private async showLayerPicker(): Promise<void> {
+	public async showLayerPicker(): Promise<void> {
 		if (!this.editor) {
 			return;
 		}
-		const layers = this.editor.layers.list();
-		const selectedIds = this.editor.selection.get();
-		const isSelected = selectedIds.length > 0;
-
-		const items: LayerPickItem[] = layers.map(layer => {
-			let stateDesc = '';
-			if (layer.current) {
-				stateDesc += localize('layer.current', "[Current] ");
-			}
-			if (layer.generated) {
-				stateDesc += localize('layer.generated', "[Structural, Read-only] ");
-			}
-			if (layer.locked) {
-				stateDesc += '🔒 ';
-			}
-			if (layer.frozen) {
-				stateDesc += '❄️ ';
-			}
-			if (!layer.on) {
-				stateDesc += localize('layer.off', "(Off) ");
-			}
-
-			return {
-				id: layer.name,
-				label: layer.name,
-				description: stateDesc.trim(),
-				layer,
-			};
-		});
-
-		const picked = await this.quickInputService.pick(items, {
-			title: isSelected
-				? localize('cad.moveSelectionLayer', "Move Selection to Layer")
-				: localize('cad.setCurrentLayer', "Set Current Layer"),
-			placeHolder: localize('cad.chooseLayer', "Select layer..."),
-		});
-
-		if (!picked || !this.editor) {
-			return;
+		if (await pickCadLayer(this.editor, this.quickInputService, this.notificationService)) {
+			this.updateProperties();
 		}
-
-		if (picked.layer.generated) {
-			this.notificationService.warn(localize('layer.generatedReadOnly', "Generated structural layers cannot be modified or made current."));
-			return;
-		}
-
-		if (isSelected) {
-			this.editor.properties.set(selectedIds, { layer: picked.layer.name });
-		} else {
-			this.editor.layers.setCurrent(picked.layer.name);
-		}
-		this.updateProperties();
 	}
 
 	private showColorMenu(): void {
@@ -635,3 +646,5 @@ export class FloorPlanCadBar extends Disposable {
 		});
 	}
 }
+
+export { FloorPlanCadBar as CadStatusBar };

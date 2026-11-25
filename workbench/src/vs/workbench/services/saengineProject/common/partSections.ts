@@ -22,6 +22,8 @@ export interface IPartSectionOptions extends IEditorOptions {
 export interface IPartSectionPane {
 	/** The section shown now. */
 	readonly partSection: string | undefined;
+	/** Optional ribbon sub-view identifier when the section alone does not capture the active view. */
+	readonly ribbonSubView?: string;
 	readonly onDidChangePartSection: Event<void>;
 }
 

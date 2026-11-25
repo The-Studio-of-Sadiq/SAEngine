@@ -11,6 +11,7 @@ import {
 	AcDbCircle,
 	AcDbDiametricDimension,
 	AcDbDimension,
+	AcDbDimStyleTableRecord,
 	AcDbEntity,
 	AcDbLine,
 	AcDbOrdinateDimension,
@@ -34,6 +35,7 @@ import {
 	extractAndSortCoordinates,
 } from './dimensionGeometry.js';
 import { bulgeToArc, type P2 } from './modifyGeometry2.js';
+import { registerDimensionEditCommands } from './dimensionEditCommands.js';
 
 interface LinearDimensionState {
 	readonly xLine1Point: AcGePoint3d;
@@ -634,6 +636,135 @@ export async function qdimCommand(ctx: CadCommandContext): Promise<void> {
 	}
 }
 
+export async function dimstyleCommand(ctx: CadCommandContext): Promise<void> {
+	const db = ctx.database?.native ?? AcApDocManager.instance?.curDocument?.database;
+	if (!db) return;
+
+	const option = await ctx.getKeyword(
+		'[-DIMSTYLE] Enter an option [? (list)/Save/Restore/STatus/Variables/Apply/Set] <Restore>:',
+		['?', 'Save', 'Restore', 'STatus', 'Variables', 'Apply', 'Set'],
+		{ default: 'Restore' },
+	);
+	const opt = option.toLowerCase();
+
+	if (opt === '?') {
+		const table = db.tables?.dimStyleTable;
+		const styles: string[] = [];
+		const cur = db.dimstyle || 'STANDARD';
+		const records = (table as any)?.toArray ? (table as any).toArray() : ((table as any)?.newIterator ? (table as any).newIterator().toArray() : []);
+		for (const rec of records) {
+			const name = rec.name;
+			styles.push(name.toUpperCase() === cur.toUpperCase() ? `* ${name} (current)` : `  ${name}`);
+		}
+		if (styles.length === 0) styles.push(`* ${cur} (current)`);
+		ctx.message(`Named dimension styles:\n${styles.join('\n')}`);
+		return;
+	}
+
+	if (opt === 'save') {
+		const name = (await ctx.getString('Enter name for new dimension style:')).trim();
+		if (!name) return;
+		const table = db.tables.dimStyleTable;
+		const curStyleName = db.dimstyle || 'STANDARD';
+		const curRec = table.getAt(curStyleName);
+
+		let rec = table.getAt(name);
+		if (!rec) {
+			rec = new AcDbDimStyleTableRecord({ name });
+			table.add(rec);
+		}
+		if (curRec) {
+			rec.dimscale = curRec.dimscale;
+			rec.dimtxt = curRec.dimtxt;
+			rec.dimasz = curRec.dimasz;
+			rec.dimexe = curRec.dimexe;
+			rec.dimexo = curRec.dimexo;
+			rec.dimgap = curRec.dimgap;
+			rec.dimdec = curRec.dimdec;
+			rec.dimlunit = curRec.dimlunit;
+			rec.dimtad = curRec.dimtad;
+			(rec as any).dimblk = (curRec as any).dimblk;
+		}
+		db.dimstyle = name;
+		ctx.message(`Dimension style "${name}" saved and set current.`);
+		return;
+	}
+
+	if (opt === 'restore') {
+		const cur = db.dimstyle || 'STANDARD';
+		const name = (await ctx.getString(`Enter dimension style name to restore <${cur}>:`, { allowEmpty: true, defaultValue: cur })).trim();
+		const target = name || cur;
+		if (!db.tables.dimStyleTable.has(target)) {
+			ctx.message(`Dimension style "${target}" not found.`);
+			return;
+		}
+		db.dimstyle = target;
+		ctx.message(`Current dimension style set to "${target}".`);
+		return;
+	}
+
+	if (opt === 'status' || opt === 'variables') {
+		const curName = db.dimstyle || 'STANDARD';
+		let target = curName;
+		if (opt === 'variables') {
+			const name = (await ctx.getString(`Enter dimension style name or [? to list] <${curName}>:`, { allowEmpty: true, defaultValue: curName })).trim();
+			if (name === '?') {
+				const records = (db.tables.dimStyleTable as any).toArray?.() ?? [];
+				ctx.message(`Dimension styles: ${records.map((r: any) => r.name).join(', ')}`);
+				return;
+			}
+			if (name && db.tables.dimStyleTable.has(name)) target = name;
+		}
+		const rec = db.tables.dimStyleTable.getAt(target);
+		const lines = [
+			`Dimension style: ${target}`,
+			`DIMSCALE = ${rec?.dimscale ?? 1}`,
+			`DIMTXT   = ${rec?.dimtxt ?? 2.5}`,
+			`DIMASZ   = ${rec?.dimasz ?? 2.5}`,
+			`DIMEXE   = ${rec?.dimexe ?? 1.25}`,
+			`DIMEXO   = ${rec?.dimexo ?? 0.625}`,
+			`DIMGAP   = ${rec?.dimgap ?? 0.625}`,
+			`DIMDEC   = ${rec?.dimdec ?? 2}`,
+			`DIMLUNIT = ${rec?.dimlunit ?? 2}`,
+			`DIMTAD   = ${rec?.dimtad ?? 0}`,
+			`DIMBLK   = "${(rec as any)?.dimblk ?? ''}"`,
+		];
+		ctx.message(lines.join('\n'));
+		return;
+	}
+
+	if (opt === 'apply') {
+		const selected = await ctx.getSelection('Select dimensions to apply current style:');
+		const curStyle = db.dimstyle || 'STANDARD';
+		let count = 0;
+		for (const e of selected) {
+			if (e instanceof AcDbDimension) {
+				e.dimensionStyleName = curStyle;
+				applyDimensionProperties(e);
+				ctx.database.replace(String(e.objectId), e.clone() as AcDbEntity);
+				count++;
+			}
+		}
+		ctx.message(`Applied dimension style "${curStyle}" to ${count} dimension(s).`);
+		return;
+	}
+
+	if (opt === 'set') {
+		const varName = (await ctx.getString('Enter dimension variable to set (e.g. DIMSCALE, DIMTXT):')).trim().toUpperCase();
+		const valStr = (await ctx.getString(`Enter new value for ${varName}:`)).trim();
+		const val = parseFloat(valStr);
+		const curName = db.dimstyle || 'STANDARD';
+		const rec = db.tables.dimStyleTable.getAt(curName);
+		if (rec && varName.toLowerCase() in rec) {
+			(rec as any)[varName.toLowerCase()] = Number.isFinite(val) ? val : valStr;
+			ctx.message(`Set ${varName} = ${valStr} in style "${curName}".`);
+		} else {
+			ctx.message(`Unknown dimension variable "${varName}".`);
+		}
+		return;
+	}
+}
+
 /** Registers all AutoCAD dimension commands. */
 export function registerDimensionCommands(): void {
 	registerCommand('DIMALIGNED', dimalignedCommand, { aliases: ['DAL'] });
@@ -645,4 +776,6 @@ export function registerDimensionCommands(): void {
 	registerCommand('DIMCONTINUE', dimcontinueCommand, { aliases: ['DCO'] });
 	registerCommand('DIMBASELINE', dimbaselineCommand, { aliases: ['DBA'] });
 	registerCommand('QDIM', qdimCommand);
+	registerCommand('DIMSTYLE', dimstyleCommand, { aliases: ['-DIMSTYLE', 'D'] });
+	registerDimensionEditCommands();
 }

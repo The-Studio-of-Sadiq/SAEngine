@@ -3039,6 +3039,28 @@ class DrawingRevision(_Model):
     by: str | None = Field(default=None, title="By", description="Initials of who revised it.")
 
 
+class DrawingScopeBox(_Model):
+    """A named plan crop used to generate dependent drawing sheets."""
+
+    name: str = Field(min_length=1, title="Name")
+    bounds: tuple[float, float, float, float] = Field(
+        title="Plan rectangle",
+        description="Crop bounds [x0, y0, x1, y1] in model millimetres.",
+    )
+    levels: list[str] = Field(
+        default_factory=list,
+        title="Levels",
+        description="Level ids to generate; empty means every level with a plan.",
+    )
+
+    @model_validator(mode="after")
+    def _positive_bounds(self) -> DrawingScopeBox:
+        x0, y0, x1, y1 = self.bounds
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError("scope box bounds must have positive width and height")
+        return self
+
+
 DRAFTING_FONTS = ("Arial", "Arial Narrow", "Calibri", "Segoe UI", "Tahoma")
 LINEWEIGHTS = (0.09, 0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0)
 
@@ -3195,6 +3217,13 @@ class Drawings(_Model):
         description="The revisions of the set, oldest first; the last is the current revision "
         "(0 when there is none).",
     )
+    scopeBoxes: list[DrawingScopeBox] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        title="Dependent plan scope boxes",
+        description="Named plan rectangles in model millimetres. When present, each applicable "
+        "level is generated as a dependent sheet per scope box, with matchlines and key plans.",
+    )
     sheetSize: Literal["A0", "A1", "A2", "A3", "ANSI D", "ARCH D"] = Field(
         default="A1",
         title="Sheet size",
@@ -3276,6 +3305,48 @@ class Report(_Model):
         "summary: the results without each element's calculations). The template chooses the "
         "sections, their order and detail, the cover, the letterhead and the members printed.",
     )
+
+
+class IfcExportSettings(_Model):
+    """IFC export options (11 Exports and 6 BIM)."""
+
+    schema_: Literal["IFC4", "IFC2X3"] = Field(
+        default="IFC4",
+        alias="schema",
+        title="IFC schema",
+        description="IFC4 (default) or IFC2X3 Coordination View.",
+        json_schema_extra=_labels(["IFC4", "IFC2X3"]),
+    )
+    includeStructuralAnalysis: bool = Field(
+        default=False,
+        title="Include structural analysis view",
+        description="Add IfcStructuralAnalysisModel (members, supports, load groups and actions).",
+    )
+    includeGeoreferencing: bool = Field(
+        default=True,
+        title="Include georeferencing",
+        description="Write IfcMapConversion / IfcProjectedCRS (or ePSet_MapConversion in IFC2X3) "
+        "when the site is located.",
+    )
+    includeSteelConnections: bool = Field(
+        default=True,
+        title="Include steel connections",
+        description="Write fabricated steel connection plates, bolts and bolt holes.",
+    )
+    crs: str = Field(
+        default="BTM",
+        title="Coordinate reference system",
+        description="CRS for IFC georeferencing: BTM (EPSG:9678), UTM, or EPSG:<code>.",
+    )
+
+    def is_default(self) -> bool:
+        return (
+            self.schema_ == "IFC4"
+            and not self.includeStructuralAnalysis
+            and self.includeGeoreferencing
+            and self.includeSteelConnections
+            and self.crs == "BTM"
+        )
 
 
 # ── C13: display units (saengine.units); stored values stay SI ──
@@ -3397,6 +3468,12 @@ class ProjectSettings(_Model):
         default_factory=Report,
         title="Design report",
         description="The printed design report (11 Exports).",
+    )
+    ifc: IfcExportSettings = Field(
+        default_factory=IfcExportSettings,
+        exclude_if=lambda value: value.is_default(),
+        title="IFC export",
+        description="Schema (IFC4 or IFC2X3), structural analysis view, georeferencing and steel connections.",
     )
     units: DisplayUnits = Field(
         default_factory=DisplayUnits,

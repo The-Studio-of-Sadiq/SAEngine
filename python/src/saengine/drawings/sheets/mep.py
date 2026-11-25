@@ -176,6 +176,7 @@ class MepDrawing:
     model: Any
     rooms: Any = None
     sized: dict[str, float] = field(default_factory=dict)
+    electrical_boards: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _rect(cx: float, cy: float, lx: float, ly: float, rotation: float = 0.0) -> list[Point]:
@@ -267,6 +268,55 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
         if plumbing.roof is not None:
             for d in plumbing.roof.drains:
                 add(d.story, Item("plumbing", "point", "P-STRM", f"{d.id} RD", [(d.x, d.y)], 150.0))
+        if plumbing.hotWater is not None and plumbing.hotWater.heater is not None:
+            h = plumbing.hotWater.heater
+            cap = f" {h.volumeL:g} l" if h.volumeL else ""
+            add(h.story, _box_item("plumbing", "P-EQPM", h, f"{h.id} WATER HEATER{cap}", 600))
+    if mep.gas is not None:
+        if mep.gas.meter is not None:
+            gm = mep.gas.meter
+            add(
+                gm.story,
+                Item(
+                    "plumbing",
+                    "point",
+                    "P-EQPM",
+                    f"{gm.id} GAS METER",
+                    [(gm.x, gm.y)],
+                    300.0,
+                    cross=True,
+                ),
+            )
+        for gp in mep.gas.pipes:
+            size = f" Ø{_mm(gp.diameter)}" if gp.diameter else ""
+            add(
+                gp.story,
+                Item(
+                    "plumbing",
+                    "path",
+                    "P-DOMW",
+                    f"{gp.id} GAS{size}",
+                    [(float(x), float(y)) for x, y in gp.path],
+                ),
+            )
+    if mep.medicalGas is not None:
+        for mo in mep.medicalGas.outlets:
+            add(
+                mo.story,
+                Item("plumbing", "point", "P-EQPM", f"{mo.id} {mo.gas}", [(mo.x, mo.y)], 120.0),
+            )
+        for mp_pipe in mep.medicalGas.pipes:
+            size = f" Ø{_mm(mp_pipe.diameter)}" if mp_pipe.diameter else ""
+            add(
+                mp_pipe.story,
+                Item(
+                    "plumbing",
+                    "path",
+                    "P-DOMW",
+                    f"{mp_pipe.id} {mp_pipe.gas}{size}",
+                    [(float(x), float(y)) for x, y in mp_pipe.path],
+                ),
+            )
     rooms = drawing.rooms
     if rooms is not None:
         for story in rooms.stories.values():
@@ -343,6 +393,13 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
             for i, (x, y, _z) in enumerate(lightning.airTerminals, 1):
                 add(levels[-1].id, Item("electrical", "point", "E-EQPM", f"AT{i}",
                                         [(float(x), float(y))], 150.0, cross=True))  # fmt: skip
+        for lum in electrical.luminaires:
+            add(
+                lum.story,
+                Item(
+                    "electrical", "point", "E-EQPM", f"{lum.id} {lum.type}", [(lum.x, lum.y)], 300.0
+                ),
+            )
     # fire protection
     fire = mep.fire
     if fire is not None:
@@ -356,6 +413,26 @@ def items_by_level(drawing: MepDrawing, building: Building) -> dict[str, list[It
             size = f" Ø{_mm(m.diameter)}" if m.diameter else ""
             path = [(float(x), float(y)) for x, y in m.path]
             add(m.story, Item("fire", "path", "F-PROT", f"{m.id} MAIN{size}", path))
+        for sp in fire.sprinklerPipes:
+            size = f" Ø{_mm(sp.diameter)}" if sp.diameter else ""
+            path = [(float(x), float(y)) for x, y in sp.path]
+            add(sp.story, Item("fire", "path", "F-PROT", f"{sp.id}{size}", path))
+        for sh in fire.sprinklerHeads:
+            add(sh.story, Item("fire", "point", "F-PROT", f"{sh.id} SPR", [(sh.x, sh.y)], 150.0))
+        for dev in fire.alarmDevices:
+            layer = "F-EQPM" if dev.kind == "panel" else "F-PROT"
+            add(
+                dev.story,
+                Item(
+                    "fire",
+                    "point",
+                    layer,
+                    f"{dev.id} {dev.kind}",
+                    [(dev.x, dev.y)],
+                    180.0,
+                    cross=dev.kind == "callPoint",
+                ),
+            )
         for p in fire.pumps:
             if p.equipment:
                 linked.add(p.equipment)
@@ -773,6 +850,31 @@ def sleeve_table(drawing: MepDrawing, building: Building) -> Table:
     return Table("Sleeve and opening schedule", columns, rows)
 
 
+def db_schedule_tables(drawing: MepDrawing) -> list[Table]:
+    """Distribution-board schedule tables (way, description, load, phase, MCB, cable, length, Vd)."""
+    if not drawing.electrical_boards:
+        return []
+    from saengine.electrical.panels import db_schedule_table
+
+    columns = [
+        _column("way", "Way", 5, "right"),
+        _column("description", "Description", 24),
+        _column("load", "Load\n(W)", 8, "right"),
+        _column("phase", "Phase", 6),
+        _column("mcb", "MCB", 11),
+        _column("cable", "Cable", 16),
+        _column("length", "Length\n(m)", 7, "right"),
+        _column("vd", "Vd\n(%)", 6, "right"),
+    ]
+    tables = []
+    for b in drawing.electrical_boards:
+        sched = db_schedule_table(b)
+        rows = [[str(cell) for cell in row] for row in sched["rows"]]
+        if rows:
+            tables.append(Table(sched["name"], columns, rows, notes=sched["notes"]))
+    return tables
+
+
 def schedule_tables(drawing: MepDrawing, building: Building) -> list[Table]:
     """The MEP schedules that have rows."""
     tables = [
@@ -780,6 +882,7 @@ def schedule_tables(drawing: MepDrawing, building: Building) -> list[Table]:
         equipment_table(drawing, building),
         tank_table(drawing, building),
         sleeve_table(drawing, building),
+        *db_schedule_tables(drawing),
     ]
     return [t for t in tables if t.rows]
 
@@ -817,4 +920,13 @@ def mep_drawing(text: str, bim: Any, arch: Any = None) -> tuple[MepDrawing | Non
         except Exception as error:  # noqa: BLE001 - drawn without the sized diameters
             problems.append(f"07 MEP sheets: the plumbing sizing failed ({error}); risers "
                             "without a diameter are drawn without one.")  # fmt: skip
-    return MepDrawing(model, rooms, sized), problems
+    boards: list[dict[str, Any]] = []
+    if model.electrical is not None and bim is not None:
+        try:
+            from saengine.electrical.report import electrical_results
+
+            el_rep = electrical_results(model, bim, rooms=rooms)
+            boards = list(el_rep.get("boards") or [])
+        except Exception as error:  # noqa: BLE001 - drawn without DB schedules
+            problems.append(f"07 MEP sheets: the electrical DB schedules failed ({error}).")
+    return MepDrawing(model, rooms, sized, boards), problems

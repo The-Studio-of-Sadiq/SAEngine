@@ -33,11 +33,14 @@ from saengine.library.architecture import (
     Door,
     DoorType,
     WindowType,
+    ceiling_polygon,
     centre_line,
+    curtain_wall_layout,
     offset_path,
     opening_size,
     point_along,
     railing_as_wall,
+    roof_geometry,
     roof_polygon,
     room_boundary,
     wall_levels,
@@ -65,6 +68,30 @@ _WINDOW_PARTITIONING = {
     "casement": "SINGLE_PANEL",
     "sliding": "DOUBLE_PANEL_VERTICAL",
 }
+
+
+def _door_operation(door_type: DoorType) -> str:
+    swing = door_type.resolved_swing
+    leaves = door_type.resolved_leaf_count
+    if door_type.style == "sliding":
+        if swing == "right":
+            return "SLIDING_TO_RIGHT"
+        return "SLIDING_TO_LEFT"
+    if leaves >= 2 or door_type.style == "double":
+        return "DOUBLE_DOOR_SINGLE_SWING"
+    if swing == "right":
+        return "SINGLE_SWING_RIGHT"
+    return _DOOR_OPERATION.get(door_type.style, "SINGLE_SWING_LEFT")
+
+
+def _window_partitioning(window_type: WindowType) -> str:
+    leaves = window_type.resolved_leaf_count
+    if leaves >= 3:
+        return "TRIPLE_PANEL_VERTICAL"
+    if leaves == 2:
+        return "DOUBLE_PANEL_VERTICAL"
+    return _WINDOW_PARTITIONING.get(window_type.style, "SINGLE_PANEL")
+
 
 #: Unit weights [kN/m³] guessed from a material's name, for imported wall layers.
 _UNIT_WEIGHTS = (
@@ -222,26 +249,85 @@ def export_architecture(
         if is_door:
             door_type: DoorType = next(t for t in arch.doorTypes if t.id == opening.type)
             product = w.entity("IfcDoor", opening.id, f"arch:{opening.id}", "DOOR")
-            product.OperationType = _DOOR_OPERATION[door_type.style]
+            op_type = _door_operation(door_type)
+            if not w.is_ifc2x3:
+                product.OperationType = op_type
             leaf = _DOOR_LEAF
+            door_type_attrs: dict[str, Any] = {"OperationType": op_type}
+            if w.is_ifc2x3:
+                door_type_attrs.update(
+                    {
+                        "ConstructionType": "NOTDEFINED",
+                        "ParameterTakesPrecedence": False,
+                        "Sizeable": False,
+                    }
+                )
+            else:
+                door_type_attrs["PredefinedType"] = "DOOR"
             relating = element_type(
                 "IfcDoorType",
                 door_type.id,
                 door_type.name,
-                PredefinedType="DOOR",
-                OperationType=_DOOR_OPERATION[door_type.style],
+                **door_type_attrs,
+            )
+            type_props = w.run(
+                "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
+            )
+            w.run(
+                "pset.edit_pset",
+                w.file,
+                pset=type_props,
+                properties={
+                    "FrameWidth": float(door_type.frame),
+                    "LeafCount": int(door_type.resolved_leaf_count),
+                    "Swing": door_type.resolved_swing,
+                    "Sill": float(door_type.sill),
+                    **({"Lintel": float(door_type.lintel)} if door_type.lintel is not None else {}),
+                },
             )
         else:
             window_type: WindowType = next(t for t in arch.windowTypes if t.id == opening.type)
             product = w.entity("IfcWindow", opening.id, f"arch:{opening.id}", "WINDOW")
-            product.PartitioningType = _WINDOW_PARTITIONING[window_type.style]
+            part_type = _window_partitioning(window_type)
+            if not w.is_ifc2x3:
+                product.PartitioningType = part_type
             leaf = _WINDOW_FRAME
+            win_type_attrs: dict[str, Any] = {}
+            if w.is_ifc2x3:
+                win_type_attrs.update(
+                    {
+                        "ConstructionType": "NOTDEFINED",
+                        "OperationType": "NOTDEFINED",
+                        "ParameterTakesPrecedence": False,
+                        "Sizeable": False,
+                    }
+                )
+            else:
+                win_type_attrs.update({"PredefinedType": "WINDOW", "PartitioningType": part_type})
             relating = element_type(
                 "IfcWindowType",
                 window_type.id,
                 window_type.name,
-                PredefinedType="WINDOW",
-                PartitioningType=_WINDOW_PARTITIONING[window_type.style],
+                **win_type_attrs,
+            )
+            type_props = w.run(
+                "pset.add_pset", w.file, product=relating, name="SAEngine_OpeningType"
+            )
+            w.run(
+                "pset.edit_pset",
+                w.file,
+                pset=type_props,
+                properties={
+                    "FrameWidth": float(window_type.frame),
+                    "LeafCount": int(window_type.resolved_leaf_count),
+                    "Swing": window_type.resolved_swing,
+                    "Sill": float(window_type.sill),
+                    **(
+                        {"Lintel": float(window_type.lintel)}
+                        if window_type.lintel is not None
+                        else {}
+                    ),
+                },
             )
         product.Tag = opening.id
         product.ObjectType = opening.type
@@ -262,7 +348,9 @@ def export_architecture(
             relating_type=relating,
             should_map_representations=False,
         )
-        w.run("feature.add_filling", w.file, opening=void, element=product)
+        rel_fill = w.run("feature.add_filling", w.file, opening=void, element=product)
+        if w.is_ifc2x3 and rel_fill is not None and rel_fill.OwnerHistory is None:
+            rel_fill.OwnerHistory = w.owner_history
         values: dict[str, Any] = {"Id": opening.id, "Offset": float(opening.offset)}
         if is_door:
             values["Flip"] = bool(opening.flip)
@@ -273,6 +361,7 @@ def export_architecture(
 
     finishes = {t.id: t for t in arch.finishTypes}
     ordered = sorted(elevations.values())
+    spaces: dict[str, Any] = {}
     for room in arch.rooms:
         if room.story not in elevations:
             skipped.append(
@@ -309,6 +398,7 @@ def export_architecture(
             },
         )
         ids[room.id] = space.GlobalId
+        spaces[room.id] = space
 
         coverings = []
         for finish_id, predefined, z in (
@@ -339,14 +429,32 @@ def export_architecture(
             coverings.append(covering)
             ids[key] = covering.GlobalId
         if coverings:
-            w.file.create_entity(
+            rel = w.file.create_entity(
                 "IfcRelCoversSpaces",
                 GlobalId=_guid(f"covers:{room.id}"),
                 RelatingSpace=space,
                 RelatedCoverings=coverings,
             )
+            if w.is_ifc2x3:
+                rel.OwnerHistory = w.owner_history
 
-    _export_extras(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    _export_extras(w, arch, elevations, storeys, storey_at, ids, skipped, pset, spaces)
+    from saengine.library.components import export_components_ifc
+    from saengine.library.massing import export_in_place_ifc, export_masses_ifc
+
+    export_components_ifc(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    export_in_place_ifc(w, arch, elevations, storeys, storey_at, ids, skipped, pset)
+    export_masses_ifc(w, arch, ids, skipped, pset)
+
+
+_ROOF_IFC_TYPE = {
+    "flat": "FLAT_ROOF",
+    "shed": "SHED_ROOF",
+    "gable": "GABLE_ROOF",
+    "hip": "HIP_ROOF",
+    "mansard": "MANSARD_ROOF",
+    "complex": "FREEFORM",
+}
 
 
 def _export_extras(
@@ -358,9 +466,10 @@ def _export_extras(
     ids: dict[str, str],
     skipped: list[str],
     pset: Any,
+    spaces: dict[str, Any] | None = None,
 ) -> None:
-    """Curtain walls, roofs, ramps and railings (T46), as :func:`export_architecture` does the
-    walls: a body, a container story and ``SAEngine_Architecture``."""
+    """Curtain walls (with IfcPlate panels & IfcMember mullions), ceilings (IfcCovering CEILING),
+    footprint roofs (IfcRoof with IfcSlab ROOF parts), ramps and railings."""
     from saengine.library.ifc import _SI, _placement
 
     def contain(product: Any, story: str, level: float) -> None:
@@ -397,18 +506,161 @@ def _export_extras(
     curtain_types = {t.id: t for t in arch.curtainWallTypes}
     for curtain in arch.curtainWalls:
         kind = curtain_types[curtain.type]
-        product = along_path("IfcCurtainWall", "USERDEFINED", curtain, kind, kind.name)
-        if product is not None:
-            product.ObjectType = kind.id
+        levels = wall_levels(curtain, elevations)
+        if levels is None:
+            skipped.append(
+                f"{curtain.id}: its stories are not in the building model (build 6 BIM again from the Floor Plan, or give it a height)"
+            )
+            continue
+        layout = curtain_wall_layout(arch, curtain, elevations)
+        if layout is None:
+            continue
+        bottom, _ = levels
+        product = w.entity("IfcCurtainWall", curtain.id, f"arch:{curtain.id}", "USERDEFINED")
+        product.Tag = curtain.id
+        product.ObjectType = kind.id
+        product.Description = kind.name
+        w.place(product, _placement((0, 0, bottom), (1, 0, 0), (0, 0, 1)))
+        contain(product, curtain.base, bottom)
+        ids[curtain.id] = product.GlobalId
+
+        for idx, panel in enumerate(layout.panels, start=1):
+            plate = w.entity(
+                "IfcPlate",
+                f"{curtain.id} panel {idx}",
+                f"arch:{curtain.id}:panel:{idx}",
+                "CURTAIN_PANEL",
+            )
+            plate.Tag = f"{curtain.id}-P{idx}"
+            plate.ObjectType = panel.panel_type_id
+            plate.Description = f"{panel.kind} panel"
+            w.extrusion(
+                plate,
+                w.rectangle(max(panel.width, 1.0), max(panel.thickness, 1.0)),
+                max(panel.height, 1.0),
+                5,
+            )
+            w.run("aggregate.assign_object", w.file, products=[plate], relating_object=product)
+            cx = 0.5 * (panel.start[0] + panel.end[0])
+            cy = 0.5 * (panel.start[1] + panel.end[1])
+            cz = panel.start[2]
+            dx, dy = panel.direction
+            w.place(plate, _placement((cx, cy, cz), (dx, dy, 0.0), (0, 0, 1)))
             pset(
-                product,
+                plate,
                 {
                     "Id": curtain.id,
-                    "Weight": round(kind.weight, 3),
-                    "MullionSpacing": float(kind.mullionSpacing),
-                    "TransomSpacing": float(kind.transomSpacing),
+                    "PanelKind": panel.kind,
+                    "Column": panel.column,
+                    "Row": panel.row,
+                    "PanelType": panel.panel_type_id,
                 },
             )
+            ids[f"{curtain.id}:panel:{idx}"] = plate.GlobalId
+
+        for idx, mullion in enumerate(layout.mullions, start=1):
+            member = w.entity(
+                "IfcMember",
+                f"{curtain.id} {mullion.orientation} {idx}",
+                f"arch:{curtain.id}:mullion:{idx}",
+                "MULLION",
+            )
+            member.Tag = f"{curtain.id}-M{idx}"
+            member.ObjectType = mullion.mullion_type_id
+            dx, dy = mullion.direction
+            if mullion.orientation == "vertical":
+                w.extrusion(
+                    member,
+                    w.rectangle(mullion.width, mullion.depth),
+                    max(mullion.length, 1.0),
+                    5,
+                )
+                w.run("aggregate.assign_object", w.file, products=[member], relating_object=product)
+                w.place(member, _placement(mullion.start, (dx, dy, 0.0), (0, 0, 1)))
+            else:
+                w.extrusion(
+                    member,
+                    w.rectangle(mullion.depth, mullion.width),
+                    max(mullion.length, 1.0),
+                    5,
+                )
+                w.run("aggregate.assign_object", w.file, products=[member], relating_object=product)
+                w.place(member, _placement(mullion.start, (-dy, dx, 0.0), (dx, dy, 0.0)))
+            pset(
+                member,
+                {
+                    "Id": curtain.id,
+                    "Orientation": mullion.orientation,
+                    "MullionType": mullion.mullion_type_id,
+                },
+            )
+            ids[f"{curtain.id}:mullion:{idx}"] = member.GlobalId
+
+        pset(
+            product,
+            {
+                "Id": curtain.id,
+                "Weight": round(layout.weight_per_m2, 3),
+                "PanelCount": len(layout.panels),
+                "MullionCount": len(layout.mullions),
+                "MullionSpacing": float(kind.mullionSpacing),
+                "TransomSpacing": float(kind.transomSpacing),
+            },
+        )
+
+    ceiling_types = {t.id: t for t in arch.ceilingTypes}
+    for ceiling in arch.ceilings:
+        if ceiling.story not in elevations:
+            skipped.append(f"{ceiling.id}: no story '{ceiling.story}' in the building model")
+            continue
+        poly = ceiling_polygon(arch, ceiling, elevations)
+        if poly is None or poly.is_empty:
+            skipped.append(f"{ceiling.id}: its room or outline has no area")
+            continue
+        kind = ceiling_types[ceiling.type]
+        level = elevations[ceiling.story]
+        part_polys = list(poly.geoms) if poly.geom_type == "MultiPolygon" else [poly]
+        part = max(part_polys, key=lambda g: g.area)
+        outer = [(x * _SI, y * _SI) for x, y in list(part.exterior.coords)]
+        holes = [[(x * _SI, y * _SI) for x, y in list(ring.coords)] for ring in part.interiors]
+        profile = (
+            w.run(
+                "profile.add_arbitrary_profile_with_voids",
+                w.file,
+                outer_profile=outer,
+                inner_profiles=holes,
+                name=ceiling.id,
+            )
+            if holes
+            else w.run("profile.add_arbitrary_profile", w.file, profile=outer, name=ceiling.id)
+        )
+        covering = w.entity("IfcCovering", ceiling.id, f"arch:{ceiling.id}", "CEILING")
+        covering.Tag = ceiling.id
+        covering.ObjectType = kind.id
+        covering.Description = kind.name
+        w.extrusion(covering, profile, kind.thickness, None)
+        w.place(covering, _placement((0, 0, level + ceiling.height), (1, 0, 0), (0, 0, 1)))
+        contain(covering, ceiling.story, level)
+        if ceiling.room and spaces and ceiling.room in spaces:
+            rel = w.file.create_entity(
+                "IfcRelCoversSpaces",
+                GlobalId=_guid(f"covers:ceiling:{ceiling.id}"),
+                RelatingSpace=spaces[ceiling.room],
+                RelatedCoverings=[covering],
+            )
+            if w.is_ifc2x3:
+                rel.OwnerHistory = w.owner_history
+        pset(
+            covering,
+            {
+                "Id": ceiling.id,
+                "Type": kind.id,
+                "Height": float(ceiling.height),
+                "Room": ceiling.room or "",
+                "Area": round(poly.area / 1e6, 3),
+            },
+        )
+        ids[ceiling.id] = covering.GlobalId
 
     railing_types = {t.id: t for t in arch.railingTypes}
     for railing in arch.railings:
@@ -431,24 +683,70 @@ def _export_extras(
         if polygon.is_empty or polygon.geom_type != "Polygon":
             skipped.append(f"{roof.id}: its outline is not one polygon")
             continue
+        geom = roof_geometry(roof)
+        thickness = float(roof.thickness if roof.thickness is not None else kind.thickness)
         level = elevations[roof.story] + roof.baseOffset
         product = w.entity(
-            "IfcRoof", roof.id, f"arch:{roof.id}", "SHED_ROOF" if roof.slope else "FLAT_ROOF"
+            "IfcRoof", roof.id, f"arch:{roof.id}", _ROOF_IFC_TYPE.get(geom.kind, "FREEFORM")
         )
         product.Tag = roof.id
         product.ObjectType = kind.id
         product.Description = kind.name
-        outline = [(x * _SI, y * _SI) for x, y in list(polygon.exterior.coords)]
-        profile = w.run("profile.add_arbitrary_profile", w.file, profile=outline, name=roof.id)
-        w.extrusion(product, profile, kind.thickness, None)
         w.place(product, _placement((0, 0, level), (1, 0, 0), (0, 0, 1)))
         contain(product, roof.story, level)
+
+        for idx, face in enumerate(geom.faces, start=1):
+            pts3 = [np.array([x, y, level + z], dtype=float) for x, y, z in face.vertices]
+            if len(pts3) < 3:
+                continue
+            origin = pts3[0]
+            n = np.array(face.normal, dtype=float)
+            n /= np.linalg.norm(n)
+            u = pts3[1] - origin
+            u = u - np.dot(u, n) * n
+            if np.linalg.norm(u) < 1e-6:
+                u = pts3[2] - origin
+                u = u - np.dot(u, n) * n
+            u /= np.linalg.norm(u)
+            v = np.cross(n, u)
+            flat = [(float((p - origin) @ u) * _SI, float((p - origin) @ v) * _SI) for p in pts3]
+            slab = w.entity(
+                "IfcSlab", f"{roof.id} face {idx}", f"arch:{roof.id}:face:{idx}", "ROOF"
+            )
+            slab.Tag = f"{roof.id}-{idx}"
+            slab.ObjectType = kind.id
+            slab.Description = f"{kind.name} ({face.slope:g}°)"
+            profile = w.run(
+                "profile.add_arbitrary_profile",
+                w.file,
+                profile=[*flat, flat[0]],
+                name=f"{roof.id}:{idx}",
+            )
+            w.extrusion(slab, profile, thickness, None)
+            w.run("aggregate.assign_object", w.file, products=[slab], relating_object=product)
+            w.place(slab, _placement(tuple(origin), tuple(u), tuple(n)))
+            pset(
+                slab,
+                {
+                    "Id": roof.id,
+                    "Face": idx,
+                    "Slope": round(face.slope, 3),
+                    "PlanArea": round(face.plan_area / 1e6, 3),
+                    "SlopedArea": round(face.sloped_area / 1e6, 3),
+                },
+            )
+            ids[f"{roof.id}:face:{idx}"] = slab.GlobalId
+
         pset(
             product,
             {
                 "Id": roof.id,
+                "Kind": geom.kind,
                 "Slope": float(roof.slope),
                 "Direction": float(roof.direction),
+                "Overhang": float(roof.overhang),
+                "PlanArea": round(geom.plan_area / 1e6, 3),
+                "SlopedArea": round(geom.sloped_area / 1e6, 3),
                 "Occupancy": roof.occupancy or "",
             },
         )
@@ -1074,9 +1372,13 @@ def architecture_summary(arch: Architecture) -> dict[str, int]:
         "windows": len(arch.windows),
         "rooms": len(arch.rooms),
         "curtainWalls": len(arch.curtainWalls),
+        "ceilings": len(arch.ceilings),
         "roofs": len(arch.roofs),
         "ramps": len(arch.ramps),
         "railings": len(arch.railings),
+        "components": len(arch.components),
+        "masses": len(arch.masses),
+        "inPlaceElements": len(arch.inPlaceElements),
     }
 
 

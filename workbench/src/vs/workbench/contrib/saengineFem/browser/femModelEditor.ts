@@ -43,18 +43,19 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, EditorFrame, IEditorFrameStatus } from '../../saengineProject/browser/editorFrame.js';
-import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { FemDerivation, IFemDeriveOutcome, IFemWindSummary } from './femDerivationBar.js';
 import { DESIGN_REINFORCEMENT_COMMAND, designKindLabel, IFemDesignReport, sortedChecks } from './femDesign.js';
 import { FemModelEditorInput } from './femModelEditorInput.js';
 import { appendPlannedChips, FemPlanned } from './femPlannedFeatures.js';
-import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
+import { errorSummary, FEM_RUN_CASES_COMMAND, FEM_SHOW_CHARTS_COMMAND, FEM_SHOW_LOG_COMMAND, FEM_SHOW_MEMBER_COMMAND, FemDisplayShow, FemResultsBar, IFemRun, IFemRunOptions, IFemRunOutcome, IFemRunTracker } from './femResultsBar.js';
 import { baseReactionTable, displayTable, exportCell, FEM_STORY_RESPONSE_COMMAND, filterRows, formatCell, IFemSheet, IFemStoryResponse, modalTable, sortRows, storeyTable, supportReactions } from './femChartData.js';
 import { renderSheetRows } from './femChart.js';
 import { jointGoverning, jointGoverningName, jointHeading, jointOk, jointsOf } from './femSeismicDetailing.js';
 import { chartUnits } from './femResultsView.js';
 import { cameraOf, FemViewChoice, formatPlanPath, freeTopColumns, gridLines, IFilterModel, parsePlanPath, perimeterPath, viewChoices, visibleElements } from './femViewFilter.js';
 import { loadViewerModule } from './viewerModule.js';
+import { femViewerTarget, ViewerTools } from './viewerTools.js';
 import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { memberGroupOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
@@ -701,7 +702,6 @@ export function measureText(mode: Exclude<FemMeasureMode, 'off'>, m: FemMeasurem
 export class FemModelEditor extends EditorPane {
 
 	private frame: EditorFrame | undefined;
-	private titleText: HTMLElement | undefined;
 	private viewport: HTMLElement | undefined;
 	private legend: HTMLElement | undefined;
 	private empty: HTMLElement | undefined;
@@ -710,6 +710,8 @@ export class FemModelEditor extends EditorPane {
 	private tablesVisible = false;
 	private tablesVersion = -1;
 	private viewer: FemViewer | undefined;
+	private viewTools: ViewerTools | undefined;
+	private restoredResourceKey: string | undefined;
 	private derivation: FemDerivation | undefined;
 	private results: FemResultsBar | undefined;
 	/** The result drawn over the model, kept for a viewer created later. */
@@ -728,29 +730,29 @@ export class FemModelEditor extends EditorPane {
 	/** What the "Out of date" pill says, to build it again only when that changes. */
 	private pillKey: string | undefined;
 
-	private readonly deriveAction = this._register(new Action('saengine.fem.editor.derive', localize('femEditor.derive', "Derive from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.derive()));
-	private readonly deriveAgainAction = this._register(new Action('saengine.fem.editor.deriveAgain', localize('femEditor.deriveAgain', "Derive Again"), undefined, true, () => this.derive()));
-	private readonly runAction = this._register(new Action('saengine.fem.editor.run', localize('femEditor.run', "Run Analysis"), ThemeIcon.asClassName(Codicon.play), true, () => this.running ? this.running.cancel() : this.run({})));
-	private readonly runSelectedAction = this._register(new Action('saengine.fem.editor.runSelected', localize('femEditor.runSelected', "Run Selected Cases..."), undefined, true, () => this.run({ pick: true })));
-	private readonly designAction = this._register(new Action('saengine.fem.editor.design', localize('femEditor.design', "Design Utilisation"), ThemeIcon.asClassName(Codicon.checklist), true, async () => this.results?.toggleDesign()));
-	private readonly reinforceAction = this._register(new Action('saengine.fem.editor.designReinforcement', localize('femEditor.designReinforcement', "Design Reinforcement"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => {
+	private readonly deriveAction = this._register(new Action('saengine.fem.deriveModel', localize('femEditor.derive', "Derive from Building Model"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.derive()));
+	private readonly deriveAgainAction = this._register(new Action('saengine.fem.deriveModel', localize('femEditor.deriveAgain', "Derive Again"), undefined, true, () => this.derive()));
+	private readonly runAction = this._register(new Action('saengine.fem.runAnalysis', localize('femEditor.run', "Run Analysis"), ThemeIcon.asClassName(Codicon.play), true, () => this.running ? this.running.cancel() : this.run({})));
+	private readonly runSelectedAction = this._register(new Action('saengine.fem.runSelectedCases', localize('femEditor.runSelected', "Run Selected Cases..."), undefined, true, () => this.run({ pick: true })));
+	private readonly designAction = this._register(new Action('saengine.fem.toggleDesignUtilisation', localize('femEditor.design', "Design Utilisation"), ThemeIcon.asClassName(Codicon.checklist), true, async () => this.results?.toggleDesign()));
+	private readonly reinforceAction = this._register(new Action('saengine.fem.designReinforcement', localize('femEditor.designReinforcement', "Design Reinforcement"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => {
 		const resource = this.resource;
 		if (resource) {
 			await this.commandService.executeCommand(DESIGN_REINFORCEMENT_COMMAND, resource);
 		}
 	}));
-	private readonly chartsAction = this._register(new Action('saengine.fem.editor.charts', localize('femEditor.charts', "Analysis Charts"), ThemeIcon.asClassName(Codicon.graph), true, async () => {
+	private readonly chartsAction = this._register(new Action('saengine.fem.showCharts', localize('femEditor.charts', "Analysis Charts"), ThemeIcon.asClassName(Codicon.graph), true, async () => {
 		const resource = this.resource;
 		if (resource) {
 			await this.commandService.executeCommand(FEM_SHOW_CHARTS_COMMAND, resource);
 		}
 	}));
-	private readonly tablesAction = this._register(new Action('saengine.fem.editor.tables', localize('femEditor.tables', "Result Tables"), ThemeIcon.asClassName(Codicon.table), true, async () => this.setTablesVisible(!this.tablesVisible)));
-	private readonly exportAction = this._register(new Action('saengine.fem.editor.export', localize('femEditor.export', "Export Result Tables..."), undefined, true, () => this.exportTables()));
-	private readonly showLogAction = this._register(new Action('saengine.fem.editor.showLog', localize('femEditor.showLog', "Show Log"), undefined, true, () => this.commandService.executeCommand(FEM_SHOW_LOG_COMMAND)));
-	private readonly fitAction = this._register(new Action('saengine.fem.editor.fit', localize('femEditor.fit', "Zoom to Fit"), undefined, true, async () => this.viewer?.fit()));
+	private readonly tablesAction = this._register(new Action('saengine.fem.toggleTables', localize('femEditor.tables', "Result Tables"), ThemeIcon.asClassName(Codicon.table), true, async () => this.setTablesVisible(!this.tablesVisible)));
+	private readonly exportAction = this._register(new Action('saengine.fem.exportResultTables', localize('femEditor.export', "Export Result Tables..."), undefined, true, () => this.exportTables()));
+	private readonly showLogAction = this._register(new Action('saengine.fem.showLog', localize('femEditor.showLog', "Show Log"), undefined, true, () => this.commandService.executeCommand(FEM_SHOW_LOG_COMMAND)));
+	private readonly fitAction = this._register(new Action('saengine.fem.fitView', localize('femEditor.fit', "Zoom to Fit"), undefined, true, async () => this.viewer?.fit()));
 	/** The mesh's own nodes (inside members split into pieces, of the wall and slab meshes): hidden unless asked for. */
-	private readonly meshNodesAction = this._register(new Action('saengine.fem.editor.meshNodes', localize('femEditor.meshNodes', "Show Mesh Nodes"), undefined, true, async () => {
+	private readonly meshNodesAction = this._register(new Action('saengine.fem.toggleMeshNodes', localize('femEditor.meshNodes', "Show Mesh Nodes"), undefined, true, async () => {
 		this.meshNodesAction.checked = !this.meshNodesAction.checked;
 		this.viewer?.setMeshNodes(!!this.meshNodesAction.checked);
 	}));
@@ -760,7 +762,7 @@ export class FemModelEditor extends EditorPane {
 		angle: this._register(new Action('saengine.fem.editor.measureAngle', localize('femEditor.measureAngle', "Measure Angle"), undefined, true, async () => this.setMeasureMode('angle'))),
 		area: this._register(new Action('saengine.fem.editor.measureArea', localize('femEditor.measureArea', "Measure Area"), undefined, true, async () => this.setMeasureMode('area'))),
 	};
-	private readonly exportAnimationAction = this._register(new Action('saengine.fem.editor.exportAnimation', localize('femEditor.exportAnimation', "Export Animation..."), undefined, true, () => this.exportAnimation()));
+	private readonly exportAnimationAction = this._register(new Action('saengine.fem.exportAnimation', localize('femEditor.exportAnimation', "Export Animation..."), undefined, true, () => this.exportAnimation()));
 	private measureMode: FemMeasureMode = 'off';
 	private measurement: FemMeasurement | undefined;
 	/** The plan path of the custom developed elevation, once given. */
@@ -777,7 +779,7 @@ export class FemModelEditor extends EditorPane {
 	private femModel: FemModel | undefined;
 	private selection: FemSelection | undefined;
 	/** The View picker: the whole model, a plan, an elevation or a storey. */
-	private viewPicker: SelectBox | undefined;
+	private viewControl: RibbonSelectModel | undefined;
 	private views: { readonly choice: FemViewChoice; readonly label: string }[] = [];
 	private view: FemViewChoice = { kind: 'all' };
 
@@ -800,7 +802,6 @@ export class FemModelEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFemRunTracker private readonly runTracker: IFemRunTracker,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,
@@ -827,12 +828,17 @@ export class FemModelEditor extends EditorPane {
 			properties: { title: localize('femEditor.properties', "Properties") },
 		}));
 		frame.element.classList.add('saengine-fem-model-editor');
-		this.titleText = append(frame.titleSlot, $('span.sa-frame-title-text', undefined, localize('femEditor.title', "Analysis Model")));
-		// The model view's Plan | 3D | Analysis switch; the View picker shows the analysis model's plans and elevations.
-		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'analysis')));
-
+		frame.setTitle(localize('femEditor.title', "Analysis Model"));
 		const view = append(frame.main, $('.fem-view'));
 		this.viewport = append(view, $('.viewport', { tabIndex: 0 }));
+		this.viewTools = this._register(this.instantiationService.createInstance(ViewerTools, {
+			viewId: 'fem',
+			target: femViewerTarget(() => this.viewer, () => this.nodeCount > 0),
+			overlayParent: view,
+			keyTarget: this.viewport,
+			extraMeasureActions: [this.measureActions.angle, this.measureActions.area],
+			onDidChangeActions: () => this.updateChrome(),
+		}));
 		this.legend = append(view, $('.fem-legend'));
 		this.empty = append(view, $('.fem-empty'));
 		this.message = append(view, $('.message'));
@@ -849,12 +855,21 @@ export class FemModelEditor extends EditorPane {
 			run: () => void this.run({}),
 		}));
 		// What part of the model to look at, as ETABS's plan and elevation views.
-		const viewGroup = append(frame.titleSlot, $('.fem-results-group.view'));
-		const viewPicker = this.viewPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femEditor.viewAria', "Part of the model shown: the whole model, a plan, an elevation or one storey") }));
-		viewPicker.render(append(viewGroup, $('.fem-results-select.view')));
-		this._register(viewPicker.onDidSelect(({ index }) => index === this.views.length
-			? void this.askDevelopedPath() // the last entry: "Developed Elevation: Custom Path..."
-			: this.setView(this.views[index]?.choice ?? { kind: 'all' })));
+		const viewControl = this.viewControl = this._register(new RibbonSelectModel({
+			id: 'saengine.fem.view',
+			label: localize('femEditor.viewLabel', "View"),
+			ariaLabel: localize('femEditor.viewAria', "Part of the model shown: the whole model, a plan, an elevation or one storey"),
+			width: 'wide',
+		}));
+		this._register(frame.addViewControl(viewControl));
+		this._register(viewControl.onDidSelect(({ id }) => {
+			if (id === '__custom__') {
+				void this.askDevelopedPath();
+				return;
+			}
+			const index = Number(id);
+			this.setView(this.views[index]?.choice ?? { kind: 'all' });
+		}));
 		this._register(this.onDidChangeSelection(selection => {
 			this.selection = selection;
 			this.results?.setSelection(selection);
@@ -878,6 +893,7 @@ export class FemModelEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this.inputDisposables.clear();
 		this.lastDerivation = undefined;
+		this.restoredResourceKey = undefined;
 		this.modelRead = false;
 		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
@@ -1096,7 +1112,6 @@ export class FemModelEditor extends EditorPane {
 		const hasResults = results.hasResults;
 
 		// Toolbar
-		this.titleText?.classList.toggle('hidden', hasResults);
 		this.deriveAction.enabled = this.deriveAgainAction.enabled = !derivation.deriving && !this.running;
 		this.deriveAction.label = state?.derived ? localize('femEditor.deriveAgainLong', "Derive Again from Building Model") : localize('femEditor.derive', "Derive from Building Model");
 		this.runAction.label = this.running ? localize('femEditor.stop', "Stop Analysis") : localize('femEditor.run', "Run Analysis");
@@ -1110,7 +1125,16 @@ export class FemModelEditor extends EditorPane {
 		this.chartsAction.enabled = hasResults;
 		this.tablesAction.checked = this.tablesVisible;
 		this.exportAction.enabled = hasResults;
-		const primary: IAction[] = [...(stale ? [this.deriveAction] : []), this.runAction, this.chartsAction, this.designAction, this.reinforceAction, this.tablesAction, frame.togglePropertiesAction];
+		const primary: IAction[] = [
+			...(stale ? [this.deriveAction] : []),
+			this.runAction,
+			this.chartsAction,
+			this.designAction,
+			this.reinforceAction,
+			this.tablesAction,
+			...(this.viewTools?.primaryActions() ?? []),
+			frame.togglePropertiesAction,
+		];
 		const secondary: IAction[] = [
 			this.runSelectedAction,
 			...(state && !stale ? [this.deriveAgainAction] : []),
@@ -1121,9 +1145,11 @@ export class FemModelEditor extends EditorPane {
 			this.fitAction,
 			this.meshNodesAction,
 			new Separator(),
-			this.measureActions.distance,
-			this.measureActions.angle,
-			this.measureActions.area,
+			...(this.viewTools ? this.viewTools.secondaryActions() : [
+				this.measureActions.distance,
+				this.measureActions.angle,
+				this.measureActions.area,
+			]),
 			this.exportAnimationAction,
 		];
 		for (const [mode, action] of Object.entries(this.measureActions)) {
@@ -1492,11 +1518,18 @@ export class FemModelEditor extends EditorPane {
 			}
 			const viewer = createFemViewer(this.viewport, {
 				theme: this.computeTheme(),
-				onSelectionChanged: selection => this._onDidChangeSelection.fire(selection),
+				onSelectionChanged: selection => {
+					this._onDidChangeSelection.fire(selection);
+					this.viewTools?.onSelectionChanged();
+				},
 				onMeasure: measurement => {
 					this.measurement = measurement;
 					this.updateChrome();
 				},
+				onMeasureChanged: (entries, status) => this.viewTools?.onMeasureChanged(entries, status),
+				onSectionChanged: state => this.viewTools?.onSectionChanged(state),
+				onSectionPickModeChanged: picking => this.viewTools?.onSectionPickModeChanged(picking),
+				onVisibilityChanged: (state, summary) => this.viewTools?.onVisibilityChanged(state, summary),
 			});
 			this.viewer = viewer;
 			viewer.setMeshNodes(!!this.meshNodesAction.checked);
@@ -1554,6 +1587,13 @@ export class FemModelEditor extends EditorPane {
 		this.results?.setModel(model);
 		this.viewer?.setModel(displayModel(model as unknown as IFemModelNodes) as unknown as FemModel);
 		this.updateViews(model as unknown as IFilterModel);
+		const key = input.resource.toString();
+		if (key !== this.restoredResourceKey) {
+			this.restoredResourceKey = key;
+			void this.viewTools?.restoreForResource(key);
+		} else {
+			this.viewTools?.syncState();
+		}
 		if (wasEmpty && this.nodeCount) {
 			// A model derived into an empty file: frame it (the first fit framed nothing).
 			void this.viewer?.fit();
@@ -1569,10 +1609,10 @@ export class FemModelEditor extends EditorPane {
 		this.views = viewChoices(model, undefined, this.customPath);
 		const key = JSON.stringify(this.view);
 		const index = Math.max(0, this.views.findIndex(v => JSON.stringify(v.choice) === key));
-		this.viewPicker?.setOptions([
-			...this.views.map<ISelectOptionItem>(v => ({ text: v.label })),
-			{ text: localize('femEditor.developedCustomPath', "Developed Elevation: Custom Path...") },
-		], index);
+		this.viewControl?.setItems([
+			...this.views.map((v, i) => ({ id: String(i), label: v.label })),
+			{ id: '__custom__', label: localize('femEditor.developedCustomPath', "Developed Elevation: Custom Path...") },
+		], String(index));
 		this.applyView(this.views[index]?.choice ?? { kind: 'all' }, false);
 	}
 
@@ -1715,5 +1755,50 @@ export class FemModelEditor extends EditorPane {
 			warn: color(chartsOrange),
 			fail: color(chartsRed),
 		};
+	}
+
+	deriveModel(): Promise<void> {
+		return this.derive();
+	}
+
+	toggleMeshNodes(): void {
+		this.meshNodesAction.checked = !this.meshNodesAction.checked;
+		this.viewer?.setMeshNodes(!!this.meshNodesAction.checked);
+	}
+
+	fitView(): void {
+		this.viewer?.fit();
+	}
+
+	setResultDisplay(show: FemDisplayShow): void {
+		this.results?.setShow(show);
+	}
+
+	toggleDesignUtilisation(): void {
+		this.results?.toggleDesign();
+	}
+
+	toggleTables(): void {
+		this.setTablesVisible(!this.tablesVisible);
+	}
+
+	exportResultTables(): Promise<void> {
+		return this.exportTables();
+	}
+
+	exportResultAnimation(): Promise<void> {
+		return this.exportAnimation();
+	}
+
+	toggleSectionBox(): Promise<void> {
+		return this.viewTools?.toggleSectionBox() ?? Promise.resolve();
+	}
+
+	toggleMeasure(): Promise<void> {
+		return this.viewTools?.toggleMeasurePanel() ?? Promise.resolve();
+	}
+
+	toggleRevealHidden(): Promise<void> {
+		return this.viewTools?.toggleRevealHidden() ?? Promise.resolve();
 	}
 }

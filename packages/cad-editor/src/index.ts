@@ -8,14 +8,43 @@ import { AcDbSystemVariables, AcDbSysVarManager } from '@mlightcad/data-model';
 import { applyGenerated, CadGeneratedDrawing, CadPoint, dxfOut, DxfOutOptions } from './generated.js';
 import { entityToSelectedGeometry, polylineVertices, type CadSelectedEntity } from './entityAccess.js';
 import { greyDxf } from './underlay.js';
-import { alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, stretchCommand, trimCommand } from './commands.js';
+import { alignCommand, arrayPathCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, registerCommand, scaleCommand, setGlobalReadFile, stretchCommand, trimCommand } from './commands.js';
 import { areaCommand, divideCommand, distCommand, idCommand, listCommand, measureCommand, measureGeomCommand } from './inquiryCommands.js';
+import { unitsCommand } from './unitsCommands.js';
 import { registerAnnotationCommands } from './annotationCommands.js';
 import { boundaryCommand, hatchCommand, hatchEditCommand, registerHatchCommands } from './hatchCommands.js';
 import { registerDimensionCommands } from './dimensionCommands.js';
 import { registerBlockCommands } from './blockCommands.js';
+import {
+	toDxf, getActiveBlockEditorSession, getActiveBlockEditingInfo, onDidChangeBlockEditorSession,
+} from './blockEditor.js';
 import { registerDrawCommands } from './drawCommands.js';
+import { peditCommand, splineditCommand, overkillCommand, registerPolyEditCommands } from './polyEditCommands.js';
+import { registerAnnotateGapsCommands } from './annotateGapsCommands.js';
+import { registerArrayCommands, arrayCommand, arrayEditCommand, arrayCloseCommand } from './arrayCommands.js';
+import { registerFindCommands, findCommand } from './findCommands.js';
+import { registerFieldCommands, fieldCommand, updatefieldCommand, updateDrawingFields } from './fieldCommands.js';
+import { registerDimensionEditCommands } from './dimensionEditCommands.js';
 import { registerGripCommands, setActiveGripContext } from './gripEdit.js';
+import { registerConstraintCommands } from './constraintCommands.js';
+import { loadConstraintsFromDatabase } from './constraintModel.js';
+import {
+	registerStylesAuditCommands, dataExtraction, type CadDataExtractionOptions,
+	auditDrawing, mlstyleCommand, tablestyleCommand, mleaderstyleCommand,
+	auditCommand, recoverCommand, dataextractionCommand, laywalkCommand,
+	getCurrentTableStyle, setCurrentTableStyle, setTableStyle, type CadTableStyle,
+} from './stylesAuditCommands.js';
+
+/** The library's commands that move geometry, after which constraints are re-solved. */
+const LIBRARY_EDITS_TO_RESOLVE = new Set(['MOVE', 'ROTATE', 'SCALE', 'MIRROR', 'OFFSET', 'COPY']);
+
+function hasConstraints(db: unknown): boolean {
+	try {
+		return loadConstraintsFromDatabase(db as never).constraints.length > 0;
+	} catch {
+		return false;
+	}
+}
 import {
 	DraftingAidsManager, DraftingSettings, registerDraftingCommands,
 	setActiveDraftingManager,
@@ -23,7 +52,7 @@ import {
 import {
 	filterSelection, getPreviousSelection, setPreviousSelection, type SelectionFilters,
 } from './selectionModes.js';
-import { pickDrafting, pickDraftingWindow } from './selectionGeometry.js';
+import { pickDrafting, pickDraftingAll, pickDraftingPolygon, pickDraftingWindow, type CadDraftingHit } from './selectionGeometry.js';
 import {
 	ensureLayer, setCurrentLayer, listLayers, setLayer, deleteLayer, mergeLayers,
 	layerCommand, laycurCommand, layisoCommand, layunisoCommand, layoffCommand, layfrzCommand,
@@ -32,8 +61,9 @@ import {
 } from './layerCommands.js';
 import {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
-	colorCommand, lweightCommand, chpropCommand,
+	colorCommand, lweightCommand, chpropCommand, friendlyTypeName,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
+	type CadEntitySummary,
 } from './properties.js';
 import {
 	ACADISO_LINETYPES, createLinetypeRecord, loadBuiltinLinetype,
@@ -49,6 +79,7 @@ export {
 } from './layerCommands.js';
 export {
 	getProperties, setProperties, formatColor, parseColor, formatLineweight, parseLineweight,
+	friendlyTypeName, type CadEntitySummary,
 	type CadPropertiesResult, type CadPropertiesPatch, type CadColorValue, type CadLineweightValue,
 	colorCommand, lweightCommand, chpropCommand,
 } from './properties.js';
@@ -66,7 +97,7 @@ export { entityToSelectedGeometry, type CadSelectedEntity } from './entityAccess
 export { dxfOut } from './generated.js';
 export { setTrustedTypesHost, type TrustedTypesHost } from './trustedTypes.js';
 export {
-	alignCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
+	alignCommand, arrayPathCommand, arrayPolarCommand, arrayRectCommand, breakAtPointCommand, breakCommand, chamferCommand, explodeCommand, extendCommand, filletCommand, joinCommand, lengthenCommand, mirrorCommand, mirrorPoint, registerCommand, scaleCommand, stretchCommand, trimCommand,
 	type CadCommandContext, type CadCommandOptions, type CadEntityPickResult, type CadPoint3, type CadPointPickResult, type CadPromptEntityOptions, type CadPromptPointOptions, type CadSelection,
 } from './commands.js';
 export * from './modifyGeometry.js';
@@ -88,15 +119,35 @@ export {
 } from './hatchGeometry.js';
 export { polylineVertices, type PolylineData } from './entityAccess.js';
 export * from './dimensionCommands.js';
+export {
+	linePath, arcPath, circlePath, polylinePath, sampledPolylinePath, ellipsePath,
+	createPathCurveFromEntity, computePathArrayTransforms,
+	type PathPointAndTangent, type PathCurve, type PathArrayOptions, type PathArrayTransform,
+} from './pathGeometry.js';
+export * from './unitsFormat.js';
+export * from './unitsCommands.js';
 export * from './dimensionGeometry.js';
+export * from './dimensionEditCommands.js';
+export * from './arrayCommands.js';
+export * from './findCommands.js';
+export * from './fieldCommands.js';
+export * from './fieldEval.js';
 export * from './drawCommands.js';
 export * from './drawGeometry.js';
+export * from './blockCommands.js';
+export * from './blockEditor.js';
+export * from './xrefCommands.js';
+export * from './dynamicBlocks.js';
+export * from './regionGeometry.js';
+export * from './annotateGapsCommands.js';
+export * from './stylesAuditCommands.js';
 export {
 	rotateGripPoint, scaleGripPoint, mirrorGripPoint, mirrorPoint2D,
 	addPolylineVertex, removePolylineVertex, convertSegmentToArc, segmentToArcBulge,
 	type GripPoint2D,
 } from './gripGeometry.js';
 export * from './gripEdit.js';
+export { spaceActsAsEnter, installSpaceAsEnter, type SpaceKeyEvent } from './spaceAsEnter.js';
 export type { DraftingSettings, OsnapOverrideKeyword } from './draftingAids.js';
 export {
 	DraftingAidsManager, DEFAULT_OSNAP_MODES_MASK, OSNAP_ALL_MODES,
@@ -109,6 +160,25 @@ export {
 	orthoConstraint, snapToGrid, geometricCenter,
 	type DraftingPoint2D, type DraftingPoint3D,
 } from './draftingAidsGeometry.js';
+export {
+	arcBulgeForSegment,
+	bSplinePoint,
+	bSplinePolyline,
+	circleFrom3Points,
+	findDuplicateEntities,
+	fitArcBulges,
+	joinPolylineChains,
+	mergeCollinearLines,
+	removeDuplicateVertices,
+	type ArcFitResult,
+	type ChainSegment2D,
+	type CollinearLine,
+	type PolyPoint2D,
+} from './polyEditGeometry.js';
+export * from './polyEditCommands.js';
+export * from './constraintModel.js';
+export * from './constraintSolver.js';
+export * from './constraintCommands.js';
 
 /** An underlay sits this far below the drawing's plane [drawing units], so the model's linework draws over it. */
 const UNDERLAY_DEPTH = -1;
@@ -128,6 +198,8 @@ export interface CadEditorOptions {
 	readonly chrome?: CadChrome;
 	/** Canvas background as 0xRRGGBB (default: black). ACI 7 linework turns black on light ones. */
 	readonly background?: number;
+	/** Optional host callback to read file contents as string (used by XREF Attach / Reload). */
+	readonly readFile?: (path: string) => Promise<string>;
 }
 
 /** mlightcad's own controls over the canvas. */
@@ -208,6 +280,14 @@ export interface CadEditor {
 	zoomExtents(): void;
 	/** The drawing as DXF text (AutoCAD 2018 format). */
 	toDxf(options?: ToDxfOptions): string;
+	/**
+	 * Active block editing session (BEDIT or REFEDIT), if any.
+	 */
+	blockEditing(): { mode: 'bedit' | 'refedit'; blockName: string } | undefined;
+	/**
+	 * Called when entering or exiting a BEDIT or REFEDIT session; returns an unsubscribe function.
+	 */
+	onDidChangeBlockEditing(listener: (session: { mode: 'bedit' | 'refedit'; blockName: string } | undefined) => void): () => void;
 	/** Runs an AutoCAD-style command, e.g. "line" or "dimlinear". */
 	execute(command: string): Promise<void>;
 	/** Whether an interactive CAD command is currently active. */
@@ -216,8 +296,16 @@ export interface CadEditor {
 	getSelectedEntities(): readonly CadSelectedEntity[];
 	/** Ids of non-generated, non-locked, visible entities whose geometry is within tolerancePx (screen) of the point, nearest first. */
 	pickDrafting(clientX: number, clientY: number, tolerancePx?: number): string[];
+	/** All hits of non-generated, non-locked, visible entities within tolerancePx of the point, nearest first. */
+	pickDraftingAll(clientX: number, clientY: number, tolerancePx?: number): CadDraftingHit[];
 	/** Ids of non-generated, non-locked, visible entities matching a window or crossing box selection. */
 	pickDraftingWindow(start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[];
+	/** Ids of non-generated, non-locked, visible entities matching a polygon boundary (window, crossing, or fence). */
+	pickDraftingPolygon(points: readonly CadPoint[], mode?: 'window' | 'crossing' | 'fence'): string[];
+	/** Gets a system variable value (e.g. LASSO, SELECTIONCYCLING). */
+	getSysVar(name: string): number;
+	/** Sets a system variable value. */
+	setSysVar(name: string, value: number): void;
 	/** Erases entities by handle from the drawing in an undoable transaction and clears selection. */
 	eraseEntities(handles: readonly string[]): void;
 	/** Sets the canvas background (0xRRGGBB); ACI 7 linework follows it (black on light, white on dark). */
@@ -255,6 +343,8 @@ export interface CadEditor {
 		get(ids?: readonly string[]): CadPropertiesResult;
 		set(ids: readonly string[], patch: CadPropertiesPatch): void;
 	};
+	/** Extracts properties from drawing entities or specified entities as a CSV string. */
+	dataExtraction(options?: CadDataExtractionOptions): string;
 	dispose(): Promise<void>;
 }
 
@@ -272,10 +362,14 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	if (!manager) {
 		throw new Error('A CAD editor is already open; close it first.');
 	}
+	setGlobalReadFile(options.readFile);
 	registerCommand('MIRROR', mirrorCommand);
 	registerCommand('SCALE', scaleCommand);
-	registerCommand('ARRAYRECT', arrayRectCommand, { aliases: ['AR'] });
+	registerCommand('ARRAYRECT', arrayRectCommand);
 	registerCommand('ARRAYPOLAR', arrayPolarCommand);
+	registerCommand('ARRAYPATH', arrayPathCommand);
+	registerCommand('UNITS', unitsCommand, { aliases: ['-UNITS', 'UN'] });
+	registerCommand('-UNITS', unitsCommand);
 	registerCommand('BREAK', breakCommand);
 	registerCommand('BREAKATPOINT', breakAtPointCommand);
 	registerCommand('JOIN', joinCommand);
@@ -334,10 +428,16 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 		ctx.message(`${ids.length} object(s) selected`);
 	});
 	registerAnnotationCommands();
+	registerStylesAuditCommands();
 	registerHatchCommands();
 	registerDimensionCommands();
 	registerBlockCommands();
 	registerDrawCommands();
+	registerPolyEditCommands();
+	registerAnnotateGapsCommands();
+	registerArrayCommands();
+	registerFindCommands();
+	registerFieldCommands();
 	registerCommand('LAYER', layerCommand, { aliases: ['-LAYER', 'LA', '-LA'] });
 	registerCommand('-LAYER', layerCommand);
 	registerCommand('LAYCUR', laycurCommand);
@@ -358,6 +458,35 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	registerCommand('LTSCALE', ltscaleCommand);
 	registerCommand('CELTSCALE', celtscaleCommand);
 	registerGripCommands(registerCommand);
+	registerConstraintCommands(registerCommand);
+
+	const sysVars = AcDbSysVarManager.instance();
+	try {
+		sysVars.registerVar({ name: 'lasso', type: 'number', isDbVar: false, defaultValue: 1 });
+	} catch { /* ignore */ }
+	try {
+		sysVars.registerVar({ name: 'selectioncycling', type: 'number', isDbVar: false, defaultValue: 2 });
+	} catch { /* ignore */ }
+
+	registerCommand('LASSO', async ctx => {
+		const current = ctx.database.native ? sysVars.getVar('LASSO', ctx.database.native) : 1;
+		const val = await ctx.getInteger(`Enter new value for LASSO <${current}>:`, { min: 0 });
+		if (val === 0 || val === 1) {
+			if (ctx.database.native) sysVars.setVar('LASSO', val, ctx.database.native);
+		} else {
+			ctx.message('Requires 0 or 1.');
+		}
+	});
+
+	registerCommand('SELECTIONCYCLING', async ctx => {
+		const current = ctx.database.native ? sysVars.getVar('SELECTIONCYCLING', ctx.database.native) : 2;
+		const val = await ctx.getInteger(`Enter new value for SELECTIONCYCLING <${current}>:`, { min: 0 });
+		if (val >= 0 && val <= 2) {
+			if (ctx.database.native) sysVars.setVar('SELECTIONCYCLING', val, ctx.database.native);
+		} else {
+			ctx.message('Requires 0, 1, or 2.');
+		}
+	});
 
 	let gripDefaults: CadGripSettings = {
 		enabled: true,
@@ -371,7 +500,6 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return undefined;
 		}
 	};
-	const sysVars = AcDbSysVarManager.instance();
 	const grips: CadGripApi = {
 		get: () => {
 			const db = getDb();
@@ -479,14 +607,27 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 	let generated = new Set<string>();
 	let generatedLayers = new Set<string>();
 	(globalThis as any).__saengineGeneratedLayers = generatedLayers;
+	(globalThis as any).__saengineGenerated = generated;
 	let preview = new Set<string>();
+	(globalThis as any).__saenginePreview = preview;
 	let underlaySession: string | undefined;
 	let underlayVersion = 0;
 	let activeCommand = false;
 	const viewEditor = (manager.curView as any)?.editor;
 	if (viewEditor?.events) {
 		viewEditor.events.commandWillStart?.addEventListener(() => { activeCommand = true; });
-		viewEditor.events.commandEnded?.addEventListener(() => { activeCommand = false; });
+		viewEditor.events.commandEnded?.addEventListener((args: { command?: { globalName?: string } }) => {
+			activeCommand = false;
+			// The library's edit commands do not know the constraints: re-solve after them when the
+			// drawing has any (SAEngine's own STRETCH and grip edits re-solve themselves).
+			const name = args?.command?.globalName?.toUpperCase();
+			if (name && LIBRARY_EDITS_TO_RESOLVE.has(name) && hasConstraints(manager.curDocument.database)) {
+				setTimeout(() => { void manager.executeCommandString('CONSTRAINTSOLVE'); }, 0);
+			}
+			try {
+				updateDrawingFields(manager.curDocument.database);
+			} catch {}
+		});
 	}
 	// mlightcad also reports loading and its own housekeeping as database events; a user's edit
 	// is what lands on the undo stack (every command runs in an undoable transaction).
@@ -669,12 +810,15 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			return Math.hypot(b.x - a.x, b.y - a.y) / 100;
 		},
 		zoomExtents: () => manager.curView.zoomToFitDrawing(),
-		toDxf: dxfOptions => dxfOut(manager.curDocument.database, {
+		toDxf: dxfOptions => toDxf(manager.curDocument.database, {
 			excludeGenerated: dxfOptions?.excludeGenerated,
 			generated,
 			preview,
 			generatedLayers,
 		}),
+		dataExtraction: dataExtractionOptions => dataExtraction(manager.curDocument.database, dataExtractionOptions),
+		blockEditing: () => getActiveBlockEditingInfo(),
+		onDidChangeBlockEditing: listener => onDidChangeBlockEditorSession(listener),
 		execute: command => manager.executeCommandString(command),
 		isCommandActive: () => {
 			try {
@@ -692,9 +836,13 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			if (!db) {
 				return [];
 			}
+			const session = getActiveBlockEditorSession();
 			const result: CadSelectedEntity[] = [];
 			for (const id of selection.ids) {
 				if (generated.has(id) || preview.has(id)) {
+					continue;
+				}
+				if (session && !session.editEntityIds.has(id)) {
 					continue;
 				}
 				const entity = db.tables?.blockTable?.modelSpace?.getIdAt(id);
@@ -722,19 +870,61 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
 			return pickDrafting(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
 		},
+		pickDraftingAll: (clientX: number, clientY: number, tolerancePx = 5): CadDraftingHit[] => {
+			const db = getDb();
+			if (!db) return [];
+			const view = manager.curView;
+			if (!view) return [];
+			const rect = view.canvas.getBoundingClientRect();
+			const world = view.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+			const a = view.screenToWorld({ x: 0, y: 0 });
+			const b = view.screenToWorld({ x: 100, y: 0 });
+			const upp = Math.hypot(b.x - a.x, b.y - a.y) / 100;
+			return pickDraftingAll(db, [world.x, world.y], tolerancePx * upp, { generated, preview, generatedLayers });
+		},
 		pickDraftingWindow: (start: CadPoint, end: CadPoint, mode: 'window' | 'crossing'): string[] => {
 			const db = getDb();
 			if (!db) return [];
 			return pickDraftingWindow(db, start, end, mode, { generated, preview, generatedLayers });
+		},
+		pickDraftingPolygon: (points: readonly CadPoint[], mode: 'window' | 'crossing' | 'fence' = 'window'): string[] => {
+			const db = getDb();
+			if (!db) return [];
+			return pickDraftingPolygon(db, points, mode, { generated, preview, generatedLayers });
+		},
+		getSysVar: (name: string): number => {
+			const db = getDb();
+			if (db) {
+				try {
+					const val = sysVars.getVar(name, db);
+					return typeof val === 'number' ? val : Number(val);
+				} catch {
+					// fallback below
+				}
+			}
+			const upper = name.toUpperCase();
+			if (upper === 'LASSO') return 1;
+			if (upper === 'SELECTIONCYCLING') return 2;
+			return 0;
+		},
+		setSysVar: (name: string, value: number): void => {
+			const db = getDb();
+			try {
+				if (db) sysVars.setVar(name, value, db);
+			} catch { /* ignore */ }
 		},
 		eraseEntities: (handles: readonly string[]) => {
 			const db = manager.curDocument?.database;
 			if (!db) {
 				return;
 			}
+			const session = getActiveBlockEditorSession();
 			const handleSet = new Set(handles.map(String));
 			const erase = () => {
 				for (const h of handleSet) {
+					if (session && !session.editEntityIds.has(h)) {
+						continue;
+					}
 					const ent = db.openEntityForWrite?.(h) ?? db.tables?.blockTable?.modelSpace?.getIdAt(h);
 					if (ent && typeof (ent as any).erase === 'function') {
 						(ent as any).erase();
@@ -842,6 +1032,8 @@ export function createCadEditor(options: CadEditorOptions): CadEditor {
 			wblockListeners.clear();
 			delete (globalThis as any).__saengineWblockListeners;
 			delete (globalThis as any).__saengineGeneratedLayers;
+			delete (globalThis as any).__saengineGenerated;
+			delete (globalThis as any).__saenginePreview;
 			chromeListeners.clear();
 			settings.events.modified.removeEventListener(onSettingChanged);
 			draftingManager.dispose();

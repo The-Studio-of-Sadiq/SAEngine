@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/cadEditor.css';
-import type { CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
+import type { CadDraftingHit, CadEditor as CadEditorApi, CadEntitySpec, CadLayerSpec, CadPoint } from '@saengine/cad-editor';
 import { $, addDisposableListener, append, clearNode, Dimension, EventType, getWindow, isEditableElement, isHTMLElement, isHTMLInputElement } from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -53,15 +53,18 @@ import { propertyLink, renderPropertySheet } from '../../saengineModel/browser/p
 import { editNotice, IMemberRef as IModifierMemberRef, memberTargets, modifiersView, readCodeStiffness, resetMembersGroup, setMembersField } from '../../saengineModel/browser/modifiersModel.js';
 import { renderModifiers } from '../../saengineModel/browser/modifiersPanel.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyPropertyOnCommit, EditorFrame, IEditorFrameIconButton } from '../../saengineProject/browser/editorFrame.js';
-import { appendModelViewSwitch } from '../../saengineProject/browser/modelView.js';
+import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { CLEAN_DXF_COMMAND, DWG_TO_DXF_COMMAND, OPEN_DXF_IN_CAD_UI_COMMAND, PDF_TO_DXF_COMMAND, POINT_CLOUD_TO_DXF_COMMAND, WORKBOOK_EXPORT_COMMAND, WORKBOOK_IMPORT_COMMAND } from '../../saengineProject/browser/projectArchiveModel.js';
 import { COMPONENTS_ADD_COMMAND } from '../../saengineUpdate/common/components.js';
 import { acquireCadEditor, cadBackground, forCanvas, isLightCanvas, releaseCadEditor } from './cadHost.js';
+import { CAD_COMMAND_LINE_STORAGE_KEY, ICadEditorPane, notifyActiveCadEditorChanged } from './activeCadEditor.js';
+import { appendCommandHistoryLine, dockCadCommandLine } from './cadCommandLineDock.js';
 import { FloorPlanCadBar } from './floorPlanCadBar.js';
+import { FloorPlanDraftProperties } from './floorPlanDraftProperties.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
+import { floorPlanDrawing, gridsOf, IFloorPlan, IMemberShape, ISlabSplit, MemberGroup, PLAN_ANNOTATION_LAYERS, storyOfSelection, withoutLayers } from './floorPlanDrawing.js';
 import { presenceDrawing } from './floorPlanPresence.js';
-import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
+import { basePoint, bayAt, changeMemberType, EditResult, footingsOwnedMessage, notRotatableMessage, IGridNode, moveMember, parseAngle, pickMember, pickMembersAll, placeColumn, placeLinear, placePolygonSlab, placeSlab, PlacementTool, removeMember, rotateMember, setMembersType, snapPoint, snapToGrid, splitSlab, TOOL_GROUP, TOOL_KINDS } from './floorPlanEdits.js';
 import { FloorPlanEditorInput, siblingPartFile, storyDraftingFile } from './floorPlanEditorInput.js';
 import { ISnap, ISnapSegment, nearMisses, SNAP_NAMES, snapLinear, snapMarker, squareMarker, typedEnd, unsupportedBeams } from './floorPlanSnap.js';
 import { alignAngle, calibrated, cloudSlice, DEFAULT_CLOUD_CUT, DEFAULT_CLOUD_SCALE, DEFAULT_CLOUD_THICKNESS, diffLines, diffSummary, firstPdfPlacement, gridCentre, isPdf, isPointCloud, IUnderlayPlacement, IWorkbookImport, moved, placementFields, placementOf, planSegments, readWorkbookImport, rotated, segmentsNear, storyFloor } from './floorPlanUnderlay.js';
@@ -69,7 +72,7 @@ import { addObjectType, NEW_TYPE_PROMPTS, NewTypeKind, validateSize } from './fl
 import { FloorPlanLoadsFile, FloorPlanLoadsPanel, ILoadsWrite, IMemberLoads, LOAD_LAYER_SPECS, loadsDrawing } from './floorPlanLoads.js';
 import { copyStory, familyDiffersMessage, familyNote, familyOf, inSync, masterOf, repeatFamily, setSimilar, typicalLosses } from './floorPlanTypical.js';
 import { BulkResult, bulkNotice, BulkVerb, COMMAND_HELP, copyMembers, copyToClipboard, copyToStories, deleteMembers, fill, FillDirection, FillKind, FloorPlanCommand, IFloorPlanClipboard, mirrorMembers, moveMembers, parseCommand, paste, rotateMembers } from './floorPlanBulk.js';
-import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
+import { combine, commonFields, countByGroup, groupCount, IMemberRef, IRect, prune, rectOf, sameMember, selectAll, selectByType, isFreehandLasso, lassoMode, selectInPolygon, selectInWindow, selectionSummary, typesOnPlan, windowMode } from './floorPlanSelection.js';
 import { conversionSteps } from './floorPlanDrafting.js';
 
 /** W4A-30: a story's level as the story lists show it: "+3658" (mm) in SI, `+12'-0"` in US units. */
@@ -87,8 +90,6 @@ const GRIDS_EDITOR_ID = 'workbench.editor.saengine.grids';
 const COMPACT_WIDTH = 950;
 /** Below this width [px] Move, Rotate and Delete go to "..." too. */
 const NARROW_WIDTH = 700;
-/** From this width [px] the drafting tools sit on the toolbar one by one; below it they fold into Draw and Modify menus, as AutoCAD's panels do, so the storey picker and the Plan / 3D / Analysis switch keep their room. */
-const DRAFTING_INLINE_WIDTH = 1700;
 
 /** Screen distances: how close a click must be to a grid intersection or member, and marker size [px]. */
 const SNAP_PIXELS = 24;
@@ -99,7 +100,8 @@ const WINDOW_DASH_PIXELS = 20;
 /** Mouse travel below which a press counts as a click rather than a pan [px]. */
 const CLICK_PIXELS = 5;
 
-type Tool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+export type FloorPlanTool = 'select' | PlacementTool | 'polygonSlab' | 'fill' | 'move' | 'rotate' | 'delete';
+type Tool = FloorPlanTool;
 
 /** The gestures on the architect's underlay, each clicked on the plan (see `underlayClick`). */
 type UnderlayPick = 'calibrate' | 'move' | 'rotate' | 'align';
@@ -221,7 +223,7 @@ function outlineEntities(shape: IMemberShape, layer: string): CadEntitySpec[] {
  * Stories form edits too. Object types come from `objects.json`, read only, so edits there show
  * up as they are made.
  */
-export class FloorPlanEditor extends EditorPane {
+export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 
 	static readonly ID = FloorPlanEditorInput.EDITOR_ID;
 	private static datalists = 0;
@@ -235,10 +237,10 @@ export class FloorPlanEditor extends EditorPane {
 	private emptyKey = '';
 	private emptyDismissed = false;
 	private readonly emptyDisposables = this._register(new DisposableStore());
-	private storyPicker!: SelectBox;
-	private typePicker!: SelectBox;
-	private typeGroup!: HTMLElement;
+	private storyControl!: RibbonSelectModel;
+	private typeControl!: RibbonSelectModel;
 	private typedGroup!: HTMLElement;
+	private typedControl!: RibbonElementControl;
 	private readonly typedControls = this._register(new DisposableStore());
 	/** The typed length of the beam or wall being drawn, while one is. */
 	private lengthBox: InputBox | undefined;
@@ -258,6 +260,7 @@ export class FloorPlanEditor extends EditorPane {
 
 	private editor: CadEditorApi | undefined;
 	private cadBar!: FloorPlanCadBar;
+	private readonly draftProperties: FloorPlanDraftProperties;
 	private planModel: ITextModel | undefined;
 	private objects: ITextModel | undefined;
 	/** Optional, for the properties panel: material names and the building model's state. */
@@ -308,17 +311,26 @@ export class FloorPlanEditor extends EditorPane {
 	private compact = false;
 	/** A very narrow editor also moves Move, Rotate and Delete to "...". */
 	private narrow = false;
-	/** The drafting tools one by one on the toolbar (wide editors), else in Draw and Modify menus. */
-	private draftingInline = false;
 
 	/** The members selected on the plan; the selection service holds the one picked last. */
 	private selected: IMemberRef[] = [];
 	/** The fill tool's choice in {@link FILL_CHOICES}. */
 	private fillChoice = 0;
-	private fillPicker!: SelectBox;
-	private fillGroup!: HTMLElement;
-	/** A window being dragged with the Select or Fill tool: where it started and where the mouse is. */
-	private drag: { readonly start: CadPoint; readonly client: { readonly x: number; readonly y: number }; current?: CadPoint } | undefined;
+	private fillControl!: RibbonSelectModel;
+	/** A window or lasso being dragged with the Select or Fill tool: where it started and where the mouse is. */
+	private drag: {
+		readonly start: CadPoint;
+		readonly client: { readonly x: number; readonly y: number };
+		current?: CadPoint;
+		points?: CadPoint[];
+		lassoModeOverride?: 'window' | 'crossing' | 'fence';
+	} | undefined;
+	private lastClickTime = 0;
+	private lastClickPos: { readonly x: number; readonly y: number } | undefined;
+	private cycleIndex = 0;
+	private selectionCyclingActive = false;
+	/** Whether the selection-cycling list is open beside the cursor. */
+	private cycleMenuShown = false;
 	/** Members copied with Ctrl+C, with their outlines for the paste preview. */
 	private clipboard: { readonly data: IFloorPlanClipboard; readonly shapes: readonly IMemberShape[] } | undefined;
 	/** Set by Ctrl+V until the base point is clicked. */
@@ -333,19 +345,18 @@ export class FloorPlanEditor extends EditorPane {
 	}));
 	private showGridLines = true;
 	private readonly gridLinesAction = this._register(new Action('saengine.floorPlan.toggleGridLines', localize('floorPlan.gridLines', "Grid Lines"), ThemeIcon.asClassName(Codicon.symbolNumeric), true, async () => this.toggleGridLines()));
-	private readonly underlayAction = this._register(new Action('saengine.floorPlan.toggleUnderlay', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
-	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.commandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
-	private readonly gridsAction = this._register(new Action('saengine.floorPlan.editGrids', localize('floorPlan.editGrids', "Edit Grids and Stories"), undefined, true, async () => this.openGrids()));
-	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.attachUnderlay', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
-	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.removeUnderlay', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
-	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.calibrateUnderlay', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
-	private readonly moveUnderlayAction = this._register(new Action('saengine.floorPlan.moveUnderlay', localize('floorPlan.moveUnderlay', "Move Underlay"), undefined, false, async () => this.startUnderlayPick('move')));
-	private readonly rotateUnderlayAction = this._register(new Action('saengine.floorPlan.rotateUnderlay', localize('floorPlan.rotateUnderlay', "Rotate Underlay..."), undefined, false, async () => this.startUnderlayPick('rotate')));
-	private readonly alignUnderlayAction = this._register(new Action('saengine.floorPlan.alignUnderlay', localize('floorPlan.alignUnderlay', "Align Underlay to Grid"), undefined, false, async () => this.startUnderlayPick('align')));
-	private readonly lockUnderlayAction = this._register(new Action('saengine.floorPlan.lockUnderlay', localize('floorPlan.lockUnderlay', "Lock Underlay"), undefined, false, async () => this.toggleUnderlayLock()));
-	private readonly underlayPageAction = this._register(new Action('saengine.floorPlan.underlayPage', localize('floorPlan.underlayPage', "Underlay Page..."), undefined, false, () => this.pickUnderlayPage()));
-	private readonly exportWorkbookAction = this._register(new Action('saengine.floorPlan.exportWorkbook', localize('floorPlan.exportWorkbook', "Export to Excel..."), undefined, false, () => this.exportWorkbook()));
-	private readonly importWorkbookAction = this._register(new Action('saengine.floorPlan.importWorkbook', localize('floorPlan.importWorkbook', "Import from Excel..."), undefined, false, () => this.importWorkbook()));
+	private readonly underlayAction = this._register(new Action('saengine.floorPlan.underlay.toggle', localize('floorPlan.hideUnderlay', "Hide Underlay"), ThemeIcon.asClassName(Codicon.eye), false, async () => this.toggleUnderlay()));
+	private readonly commandLineAction = this._register(new Action('saengine.floorPlan.toggleCommandLine', localize('floorPlan.showCommandLine', "Show Command Line (:)"), ThemeIcon.asClassName(Codicon.terminal), true, async () => this.toggleCommandLine()));
+	private readonly attachUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.attach', localize('floorPlan.attachUnderlay', "Attach Underlay..."), undefined, false, () => this.attachUnderlay()));
+	private readonly removeUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.remove', localize('floorPlan.removeUnderlay', "Remove Underlay"), undefined, false, async () => this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined)));
+	private readonly calibrateUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.calibrate', localize('floorPlan.calibrateUnderlay', "Calibrate Underlay Scale..."), undefined, false, async () => this.startUnderlayPick('calibrate')));
+	private readonly moveUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.move', localize('floorPlan.moveUnderlay', "Move Underlay"), undefined, false, async () => this.startUnderlayPick('move')));
+	private readonly rotateUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.rotate', localize('floorPlan.rotateUnderlay', "Rotate Underlay..."), undefined, false, async () => this.startUnderlayPick('rotate')));
+	private readonly alignUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.align', localize('floorPlan.alignUnderlay', "Align Underlay to Grid"), undefined, false, async () => this.startUnderlayPick('align')));
+	private readonly lockUnderlayAction = this._register(new Action('saengine.floorPlan.underlay.lock', localize('floorPlan.lockUnderlay', "Lock Underlay"), undefined, false, async () => this.toggleUnderlayLock()));
+	private readonly underlayPageAction = this._register(new Action('saengine.floorPlan.underlay.page', localize('floorPlan.underlayPage', "Underlay Page..."), undefined, false, () => this.pickUnderlayPage()));
+	private readonly exportWorkbookAction = this._register(new Action('saengine.floorPlan.workbook.export', localize('floorPlan.exportWorkbook', "Export to Excel..."), undefined, false, () => this.exportWorkbook()));
+	private readonly importWorkbookAction = this._register(new Action('saengine.floorPlan.workbook.import', localize('floorPlan.importWorkbook', "Import from Excel..."), undefined, false, () => this.importWorkbook()));
 	private readonly exportAction = this._register(new Action('saengine.floorPlan.exportDxf', localize('floorPlan.exportDxf', "Export DXF"), undefined, false, () => this.exportDxf()));
 	/** Footings are placed in 9 Substructure since Part 9: the floor plan's Footing tool opens it. */
 	private readonly foundationsAction = this._register(new Action('saengine.floorPlan.openSubstructure', localize('floorPlan.openSubstructure', "Place Footings in 9 Substructure"), ThemeIcon.asClassName(Codicon.symbolStructure), true, async () => this.openPart('substructure')));
@@ -353,35 +364,14 @@ export class FloorPlanEditor extends EditorPane {
 	private readonly typicalAction = this._register(new Action('saengine.floorPlan.typicalFloors', localize('floorPlan.typicalFloors', "Typical Floors..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.editTypicalFloors()));
 	private readonly objectsAction = this._register(new Action('saengine.floorPlan.openObjects', localize('floorPlan.openObjects', "Open Object Types"), undefined, true, async () => this.openPart('objects')));
 	private readonly createAction = this._register(new Action('saengine.floorPlan.create', localize('floorPlan.create', "Create Floor Plan"), undefined, true, () => this.createFloorPlan()));
-	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.updateToolbar(); this.schedulePreview(); }));
-	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
-	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
-	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
-	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convertBeam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
-	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convertWall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
-	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convertSlab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
-
-	private readonly cadLineAction = this._register(new Action('saengine.floorPlan.cadLine', localize('tool.draftLine', "Line"), ThemeIcon.asClassName(Codicon.dash), true, async () => { void this.editor?.execute('line'); }));
-	private readonly cadPlineAction = this._register(new Action('saengine.floorPlan.cadPline', localize('tool.draftPolyline', "Polyline"), ThemeIcon.asClassName(Codicon.graph), true, async () => { void this.editor?.execute('pline'); }));
-	private readonly cadRectAction = this._register(new Action('saengine.floorPlan.cadRect', localize('tool.draftRect', "Rectangle"), ThemeIcon.asClassName(Codicon.primitiveSquare), true, async () => { void this.editor?.execute('rectang'); }));
-	private readonly cadPolygonAction = this._register(new Action('saengine.floorPlan.cadPolygon', localize('tool.draftPolygon', "Polygon"), ThemeIcon.asClassName(Codicon.symbolConstant), true, async () => { void this.editor?.execute('polygon'); }));
-	private readonly cadCircleAction = this._register(new Action('saengine.floorPlan.cadCircle', localize('tool.draftCircle', "Circle"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('circle'); }));
-	private readonly cadArcAction = this._register(new Action('saengine.floorPlan.cadArc', localize('tool.draftArc', "Arc"), ThemeIcon.asClassName(Codicon.circleOutline), true, async () => { void this.editor?.execute('arc'); }));
-	private readonly cadEllipseAction = this._register(new Action('saengine.floorPlan.cadEllipse', localize('cad.ellipse', "Ellipse"), ThemeIcon.asClassName(Codicon.circleLarge), true, async () => { void this.editor?.execute('ellipse'); }));
-	private readonly cadSplineAction = this._register(new Action('saengine.floorPlan.cadSpline', localize('cad.spline', "Spline"), ThemeIcon.asClassName(Codicon.pulse), true, async () => { void this.editor?.execute('spline'); }));
-	private readonly cadHatchAction = this._register(new Action('saengine.floorPlan.cadHatch', localize('cad.hatch', "Hatch"), ThemeIcon.asClassName(Codicon.paintcan), true, async () => { void this.editor?.execute('hatch'); }));
-	private readonly cadTextAction = this._register(new Action('saengine.floorPlan.cadText', localize('cad.text', "Text"), ThemeIcon.asClassName(Codicon.symbolText), true, async () => { void this.editor?.execute('mtext'); }));
-	private readonly cadDimensionAction = this._register(new Action('saengine.floorPlan.cadDimension', localize('cad.dimension', "Dimension"), ThemeIcon.asClassName(Codicon.symbolRuler), true, async () => { void this.editor?.execute('dimlinear'); }));
-
-	private readonly cadOffsetAction = this._register(new Action('saengine.floorPlan.cadOffset', localize('tool.draftOffset', "Offset"), ThemeIcon.asClassName(Codicon.move), true, async () => { void this.editor?.execute('offset'); }));
-	private readonly cadTrimAction = this._register(new Action('saengine.floorPlan.cadTrim', localize('tool.draftTrim', "Trim"), ThemeIcon.asClassName(Codicon.debugDisconnect), true, async () => { void this.editor?.execute('trim'); }));
-	private readonly cadExtendAction = this._register(new Action('saengine.floorPlan.cadExtend', localize('tool.draftExtend', "Extend"), ThemeIcon.asClassName(Codicon.arrowUp), true, async () => { void this.editor?.execute('extend'); }));
-	private readonly cadFilletAction = this._register(new Action('saengine.floorPlan.cadFillet', localize('tool.draftFillet', "Fillet"), ThemeIcon.asClassName(Codicon.circle), true, async () => { void this.editor?.execute('fillet'); }));
-	private readonly cadMirrorAction = this._register(new Action('saengine.floorPlan.cadMirror', localize('cad.mirror', "Mirror"), ThemeIcon.asClassName(Codicon.mirror), true, async () => { void this.editor?.execute('mirror'); }));
-	private readonly cadScaleAction = this._register(new Action('saengine.floorPlan.cadScale', localize('cad.scale', "Scale"), ThemeIcon.asClassName(Codicon.screenFull), true, async () => { void this.editor?.execute('scale'); }));
-	/** Integrator glue: the Members Table (floorPlanTable.ts registers the command; by id, so this file does not import it). */
-	private readonly membersTableAction = this._register(new Action('saengine.floorPlan.membersTable', localize('floorPlan.membersTable', "Members Table"), ThemeIcon.asClassName(Codicon.table), true, async () => { await this.commandService.executeCommand('saengine.floorPlan.openMembersTable'); }));
-	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
+	private readonly selectAllAction = this._register(new Action('saengine.floorPlan.bulk.selectAll', localize('floorPlan.selectAll', "Select All on Story (Ctrl+A)"), undefined, true, async () => { this.select(selectAll(this.plan?.members ?? [])); this.updateToolbar(); this.schedulePreview(); }));
+	private readonly selectTypeAction = this._register(new Action('saengine.floorPlan.bulk.selectByType', localize('floorPlan.selectByType', "Select by Type..."), undefined, true, () => this.pickSelectByType()));
+	private readonly copyStoriesAction = this._register(new Action('saengine.floorPlan.bulk.copyToStories', localize('floorPlan.copyToStories', "Copy Selection to Stories..."), ThemeIcon.asClassName(Codicon.layers), false, () => this.pickCopyToStories()));
+	private readonly mirrorAction = this._register(new Action('saengine.floorPlan.bulk.mirror', localize('floorPlan.mirror', "Mirror Selection..."), ThemeIcon.asClassName(Codicon.mirror), false, () => this.pickMirror()));
+	private readonly convertBeamAction = this._register(new Action('saengine.floorPlan.convert.beam', localize('floorPlan.convertBeams', "Convert to Beams"), undefined, false, () => this.pickConversion('beam')));
+	private readonly convertWallAction = this._register(new Action('saengine.floorPlan.convert.wall', localize('floorPlan.convertWalls', "Convert to Walls"), undefined, false, () => this.pickConversion('wall')));
+	private readonly convertSlabAction = this._register(new Action('saengine.floorPlan.convert.slab', localize('floorPlan.convertSlab', "Convert to Slab"), undefined, false, () => this.pickConversion('slab')));
+	private readonly deleteSelectionAction = this._register(new Action('saengine.floorPlan.bulk.deleteSelection', localize('floorPlan.deleteSelection', "Delete Selection (Delete)"), undefined, false, async () => this.runCommand({ kind: 'delete' })));
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 	private readonly propertiesDisposables = this._register(new DisposableStore());
@@ -426,6 +416,7 @@ export class FloorPlanEditor extends EditorPane {
 		this.gridLinesAction.tooltip = localize('floorPlan.gridLinesTip', "Show or hide the grid lines (the grid stays; snapping to it still works)");
 		this.loadsFile = this._register(this.instantiationService.createInstance(FloorPlanLoadsFile));
 		this.loadsPanel = this._register(this.instantiationService.createInstance(FloorPlanLoadsPanel, this.loadsFile));
+		this.draftProperties = this._register(this.instantiationService.createInstance(FloorPlanDraftProperties));
 		this._register(this.loadsFile.onDidChange(() => this.renderScheduler.schedule()));
 		// Live co-editing: the colleagues' selections in this plan, outlined in their colours.
 		this._register(this.presenceService.onDidChange(resource => {
@@ -459,10 +450,16 @@ export class FloorPlanEditor extends EditorPane {
 		frame.element.tabIndex = -1;
 
 		// The model view's Plan | 3D | Analysis switch, before the story.
-		this._register(this.instantiationService.invokeFunction(accessor => appendModelViewSwitch(accessor, frame.titleSlot, 'plan')));
-		this.storyPicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan") }));
-		this.storyPicker.render(append(frame.titleSlot, $('.floor-plan-select.story')));
-		this._register(this.storyPicker.onDidSelect(async ({ index }) => {
+		this.storyControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.story',
+			ariaLabel: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			label: localize('floorPlan.storyLabel', "Story"),
+			tooltip: localize('floorPlan.storyAria', "Story shown in the floor plan"),
+			items: [],
+			width: 'normal',
+		}));
+		this._register(frame.addViewControl(this.storyControl));
+		this._register(this.storyControl.onDidSelect(async ({ index }) => {
 			const input = this.input as FloorPlanEditorInput | undefined;
 			if (input && this.storyIds[index] !== input.story) {
 				await this.switchStory(this.storyIds[index]);
@@ -475,19 +472,30 @@ export class FloorPlanEditor extends EditorPane {
 		}));
 
 		// Inline controls of the active tool: what the fill places, the object type to place, the typed move or angle.
-		this.fillGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
-		append(this.fillGroup, $('span.sa-frame-label', undefined, localize('floorPlan.fill', "Fill")));
-		this.fillPicker = this._register(new SelectBox(FILL_CHOICES.map(c => ({ text: c.label })), 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.fillAria', "What the fill tool places") }));
-		this.fillPicker.render(append(this.fillGroup, $('.floor-plan-select.fill')));
-		this._register(this.fillPicker.onDidSelect(({ index }) => {
+		this.fillControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.fill',
+			ariaLabel: localize('floorPlan.fillAria', "What the fill tool places"),
+			label: localize('floorPlan.fill', "Fill"),
+			tooltip: localize('floorPlan.fillAria', "What the fill tool places"),
+			items: FILL_CHOICES.map((c, i) => ({ id: String(i), label: c.label })),
+			selectedId: String(this.fillChoice),
+			visible: false,
+		}));
+		this._register(this.fillControl.onDidSelect(({ index }) => {
 			this.fillChoice = index;
 			this.updateToolbar();
 		}));
-		this.typeGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
-		append(this.typeGroup, $('span.sa-frame-label', undefined, localize('floorPlan.type', "Type")));
-		this.typePicker = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('floorPlan.typeAria', "Object type to place") }));
-		this.typePicker.render(append(this.typeGroup, $('.floor-plan-select.type')));
-		this._register(this.typePicker.onDidSelect(({ index }) => {
+		this._register(frame.addToolControl(this.fillControl));
+		this.typeControl = this._register(new RibbonSelectModel({
+			id: 'saengine.floorPlan.type',
+			ariaLabel: localize('floorPlan.typeAria', "Object type to place"),
+			label: localize('floorPlan.type', "Type"),
+			tooltip: localize('floorPlan.typeAria', "Object type to place"),
+			items: [],
+			selectedId: '',
+			visible: false,
+		}));
+		this._register(this.typeControl.onDidSelect(({ index }) => {
 			const tool = this.placementTool;
 			if (tool && this.typeIds[index]) {
 				this.types.set(tool, this.typeIds[index]);
@@ -495,7 +503,14 @@ export class FloorPlanEditor extends EditorPane {
 				void this.createType(tool);
 			}
 		}));
-		this.typedGroup = append(frame.controlsSlot, $('.floor-plan-inline.hidden'));
+		this._register(frame.addToolControl(this.typeControl));
+		this.typedGroup = $('.floor-plan-inline');
+		this.typedControl = this._register(new RibbonElementControl({
+			id: 'saengine.floorPlan.typed',
+			element: this.typedGroup,
+			visible: false,
+		}));
+		this._register(frame.addToolControl(this.typedControl));
 
 		for (const { tool, label, icon } of TOOLS) {
 			this.toolActions.set(tool, this._register(new Action(`saengine.floorPlan.tool.${tool}`, label, ThemeIcon.asClassName(icon), true, async () => this.setTool(tool))));
@@ -553,9 +568,9 @@ export class FloorPlanEditor extends EditorPane {
 		let editor: CadEditorApi;
 		try {
 			const theme = this.themeService.getColorTheme();
+			const showCommandLine = this.viewStorage.getBoolean(CAD_COMMAND_LINE_STORAGE_KEY, StorageScope.WORKSPACE, true);
 			editor = this.editor = await acquireCadEditor(this.host, {
-				// The editor's own toolbar has undo and redo; the command line opens on request.
-				chrome: { commandLine: false, shortcutToolbar: false },
+				chrome: { commandLine: showCommandLine, shortcutToolbar: false },
 				background: cadBackground(theme),
 			});
 		} catch (error) {
@@ -566,7 +581,11 @@ export class FloorPlanEditor extends EditorPane {
 			this.release();
 			return;
 		}
-		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => this.updateToolbar()));
+		this.inputDisposables.add(dockCadCommandLine(this.host));
+		this.chromeDisposable.value = toDisposable(editor.onDidChangeChrome(() => {
+			this.viewStorage.store(CAD_COMMAND_LINE_STORAGE_KEY, editor.getChrome().commandLine, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.updateToolbar();
+		}));
 		this.cadBar.setEditor(editor);
 
 		// Resolve the initial story so the drafting drawing can be opened.
@@ -597,6 +616,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 
 		await this.loadStoryDrawing(input.story);
+		notifyActiveCadEditorChanged(editor);
 
 		input.draftingSource = {
 			toDxf: () => editor.toDxf({ excludeGenerated: true }),
@@ -613,6 +633,10 @@ export class FloorPlanEditor extends EditorPane {
 			if (this.currentDraftingStory && this.input) {
 				(this.input as FloorPlanEditorInput).setDraftingDirty(this.currentDraftingStory, true);
 			}
+			this.renderProperties();
+		})));
+		this.inputDisposables.add(toDisposable(editor.selection.onDidChangeSelection(() => {
+			this.renderProperties();
 		})));
 
 		this.fitPending = true;
@@ -748,11 +772,9 @@ export class FloorPlanEditor extends EditorPane {
 	override layout(dimension: Dimension): void {
 		const compact = dimension.width < COMPACT_WIDTH;
 		const narrow = dimension.width < NARROW_WIDTH;
-		const draftingInline = dimension.width >= DRAFTING_INLINE_WIDTH;
-		if (compact !== this.compact || narrow !== this.narrow || draftingInline !== this.draftingInline) {
+		if (compact !== this.compact || narrow !== this.narrow) {
 			this.compact = compact;
 			this.narrow = narrow;
-			this.draftingInline = draftingInline;
 			this.updateToolbar();
 		}
 		this.frame.layout(dimension.width, dimension.height);
@@ -805,10 +827,42 @@ export class FloorPlanEditor extends EditorPane {
 		this.underlayProblem = undefined;
 		this.resetGesture();
 		this.cadBar?.setEditor(undefined);
+		notifyActiveCadEditorChanged(undefined);
 		if (this.editor) {
 			releaseCadEditor(this.editor);
 			this.editor = undefined;
 		}
+	}
+
+	// ───────────────────────────── ICadEditorPane ─────────────────────────────
+
+	public getCadEditor(): CadEditorApi | undefined {
+		return this.editor;
+	}
+
+	public async executeCadCommand(command: string): Promise<void> {
+		if (!this.editor) {
+			return;
+		}
+		this.resetGesture();
+		this.schedulePreview();
+		try {
+			await this.editor.execute(command);
+		} catch {
+			// Interactive CAD prompts throw on cancellation.
+		}
+	}
+
+	public focusCadProperties(): void {
+		this.focusProperties();
+	}
+
+	public toggleCadCommandLine(): void {
+		this.toggleCommandLine();
+	}
+
+	public async showCadLayerPicker(): Promise<void> {
+		await this.cadBar?.showLayerPicker();
 	}
 
 	// ───────────────────────────── commands ─────────────────────────────
@@ -842,6 +896,7 @@ export class FloorPlanEditor extends EditorPane {
 			return;
 		}
 		const visible = !editor.getChrome().commandLine;
+		this.viewStorage.store(CAD_COMMAND_LINE_STORAGE_KEY, visible, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		editor.setChrome({ commandLine: visible });
 		if (visible) {
 			getWindow(this.frame.element).setTimeout(() => editor.focusCommandLine(), 0);
@@ -926,6 +981,29 @@ export class FloorPlanEditor extends EditorPane {
 	private onKey(e: KeyboardEvent): void {
 		const ctrl = e.ctrlKey || e.metaKey;
 		const hasDraftSelection = (this.editor?.selection.get().length ?? 0) > 0;
+		if (e.key === 'Escape' && this.cycleMenuShown) {
+			this.contextViewService.hideContextView();
+		}
+		if (this.drag && this.drag.points && (e.code === 'Space' || e.key === ' ')) {
+			e.preventDefault();
+			e.stopPropagation();
+			const currentMode = this.drag.lassoModeOverride ?? lassoMode(this.drag.points);
+			const nextMode: 'window' | 'crossing' | 'fence' =
+				currentMode === 'window' ? 'crossing' :
+				currentMode === 'crossing' ? 'fence' : 'window';
+			this.drag.lassoModeOverride = nextMode;
+			this.schedulePreview();
+			return;
+		}
+		if (e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.selectionCyclingActive = !this.selectionCyclingActive;
+			this.setNotice(this.selectionCyclingActive
+				? localize('floorPlan.selectionCyclingOn', "Selection cycling on.")
+				: localize('floorPlan.selectionCyclingOff', "Selection cycling off."));
+			return;
+		}
 		if (e.key === 'Escape' && (this.tool !== 'select' || this.chainStart || this.picked || this.polygon.length || this.pasting || this.drag || this.underlayPick || this.selected.length || hasDraftSelection)) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -948,6 +1026,10 @@ export class FloorPlanEditor extends EditorPane {
 		} else if (e.key === 'Delete' && this.tool === 'select' && this.selected.length) {
 			e.preventDefault();
 			this.runCommand({ kind: 'delete' });
+		} else if (ctrl && !e.altKey && !e.shiftKey && (e.key === '1' || e.code === 'Digit1')) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.focusProperties();
 		} else if (ctrl && !e.altKey && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
 			// The plan's own undo, so it can say what it undid.
 			e.preventDefault();
@@ -976,6 +1058,7 @@ export class FloorPlanEditor extends EditorPane {
 		if (e.key !== 'Enter' || !isHTMLInputElement(target) || !target.classList.contains('ml-cli-text') || !this.host.contains(target)) {
 			return;
 		}
+		const rawText = target.value.trim();
 		const command = parseCommand(target.value, parse(this.planModel));
 		if (!command) {
 			return;
@@ -983,10 +1066,15 @@ export class FloorPlanEditor extends EditorPane {
 		e.preventDefault();
 		e.stopImmediatePropagation();
 		target.value = '';
+		if (rawText) {
+			appendCommandHistoryLine(this.host, `> ${rawText}`);
+		}
 		if (command.kind === 'error') {
 			this.setNotice(command.message);
 		} else if (command.kind === 'help') {
 			void this.showCommandHelp(target);
+		} else if (command.kind === 'properties') {
+			this.focusProperties();
 		} else if (command.kind === 'undo') {
 			// The plan's undo, not the CAD drawing's own (which has nothing of the plan's).
 			void this.undoRedo(command.redo);
@@ -1139,17 +1227,6 @@ export class FloorPlanEditor extends EditorPane {
 		return isObject(layout) && layout.schema === FLOOR_PLAN_SCHEMA_ID ? 'ok' : 'invalid';
 	}
 
-	/** The drafting tools folded into one toolbar menu (AutoCAD's Draw panel). */
-	private drawMenu(actions: IAction[]): SubmenuAction {
-		const menu = new SubmenuAction('saengine.floorPlan.drawMenu', localize('floorPlan.drawMenu', "Draw"), actions, ThemeIcon.asClassName(Codicon.edit));
-		return menu;
-	}
-
-	private modifyMenu(actions: IAction[]): SubmenuAction {
-		const menu = new SubmenuAction('saengine.floorPlan.modifyMenu', localize('floorPlan.modifyMenu', "Modify"), actions, ThemeIcon.asClassName(Codicon.tools));
-		return menu;
-	}
-
 	/** Brings the toolbar's buttons, the overflow menu and the inline controls up to date. */
 	private updateToolbar(): void {
 		const frame = this.frame;
@@ -1196,25 +1273,12 @@ export class FloorPlanEditor extends EditorPane {
 		this.commandLineAction.checked = commandLine;
 		this.commandLineAction.label = commandLine ? localize('floorPlan.hideCommandLine', "Hide Command Line (:)") : localize('floorPlan.showCommandLine', "Show Command Line (:)");
 
-		const cadDrawActions = [
-			this.cadLineAction, this.cadPlineAction, this.cadRectAction, this.cadPolygonAction, this.cadCircleAction, this.cadArcAction,
-			this.cadEllipseAction, this.cadSplineAction, this.cadHatchAction, this.cadTextAction, this.cadDimensionAction
-		];
-		const cadModifyActions = [
-			this.cadOffsetAction, this.cadTrimAction, this.cadExtendAction, this.cadFilletAction, this.cadMirrorAction, this.cadScaleAction
-		];
-		cadDrawActions.forEach(a => a.enabled = editable && !!this.editor);
-		cadModifyActions.forEach(a => a.enabled = editable && !!this.editor);
-
 		const tools = (names: readonly Tool[]) => names.map(name => this.toolActions.get(name)!);
 		const primary: IAction[] = [
 			...tools(['select']),
 			new Separator(),
 			...tools(['column', 'beam', 'wall', 'slab', 'polygonSlab', 'fill']), this.foundationsAction,
 			new Separator(),
-			...(this.compact ? [] : this.draftingInline
-				? [...cadDrawActions, new Separator(), ...cadModifyActions, new Separator()]
-				: [this.drawMenu(cadDrawActions), this.modifyMenu(cadModifyActions), new Separator()]),
 			this.typicalAction,
 			new Separator(),
 			...(this.narrow ? [] : [...tools(['move', 'rotate', 'delete']), new Separator()]),
@@ -1231,9 +1295,6 @@ export class FloorPlanEditor extends EditorPane {
 			this.convertWallAction,
 			this.convertSlabAction,
 			this.deleteSelectionAction,
-			this.membersTableAction,
-			new Separator(),
-			this.gridsAction,
 			this.objectsAction,
 			new Separator(),
 			this.attachUnderlayAction,
@@ -1248,17 +1309,16 @@ export class FloorPlanEditor extends EditorPane {
 			this.exportAction,
 			this.exportWorkbookAction,
 			this.importWorkbookAction,
-			...(this.compact ? [new Separator(), ...cadDrawActions, new Separator(), ...cadModifyActions] : []),
 			...(this.compact ? [new Separator(), this.undoAction, this.redoAction, new Separator(), this.gridLinesAction, this.underlayAction, this.commandLineAction] : []),
 			...(this.narrow ? [new Separator(), ...tools(['move', 'rotate', 'delete'])] : []),
 		];
-		const key = `${state}|${this.compact}|${this.narrow}|${this.draftingInline}`;
+		const key = `${state}|${this.compact}|${this.narrow}`;
 		if (key !== this.actionsKey) {
 			this.actionsKey = key;
 			frame.setActions(primary, secondary);
 		}
 
-		this.fillGroup.classList.toggle('hidden', this.tool !== 'fill');
+		this.fillControl.visible = this.tool === 'fill';
 		const hasSelection = editable && this.selected.length > 0;
 		this.copyStoriesAction.enabled = hasSelection;
 		this.mirrorAction.enabled = hasSelection;
@@ -1268,7 +1328,7 @@ export class FloorPlanEditor extends EditorPane {
 
 		// The object type the placement tool places.
 		const tool = this.placementTool;
-		this.typeGroup.classList.toggle('hidden', !tool);
+		this.typeControl.visible = !!tool;
 		if (tool) {
 			const types = this.typesOfKinds(TOOL_KINDS[tool]);
 			this.typeIds = types.map(([id]) => id);
@@ -1279,8 +1339,14 @@ export class FloorPlanEditor extends EditorPane {
 					this.types.set(tool, chosen);
 				}
 			}
-			const options = [...types.map(([, name]) => ({ text: name })), ...(tool !== 'footing' ? [{ text: localize('floorPlan.newType', "New type...") }] : [])];
-			this.typePicker.setOptions(options.length ? options : [{ text: localize('floorPlan.noTypes', "(none defined)") }], Math.max(0, this.typeIds.indexOf(chosen ?? '')));
+			const items = [
+				...types.map(([id, name]) => ({ id, label: name })),
+				...(tool !== 'footing' ? [{ id: '__new__', label: localize('floorPlan.newType', "New type...") }] : []),
+			];
+			this.typeControl.setItems(
+				items.length ? items : [{ id: '', label: localize('floorPlan.noTypes', "(none defined)") }],
+				chosen ?? this.typeIds[0] ?? '',
+			);
 		}
 		this.updateTypedControls();
 	}
@@ -1298,12 +1364,13 @@ export class FloorPlanEditor extends EditorPane {
 		this.typedControls.clear();
 		this.lengthBox = undefined;
 		clearNode(this.typedGroup);
-		this.typedGroup.classList.toggle('hidden', !key);
 		if (length) {
+			this.typedControl.visible = true;
 			this.renderLengthEntry();
 			return;
 		}
 		if (!picked || (tool !== 'move' && tool !== 'rotate')) {
+			this.typedControl.visible = false;
 			return;
 		}
 		const box = this.typedControls.add(new InputBox(append(this.typedGroup, $('.floor-plan-typed')), this.contextViewService, {
@@ -1339,6 +1406,7 @@ export class FloorPlanEditor extends EditorPane {
 			const quarter: IEditorFrameIconButton = this.typedControls.add(this.frame.createIconButton(this.typedGroup, Codicon.refresh, localize('floorPlan.rotate90', "Turn 90°"), () => this.rotateTo(this.rotationOf(picked) + 90)));
 			quarter.element.classList.add('floor-plan-quarter');
 		}
+		this.typedControl.visible = true;
 	}
 
 	/**
@@ -1381,6 +1449,10 @@ export class FloorPlanEditor extends EditorPane {
 		return (this.tool === 'select' || this.tool === 'fill') && !this.pasting;
 	}
 
+	private isLassoEnabled(): boolean {
+		return (this.editor?.getSysVar('LASSO') ?? 1) !== 0;
+	}
+
 	private registerMouse(): void {
 		let down: { x: number; y: number } | undefined;
 		const onCanvas = (e: MouseEvent) => isHTMLElement(e.target) && e.target.tagName === 'CANVAS';
@@ -1396,7 +1468,8 @@ export class FloorPlanEditor extends EditorPane {
 			if (down && this.editor && this.windowTool && onCanvas(e)) {
 				// The window is ours: the CAD editor's own box selection has nothing to select here.
 				e.stopPropagation();
-				this.drag = { start: this.editor.toWorld(e.clientX, e.clientY), client: down };
+				const startPt = this.editor.toWorld(e.clientX, e.clientY);
+				this.drag = { start: startPt, client: down, points: [startPt] };
 			}
 		}, true));
 		this._register(addDisposableListener(this.host, EventType.MOUSE_DOWN, e => {
@@ -1421,7 +1494,10 @@ export class FloorPlanEditor extends EditorPane {
 				return;
 			}
 			const point = this.editor.toWorld(e.clientX, e.clientY);
-			if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < CLICK_PIXELS) {
+			// A lasso loop ends near where it started: it is a lasso, not a click.
+			if (drag?.points && this.isLassoEnabled() && isFreehandLasso(drag.points)) {
+				this.finishLasso(drag.points, drag.lassoModeOverride ?? lassoMode(drag.points), e);
+			} else if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < CLICK_PIXELS) {
 				this.click(point, e);
 			} else if (drag) {
 				this.finishWindow(drag.start, point, e);
@@ -1439,6 +1515,12 @@ export class FloorPlanEditor extends EditorPane {
 				this.hover = this.editor.toWorld(e.clientX, e.clientY);
 				if (this.drag && (e.buttons & 1) && Math.hypot(e.clientX - this.drag.client.x, e.clientY - this.drag.client.y) >= CLICK_PIXELS) {
 					this.drag.current = this.hover;
+					if (this.isLassoEnabled() && this.drag.points) {
+						const last = this.drag.points[this.drag.points.length - 1];
+						if (Math.hypot(this.hover[0] - last[0], this.hover[1] - last[1]) > 0.001) {
+							this.drag.points.push(this.hover);
+						}
+					}
 				}
 				this.schedulePreview();
 			}
@@ -1757,6 +1839,48 @@ export class FloorPlanEditor extends EditorPane {
 		}
 	}
 
+	/** A freehand lasso dragged across the canvas: selects members and drafting entities. */
+	private finishLasso(points: CadPoint[], mode: 'window' | 'crossing' | 'fence', modifiers: { readonly ctrlKey: boolean; readonly metaKey: boolean; readonly shiftKey: boolean }): void {
+		if (this.tool === 'fill') {
+			const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+			const min: CadPoint = [Math.min(...xs), Math.min(...ys)];
+			const max: CadPoint = [Math.max(...xs), Math.max(...ys)];
+			const choice = FILL_CHOICES[this.fillChoice];
+			this.runFill(choice.kind, choice.direction, { min, max });
+			return;
+		}
+		const refs = selectInPolygon(this.plan?.members ?? [], points, mode);
+		const isAdditive = modifiers.ctrlKey || modifiers.metaKey || modifiers.shiftKey;
+		this.selected = combine(this.selected, refs, isAdditive ? 'add' : 'replace');
+		const last = this.selected[this.selected.length - 1];
+		this.selectionService.setSelection(last ? { kind: 'member', group: last.group, id: last.id } : undefined, SELECTION_SOURCE);
+
+		const draftHits = this.editor?.pickDraftingPolygon(points, mode) ?? [];
+		if (this.editor) {
+			if (isAdditive) {
+				const current = this.editor.selection.get();
+				const combined = Array.from(new Set([...current, ...draftHits]));
+				this.editor.selection.set(combined);
+			} else {
+				this.editor.selection.set(draftHits);
+			}
+		}
+
+		this.updateStatus();
+		this.renderProperties();
+		this.updateToolbar();
+		this.schedulePreview();
+		const totalDraftCount = this.editor?.selection.get().length ?? 0;
+		const totalMemberCount = this.selected.length;
+		if (totalDraftCount > 0 && totalMemberCount > 0) {
+			this.setNotice(localize('floorPlan.lassoMixedSelected', "Lasso ({0}): {1} member(s), {2} drafting entity(ies).", mode, totalMemberCount, totalDraftCount));
+		} else if (totalDraftCount > 0) {
+			this.setNotice(localize('floorPlan.lassoDraftSelected', "Lasso ({0}): {1} drafting entity(ies).", mode, totalDraftCount));
+		} else {
+			this.setNotice(localize('floorPlan.lassoSelected', "Lasso ({0}): {1} member(s).", mode, refs.length));
+		}
+	}
+
 	private get story(): string | undefined {
 		return (this.input as FloorPlanEditorInput | undefined)?.story;
 	}
@@ -1883,6 +2007,9 @@ export class FloorPlanEditor extends EditorPane {
 				break;
 			case 'delete':
 				void this.deleteSelection(refs);
+				break;
+			case 'properties':
+				this.focusProperties();
 				break;
 			case 'convert':
 				void this.pickConversion(command.target);
@@ -2134,28 +2261,71 @@ export class FloorPlanEditor extends EditorPane {
 		if (this.tool === 'select') {
 			const mode = modifiers?.ctrlKey || modifiers?.metaKey ? 'toggle' : modifiers?.shiftKey ? 'add' : 'replace';
 			const draftingHits = (modifiers?.clientX !== undefined && modifiers?.clientY !== undefined && this.editor)
-				? this.editor.pickDrafting(modifiers.clientX, modifiers.clientY)
+				? this.editor.pickDraftingAll(modifiers.clientX, modifiers.clientY)
 				: [];
-			if (draftingHits.length > 0) {
-				const nearestId = draftingHits[0];
-				const currentDraftIds = this.editor?.selection.get() ?? [];
-				let newDraftIds: string[];
-				if (mode === 'replace') {
-					newDraftIds = [nearestId];
-				} else if (mode === 'add') {
-					newDraftIds = currentDraftIds.includes(nearestId) ? [...currentDraftIds] : [...currentDraftIds, nearestId];
-				} else { // toggle
-					newDraftIds = currentDraftIds.includes(nearestId)
-						? currentDraftIds.filter(id => id !== nearestId)
-						: [...currentDraftIds, nearestId];
+			const memberHits = (this.plan && this.editor)
+				? pickMembersAll(this.plan.members, point, PICK_PIXELS * this.editor.unitsPerPixel())
+				: [];
+
+			type CycleItem = { kind: 'drafting'; id: string; label: string } | { kind: 'member'; group: MemberGroup; id: string; label: string };
+			const cycleList: CycleItem[] = [
+				...draftingHits.map((d: CadDraftingHit) => ({ kind: 'drafting' as const, id: d.id, label: `${d.type} (${d.layer})` })),
+				...memberHits.map(m => ({ kind: 'member' as const, group: m.group, id: m.id, label: `${m.id} (${m.group})` })),
+			];
+
+			const sysvarCycling = this.editor?.getSysVar('SELECTIONCYCLING') ?? 2;
+			const cyclingEnabled = sysvarCycling !== 0;
+
+			const now = Date.now();
+			const isRapidClickAtSameSpot = this.lastClickPos && (now - this.lastClickTime < 300) &&
+				modifiers?.clientX !== undefined && modifiers?.clientY !== undefined &&
+				Math.hypot(modifiers.clientX - this.lastClickPos.x, modifiers.clientY - this.lastClickPos.y) < 5;
+
+			if (cyclingEnabled && cycleList.length > 1 && (this.selectionCyclingActive || isRapidClickAtSameSpot)) {
+				this.cycleIndex = (this.cycleIndex + 1) % cycleList.length;
+			} else {
+				this.cycleIndex = 0;
+			}
+
+			if (modifiers?.clientX !== undefined && modifiers?.clientY !== undefined) {
+				this.lastClickPos = { x: modifiers.clientX, y: modifiers.clientY };
+			}
+			this.lastClickTime = now;
+
+			if (cycleList.length > 0) {
+				const pickedItem = cycleList[this.cycleIndex];
+				if (pickedItem.kind === 'drafting') {
+					const currentDraftIds = this.editor?.selection.get() ?? [];
+					let newDraftIds: string[];
+					if (mode === 'replace') {
+						newDraftIds = [pickedItem.id];
+					} else if (mode === 'add') {
+						newDraftIds = currentDraftIds.includes(pickedItem.id) ? [...currentDraftIds] : [...currentDraftIds, pickedItem.id];
+					} else { // toggle
+						newDraftIds = currentDraftIds.includes(pickedItem.id)
+							? currentDraftIds.filter(id => id !== pickedItem.id)
+							: [...currentDraftIds, pickedItem.id];
+					}
+					this.editor?.selection.set(newDraftIds);
+					this.select([]);
+				} else {
+					this.editor?.selection.set([]);
+					this.select(combine(this.selected, [{ group: pickedItem.group, id: pickedItem.id }], mode));
 				}
-				this.editor?.selection.set(newDraftIds);
-				this.select([]);
+
+				if (sysvarCycling === 2 && cycleList.length > 1 && modifiers?.clientX !== undefined && modifiers?.clientY !== undefined) {
+					this.showSelectionCycleMenu(cycleList, modifiers.clientX, modifiers.clientY, mode);
+				} else if (this.cycleMenuShown) {
+					this.contextViewService.hideContextView();
+				}
 				return;
 			}
+
+			if (this.cycleMenuShown) {
+				this.contextViewService.hideContextView();
+			}
 			this.editor?.selection.set([]);
-			const shape = this.pick(point);
-			this.select(combine(this.selected, shape ? [{ group: shape.group, id: shape.id }] : [], mode));
+			this.select([]);
 			return;
 		}
 		if (!story || !isObject(layout) || layout.schema !== FLOOR_PLAN_SCHEMA_ID || this.layoutState !== 'ok') {
@@ -2254,6 +2424,75 @@ export class FloorPlanEditor extends EditorPane {
 			this.setNotice(result.error);
 		}
 		this.schedulePreview();
+	}
+
+	private showSelectionCycleMenu(
+		cycleList: Array<{ kind: 'drafting'; id: string; label: string } | { kind: 'member'; group: MemberGroup; id: string; label: string }>,
+		clientX: number,
+		clientY: number,
+		mode: 'replace' | 'add' | 'toggle',
+	): void {
+		this.cycleMenuShown = true;
+		this.contextViewService.showContextView({
+			getAnchor: () => ({ x: clientX + 12, y: clientY + 12 }),
+			onHide: () => { this.cycleMenuShown = false; },
+			render: (container: HTMLElement) => {
+				const list = document.createElement('div');
+				list.className = 'floor-plan-selection-cycle-list';
+				list.style.padding = '4px 0';
+				list.style.background = 'var(--vscode-menu-background, #252526)';
+				list.style.color = 'var(--vscode-menu-foreground, #cccccc)';
+				list.style.border = '1px solid var(--vscode-menu-border, #454545)';
+				list.style.borderRadius = '3px';
+				list.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+				list.style.fontSize = '12px';
+				list.style.minWidth = '140px';
+				list.style.cursor = 'pointer';
+
+				cycleList.forEach((item, idx) => {
+					const row = document.createElement('div');
+					row.style.padding = '4px 10px';
+					row.style.whiteSpace = 'nowrap';
+					if (idx === this.cycleIndex) {
+						row.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
+						row.style.color = 'var(--vscode-menu-selectionForeground, #ffffff)';
+						row.style.fontWeight = 'bold';
+					}
+					row.textContent = item.label;
+					row.addEventListener('mouseenter', () => {
+						row.style.background = 'var(--vscode-menu-selectionBackground, #094771)';
+						row.style.color = 'var(--vscode-menu-selectionForeground, #ffffff)';
+					});
+					row.addEventListener('mouseleave', () => {
+						if (idx !== this.cycleIndex) {
+							row.style.background = 'transparent';
+							row.style.color = 'var(--vscode-menu-foreground, #cccccc)';
+						}
+					});
+					row.addEventListener('click', (e) => {
+						e.stopPropagation();
+						this.cycleIndex = idx;
+						if (item.kind === 'drafting') {
+							const currentDraftIds = this.editor?.selection.get() ?? [];
+							const newDraftIds = mode === 'replace' ? [item.id]
+								: mode === 'add' ? (currentDraftIds.includes(item.id) ? currentDraftIds : [...currentDraftIds, item.id])
+								: (currentDraftIds.includes(item.id) ? currentDraftIds.filter(id => id !== item.id) : [...currentDraftIds, item.id]);
+							this.editor?.selection.set(newDraftIds);
+							this.select([]);
+						} else {
+							this.editor?.selection.set([]);
+							this.select(combine(this.selected, [{ group: item.group, id: item.id }], mode));
+						}
+						this.contextViewService.hideContextView();
+					});
+					list.appendChild(row);
+				});
+				container.appendChild(list);
+				return toDisposable(() => {
+					container.textContent = '';
+				});
+			},
+		});
 	}
 
 
@@ -2456,6 +2695,7 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		input.story = storyId;
 		await this.loadStoryDrawing(storyId);
+		notifyActiveCadEditorChanged(this.editor);
 	}
 
 	/**
@@ -2519,9 +2759,10 @@ export class FloorPlanEditor extends EditorPane {
 		if (input.story) {
 			this.viewStorage.store(storyKey, input.story, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
-		this.storyPicker.setOptions(
-			stories.length ? stories.map(s => ({ text: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ text: localize('floorPlan.noStoriesOption', "(no stories)") }],
-			Math.max(0, this.storyIds.indexOf(input.story ?? '')),
+		const storySel = this.storyIds.includes(input.story ?? '') ? (input.story ?? '') : '';
+		this.storyControl.setItems(
+			stories.length ? stories.map(s => ({ id: s.id, label: `${s.name} (${storyLevel(s.elevation)})${this.familyLabel(layout, s.id)}` })) : [{ id: '', label: localize('floorPlan.noStoriesOption', "(no stories)") }],
+			storySel,
 		);
 
 		if (input.story && this.currentDraftingStory && input.story !== this.currentDraftingStory) {
@@ -2724,16 +2965,29 @@ export class FloorPlanEditor extends EditorPane {
 				}
 			}
 		}
-		// The window being dragged: solid for a window (members inside), dashed for a crossing one.
+		// The window or lasso being dragged: solid for a window (members inside), dashed for a crossing one.
 		const drag = this.drag;
 		if (drag?.current) {
-			const crossing = this.tool === 'select' && windowMode(drag.start, drag.current) === 'crossing';
-			const { min, max } = rectOf(drag.start, drag.current);
-			entities.push({
-				kind: 'polyline', layer: crossing ? PREVIEW_LAYERS[4].name : PREVIEW_LAYERS[3].name, closed: true,
-				points: [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]],
-				linetypeScale: crossing ? WINDOW_DASH_PIXELS * units : undefined,
-			});
+			const isLasso = this.isLassoEnabled() && !!drag.points && isFreehandLasso(drag.points);
+			if (isLasso) {
+				const mode = drag.lassoModeOverride ?? lassoMode(drag.points!);
+				const layer = mode === 'window' ? PREVIEW_LAYERS[3].name : PREVIEW_LAYERS[4].name;
+				entities.push({
+					kind: 'polyline',
+					layer,
+					closed: mode !== 'fence',
+					points: [...drag.points!, drag.current],
+					linetypeScale: mode !== 'window' ? WINDOW_DASH_PIXELS * units : undefined,
+				});
+			} else {
+				const crossing = this.tool === 'select' && windowMode(drag.start, drag.current) === 'crossing';
+				const { min, max } = rectOf(drag.start, drag.current);
+				entities.push({
+					kind: 'polyline', layer: crossing ? PREVIEW_LAYERS[4].name : PREVIEW_LAYERS[3].name, closed: true,
+					points: [[min[0], min[1]], [max[0], min[1]], [max[0], max[1]], [min[0], max[1]]],
+					linetypeScale: crossing ? WINDOW_DASH_PIXELS * units : undefined,
+				});
+			}
 		}
 		// Ctrl+V: the copied members where they would land.
 		const clipboard = this.clipboard;
@@ -2858,6 +3112,39 @@ export class FloorPlanEditor extends EditorPane {
 	}
 
 	/**
+	 * Focus the properties panel (AutoCAD PROPERTIES / PR / Ctrl+1).
+	 */
+	public focusProperties(): void {
+		if (!this.frame?.properties) {
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		const findFocusable = (el: HTMLElement): HTMLElement | undefined => {
+			const tag = el.tagName.toLowerCase();
+			if (tag === 'input' || tag === 'select' || tag === 'button') {
+				return el;
+			}
+			for (let i = 0; i < el.children.length; i++) {
+				const child = el.children[i];
+				if (isHTMLElement(child)) {
+					const found = findFocusable(child);
+					if (found) {
+						return found;
+					}
+				}
+			}
+			return undefined;
+		};
+		const focusable = findFocusable(this.frame.properties);
+		if (focusable) {
+			focusable.focus();
+		} else {
+			this.frame.properties.tabIndex = -1;
+			this.frame.properties.focus();
+		}
+	}
+
+	/**
 	 * The selected member's properties, with what this editor can change about it (type, rotation,
 	 * position); with nothing selected, the story's.
 	 */
@@ -2869,6 +3156,12 @@ export class FloorPlanEditor extends EditorPane {
 		this.propertiesDisposables.clear();
 		clearNode(panel);
 		if (!this.planModel) {
+			return;
+		}
+		const draftIds = this.editor?.selection.get() ?? [];
+		const hasStructural = !!this.picked || this.selected.length > 0;
+		if (draftIds.length > 0 && !hasStructural && this.editor) {
+			this.draftProperties.render(panel, this.propertiesDisposables, this.editor, draftIds);
 			return;
 		}
 		const docs = this.documents();
@@ -3296,8 +3589,8 @@ export class FloorPlanEditor extends EditorPane {
 		}
 	}
 
-	/** Picks a DXF or DWG and attaches it to the current story; files from elsewhere are copied into the project. */
-	private async attachUnderlay(): Promise<void> {
+	/** Picks a DXF/DWG/PDF underlay or point cloud and attaches it to the current story; files from elsewhere are copied into the project. */
+	private async attachUnderlay(pointCloudOnly = false): Promise<void> {
 		const input = this.input as FloorPlanEditorInput | undefined;
 		const story = input?.story;
 		if (!input || !story) {
@@ -3305,14 +3598,20 @@ export class FloorPlanEditor extends EditorPane {
 		}
 		const folder = dirname(input.resource);
 		const picked = await this.fileDialogService.showOpenDialog({
-			title: localize('floorPlan.pickUnderlayOrScan', "Attach a Drawing or Point Cloud (DXF, DWG, PDF, LAS, XYZ, PTS, LAZ, E57)"),
+			title: pointCloudOnly
+				? localize('floorPlan.pickPointCloud', "Attach a Point Cloud (LAS, XYZ, PTS, LAZ, E57)")
+				: localize('floorPlan.pickUnderlayOrScan', "Attach a Drawing or Point Cloud (DXF, DWG, PDF, LAS, XYZ, PTS, LAZ, E57)"),
 			canSelectFiles: true,
 			canSelectMany: false,
-			filters: [
-				{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] },
-				// Alpha 9 L2: laser scans, shown as the slice at the story's cut with the lines traced through it.
-				{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
-			],
+			filters: pointCloudOnly
+				? [
+					{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
+				]
+				: [
+					{ name: localize('floorPlan.cadFiles', "Drawings (DXF, DWG, PDF)"), extensions: ['dxf', 'dwg', 'pdf'] },
+					// Alpha 9 L2: laser scans, shown as the slice at the story's cut with the lines traced through it.
+					{ name: localize('floorPlan.cloudFiles', "Point clouds (LAS, XYZ, PTS, LAZ, E57)"), extensions: ['las', 'xyz', 'pts', 'laz', 'e57'] },
+				],
 			defaultUri: folder,
 		});
 		const source = picked?.[0];
@@ -3818,5 +4117,75 @@ export class FloorPlanEditor extends EditorPane {
 		if (text) {
 			this.message.textContent = text;
 		}
+	}
+
+	/** Selects a floor plan drafting or editing tool from the Plan ribbon tab. */
+	selectTool(tool: FloorPlanTool): void {
+		if (this.layoutState === 'ok' || tool === 'select') {
+			this.setTool(tool);
+		}
+	}
+
+	zoomToExtents(): void {
+		this.userView = false;
+		this.editor?.zoomExtents();
+	}
+
+	openTypicalFloors(): Promise<void> {
+		return this.editTypicalFloors();
+	}
+
+	convertDrafting(kind: 'beam' | 'wall' | 'slab'): Promise<void> {
+		return this.pickConversion(kind);
+	}
+
+	toggleUnderlayVisibility(): void {
+		this.toggleUnderlay();
+	}
+
+	attachUnderlayFile(): Promise<void> {
+		return this.attachUnderlay(false);
+	}
+
+	attachPointCloudFile(): Promise<void> {
+		return this.attachUnderlay(true);
+	}
+
+	removeUnderlayFile(): void {
+		this.changeUnderlay((this.input as FloorPlanEditorInput | undefined)?.story, undefined);
+	}
+
+	beginUnderlayPick(kind: 'calibrate' | 'move' | 'rotate' | 'align'): void {
+		this.startUnderlayPick(kind);
+	}
+
+	toggleUnderlayLocked(): void {
+		this.toggleUnderlayLock();
+	}
+
+	selectUnderlayPage(): Promise<void> {
+		return this.pickUnderlayPage();
+	}
+
+	openMemberLineLoad(): void {
+		if (!this.loadsPanel.openLineLoad(this.selected)) {
+			this.notificationService.info(localize('floorPlan.selectBeamForLineLoad', "Select one or more beams in the floor plan to add a line load."));
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		this.renderProperties();
+	}
+
+	openMemberPointLoad(): void {
+		if (!this.loadsPanel.openPointLoad(this.selected)) {
+			this.notificationService.info(localize('floorPlan.selectMemberForPointLoad', "Select one beam or column in the floor plan to add a point load."));
+			return;
+		}
+		this.frame.setPropertiesVisible(true);
+		this.renderProperties();
+	}
+
+	openSubstructurePart(): void {
+		this.openPart('substructure');
 	}
 }

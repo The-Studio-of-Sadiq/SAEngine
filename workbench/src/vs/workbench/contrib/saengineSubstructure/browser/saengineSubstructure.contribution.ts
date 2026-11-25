@@ -3,14 +3,17 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './substructureDataPanels.contribution.js';
 import { getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,9 +27,11 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { OPEN_PLANNED_FEATURE_COMMAND } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { SubstructureEditor } from './substructureEditor.js';
 import { SubstructureEditorInput, SubstructureEditorInputSerializer } from './substructureEditorInput.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 /** Opens the substructure editor and sizes all foundations (the sizing assistant). */
 export const SUBSTRUCTURE_SIZE_ALL_COMMAND = 'saengine.substructure.sizeAll';
@@ -56,6 +61,7 @@ class SubstructureEditorResolverContribution extends Disposable implements IWork
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, SubstructureEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{
@@ -153,6 +159,84 @@ registerAction2(class extends Action2 {
 		await (await substructureEditor(accessor))?.migrate();
 	}
 });
+
+function registerFoundationCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	icon: ThemeIcon,
+	runWithEditor: (editor: SubstructureEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await substructureEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+}
+
+registerFoundationCommand('saengine.substructure.addFooting', localize2('fdn.rib.addFootingTitle', "Add Footing under Selected Columns"), Codicon.add, e => e.addFootings());
+registerFoundationCommand('saengine.substructure.addRaft', localize2('fdn.rib.addRaftTitle', "Add Raft Foundation"), Codicon.primitiveSquare, e => e.addRaft());
+registerFoundationCommand('saengine.substructure.addStrip', localize2('fdn.rib.addStripTitle', "Add Strip Footing"), Codicon.layoutPanel, e => e.addStrip());
+registerFoundationCommand('saengine.substructure.selectUncovered', localize2('fdn.rib.uncoveredTitle', "Select Columns without a Foundation"), Codicon.selection, e => e.selectUncovered());
+
+registerFoundationCommand('saengine.substructure.addPileCap', localize2('fdn.rib.addCapTitle', "Add Pile Cap under Selected Columns"), Codicon.circleLargeOutline, e => e.addPileCaps());
+registerFoundationCommand('saengine.substructure.placePiles', localize2('fdn.rib.placePilesTitle', "Place Piles Tool"), Codicon.circleFilled, e => e.togglePileTool());
+registerFoundationCommand('saengine.substructure.pileGrid', localize2('fdn.rib.pileGridTitle', "Edit Pile Grid"), Codicon.symbolNumeric, e => e.editPileGrid());
+registerFoundationCommand('saengine.substructure.pileGroup', localize2('fdn.rib.pileGroupTitle', "Place Pile Group under Selected Columns"), Codicon.location, e => e.placeGroups());
+registerFoundationCommand('saengine.substructure.makeCap', localize2('fdn.rib.makeCapTitle', "Make Pile Cap from Selected Piles"), Codicon.package, e => e.makeCap());
+registerFoundationCommand('saengine.substructure.addPileType', localize2('fdn.rib.addPileTypeTitle', "Add Pile Type"), Codicon.newFile, e => e.addPileType());
+
+registerFoundationCommand('saengine.substructure.gradeBeam', localize2('fdn.rib.gradeBeamTitle', "Draw Grade Beam Tool"), Codicon.arrowBoth, e => e.toggleBeamTool());
+registerFoundationCommand('saengine.substructure.addTieBeam', localize2('fdn.rib.addTieTitle', "Add Tie Beam between Selected Foundations"), Codicon.dash, e => e.addTieBeam());
+registerFoundationCommand('saengine.substructure.connectBeams', localize2('fdn.rib.connectTitle', "Connect Grade Beams along Grid Lines"), Codicon.gitMerge, e => e.connectBeams());
+registerFoundationCommand('saengine.substructure.delete', localize2('fdn.rib.deleteTitle', "Delete Selected Foundation or Pile"), Codicon.trash, e => e.deleteSelection());
+
+registerFoundationCommand('saengine.substructure.saveAndCheck', localize2('fdn.rib.saveCheckTitle', "Save and Check Foundations"), Codicon.checkAll, e => e.saveAndCheck());
+registerFoundationCommand('saengine.substructure.recompute', localize2('fdn.rib.recomputeTitle', "Check Foundations Again"), Codicon.refresh, e => e.computeReport());
+
+registerFoundationCommand('saengine.substructure.viewPlan', localize2('fdn.rib.viewPlanTitle', "Substructure View: Plan"), Codicon.symbolStructure, e => e.showView('plan'));
+registerFoundationCommand('saengine.substructure.viewData', localize2('fdn.rib.viewDataTitle', "Substructure View: Data"), Codicon.table, e => e.showView('data'));
+registerFoundationCommand('saengine.substructure.viewResults', localize2('fdn.rib.viewResultsTitle', "Substructure View: Results"), Codicon.graphLine, e => e.showView('results'));
+
+registerFoundationCommand('saengine.substructure.addRetainingWall', localize2('fdn.rib.addRetWallTitle', "Add Retaining Wall"), Codicon.layoutSidebarLeft, e => e.addRetainingWall());
+registerFoundationCommand('saengine.substructure.addExcavation', localize2('fdn.rib.addExcTitle', "Add Excavation Support"), Codicon.debugPause, e => e.addExcavation());
+registerFoundationCommand('saengine.substructure.addSlope', localize2('fdn.rib.addSlopeTitle', "Add Slope Stability Entry"), Codicon.graph, e => e.addSlope());
+registerFoundationCommand('saengine.substructure.addGroundSlab', localize2('fdn.rib.addGSlabTitle', "Add Slab on Grade"), Codicon.browser, e => e.addGroundSlab());
+registerFoundationCommand('saengine.substructure.addMachine', localize2('fdn.rib.addMachineTitle', "Add Machine Foundation"), Codicon.settingsGear, e => e.addMachineFoundation());
+
+for (const [id, title, featureId] of [
+	['saengine.substructure.piledRaft', localize2('fdn.rib.piledRaftTitle', "Piled Raft Interaction (Planned)"), 'substructure.piledRaft'],
+	['saengine.substructure.pileGroupInteraction', localize2('fdn.rib.groupIntTitle', "Pile Group Interaction Factors (Planned)"), 'substructure.pileGroupInteraction'],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon: Codicon.lightbulb,
+				f1: true,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			await accessor.get(ICommandService).executeCommand(OPEN_PLANNED_FEATURE_COMMAND, featureId);
+		}
+	});
+}
 
 // Planned features of 9 Substructure (MVP: methods BNBC 2020 does not give itself).
 

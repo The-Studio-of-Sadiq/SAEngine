@@ -51,6 +51,7 @@ import { ISaengineProjectService, partById } from '../../../services/saenginePro
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { EditorFrame } from '../../saengineProject/browser/editorFrame.js';
+import { RibbonElementControl, RibbonSelectModel } from '../../saengineRibbon/browser/ribbonControls.js';
 import { PROJECT_MENU, ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { headingWithUnit } from '../../../services/saengineProject/common/displayUnits.js';
@@ -206,10 +207,11 @@ export class MembersTable extends Disposable {
 
 	private body!: HTMLElement;
 	private scrollable!: DomScrollableElement;
-	private storyFilter!: SelectBox;
-	private kindFilter!: SelectBox;
-	private typeFilter!: SelectBox;
+	private storyFilter!: RibbonSelectModel;
+	private kindFilter!: RibbonSelectModel;
+	private typeFilter!: RibbonSelectModel;
 	private search!: InputBox;
+	private searchHost!: HTMLElement;
 	private planModel: ITextModel | undefined;
 	private objectsModel: ITextModel | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -230,10 +232,7 @@ export class MembersTable extends Disposable {
 	private floorPlan: URI | undefined;
 	private loading = 0;
 
-	private readonly undoAction = this._register(new Action('saengine.membersTable.undo', localize('membersTable.undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.membersTable.redo', localize('membersTable.redo', "Redo"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
 	private readonly exportAction = this._register(new Action('saengine.membersTable.export', localize('membersTable.exportCsv', "Export CSV..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportCsv()));
-	private readonly floorPlanAction = this._register(new Action('saengine.membersTable.floorPlan', localize('membersTable.openFloorPlan', "Open Floor Plan"), ThemeIcon.asClassName(Codicon.symbolArray), true, () => this.openFloorPlan()));
 	private readonly followAction: Action = this._register(new Action('saengine.membersTable.followStory', localize('membersTable.followStory', "Show the Model View's Storey"), undefined, true, async () => this.setFollowStory(!this.followAction.checked)));
 
 	constructor(
@@ -246,7 +245,6 @@ export class MembersTable extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.followAction.checked = !!options.followStory;
@@ -285,24 +283,38 @@ export class MembersTable extends Disposable {
 		this.frame.setTitle(localize('membersTable.title', "Members"));
 		this.frame.setHelp(localize('membersTable.help', "Every member placed on the floor plan. Filter, sort by a column heading, select rows (Ctrl+click, Shift+click, Ctrl+A) and click a row's object type or story to change it for all selected rows. Edits go to the floor plan and undo there too; typical floors follow their master."));
 
-		const filter = (aria: string, className: string, onSelect: (index: number) => void) => {
-			const box = this._register(new SelectBox([], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: aria }));
-			box.render(append(this.frame.controlsSlot, $(`.members-filter.${className}`)));
-			this._register(box.onDidSelect(({ index }) => onSelect(index)));
-			return box;
+		const makeFilter = (id: string, aria: string, onSelect: (index: number) => void): RibbonSelectModel => {
+			const model = this._register(new RibbonSelectModel({
+				id,
+				ariaLabel: aria,
+				tooltip: aria,
+				items: [],
+				selectedId: '0',
+			}));
+			this._register(model.onDidSelect(({ index }) => onSelect(index)));
+			this._register(this.frame.addViewControl(model));
+			return model;
 		};
-		this.storyFilter = filter(localize('membersTable.storyFilter', "Story"), 'story', index => this.setFilter({ story: this.storyIds[index] }));
-		this.kindFilter = filter(localize('membersTable.kindFilter', "Kind"), 'kind', index => this.setFilter({ group: index ? MEMBER_GROUPS[index - 1] : undefined }));
-		this.typeFilter = filter(localize('membersTable.typeFilter', "Object type"), 'type', index => this.setFilter({ type: this.typeIds[index] }));
-		this.kindFilter.setOptions([{ text: localize('membersTable.allKinds', "All kinds") }, ...MEMBER_GROUPS.map(g => ({ text: GROUP_LABELS[g] }))], 0);
-		this.search = this._register(new InputBox(append(this.frame.controlsSlot, $('.members-search')), this.contextViewService, {
+		this.storyFilter = makeFilter('saengine.membersTable.story', localize('membersTable.storyFilter', "Story"), index => this.setFilter({ story: this.storyIds[index] }));
+		this.kindFilter = makeFilter('saengine.membersTable.kind', localize('membersTable.kindFilter', "Kind"), index => this.setFilter({ group: index ? MEMBER_GROUPS[index - 1] : undefined }));
+		this.typeFilter = makeFilter('saengine.membersTable.type', localize('membersTable.typeFilter', "Object type"), index => this.setFilter({ type: this.typeIds[index] }));
+		this.kindFilter.setItems([
+			{ id: '0', label: localize('membersTable.allKinds', "All kinds") },
+			...MEMBER_GROUPS.map((g, i) => ({ id: String(i + 1), label: GROUP_LABELS[g] })),
+		], '0');
+		this.searchHost = $('.members-search');
+		this.search = this._register(new InputBox(this.searchHost, this.contextViewService, {
 			inputBoxStyles: defaultInputBoxStyles,
 			placeholder: localize('membersTable.search', "Find ID, type, grid"),
 			ariaLabel: localize('membersTable.searchAria', "Find members by ID, object type or grid"),
 		}));
 		this._register(this.search.onDidChange(text => this.setFilter({ text })));
+		this._register(this.frame.addViewControl(this._register(new RibbonElementControl({
+			id: 'saengine.membersTable.search',
+			element: this.searchHost,
+		}))));
 
-		this.frame.setActions([this.undoAction, this.redoAction, this.exportAction], this.options.followStory ? [this.followAction, this.floorPlanAction] : [this.floorPlanAction]);
+		this.frame.setActions([this.exportAction], this.options.followStory ? [this.followAction] : []);
 		this.body = $('.members-body', { tabIndex: 0, role: 'grid', 'aria-multiselectable': 'true', 'aria-label': localize('membersTable.aria', "Members") });
 		this.scrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('members-scroll');
@@ -391,7 +403,7 @@ export class MembersTable extends Disposable {
 				const onStory = !this.filter.story || filterRows(layout, [row], { story: this.filter.story }).length > 0;
 				this.filter = { story: onStory ? this.filter.story : undefined };
 				this.search.value = '';
-				this.kindFilter.select(0);
+				this.kindFilter.selectedId = '0';
 				this.render();
 			}
 		}
@@ -422,17 +434,16 @@ export class MembersTable extends Disposable {
 		if (this.filter.story && !stories.some(s => s.id === this.filter.story)) {
 			this.filter = { ...this.filter, story: undefined };
 		}
-		this.storyFilter.setOptions([{ text: localize('membersTable.allStories', "All stories") }, ...stories.map(s => ({ text: s.name }))], Math.max(0, this.storyIds.indexOf(this.filter.story)));
+		const storySel = this.storyIds.includes(this.filter.story) ? String(this.storyIds.indexOf(this.filter.story)) : '0';
+		this.storyFilter.setItems([{ id: '0', label: localize('membersTable.allStories', "All stories") }, ...stories.map((s, i) => ({ id: String(i + 1), label: s.name }))], storySel);
 		const types = [...new Set(memberRows(layout).map(r => r.type).filter(Boolean))].sort();
 		this.typeIds = [undefined, ...types];
 		if (this.filter.type && !types.includes(this.filter.type)) {
 			this.filter = { ...this.filter, type: undefined };
 		}
-		this.typeFilter.setOptions([{ text: localize('membersTable.allTypes', "All types") }, ...types.map(t => ({ text: t }))], Math.max(0, this.typeIds.indexOf(this.filter.type)));
+		const typeSel = this.typeIds.includes(this.filter.type) ? String(this.typeIds.indexOf(this.filter.type)) : '0';
+		this.typeFilter.setItems([{ id: '0', label: localize('membersTable.allTypes', "All types") }, ...types.map((t, i) => ({ id: String(i + 1), label: t }))], typeSel);
 		this.renderRows();
-		const resource = this.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
 	}
 
 	private renderRows(reveal = false): void {
@@ -674,6 +685,47 @@ export class MembersTable extends Disposable {
 		}
 	}
 
+	setKindFilter(group?: (typeof MEMBER_GROUPS)[number]): void {
+		this.filter = { ...this.filter, group };
+		this.kindFilter.selectedId = group ? String(MEMBER_GROUPS.indexOf(group) + 1) : '0';
+		this.renderRows();
+	}
+
+	resetFilters(): void {
+		this.filter = {};
+		this.storyFilter.selectedId = '0';
+		this.kindFilter.selectedId = '0';
+		this.typeFilter.selectedId = '0';
+		this.search.value = '';
+		this.renderRows();
+	}
+
+	selectAllRows(): void {
+		for (const row of this.shown) {
+			this.selected.add(rowKey(row));
+		}
+		this.renderRows();
+	}
+
+	clearSelection(): void {
+		this.selected.clear();
+		this.renderRows();
+	}
+
+	focusSearch(): void {
+		this.search.focus();
+	}
+
+	sortBy(key: SortKey): void {
+		const descending = this.sort.key === key ? !this.sort.descending : false;
+		this.sort = { key, descending };
+		this.renderRows();
+	}
+
+	exportTableCsv(): Promise<void> {
+		return this.exportCsv();
+	}
+
 	private async exportCsv(): Promise<void> {
 		const floorPlan = this.floorPlan;
 		const exportsPart = partById('exports');
@@ -695,13 +747,6 @@ export class MembersTable extends Disposable {
 			this.notificationService.info(localize('membersTable.exported', "Exported {0} members to {1}.", this.shown.length, basename(target)));
 		} catch (error) {
 			this.notificationService.error(localize('membersTable.exportFailed', "The members table could not be exported: {0}", String(error)));
-		}
-	}
-
-	private async openFloorPlan(): Promise<void> {
-		const resource = this.resource;
-		if (resource) {
-			await this.editorService.openEditor({ resource, options: { pinned: true } });
 		}
 	}
 }

@@ -88,7 +88,7 @@ export class GraphEditor extends EditorPane {
 			ariaLabel: localize('graph.aria', "Visual program"),
 			properties: { title: localize('graph.properties', "Node") },
 		}));
-		append(this.frame.titleSlot, $('span', undefined, localize('graph.title', "Visual Program")));
+		this.frame.setTitle(localize('graph.title', "Visual Program"));
 		this.frame.setHelp(localize('graph.help', "Nodes are SAEngine's functions: values, geometry, project edits, Run All's steps, results and exports. Wire an output (right) to an input (left): click the output, then the input; click a wired input to remove its wire. Inputs without a wire take the node's own value (Node panel). Run executes the program in the engine; nodes that write the project say so."));
 		this.frame.setActions([this.addAction, this.runAction, this.saveAction, this.deleteAction, this.frame.togglePropertiesAction]);
 		this.canvas = append(this.frame.main, $('.saengine-graph-canvas', { tabIndex: 0 }));

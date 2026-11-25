@@ -1,6 +1,7 @@
 import { AcDbArc, AcDbCircle, AcDbEntity, AcDbLine, AcDbMLeader, AcDbMLeaderContentType, AcDbMText, AcDbText, AcDbTextHorizontalMode, AcDbTextStyleTableRecord, AcDbTextVerticalMode, AcGePoint3d } from '@mlightcad/data-model';
 import { registerCommand, type CadCommandContext, type CadPoint3 } from './commands.js';
 import { centerMarkSegments, tableGrid } from './annotationGeometry.js';
+import { getCurrentTableStyle } from './stylesAuditCommands.js';
 
 let rememberedHeight = 2.5;
 let rememberedDimcen = 2.5;
@@ -170,7 +171,24 @@ export async function styleCommand(ctx: CadCommandContext): Promise<void> {
 
 export async function mleaderCommand(ctx: CadCommandContext): Promise<void> {
 	const arrow=await ctx.getPoint('Specify arrowhead location:'); const landing=await ctx.getPoint('Specify landing location:',{base:arrow}); const content=await ctx.getString('Enter multileader text:',{allowSpaces:true});
-	const leader=new AcDbMLeader(); leader.contentType=AcDbMLeaderContentType.MTextContent; leader.addLeader({landingPoint:point(landing),leaderLines:[{vertices:[point(arrow),point(landing)]}]}); leader.contents=content; leader.textLocation=landing; leader.textHeight=rememberedHeight; leader.textStyleName=ctx.database.native.textstyle; ctx.database.add(leader);
+	const db = ctx.database.native;
+	const currentStyleName = db?.cmleaderstyle || 'Standard';
+	const currentStyle = db?.objects?.mleaderStyle?.getAt?.(currentStyleName);
+	const textHeight = (currentStyle && currentStyle.textHeight > 0) ? currentStyle.textHeight : rememberedHeight;
+	const leader=new AcDbMLeader();
+	leader.contentType = (currentStyle?.contentType !== undefined) ? currentStyle.contentType : AcDbMLeaderContentType.MTextContent;
+	if (currentStyle?.objectId) leader.mleaderStyleId = currentStyle.objectId;
+	if (currentStyle && currentStyle.arrowSize > 0) leader.arrowheadSize = currentStyle.arrowSize;
+	if (currentStyle?.landingGap !== undefined && currentStyle.landingGap > 0) leader.landingGap = currentStyle.landingGap;
+	if (currentStyle?.doglegLength !== undefined && currentStyle.doglegLength > 0) leader.doglegLength = currentStyle.doglegLength;
+	if (currentStyle?.enableDogleg !== undefined) leader.doglegEnabled = currentStyle.enableDogleg;
+	if (currentStyle?.enableLanding !== undefined) leader.landingEnabled = currentStyle.enableLanding;
+	leader.addLeader({landingPoint:point(landing),leaderLines:[{vertices:[point(arrow),point(landing)]}]});
+	leader.contents=content;
+	leader.textLocation=landing;
+	leader.textHeight=textHeight;
+	leader.textStyleName=ctx.database.native.textstyle;
+	ctx.database.add(leader);
 }
 
 export async function centerMarkCommand(ctx: CadCommandContext): Promise<void> {
@@ -190,9 +208,11 @@ export async function centerMarkCommand(ctx: CadCommandContext): Promise<void> {
 
 export async function tableCommand(ctx: CadCommandContext): Promise<void> {
 	const origin=await ctx.getPoint('Specify table insertion point:'); const rows=await ctx.getInteger('Number of rows:',{min:1}); const cols=await ctx.getInteger('Number of columns:',{min:1}); const rh=await ctx.getDouble('Row height:'); const cw=await ctx.getDouble('Column width:');
+	const curStyle = getCurrentTableStyle(ctx.database.native);
+	const textHeight = curStyle?.dataTextHeight ?? curStyle?.textHeight ?? rememberedHeight;
 	const entities:AcDbEntity[]=tableGrid(rows,cols,rh,cw,origin).map(s=>new AcDbLine(point(s.start),point(s.end)));
 	const header=await ctx.getKeyword('Add header row text?', ['Yes','No'],{default:'No'});
-	if(header==='Yes') for(let c=0;c<cols;c++){const v=await ctx.getString(`Header column ${c+1}:`,{allowSpaces:true});const t=new AcDbMText();t.contents=v;t.location=new AcGePoint3d(origin.x+c*cw+cw*.1,origin.y-rh*.75,origin.z);t.height=Math.min(rh*.5,rememberedHeight);entities.push(t);}
+	if(header==='Yes') for(let c=0;c<cols;c++){const v=await ctx.getString(`Header column ${c+1}:`,{allowSpaces:true});const t=new AcDbMText();t.contents=v;t.location=new AcGePoint3d(origin.x+c*cw+cw*.1,origin.y-rh*.75,origin.z);t.height=textHeight;entities.push(t);}
 	ctx.database.add(entities);
 }
 

@@ -484,7 +484,12 @@ def architecture_components(
             notes.append(f"{wall.id}: component '{wall.component}' is not in the code pack")
         parapet = table.components[row].parapet or (cantilever and not curtain)
         z = (bottom if parapet else top) - ground.base
-        weight = wall_type.weight * height * MM * length * MM
+        unit_weight = wall_type.weight
+        if curtain:
+            layout = arch_lib.curtain_wall_layout(arch, wall, dict(elevations))
+            if layout is not None and layout.detailed:
+                unit_weight = layout.weight_per_m2
+        weight = unit_weight * height * MM * length * MM
         result = component_force(
             Component(
                 id=wall.id,
@@ -499,7 +504,7 @@ def architecture_components(
                 story=wall.base,
                 source="curtainWall" if curtain else "wall",
                 basis=(
-                    f"{wall_type.weight:.2f} kN/m² × {height * MM:.2f} m × {length * MM:.2f} m, "
+                    f"{unit_weight:.2f} kN/m² × {height * MM:.2f} m × {length * MM:.2f} m, "
                     f"attached at {'its base' if parapet else 'its top'}"
                 ),
             ),

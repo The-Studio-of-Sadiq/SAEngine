@@ -448,6 +448,12 @@
           "default": null,
           "description": "Load case the allowance belongs to: L (a live load: factored, reduced and in the seismic weight as the floor live load) or SD (superimposed dead). Empty: L. A project setting may choose either.",
           "title": "Loadcase"
+        },
+        "explicitFurnishings": {
+          "default": false,
+          "description": "Whether the code pack allows movable furniture/furnishing weights to be applied explicitly as superimposed dead load (SD) in addition to occupancy live loads; False: ordinary furnishings are covered by occupancy live loads (report-only).",
+          "title": "Explicitfurnishings",
+          "type": "boolean"
         }
       },
       "required": [

@@ -146,6 +146,12 @@ def _build(t: Any) -> dict[str, Any]:
         "AIR": t.air,
         "PLANT": t.plant,
         "SOURCES": dict(t.sources),
+        # R6: heating and duct design tables (private/optional on HvacTable)
+        "_HEATING": t.heating,
+        "_DUCT_DESIGN": t.ductDesign,
+        # R10: annual schedules and envelope compliance limits
+        "_SCHEDULES": t.schedules,
+        "_ENVELOPE_COMPLIANCE": t.envelopeCompliance,
     }
 
 
@@ -158,6 +164,83 @@ def __getattr__(name: str) -> Any:
 
 def __dir__() -> list[str]:
     return sorted(set(globals()) | set(_names()))
+
+
+def heating_defaults() -> Any:
+    """The pack's winter heating defaults (``hvac.heating``), or SAEngine defaults when omitted."""
+    found = _names().get("_HEATING")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacHeating
+
+    return HvacHeating()
+
+
+def heating_outdoor_db(station_key: str) -> float:
+    """Winter outdoor design dry bulb [°C] for ``station_key`` from the pack's heating table."""
+    h = heating_defaults()
+    return float(h.stations.get(station_key, h.defaultOutdoorDb))
+
+
+def duct_design() -> Any:
+    """The pack's duct design data (``hvac.ductDesign``), or SAEngine defaults when omitted."""
+    found = _names().get("_DUCT_DESIGN")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacDuctDesign
+
+    return HvacDuctDesign(
+        roughness={"galvanisedSteel": 0.09},
+        fittings={
+            "elbow_90_radius": 0.3,
+            "elbow_90_mitered": 1.2,
+            "elbow_90_vaned": 0.35,
+            "elbow_45": 0.2,
+            "tee_branch": 0.8,
+            "tee_main": 0.15,
+            "contraction": 0.1,
+            "expansion": 0.3,
+            "diffuser": 1.5,
+            "damper_open": 0.2,
+        },
+        staticRegainFactor=0.75,
+        velocityReduction={"supply": {"main": 7.5, "branch": 5.5, "runout": 4.0}},
+        noiseVelocityMax={"main": 7.5, "branch": 5.5, "runout": 4.0, "riser": 8.5},
+    )
+
+
+def duct_roughness(material: str | None = None) -> float:
+    """Absolute duct roughness ε [mm] for ``material`` (default galvanised steel, 0.09 mm)."""
+    d = duct_design()
+    key = material or d.defaultMaterial or "galvanisedSteel"
+    if key in d.roughness:
+        return float(d.roughness[key])
+    return float(d.roughness.get(d.defaultMaterial, 0.09))
+
+
+def fitting_c(kind: str) -> float:
+    """Local loss coefficient C of a duct fitting from the pack's ``ductDesign.fittings``."""
+    fittings = duct_design().fittings
+    if kind not in fittings:
+        raise KeyError(f"unknown duct fitting {kind!r}")
+    return float(fittings[kind])
+
+
+def velocity_reduction_target(system: str, role: str = "main") -> float | None:
+    """Target velocity [m/s] for velocity-reduction sizing of ``system`` and ``role``."""
+    table = duct_design().velocityReduction
+    row = table.get(system) or table.get("supply") or {}
+    val = row.get(role) or row.get("main")
+    return float(val) if val is not None else None
+
+
+def noise_velocity_limit(system: str, role: str = "main") -> float | None:
+    """Recommended maximum velocity [m/s] for noise control of ``role`` (and ``system``)."""
+    limits = duct_design().noiseVelocityMax
+    val = limits.get(role)
+    if val is None:
+        return None
+    return float(val)
 
 
 def source(key: str) -> str:
@@ -245,3 +328,53 @@ def inside_conditions(use: str) -> tuple[float, float, str]:
     if inside.rh is None:
         source += " (the row gives no humidity: office buildings' 60 % taken)"
     return db, rh, source
+
+
+def schedules() -> Any:
+    """The pack's annual operating schedules (``hvac.schedules``), or ASHRAE 90.1-style defaults."""
+    found = _names().get("_SCHEDULES")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacScheduleProfile, HvacSchedules
+
+    flat = [0.05] * 7 + [0.9] * 11 + [0.1] * 6
+    weekend = [0.05] * 24
+    return HvacSchedules(
+        defaultProfile="office",
+        groupSchedule={"office": "office"},
+        profiles={
+            "office": HvacScheduleProfile(
+                occupancyWeekday=flat,
+                occupancyWeekend=weekend,
+                lightingWeekday=flat,
+                lightingWeekend=weekend,
+                equipmentWeekday=[0.3] * 7 + [0.9] * 11 + [0.3] * 6,
+                equipmentWeekend=[0.3] * 24,
+            )
+        },
+    )
+
+
+def schedule_profile_for(use: str) -> tuple[str, Any]:
+    """The ``(profile_key, HvacScheduleProfile)`` for a Table 8.2.3 ``use`` key."""
+    sched = schedules()
+    vent = _names()["VENTILATION"].get(use)
+    group = vent.group if vent is not None else "office"
+    key = sched.groupSchedule.get(group, sched.defaultProfile)
+    if key not in sched.profiles:
+        key = (
+            sched.defaultProfile
+            if sched.defaultProfile in sched.profiles
+            else next(iter(sched.profiles))
+        )
+    return key, sched.profiles[key]
+
+
+def envelope_limits() -> Any:
+    """The pack's prescriptive envelope compliance limits (``hvac.envelopeCompliance``)."""
+    found = _names().get("_ENVELOPE_COMPLIANCE")
+    if found is not None:
+        return found
+    from saengine.codes.tables import HvacEnvelopeCompliance
+
+    return HvacEnvelopeCompliance()

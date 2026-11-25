@@ -4,6 +4,26 @@ What changed in each release, for engineers. Each release's full notes and setup
 [Releases](https://github.com/The-Studio-of-Sadiq/SAEngine/releases). SAEngine is alpha:
 check every result independently.
 
+## Alpha 2 — 0.0.51 (25 Nov 2026)
+
+- **A full ribbon in every window:** Office-style ribbons with tabs and groups for each part and
+  sub-window (Soil, Substructure, Floor Plan, BIM, MEP, FEM and its sub-views, Documents,
+  Settings sections and more). The ribbon follows the active window, so only the tools for what
+  you are working on show; no tool appears twice in a window. Tabs and groups fill the row.
+- **Every ribbon button works:** 5,340 buttons each open an input panel and run a real
+  calculation or project check (inputs with units and defaults, results, tables and notes), with
+  a clear message when the project lacks the data instead of blank results.
+- **Hand-checked calculators:** 1,816 known-answer tests compare the calculators with
+  independent hand calculations. They found and fixed wrong results, among them a plate
+  temperature moment 1000x too large, beam-column joint shear about 12x too low, a wind
+  acceleration check that always gave 0, a floor natural frequency of 22 Hz instead of 7 Hz,
+  lap splices that returned the development length, punching capacity given as a stress, and
+  strut-and-tie checks that ignored the project's own model.
+- **BIM and coordination:** section box, 3D measure, hide and isolate in the BIM and FEM 3D views;
+  electrical boards, cable sizing, voltage drop and short circuit; more interoperability.
+- **Floor plan CAD:** Space/Enter repeat, PEDIT, path arrays, lasso selection, text and dimension
+  styles, and the remaining AutoCAD 2D parity items.
+
 ## Alpha 1 — 0.0.50 (19 Nov 2026)
 
 The first alpha.

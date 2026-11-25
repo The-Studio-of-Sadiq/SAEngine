@@ -321,3 +321,15 @@ def shaft_checks(
                                          "an electrical shaft must not be placed adjacent to a "
                                          f"sanitary shaft ({T.PAGES['1.3.13.1']})"))  # fmt: skip
     return checks
+
+
+def lighting_room_loads(
+    mep: Any,
+    building: Building,
+    rooms: Any = None,
+    slab_thickness: dict[str, float] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Lighting circuit loads [W/m², kW, circuits] per story handed from lighting design."""
+    from saengine.electrical.lighting import story_lighting_loads
+
+    return story_lighting_loads(mep, building, rooms, slab_thickness)

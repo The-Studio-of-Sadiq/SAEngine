@@ -568,6 +568,7 @@ def test_release_version() -> None:
     with pytest.raises(release.ReleaseError, match="Pre-Alpha-v"):
         release.release_number("v1.0")
     assert release.release_version("Alpha-v1", None, "v0.0.50") == "0.0.50-alpha.1"
+    assert release.release_version("Alpha-v2", None, "v0.0.51") == "0.0.51-alpha.2"
 
 
 def test_test_build_version() -> None:

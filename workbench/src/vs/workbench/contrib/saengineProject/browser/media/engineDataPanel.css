@@ -1,0 +1,381 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sa-data-panel {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--sa-space-3, 12px) var(--sa-space-4, 16px);
+	gap: var(--sa-space-3, 12px);
+	box-sizing: border-box;
+}
+
+.sa-data-panel .visually-hidden {
+	position: absolute;
+	clip-path: inset(50%);
+	overflow: hidden;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	border: 0;
+	white-space: nowrap;
+}
+
+/* ── input form ──────────────────────────────────────────────────────────── */
+
+.sa-dp-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	padding: var(--sa-space-2, 8px) var(--sa-space-3, 12px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.sa-dp-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 130px;
+}
+
+.sa-dp-field.wide {
+	flex: 1 1 260px;
+	min-width: 220px;
+}
+
+.sa-dp-field.checkbox {
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	min-height: 28px;
+	padding-bottom: 2px;
+}
+
+.sa-dp-field label {
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+	white-space: nowrap;
+}
+
+.sa-dp-field.checkbox label {
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.sa-dp-input-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.sa-dp-field input[type="text"],
+.sa-dp-field input[type="number"],
+.sa-dp-field select,
+.sa-dp-search-input {
+	font: inherit;
+	font-size: var(--sa-font-m, 13px);
+	height: 28px;
+	padding: 2px 8px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, var(--sa-border, var(--vscode-panel-border)));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	min-width: 0;
+	width: 100%;
+}
+
+.sa-dp-field input:focus-visible,
+.sa-dp-field select:focus-visible,
+.sa-dp-search-input:focus-visible,
+.sa-dp-th-btn:focus-visible,
+.sa-dp-tab:focus-visible,
+.sa-dp-browse:focus-visible,
+.sa-dp-file-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sa-dp-field input[type="checkbox"] {
+	accent-color: var(--vscode-focusBorder);
+	width: 15px;
+	height: 15px;
+	margin: 0;
+	cursor: pointer;
+}
+
+.sa-dp-browse {
+	flex: none;
+	height: 28px;
+	padding: 0 8px;
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	border: 1px solid var(--sa-border, var(--vscode-button-border, var(--vscode-panel-border)));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+}
+
+.sa-dp-browse:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.sa-dp-submit-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* ── metrics strip ───────────────────────────────────────────────────────── */
+
+.sa-dp-metrics {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sa-space-2, 8px);
+}
+
+.sa-dp-metric {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 12px;
+	min-width: 110px;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+}
+
+.sa-dp-metric .label {
+	font-size: var(--sa-font-s, 12px);
+	color: var(--sa-muted, var(--vscode-descriptionForeground));
+}
+
+.sa-dp-metric .value {
+	font-size: 15px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.sa-dp-metric.ok .value {
+	color: var(--sa-ok, var(--vscode-testing-iconPassed, #22c55e));
+}
+
+.sa-dp-metric.warn .value {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-dp-metric.fail .value {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}
+
+/* ── banners & files ─────────────────────────────────────────────────────── */
+
+.sa-dp-banner {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 12px;
+	border-radius: var(--sa-radius, 4px);
+	border: 1px solid var(--vscode-inputValidation-warningBorder, var(--sa-border, var(--vscode-panel-border)));
+	background: var(--vscode-inputValidation-warningBackground, transparent);
+	font-size: var(--sa-font-s, 12px);
+}
+
+.sa-dp-files {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.sa-dp-file-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+}
+
+.sa-dp-file-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* ── tabs + filter bar ───────────────────────────────────────────────────── */
+
+.sa-dp-table-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sa-space-2, 8px);
+}
+
+.sa-dp-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.sa-dp-tab {
+	padding: 4px 10px;
+	font: inherit;
+	font-size: var(--sa-font-s, 12px);
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.sa-dp-tab.active {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.sa-dp-search {
+	width: 220px;
+	max-width: 100%;
+}
+
+/* ── sortable data table ─────────────────────────────────────────────────── */
+
+.sa-dp-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--sa-border, var(--vscode-panel-border));
+	border-radius: var(--sa-radius, 4px);
+}
+
+.sa-dp-table {
+	width: 100%;
+	min-inline-size: 480px;
+	border-collapse: collapse;
+	font-size: var(--sa-font-s, 12px);
+}
+
+.sa-dp-table thead th {
+	position: sticky;
+	top: 0;
+	background: var(--sa-surface-alt, var(--vscode-sideBar-background));
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	padding: 6px 10px;
+	text-align: left;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.sa-dp-table thead th:has(> .sa-dp-th-btn) {
+	padding: 0;
+}
+
+.sa-dp-table thead th.right {
+	text-align: right;
+}
+
+.sa-dp-th-btn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	width: 100%;
+	min-height: 28px;
+	padding: 4px 10px;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sa-dp-table thead th.right .sa-dp-th-btn {
+	justify-content: flex-end;
+}
+
+.sa-dp-th-btn:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.sa-dp-th-btn .sa-dp-sort-ind {
+	font-size: 11px;
+	opacity: 0.35;
+}
+
+.sa-dp-table thead th[aria-sort="ascending"] .sa-dp-sort-ind::before {
+	content: "▲";
+	opacity: 1;
+}
+
+.sa-dp-table thead th[aria-sort="descending"] .sa-dp-sort-ind::before {
+	content: "▼";
+	opacity: 1;
+}
+
+.sa-dp-table thead th:not([aria-sort]) .sa-dp-sort-ind::before {
+	content: "↕";
+}
+
+.sa-dp-table tbody tr {
+	border-bottom: 1px solid var(--sa-border, var(--vscode-panel-border));
+	cursor: pointer;
+}
+
+.sa-dp-table tbody tr:last-child {
+	border-bottom: none;
+}
+
+.sa-dp-table tbody tr:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.sa-dp-table tbody tr.selected {
+	background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+	color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.sa-dp-table td {
+	padding: 6px 10px;
+	vertical-align: top;
+}
+
+.sa-dp-table td.right {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.sa-dp-badge {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	border: 1px solid currentColor;
+}
+
+.sa-dp-badge.ok {
+	color: var(--sa-ok, var(--vscode-testing-iconPassed, #22c55e));
+}
+
+.sa-dp-badge.warn {
+	color: var(--sa-warn, var(--vscode-editorWarning-foreground));
+}
+
+.sa-dp-badge.fail {
+	color: var(--sa-fail, var(--vscode-editorError-foreground));
+}

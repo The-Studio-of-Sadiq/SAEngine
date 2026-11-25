@@ -65,6 +65,59 @@
       "title": "Busbar",
       "type": "object"
     },
+    "CableImpedance": {
+      "additionalProperties": false,
+      "description": "Cable resistance at 20 °C and reactance at 50 Hz [ohm/km].",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "r20": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "DC resistance at 20 °C [ohm/km].",
+          "title": "R20"
+        },
+        "x": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "AC reactance at 50 Hz [ohm/km].",
+          "title": "X"
+        }
+      },
+      "required": [
+        "r20",
+        "x"
+      ],
+      "title": "CableImpedance",
+      "type": "object"
+    },
     "CableOd": {
       "additionalProperties": false,
       "properties": {
@@ -114,6 +167,521 @@
         "od"
       ],
       "title": "CableOd",
+      "type": "object"
+    },
+    "CablesGroup": {
+      "additionalProperties": false,
+      "description": "IEC 60364-5-52 ampacity, correction factors, voltage drop and adiabatic withstand.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this group.",
+          "title": "Source"
+        },
+        "sizes": {
+          "description": "Standard conductor cross-sections [mm²].",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Sizes",
+          "type": "array"
+        },
+        "referenceAmbient": {
+          "description": "Reference ambient temperature in air [°C].",
+          "title": "Referenceambient",
+          "type": "number"
+        },
+        "ampacity": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "exclusiveMinimum": 0,
+                        "type": "integer"
+                      },
+                      {
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "description": "conductor -> insulation -> method -> loadedCores ('2'|'3') -> size -> It [A].",
+          "title": "Ampacity",
+          "type": "object"
+        },
+        "ambientFactor": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "description": "insulation -> ambientTemp [°C] -> Ca.",
+          "title": "Ambientfactor",
+          "type": "object"
+        },
+        "groupingFactor": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "description": "arrangement -> circuitCount -> Cg.",
+          "title": "Groupingfactor",
+          "type": "object"
+        },
+        "thermalInsulationFactor": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "condition -> Ci.",
+          "title": "Thermalinsulationfactor",
+          "type": "object"
+        },
+        "conductorTempFactor": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "insulation -> R_op / R_20 multiplier at operating temperature.",
+          "title": "Conductortempfactor",
+          "type": "object"
+        },
+        "impedance": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/CableImpedance"
+            },
+            "type": "object"
+          },
+          "description": "conductor -> size -> {r20, x}.",
+          "title": "Impedance",
+          "type": "object"
+        },
+        "mvAm": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "exclusiveMinimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "description": "conductor -> insulation -> ('1ph'|'3ph') -> size -> mV/A/m.",
+          "title": "Mvam",
+          "type": "object"
+        },
+        "voltageDropLimits": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Maximum cumulative voltage drop [%] by category.",
+          "title": "Voltagedroplimits",
+          "type": "object"
+        },
+        "adiabaticK": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "description": "conductor -> insulation -> adiabatic constant k [A·s^0.5/mm²].",
+          "title": "Adiabatick",
+          "type": "object"
+        }
+      },
+      "required": [
+        "sizes",
+        "referenceAmbient",
+        "ampacity",
+        "ambientFactor",
+        "groupingFactor",
+        "thermalInsulationFactor",
+        "conductorTempFactor",
+        "impedance",
+        "mvAm",
+        "voltageDropLimits",
+        "adiabaticK"
+      ],
+      "title": "CablesGroup",
+      "type": "object"
+    },
+    "CircuitDefault": {
+      "additionalProperties": false,
+      "description": "Default parameters of one final circuit category.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "wattsPerPoint": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Assumed load per point [W].",
+          "title": "Wattsperpoint"
+        },
+        "areaPerPoint": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Floor area per point when points are estimated [m²].",
+          "title": "Areaperpoint"
+        },
+        "pf": {
+          "description": "Default power factor.",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Pf",
+          "type": "number"
+        },
+        "curve": {
+          "description": "Default MCB tripping curve.",
+          "enum": [
+            "B",
+            "C",
+            "D"
+          ],
+          "title": "Curve",
+          "type": "string"
+        },
+        "maxLoadW": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Maximum active load per circuit [W].",
+          "title": "Maxloadw"
+        },
+        "minCableMm2": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Minimum conductor cross-section [mm²].",
+          "title": "Mincablemm2"
+        }
+      },
+      "required": [
+        "wattsPerPoint",
+        "areaPerPoint",
+        "pf",
+        "curve",
+        "maxLoadW",
+        "minCableMm2"
+      ],
+      "title": "CircuitDefault",
+      "type": "object"
+    },
+    "CircuitRulesGroup": {
+      "additionalProperties": false,
+      "description": "Distribution-board, circuiting, breaker and phase-voltage rules.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this group.",
+          "title": "Source"
+        },
+        "phaseVoltage": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Nominal phase-to-neutral voltage U0 [V].",
+          "title": "Phasevoltage"
+        },
+        "defaultConductor": {
+          "default": "Cu",
+          "enum": [
+            "Cu",
+            "Al"
+          ],
+          "title": "Defaultconductor",
+          "type": "string"
+        },
+        "defaultFinalInsulation": {
+          "default": "PVC",
+          "enum": [
+            "PVC",
+            "XLPE"
+          ],
+          "title": "Defaultfinalinsulation",
+          "type": "string"
+        },
+        "defaultFeederInsulation": {
+          "default": "XLPE",
+          "enum": [
+            "PVC",
+            "XLPE"
+          ],
+          "title": "Defaultfeederinsulation",
+          "type": "string"
+        },
+        "defaultMethod": {
+          "default": "C",
+          "title": "Defaultmethod",
+          "type": "string"
+        },
+        "defaultAmbientTemp": {
+          "default": 30.0,
+          "title": "Defaultambienttemp",
+          "type": "number"
+        },
+        "maxPointsPerCircuit": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Maxpointspercircuit",
+          "type": "object"
+        },
+        "circuitDefaults": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CircuitDefault"
+          },
+          "title": "Circuitdefaults",
+          "type": "object"
+        },
+        "circuitDiversity": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number"
+          },
+          "title": "Circuitdiversity",
+          "type": "object"
+        },
+        "breakerRatings": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Breakerratings",
+          "type": "array"
+        },
+        "standardWays": {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "title": "Standardways",
+          "type": "array"
+        },
+        "busbarRatings": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Busbarratings",
+          "type": "array"
+        },
+        "breakingCapacityKa": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Default breaking capacity Icu/Icn [kA] by device type.",
+          "title": "Breakingcapacityka",
+          "type": "object"
+        },
+        "standardBreakingCapacitiesKa": {
+          "description": "Standard short-circuit breaking capacities Icu/Icn [kA] for auto-selection.",
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Standardbreakingcapacitieska",
+          "type": "array"
+        }
+      },
+      "required": [
+        "phaseVoltage",
+        "maxPointsPerCircuit",
+        "circuitDefaults",
+        "circuitDiversity",
+        "breakerRatings",
+        "standardWays",
+        "busbarRatings",
+        "breakingCapacityKa"
+      ],
+      "title": "CircuitRulesGroup",
       "type": "object"
     },
     "ElectricalUse": {
@@ -443,6 +1011,125 @@
       "title": "IndexStep",
       "type": "object"
     },
+    "LightingTable": {
+      "additionalProperties": false,
+      "description": "R7: lumen-method lighting design data (EN 12464-1 / IES).",
+      "properties": {
+        "targets": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Targets",
+          "type": "object"
+        },
+        "maintenanceFactor": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Maintenancefactor",
+          "type": "number"
+        },
+        "defaultWorkPlane": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Defaultworkplane"
+        },
+        "defaultReflectance": {
+          "title": "Defaultreflectance",
+          "type": "string"
+        },
+        "roomIndexSteps": {
+          "items": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "title": "Roomindexsteps",
+          "type": "array"
+        },
+        "ufTable": {
+          "additionalProperties": {
+            "items": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Uftable",
+          "type": "object"
+        },
+        "luminaires": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LuminaireSpec"
+          },
+          "title": "Luminaires",
+          "type": "object"
+        },
+        "circuitVoltage": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circuitvoltage"
+        },
+        "circuitMaxWatts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Circuitmaxwatts"
+        }
+      },
+      "required": [
+        "targets",
+        "maintenanceFactor",
+        "defaultWorkPlane",
+        "defaultReflectance",
+        "roomIndexSteps",
+        "ufTable",
+        "luminaires",
+        "circuitVoltage",
+        "circuitMaxWatts"
+      ],
+      "title": "LightingTable",
+      "type": "object"
+    },
     "LtPanel": {
       "additionalProperties": false,
       "properties": {
@@ -523,6 +1210,127 @@
         "ampsPerSection"
       ],
       "title": "LtPanel",
+      "type": "object"
+    },
+    "LuminaireSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this row.",
+          "title": "Source"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lumens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Lumens"
+        },
+        "watts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Watts"
+        },
+        "shrMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Shrmax"
+        },
+        "mounting": {
+          "default": "recessed",
+          "enum": [
+            "recessed",
+            "surface",
+            "suspended"
+          ],
+          "title": "Mounting",
+          "type": "string"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Length"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "title": "Height"
+        }
+      },
+      "required": [
+        "label",
+        "lumens",
+        "watts",
+        "shrMax",
+        "length",
+        "width",
+        "height"
+      ],
+      "title": "LuminaireSpec",
       "type": "object"
     },
     "Panel": {
@@ -620,6 +1428,215 @@
         "mass"
       ],
       "title": "Panel",
+      "type": "object"
+    },
+    "ShortCircuitGroup": {
+      "additionalProperties": false,
+      "description": "IEC 60909 simplified short-circuit and IEC 60364-4-41 disconnection parameters.",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clause (and page) of this group.",
+          "title": "Source"
+        },
+        "cMax": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "IEC 60909 voltage factor c_max for Ik3 max.",
+          "title": "Cmax"
+        },
+        "cMin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "IEC 60909 voltage factor c_min for Ik1 min.",
+          "title": "Cmin"
+        },
+        "zsCmin": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Voltage factor Cmin for earth-fault loop Zs limit.",
+          "title": "Zscmin"
+        },
+        "gridSkMva": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Default HV grid fault level [MVA]; null for infinite bus.",
+          "title": "Gridskmva"
+        },
+        "gridRxRatio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "number"
+            }
+          ],
+          "description": "Upstream HV grid R/X ratio.",
+          "title": "Gridrxratio"
+        },
+        "transformerUk": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Transformer kVA -> uk [%].",
+          "title": "Transformeruk",
+          "type": "object"
+        },
+        "transformerXr": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Transformer kVA -> X/R ratio.",
+          "title": "Transformerxr",
+          "type": "object"
+        },
+        "mcbTripMultiplier": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Instantaneous magnetic trip multiple (Ia / In) by curve ('B'|'C'|'D').",
+          "title": "Mcbtripmultiplier",
+          "type": "object"
+        },
+        "faultDurationS": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            ]
+          },
+          "description": "Default fault clearing time [s] by circuit role ('final'|'submain'|'incomer').",
+          "title": "Faultdurations",
+          "type": "object"
+        },
+        "busbarImpedancePerM": {
+          "additionalProperties": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                ]
+              }
+            ],
+            "type": "array"
+          },
+          "description": "Busbar rating [A] -> (R [mohm/m], X [mohm/m]).",
+          "title": "Busbarimpedanceperm",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cMax",
+        "cMin",
+        "zsCmin",
+        "gridRxRatio",
+        "transformerUk",
+        "transformerXr",
+        "mcbTripMultiplier",
+        "faultDurationS"
+      ],
+      "title": "ShortCircuitGroup",
       "type": "object"
     },
     "SubstationArea": {
@@ -1755,6 +2772,50 @@
         }
       ],
       "title": "Steelweight"
+    },
+    "circuitRules": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CircuitRulesGroup"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cables": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CablesGroup"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "shortCircuit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ShortCircuitGroup"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "lighting": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LightingTable"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

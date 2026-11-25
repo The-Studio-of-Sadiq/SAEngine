@@ -3,6 +3,8 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import './soilDataPanels.contribution.js';
 import { getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -11,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,11 +26,13 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISaengineProjectService, partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
+import { OPEN_PLANNED_FEATURE_COMMAND } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { SoilEditor } from './soilEditor.js';
 import { SITE_RESPONSE_FEATURE } from './soilStrata.js';
 import { SoilEditorInput, SoilEditorInputSerializer } from './soilEditorInput.js';
 import { SOIL_ADD_BOREHOLE_COMMAND, SOIL_IMPORT_FILE_COMMAND, SOIL_SAVE_TEMPLATE_COMMAND } from './soilDocument.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
+import { registerPartEditor } from '../../saengineProject/browser/projectParts.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(SoilEditor, SoilEditor.ID, localize('soilEditorPane', "SAEngine Soil Report")),
@@ -52,6 +57,7 @@ class SoilEditorResolverContribution extends Disposable implements IWorkbenchCon
 		if (!part?.mainFile) {
 			return;
 		}
+		this._register(registerPartEditor(part.id, SoilEditor.ID));
 		this._register(editorResolverService.registerEditor(
 			`**/${part.folder}/${part.mainFile}`,
 			{
@@ -120,6 +126,8 @@ function fileArgument(file: URI | string | undefined): URI | undefined {
 	return typeof file === 'string' ? URI.file(file) : URI.isUri(file) ? file : undefined;
 }
 
+const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -128,7 +136,7 @@ registerAction2(class extends Action2 {
 			category: localize2('saengine.category', "SAEngine"),
 			icon: Codicon.cloudDownload,
 			f1: true,
-			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			precondition: projectOpen,
 		});
 	}
 
@@ -146,7 +154,7 @@ registerAction2(class extends Action2 {
 			category: localize2('saengine.category', "SAEngine"),
 			icon: Codicon.notebookTemplate,
 			f1: true,
-			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			precondition: projectOpen,
 		});
 	}
 
@@ -164,12 +172,79 @@ registerAction2(class extends Action2 {
 			category: localize2('saengine.category', "SAEngine"),
 			icon: Codicon.add,
 			f1: true,
-			precondition: ContextKeyExpr.has('saengineProjectOpen'),
+			precondition: projectOpen,
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		(await soilEditor(accessor))?.addBorehole();
+	}
+});
+
+function registerSoilRibbonCommand(
+	id: string,
+	title: ReturnType<typeof localize2>,
+	icon: ThemeIcon,
+	runWithEditor: (editor: SoilEditor) => Promise<void> | void,
+): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id,
+				title,
+				category: localize2('saengine.category', "SAEngine"),
+				icon,
+				f1: true,
+				precondition: projectOpen,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const editor = await soilEditor(accessor);
+			if (editor) {
+				await runWithEditor(editor);
+			}
+		}
+	});
+}
+
+registerSoilRibbonCommand('saengine.soil.editBorehole', localize2('soil.rib.editTitle', "Edit Borehole"), Codicon.edit, e => e.editBorehole());
+registerSoilRibbonCommand('saengine.soil.duplicateBorehole', localize2('soil.rib.dupTitle', "Duplicate Borehole"), Codicon.copy, e => e.duplicateBorehole());
+registerSoilRibbonCommand('saengine.soil.deleteBorehole', localize2('soil.rib.delTitle', "Delete Borehole"), Codicon.trash, e => e.deleteBorehole());
+registerSoilRibbonCommand('saengine.soil.toggleExcludeBearing', localize2('soil.rib.excludeTitle', "Leave Borehole Out of Site Bearing Table"), Codicon.circleSlash, e => e.toggleExcludeFromSite());
+
+registerSoilRibbonCommand('saengine.soil.viewLog', localize2('soil.rib.logTitle', "Soil View: Log"), Codicon.layers, e => e.showView('log'));
+registerSoilRibbonCommand('saengine.soil.viewResults', localize2('soil.rib.resTitle', "Soil View: Results"), Codicon.graphLine, e => e.showView('results'));
+registerSoilRibbonCommand('saengine.soil.viewStrata', localize2('soil.rib.strataTitle', "Soil View: Strata"), Codicon.symbolStructure, e => e.showView('strata'));
+registerSoilRibbonCommand('saengine.soil.viewMap', localize2('soil.rib.mapTitle', "Soil View: Map"), Codicon.globe, e => e.showView('map'));
+registerSoilRibbonCommand('saengine.soil.viewStrata3d', localize2('soil.rib.strata3dTitle', "Soil View: 3D Strata"), Codicon.symbolNamespace, e => e.showStrata3d());
+registerSoilRibbonCommand('saengine.soil.toggleFence', localize2('soil.rib.fenceTitle', "Show All Boreholes Side by Side"), Codicon.splitHorizontal, e => e.toggleFence());
+
+registerSoilRibbonCommand('saengine.soil.editSpt', localize2('soil.rib.sptTitle', "Edit Borehole SPT & Samples"), Codicon.listFlat, e => e.editBorehole('tests'));
+registerSoilRibbonCommand('saengine.soil.editLabTests', localize2('soil.rib.labTitle', "Edit Sample Lab Tests"), Codicon.beaker, e => e.editLabTests());
+registerSoilRibbonCommand('saengine.soil.bearingOverride', localize2('soil.rib.bearingTitle', "Allowable Bearing Pressure Override..."), Codicon.symbolNumeric, e => e.editBearingOverride());
+registerSoilRibbonCommand('saengine.soil.recompute', localize2('soil.rib.recomputeTitle', "Recompute Soil Results"), Codicon.refresh, e => e.compute());
+
+registerSoilRibbonCommand('saengine.soil.exportAgs4', localize2('soil.rib.agsTitle', "Export Boreholes as AGS4..."), Codicon.cloudUpload, async e => { await e.exportFile(undefined, 'ags'); });
+registerSoilRibbonCommand('saengine.soil.exportDiggs', localize2('soil.rib.diggsTitle', "Export Boreholes as DIGGS..."), Codicon.fileCode, async e => { await e.exportFile(undefined, 'diggs'); });
+registerSoilRibbonCommand('saengine.soil.exportGeoJson', localize2('soil.rib.geojsonTitle', "Export Site & Boreholes as GeoJSON..."), Codicon.globe, async e => { await e.exportGis('geojson'); });
+registerSoilRibbonCommand('saengine.soil.exportGeoPackage', localize2('soil.rib.gpkgTitle', "Export Site & Boreholes as GeoPackage..."), Codicon.package, async e => { await e.exportGis('gpkg'); });
+registerSoilRibbonCommand('saengine.soil.importGis', localize2('soil.rib.impGisTitle', "Import Boreholes from GeoJSON / GeoPackage..."), Codicon.cloudDownload, e => e.importGis());
+registerSoilRibbonCommand('saengine.soil.openInQgis', localize2('soil.rib.qgisTitle', "Open Soil Map in QGIS"), Codicon.linkExternal, e => e.openInQgis());
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.soil.siteResponse',
+			title: localize2('soil.planned.siteResponseTitle', "1D Site Response Spectra"),
+			category: localize2('saengine.category', "SAEngine"),
+			icon: Codicon.pulse,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand(OPEN_PLANNED_FEATURE_COMMAND, SITE_RESPONSE_FEATURE);
 	}
 });
 

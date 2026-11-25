@@ -186,6 +186,10 @@ export interface IBuildingIfcRequest {
 	 * model too (IfcReinforcingBar, ids `rebar:<element>/<n>`), detailed as the drawings detail them.
 	 */
 	readonly projectRoot?: string;
+	readonly schema?: 'IFC4' | 'IFC2X3';
+	readonly includeStructuralAnalysis?: boolean;
+	readonly includeGeoreferencing?: boolean;
+	readonly crs?: string;
 }
 
 export interface IBuildingIfc {
@@ -748,7 +752,58 @@ export type EngineMethod =
 	// `office/status` / `office/cancel` `{id}`, `office/info` `{server, token}`; visual programs
 	// `graph/nodeTypes`, `graph/list`, `graph/create`, `graph/check`, `graph/run`; design studies
 	// `studies/list|start|status|cancel|apply`; `drawings/automate` `{projectRoot, sheets?, actions}`.
-	| L12EngineMethod;
+	| L12EngineMethod
+	| MepServiceMethod
+	| U6dEngineMethod
+	| U6eEngineMethod
+	// The ribbon buttons' features (saengine.features): `features/list`, `features/run` `{id, projectRoot, values}`.
+	| 'features/list' | 'features/run'
+	| 'mep/report' | 'mep/checkIds' | 'mep/plumbingReport' | 'mep/plumbingOccupancies';
+
+/** U6d: existing and thin domain endpoints exposed by Soil, Settings, Library, Substructure and BOQ ribbon panels. */
+export type U6dEngineMethod =
+	| 'soil/report' | 'soil/allowableBearing' | 'soil/settlement' | 'soil/sources'
+	| 'soil/analysis' | 'soil/bearingCheck' | 'soil/settlementCheck'
+	| 'soil/characteristicBearing' | 'soil/earthPressure' | 'soil/plotPlanning' | 'soil/sourcesCheck'
+	| 'codes/list' | 'codes/show' | 'codes/choices' | 'codes/combinations' | 'codes/areaLoads'
+	| 'codes/values' | 'codes/validate' | 'codes/templates' | 'codes/checkTemplate' | 'codes/trust'
+	| 'codes/codedGeometry' | 'codes/conformance' | 'codes/diff'
+	| 'hazard/offers' | 'hazard/lookup'
+	| 'settings/hazardSummary' | 'settings/towns'
+	| 'library/check' | 'library/materialSummary' | 'library/objectSections'
+	| 'library/designedSections' | 'library/sheetPiles' | 'library/archTypes' | 'library/validateAll'
+	| 'substructure/report' | 'substructure/design' | 'substructure/size'
+	| 'substructure/pileCapacity' | 'substructure/pileLateral' | 'substructure/pileSettlement'
+	| 'substructure/downdrag' | 'substructure/loadTests' | 'substructure/pileDetailing'
+	| 'substructure/basementLoads' | 'substructure/embeddedWall' | 'substructure/groundSlab'
+	| 'substructure/limitState'
+	| 'boq/summary' | 'boq/barSchedule' | 'boq/scheduleSummary'
+	| 'boq/archTakeoff' | 'boq/precastSchedule' | 'boq/takeoffSummary';
+
+/** U6e: full-ribbon analysis and audit methods exposed by FEM, BIM, Architecture, Documents, Studies and Exports. */
+export type U6eEngineMethod =
+	| 'fem/notionalLoads' | 'fem/patternLive' | 'fem/snowRainLoads' | 'fem/thermalLoads'
+	| 'fem/floodLoads' | 'fem/stairCraneLoads' | 'fem/loadCombinations'
+	| 'fem/spectralHazard' | 'fem/seismicSummary' | 'fem/groundMotions'
+	| 'fem/linearTimeHistory' | 'fem/irregularities' | 'fem/torsionalEffects'
+	| 'fem/twoLevelSeismic' | 'fem/floorSpectra' | 'fem/isolationDampers'
+	| 'fem/windSpeedFactors' | 'fem/gustResponse' | 'fem/peakVelocityPressure'
+	| 'fem/localPressures' | 'fem/windComfort' | 'fem/openStructures'
+	| 'fem/pushoverAnalysis' | 'fem/nonlinearHistory' | 'fem/pDeltaBuckling'
+	| 'fem/stagedConstruction' | 'fem/creepShrinkage' | 'fem/ssiSprings'
+	| 'fem/swayDrift' | 'fem/floorVibration' | 'fem/differentialSettlement'
+	| 'fem/punchingShear' | 'fem/deflectionCheck' | 'fem/crackControl' | 'fem/torsionDesign'
+	| 'fem/capacitySeismicDetailing' | 'fem/fireSteelConnections'
+	| 'bim/syncStamps' | 'bim/detailingModel' | 'bim/rebarCages' | 'bim/barBendingSchedule'
+	| 'architecture/roomsCheck' | 'architecture/massingFloors' | 'architecture/roofCeilingCurtain'
+	| 'architecture/pointCloudStatus'
+	| 'documents/sheetInventory' | 'documents/drawingAutomation' | 'documents/calculationPackage'
+	| 'documents/clauseTraceability' | 'documents/projectMetadata'
+	| 'studies/daylightSolar' | 'studies/noiseStudy' | 'studies/phasingSummary'
+	| 'studies/plotPlanning' | 'studies/specialStructures' | 'studies/batchCheck'
+	| 'studies/verificationStatus'
+	| 'exports/formatMatrix' | 'exports/fabricationPreview' | 'exports/structuralIfcCheck'
+	| 'exports/archiveInspection' | 'exports/bbsReconciliation';
 
 /** Alpha 9 L11: the methods of `saengine.rpc.office` (see its module notes for their params). */
 export type OfficeMethod =
@@ -766,7 +821,16 @@ export type L12EngineMethod =
 	| 'office/submit' | 'office/status' | 'office/cancel' | 'office/info'
 	| 'graph/nodeTypes' | 'graph/list' | 'graph/create' | 'graph/check' | 'graph/run'
 	| 'studies/list' | 'studies/start' | 'studies/status' | 'studies/cancel' | 'studies/apply'
-	| 'drawings/automate';
+	| 'drawings/automate'
+	| 'mep/electricalCableSize' | 'mep/electricalLighting'
+	| 'mep/hvacLoadsDetailed' | 'mep/hvacDuctPressure' | 'mep/hvacRouteDucts'
+	| 'mep/fireSprinklers' | 'mep/fireAlarm'
+	| 'mep/plumbingHotWater' | 'mep/plumbingGas'
+	| 'drawings/scopeBoxes' | 'drawings/callout' | 'drawings/keynotes' | 'drawings/legend'
+	| 'drawings/scheduleCategories' | 'drawings/schedule'
+	| 'bim/exportIfcFile' | 'bim/diffIfc'
+	| 'project/validateAll'
+	| 'verification/cases' | 'verification/run';
 
 export interface IQgisOpenRequest {
 	/** Absolute path of the `.gpkg`, `.geojson` or `.json` file. */
@@ -910,7 +974,8 @@ export interface ISetupRunResult {
 export type MepServiceMethod =
 	| 'mep/hvacReport' | 'mep/hvacLoads' | 'mep/hvacCancelLoads' | 'mep/hvacProposePlant' | 'mep/hvacDuctOpenings' | 'mep/hvacTables' | 'mep/hvacConstructions'
 	| 'mep/electricalReport' | 'mep/electricalProposeEquipment' | 'mep/electricalOpenings' | 'mep/electricalUses'
-	| 'mep/fireReport' | 'mep/fireProposals' | 'mep/fireOpenings';
+	| 'mep/fireReport' | 'mep/fireProposals' | 'mep/fireOpenings'
+	| 'mep/systems';
 
 /** What a {@link MepServiceMethod} is asked about (none for the tables and the cancel). */
 export interface IMepServiceParams {

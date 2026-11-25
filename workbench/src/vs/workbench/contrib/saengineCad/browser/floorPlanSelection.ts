@@ -5,7 +5,7 @@
 
 import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
-import { IMemberShape, MemberGroup } from './floorPlanDrawing.js';
+import { distanceToSegment, IMemberShape, MemberGroup } from './floorPlanDrawing.js';
 import { insidePolygon, members } from './floorPlanEdits.js';
 
 /*
@@ -96,6 +96,140 @@ export function selectInWindow(shapes: readonly IMemberShape[], start: CadPoint,
 	const rect = rectOf(start, end);
 	const mode = windowMode(start, end);
 	return unique(shapes.filter(s => shapeInWindow(s, rect, mode)).map(({ group, id }) => ({ group, id })));
+}
+
+/** Whether a member's outline matches a polygon (window, crossing, or fence). */
+export function shapeInPolygon(shape: IMemberShape, points: readonly CadPoint[], mode: 'window' | 'crossing' | 'fence'): boolean {
+	if (points.length < 2) {
+		return false;
+	}
+	const outline = shape.outline;
+	if (outline.kind === 'circle') {
+		const [cx, cy] = outline.center;
+		const r = outline.radius;
+		if (mode === 'fence') {
+			for (let i = 1; i < points.length; i++) {
+				if (distanceToSegment([cx, cy], points[i - 1], points[i]) <= r) {
+					return true;
+				}
+			}
+			return false;
+		}
+		if (mode === 'window') {
+			if (!insidePolygon([cx, cy], points)) {
+				return false;
+			}
+			for (let i = 0; i < points.length; i++) {
+				const next = points[(i + 1) % points.length];
+				if (distanceToSegment([cx, cy], points[i], next) < r) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if (mode === 'crossing') {
+			if (insidePolygon([cx, cy], points)) {
+				return true;
+			}
+			for (let i = 0; i < points.length; i++) {
+				const next = points[(i + 1) % points.length];
+				if (distanceToSegment([cx, cy], points[i], next) <= r) {
+					return true;
+				}
+			}
+			return false;
+		}
+		return false;
+	}
+
+	const shapePts = outline.points;
+	if (mode === 'fence') {
+		for (let i = 1; i < points.length; i++) {
+			for (let j = 0; j < shapePts.length; j++) {
+				if (segmentsCross(points[i - 1], points[i], shapePts[j], shapePts[(j + 1) % shapePts.length])) {
+					return true;
+				}
+			}
+		}
+		return points.some(p => insidePolygon(p, shapePts));
+	}
+
+	if (mode === 'window') {
+		if (!shapePts.every(p => insidePolygon(p, points))) {
+			return false;
+		}
+		for (let i = 0; i < points.length; i++) {
+			const p1 = points[i], p2 = points[(i + 1) % points.length];
+			for (let j = 0; j < shapePts.length; j++) {
+				const q1 = shapePts[j], q2 = shapePts[(j + 1) % shapePts.length];
+				if (segmentsCross(p1, p2, q1, q2)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	if (mode === 'crossing') {
+		if (shapePts.some(p => insidePolygon(p, points))) {
+			return true;
+		}
+		if (points.some(p => insidePolygon(p, shapePts))) {
+			return true;
+		}
+		for (let i = 0; i < points.length; i++) {
+			const p1 = points[i], p2 = points[(i + 1) % points.length];
+			for (let j = 0; j < shapePts.length; j++) {
+				const q1 = shapePts[j], q2 = shapePts[(j + 1) % shapePts.length];
+				if (segmentsCross(p1, p2, q1, q2)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	return false;
+}
+
+/**
+ * The lasso's mode from the way the drag started, as AutoCAD: moving right first is a window
+ * (objects inside), moving left first a crossing (objects touched). A loop ends near its start, so
+ * the end point says nothing.
+ */
+export function lassoMode(points: readonly CadPoint[]): 'window' | 'crossing' {
+	const [x0] = points[0] ?? [0, 0];
+	for (const [x] of points) {
+		if (x !== x0) {
+			return x > x0 ? 'window' : 'crossing';
+		}
+	}
+	return 'window';
+}
+
+/**
+ * Whether a dragged path is a freehand lasso rather than a window drag: the path encloses at least a
+ * fifth of its bounding box. A straight diagonal drag (the plan's window) encloses almost nothing.
+ */
+export function isFreehandLasso(points: readonly CadPoint[]): boolean {
+	if (points.length < 3) {
+		return false;
+	}
+	let area = 0;
+	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	for (let i = 0; i < points.length; i++) {
+		const [x1, y1] = points[i];
+		const [x2, y2] = points[(i + 1) % points.length];
+		area += x1 * y2 - x2 * y1;
+		minX = Math.min(minX, x1); minY = Math.min(minY, y1); maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1);
+	}
+	const box = (maxX - minX) * (maxY - minY);
+	return box > 0 && Math.abs(area) / 2 >= 0.2 * box;
+}
+
+/** The members a lasso polygon selects. */
+export function selectInPolygon(shapes: readonly IMemberShape[], points: readonly CadPoint[], mode: 'window' | 'crossing' | 'fence'): IMemberRef[] {
+	return unique(shapes.filter(s => shapeInPolygon(s, points, mode)).map(({ group, id }) => ({ group, id })));
 }
 
 function unique(refs: readonly IMemberRef[]): IMemberRef[] {

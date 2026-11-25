@@ -381,7 +381,7 @@ export class ExportsEditor extends EditorPane {
 		this.render();
 	}
 
-	private async scan(): Promise<void> {
+	async scan(): Promise<void> {
 		const folder = this.exportsFolder;
 		const version = ++this.scanVersion;
 		if (!folder) {
@@ -1159,7 +1159,7 @@ export class ExportsEditor extends EditorPane {
 	}
 
 	/** Opens the exports folder in the system's file manager (created if no export made it yet). */
-	private async revealFolder(): Promise<void> {
+	async revealFolder(): Promise<void> {
 		const folder = this.exportsFolder;
 		if (!folder) {
 			return;

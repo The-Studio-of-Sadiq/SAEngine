@@ -5,6 +5,7 @@ Every handler takes and returns plain JSON-compatible values.
 
 from __future__ import annotations
 
+import json
 import math
 import platform
 import threading
@@ -328,6 +329,14 @@ def building_ifc(
     mep_text: str | None = None,
     architecture_text: str | None = None,
     rebar_root: str | None = None,
+    schema: str | None = None,
+    include_structural_analysis: bool | None = None,
+    soil_text: str | None = None,
+    analytical: Any = None,
+    include_connections: bool | None = None,
+    include_georeferencing: bool | None = None,
+    crs: str | None = None,
+    project_root: str | None = None,
 ) -> dict[str, Any]:
     """The IFC of the building model: ``{"text", "ids", "skipped"}`` or ``{"problems"}``.
 
@@ -397,17 +406,102 @@ def building_ifc(
             rebar = rebar_cages(rebar_root, check=False)
         except (DrawingsError, ValueError, OSError) as exc:
             rebar_notes.append(f"Reinforcement: {_first_line(exc)}")
-    ifc, ids, skipped = export_ifc(
-        building,
-        objects,
-        materials,
-        name,
-        substructure,
-        ground,
-        mep if has_mep else None,
-        architecture if architecture.instances() else None,
-        rebar,
+    ifc_cfg: dict[str, Any] = {}
+    settings_obj: Any = None
+    if settings_text:
+        try:
+            raw_settings = json.loads(settings_text)
+            if isinstance(raw_settings, dict) and isinstance(raw_settings.get("ifc"), dict):
+                ifc_cfg = raw_settings["ifc"]
+        except ValueError:
+            pass
+    eff_schema = schema or str(ifc_cfg.get("schema") or "IFC4")
+    eff_analysis = (
+        include_structural_analysis
+        if include_structural_analysis is not None
+        else bool(ifc_cfg.get("includeStructuralAnalysis", False))
     )
+    eff_geo = (
+        include_georeferencing
+        if include_georeferencing is not None
+        else bool(ifc_cfg.get("includeGeoreferencing", True))
+    )
+    eff_conn = (
+        include_connections
+        if include_connections is not None
+        else bool(ifc_cfg.get("includeSteelConnections", True))
+    )
+    eff_crs = crs or str(ifc_cfg.get("crs") or "BTM")
+    soil = None
+    if soil_text:
+        from saengine.library.soil import SoilReport
+
+        try:
+            soil = SoilReport.model_validate_json(soil_text)
+        except ValidationError:
+            soil = None
+    if eff_analysis and analytical is None and settings_text:
+        from saengine.exporters.analytical import from_osmodel
+        from saengine.library.settings import ProjectSettings
+
+        try:
+            settings_obj = ProjectSettings.model_validate_json(settings_text)
+        except ValidationError:
+            settings_obj = None
+        root_dir = project_root or rebar_root
+        osmodel_data: dict[str, Any] | None = None
+        if root_dir:
+            osmodel_path = Path(root_dir) / "08 FEM" / "model.osmodel"
+            if osmodel_path.is_file():
+                try:
+                    osmodel_data = json.loads(osmodel_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    osmodel_data = None
+        if osmodel_data is None:
+            fem = derive_fem(
+                bim_text,
+                objects_text,
+                materials_text or "{}",
+                settings_text,
+                str(Path(root_dir) / "08 FEM") if root_dir else None,
+                soil_text=soil_text,
+                mep_text=mep_text,
+                substructure_text=substructure_text,
+                architecture_text=architecture_text,
+            )
+            if fem.get("text"):
+                try:
+                    osmodel_data = json.loads(fem["text"])
+                except ValueError:
+                    osmodel_data = None
+        if osmodel_data is not None:
+            analytical = from_osmodel(
+                osmodel_data,
+                objects,
+                materials or MaterialLibrary(),
+                settings_obj,
+                name=name,
+            )
+    try:
+        ifc, ids, skipped = export_ifc(
+            building,
+            objects,
+            materials,
+            name,
+            substructure,
+            ground,
+            mep if has_mep else None,
+            architecture if architecture.instances() else None,
+            rebar,
+            schema=eff_schema,
+            analytical=analytical,
+            soil=soil,
+            include_connections=eff_conn,
+            crs=eff_crs,
+            include_georeferencing=eff_geo,
+        )
+    except ValueError as exc:
+        return {"problems": [str(exc)]}
     skipped = [*skipped, *rebar_notes]
     hosts = {w.id: w.base for w in architecture.walls}
     stories = {
@@ -419,7 +513,15 @@ def building_ifc(
             for key in (r.id, f"{r.id}:flooring", f"{r.id}:ceiling")
         },
         **{f"arch:{c.id}": c.base for c in [*architecture.curtainWalls, *architecture.railings]},
-        **{f"arch:{i.id}": i.story for i in [*architecture.roofs, *architecture.ramps]},
+        **{
+            f"arch:{i.id}": i.story
+            for i in [
+                *architecture.roofs,
+                *architecture.ramps,
+                *architecture.components,
+                *architecture.inPlaceElements,
+            ]
+        },
     }
     return {
         "text": ifc.to_string(),
@@ -1814,6 +1916,17 @@ def mep_check_ids(project_root: str, mep_text: str | None = None) -> dict[str, A
         return {"problems": [_first_line(error)]}
 
 
+def mep_systems(project_root: str, mep_text: str | None = None) -> dict[str, Any]:
+    """Connector-based MEP systems, totals, critical paths and connectivity checks
+    (``saengine.mep.systems.mep_systems_report``), or ``{"problems"}``."""
+    from saengine.mep.systems import mep_systems_report
+
+    try:
+        return mep_systems_report(project_root, mep_text)
+    except (OSError, RuntimeError, ValueError) as error:
+        return {"problems": [_first_line(error)]}
+
+
 # ─────────────────────────────────────── plumbing (Part 7) ───────────────────────────────────────
 
 
@@ -3190,3 +3303,126 @@ def worksheet_create(
     from saengine.report.worksheets import create_worksheet
 
     return create_worksheet(project_root, kind, worksheet_id, title)
+
+
+from saengine.rpc.u3_handlers import (  # noqa: F401
+    bim_diff_ifc,
+    bim_export_ifc_file,
+    drawings_callout,
+    drawings_keynotes,
+    drawings_legend,
+    drawings_schedule,
+    drawings_schedule_categories,
+    drawings_scope_boxes,
+    electrical_cable_size,
+    electrical_lighting,
+    fire_alarm,
+    fire_sprinklers,
+    hvac_duct_pressure,
+    hvac_loads_detailed,
+    hvac_route_ducts,
+    plumbing_gas,
+    plumbing_hot_water,
+    project_validate_all,
+    verification_cases,
+    verification_run,
+)
+from saengine.rpc.u6d_handlers import (  # noqa: F401
+    boq_arch_takeoff,
+    boq_bar_schedule,
+    boq_precast_schedule,
+    boq_schedule_summary,
+    boq_summary,
+    boq_takeoff_summary,
+    codes_conformance,
+    codes_diff,
+    library_arch_types,
+    library_designed_sections,
+    library_material_summary,
+    library_object_sections,
+    library_sheet_piles,
+    library_validate_all,
+    settings_hazard_summary,
+    settings_towns,
+    soil_analysis,
+    soil_bearing_check,
+    soil_characteristic_bearing,
+    soil_earth_pressure,
+    soil_plot_planning,
+    soil_settlement_check,
+    soil_sources_check,
+    substructure_basement_loads,
+    substructure_downdrag,
+    substructure_embedded_wall,
+    substructure_ground_slab,
+    substructure_limit_state,
+    substructure_load_tests,
+    substructure_pile_capacity,
+    substructure_pile_detailing,
+    substructure_pile_lateral,
+    substructure_pile_settlement,
+)
+from saengine.rpc.u6e_handlers import (  # noqa: F401
+    architecture_massing_floors,
+    architecture_point_cloud_status,
+    architecture_roof_ceiling_curtain,
+    architecture_rooms_check,
+    bim_bar_bending_schedule,
+    bim_detailing_model,
+    bim_rebar_cages,
+    bim_sync_stamps,
+    documents_calculation_package,
+    documents_clause_traceability,
+    documents_drawing_automation,
+    documents_project_metadata,
+    documents_sheet_inventory,
+    exports_archive_inspection,
+    exports_bbs_reconciliation,
+    exports_fabrication_preview,
+    exports_format_matrix,
+    exports_structural_ifc_check,
+    fem_capacity_seismic_detailing,
+    fem_crack_control,
+    fem_creep_shrinkage,
+    fem_deflection_check,
+    fem_differential_settlement,
+    fem_fire_steel_connections,
+    fem_flood_loads,
+    fem_floor_spectra,
+    fem_floor_vibration,
+    fem_ground_motions,
+    fem_gust_response,
+    fem_irregularities,
+    fem_isolation_dampers,
+    fem_linear_time_history,
+    fem_load_combinations,
+    fem_local_pressures,
+    fem_nonlinear_history,
+    fem_notional_loads,
+    fem_open_structures,
+    fem_p_delta_buckling,
+    fem_pattern_live,
+    fem_peak_velocity_pressure,
+    fem_punching_shear,
+    fem_pushover_analysis,
+    fem_seismic_summary,
+    fem_snow_rain_loads,
+    fem_spectral_hazard,
+    fem_ssi_springs,
+    fem_staged_construction,
+    fem_stair_crane_loads,
+    fem_sway_drift,
+    fem_thermal_loads,
+    fem_torsion_design,
+    fem_torsional_effects,
+    fem_two_level_seismic,
+    fem_wind_comfort,
+    fem_wind_speed_factors,
+    studies_batch_check,
+    studies_daylight_solar,
+    studies_noise_study,
+    studies_phasing_summary,
+    studies_plot_planning,
+    studies_special_structures,
+    studies_verification_status,
+)

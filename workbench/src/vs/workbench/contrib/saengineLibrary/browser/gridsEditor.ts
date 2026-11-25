@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, Dimension, getActiveElement, isEditableElement } from '../../../../base/browser/dom.js';
-import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
@@ -112,10 +111,6 @@ export class GridsEditor extends JsonDocumentEditor {
 	private problemBox: HTMLElement | undefined;
 	private readonly form: SchemaForm;
 
-	private readonly openPlanAction = this._register(new Action('saengine.grids.openFloorPlan', localize('grids.openFloorPlan', "Open in Floor Plan"), undefined, true, async () => this.openFloorPlan()));
-	private readonly undoAction = this._register(new Action('saengine.grids.undo', localize('grids.undo', "Undo (Ctrl+Z)"), ThemeIcon.asClassName(Codicon.discard), false, () => this.undoRedo(false)));
-	private readonly redoAction = this._register(new Action('saengine.grids.redo', localize('grids.redo', "Redo (Ctrl+Y)"), ThemeIcon.asClassName(Codicon.redo), false, () => this.undoRedo(true)));
-
 	/** The grids and stories last shown, to say what an undo, redo or Floor Plan edit changed. */
 	private shownLayout: JsonObject | undefined;
 	/** Set while this editor undoes or redoes, so the change is reported as "Undid" or "Redid". */
@@ -210,7 +205,7 @@ export class GridsEditor extends JsonDocumentEditor {
 
 	protected override documentFrameActions(): IDocumentFrameActions {
 		return this.document && this.documentFrame
-			? { primary: [this.undoAction, this.redoAction, this.documentFrame.togglePropertiesAction], secondary: [this.openPlanAction] }
+			? { primary: [this.documentFrame.togglePropertiesAction] }
 			: { primary: [] };
 	}
 
@@ -264,9 +259,6 @@ export class GridsEditor extends JsonDocumentEditor {
 	}
 
 	private updateUndoRedo(): void {
-		const resource = this.resource;
-		this.undoAction.enabled = !!resource && this.undoRedoService.canUndo(resource);
-		this.redoAction.enabled = !!resource && this.undoRedoService.canRedo(resource);
 	}
 
 	protected override onWillLoadInput(): void {

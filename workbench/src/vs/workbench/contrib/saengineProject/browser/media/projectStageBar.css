@@ -3,45 +3,65 @@
  *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* The project stage bar (projectStageBar.ts), in the banner's strip under the title bar. */
+/* The project stage stepper (projectStageBar.ts), hosted in the Home ribbon tab's Workflow group. */
 .monaco-workbench .sa-stage-bar {
 	display: flex;
 	align-items: center;
-	gap: 2px;
-	height: 100%;
+	gap: 4px;
+	height: 68px;
 	box-sizing: border-box;
-	padding: 0 var(--sa-space-2);
-	background-color: var(--sa-surface-alt);
+	padding: 0 2px;
 	color: var(--vscode-foreground);
-	border-bottom: 1px solid var(--sa-border);
 	font-size: var(--sa-font-s);
-	overflow: hidden;
+	white-space: nowrap;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage-empty {
+	font-size: 11px;
+	color: var(--sa-muted);
+	padding: 0 8px;
 	white-space: nowrap;
 }
 
 .monaco-workbench .sa-stage-bar .sa-stage {
-	display: inline-flex;
+	display: flex;
+	flex-direction: column;
 	align-items: center;
-	gap: var(--sa-space-1);
-	min-width: 0;
-	height: 22px;
-	padding: 0 var(--sa-space-2);
-	border: 1px solid transparent;
-	border-radius: var(--sa-radius);
-	background: none;
+	justify-content: center;
+	gap: 3px;
+	min-width: 64px;
+	max-width: 112px;
+	height: 56px;
+	padding: 4px 7px;
+	border: 1px solid var(--sa-border);
+	border-radius: var(--sa-radius, 3px);
+	background-color: var(--vscode-editor-background);
 	color: inherit;
 	font: inherit;
 	cursor: pointer;
-	flex-shrink: 1;
+	box-sizing: border-box;
+	flex-shrink: 0;
 }
 
-.monaco-workbench .sa-stage-bar .sa-stage:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+@media (hover: hover) {
+	.monaco-workbench .sa-stage-bar .sa-stage:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		border-color: var(--vscode-focusBorder);
+	}
 }
 
 .monaco-workbench .sa-stage-bar .sa-stage:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+.monaco-workbench .sa-stage-bar .sa-stage-top {
+	display: flex;
+	align-items: center;
+	gap: var(--sa-space-1);
+	max-width: 100%;
+	font-size: 11px;
+	font-weight: 600;
 }
 
 .monaco-workbench .sa-stage-bar .sa-stage-label {
@@ -54,19 +74,17 @@
 	border-color: var(--sa-brand-blue);
 }
 
-.monaco-workbench .sa-stage-bar .sa-stage.sa-stage-next .sa-stage-label {
-	font-weight: 600;
-}
-
-.monaco-workbench .sa-stage-bar .sa-stage-text {
+.monaco-workbench .sa-stage-bar .sa-stage-sub {
 	color: var(--sa-muted);
-	max-width: 120px;
+	font-size: 10px;
+	line-height: 1.1;
+	max-width: 96px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 /* State icons: shape and colour, so the state does not rest on colour alone. */
-.monaco-workbench .sa-stage-bar .sa-stage-icon { font-size: 14px; flex-shrink: 0; }
+.monaco-workbench .sa-stage-bar .sa-stage-icon { font-size: 13px; flex-shrink: 0; }
 .monaco-workbench .sa-stage-bar .sa-stage-done .sa-stage-icon { color: var(--sa-ok); }
 .monaco-workbench .sa-stage-bar .sa-stage-inProgress .sa-stage-icon { color: var(--sa-info); }
 .monaco-workbench .sa-stage-bar .sa-stage-stale .sa-stage-icon { color: var(--sa-warn); }

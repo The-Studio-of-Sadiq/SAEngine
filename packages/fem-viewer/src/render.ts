@@ -72,8 +72,25 @@ export class ProjectFrame {
 		return this.known;
 	}
 
+	get factor(): number {
+		return this.scale;
+	}
+
+	get origin(): readonly [number, number, number] {
+		return [this.offset.x, this.offset.y, this.offset.z];
+	}
+
 	toScene(x: number, y: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
 		return out.set(x * this.scale + this.offset.x, z * this.scale + this.offset.y, -y * this.scale + this.offset.z);
+	}
+
+	/** Converts a scene point (Y up, m) back to project coordinates (Z up, mm). */
+	toProject(v: THREE.Vector3): [number, number, number] {
+		return [
+			(v.x - this.offset.x) / this.scale,
+			(this.offset.z - v.z) / this.scale,
+			(v.y - this.offset.y) / this.scale,
+		];
 	}
 
 	/** A direction (unit, project axes) in the scene's axes. */

@@ -131,6 +131,71 @@ Pixels**, **Open in LibreCAD**, **Open PDF Set**).
 Files in `11 Exports/Drawings/`: one DXF per sheet (`S-101 General notes.dxf`, ...),
 `drawings.pdf`, `previews/*.png`, `bbs.csv` (UTF-8 with BOM, for Excel) and `drawings.json`.
 
+### Generated view documentation and custom schedules
+
+The Python drawing API can generate cropped dependent plan sheets from named `ScopeBox` data.
+Add scope rectangles to the project's `drawings.scopeBoxes` JSON setting, with bounds
+`[x0, y0, x1, y1]` in model millimetres and optional level ids:
+
+```json
+{
+  "drawings": {
+    "scopeBoxes": [
+      {"name": "West", "bounds": [0, 0, 20000, 20000], "levels": ["L1"]},
+      {"name": "East", "bounds": [20000, 0, 40000, 20000], "levels": ["L1"]}
+    ]
+  }
+}
+```
+
+Sheet generation then makes a cropped dependent plan for each scope and requested level, each on
+its own sheet, with a title-block key plan and a labelled matchline that names the adjacent sheet.
+The Python API also exposes `build_dependent_plans(building, scope_boxes)` for direct generation.
+Sheet numbers are assigned before the references are drawn, so references follow sheet
+renumbering on regeneration. This generates views from model data; it does not add user-placed
+views, view templates or visibility overrides.
+
+`create_callout(parent_view, bounds, detail_sheet, detail_spec, number)` draws a callout boundary
+and bubble on the parent and places the enlarged `ViewSpec` on its generated detail sheet. The
+detail scale is the view scale; a 3,000 x 3,000 mm crop at 1:20 therefore measures 150 x 150 mm
+on paper. Refresh the callout reference after changing its target sheet number.
+
+Keynotes live in a project JSON object mapping keys to text (the starter catalogue is
+`python/src/saengine/library/keynotes.json`). Put `keynote` or `materialKeynote` in an element's
+SAEngine XDATA and call `auto_tag(doc, keynotes)` to add its missing tag; `keynote_legend` lists
+only the keys used on that sheet, while `place_keynote_legend(sheet, keynotes)` draws the table.
+`documentation_legend` reports used DXF linetypes, hatches, blocks and tag kinds;
+`place_documentation_legend(sheet)` draws that table. Both use the existing sheet-table renderer.
+
+User schedules are JSON-compatible definitions passed to `build_schedule(definition, categories)`.
+The definition names a category and fields, then may specify arithmetic calculated fields,
+AND-combined filters, sort fields, group headers/footers, totals/counts and `itemize`. For example:
+
+```json
+{
+  "name": "Wide doors",
+  "category": "doors",
+  "fields": [
+    {"key": "mark", "title": "Mark"},
+    {"key": "level", "title": "Level"},
+    {"key": "width", "title": "Width"},
+    {"key": "area", "title": "Area"},
+    {"key": "rate", "title": "Rate"},
+    {"key": "cost", "title": "Cost", "expression": "area * rate"}
+  ],
+  "filters": [{"field": "width", "operator": ">=", "value": 900}],
+  "sort": [{"field": "mark", "order": "asc"}],
+  "groupBy": ["level"],
+  "totals": ["count", "cost"],
+  "itemize": true
+}
+```
+
+Calculated fields use a restricted arithmetic AST (numeric literals, field names, `+`, `-`,
+`*`, `/` and parentheses); Python calls and other syntax are rejected. The result exposes the
+existing `Table` shape, `result.add_to_sheet(sheet)`, CSV output and the existing Excel table
+exporter. Fixed door, window, room finish, structural, BBS and MEP schedules remain unchanged.
+
 ### Opening the DXF sheets in CAD
 
 The sheet DXFs are written for AutoCAD, BricsCAD and LibreCAD: layers follow the US National CAD
@@ -201,7 +266,11 @@ length (rounded up to 25 mm), total length and mass, with totals per bar size.
 
 - **Export DXF Floor Plans** writes one DXF per storey with layers S-GRID, S-COLS, S-BEAM and
   others (also **Export DXF** in the floor plan).
-- **Export IFC** writes the building model (elements, storeys, materials) as IFC.
+- **Export IFC** writes the building model (elements, storeys, materials, optional structural
+  analysis view, CRS georeferencing, and steel connection assemblies/plates/bolts) as IFC4
+  (default) or IFC2x3 (`schema="IFC2X3"`). Use `saengine.library.ifc_diff.diff_ifc` (also
+  integrated into `saengine.project.diff.diff_file` for `.ifc` files) to compare revisions by
+  `GlobalId`.
 
 ## Revit link
 

@@ -762,12 +762,13 @@ def write_rasters() -> None:
         sizes=[(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)],
         append_images=[big[s] for s in (16, 20, 24, 32, 40, 48, 64, 96, 128)],
     )
-    # Windows Start tiles: the mark for dark backgrounds on the brand navy, opaque, so they read
-    # whatever background the shell gives them (VisualElementsManifest.xml sets the same navy)
+    # Windows Start tiles and the window icon when run from sources: the app icon (the colour mark
+    # on white), opaque, the same logo as the exe (VisualElementsManifest.xml sets white too)
     for size in (70, 150):
-        mark = rasterise(mark_square(DARK, "tl", 512, 64, detail=size > 70), size, size, ss=8)
-        tile = Image.new("RGBA", (size, size), (*_rgb(NAVY), 255))
-        tile.alpha_composite(mark)
+        tile = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+        tile.alpha_composite(
+            rasterise(mark_square(COLOUR, "tl", 512, 64, detail=size > 70), size, size, ss=8)
+        )
         tile.save(res / "win32" / f"code_{size}x{size}.png")
     # Linux
     big[512].save(res / "linux" / "code.png")

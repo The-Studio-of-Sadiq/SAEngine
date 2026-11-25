@@ -148,6 +148,7 @@ def _build(t: Any) -> dict[str, Any]:
         "UPS_AUTONOMY_MIN": t.upsAutonomyMin,
         "TANK_PLATE": t.tankPlate,
         "STEEL_WEIGHT": t.steelWeight,
+        "LIGHTING": t.lighting,
     }
 
 
@@ -204,3 +205,30 @@ def cable_od(amps: float) -> float:
         if amps <= limit:
             return float(od)
     return float(table[-1][1])
+
+
+def _sub_group(name: str, label: str) -> Any:
+    from saengine.mep import code_pack
+
+    table = code_pack.table("electrical")
+    if table is None:
+        raise ValueError(code_pack.not_covered("Electrical services"))
+    group = getattr(table, name, None)
+    if group is None:
+        raise ValueError(code_pack.not_covered(label))
+    return group
+
+
+def circuit_rules() -> Any:
+    """Distribution-board, circuiting and breaker rules of the code pack in force."""
+    return _sub_group("circuitRules", "Electrical distribution boards and circuiting")
+
+
+def cables() -> Any:
+    """Cable ampacity, derating, voltage drop and adiabatic tables of the code pack in force."""
+    return _sub_group("cables", "Electrical cable sizing and voltage drop")
+
+
+def short_circuit() -> Any:
+    """Short-circuit and disconnection parameters of the code pack in force."""
+    return _sub_group("shortCircuit", "Electrical short-circuit and fault level")

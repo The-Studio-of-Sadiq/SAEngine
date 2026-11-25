@@ -28,10 +28,46 @@ File: `06 BIM/bim.json`. Open it with **6 BIM**. The editor is titled **Building
 | **Summary** | The storeys (ID, elevation, height) and the number of elements by kind, from the floor plan and own. |
 
 Clicking an element selects the floor-plan member it came from (also in the Model Explorer and
-the floor plan) and shows its properties.
+the floor plan) and shows its properties. Hold **Ctrl** or **Shift** while clicking to select
+several elements.
 
 The 3D view is drawn from the same IFC file that **Export IFC** writes, so what you see is what
 is exported.
+
+### Section box and section planes
+
+- **Section Box** (toolbar icon or **... > Section > Section Box**): places a six-sided clipping
+  box around the model (or use **Section Box from Selection** around the selected elements). Drag
+  any of the six face handles to cut into the building, type exact **X / Y / Z** min and max bounds
+  in millimetres in the Section panel, or click **Reset** to return to the full model bounds.
+- **Single section planes**: in the Section panel or **... > Section**, add an **X**, **Y**, or
+  **Z** cut plane or choose **Section Plane from Face** and click any surface in the model. Drag
+  its handle along the normal, click **Flip** to reverse the kept side, or remove individual planes.
+- Section cuts apply across standard, Walk Mode, 4D playback, and phase views, and are saved per
+  view in workspace storage.
+
+### Measure
+
+- **Measure** (toolbar ruler icon or **... > Measure**): pick **Point-to-Point Distance**,
+  **Chain Distance** (right-click or click **Finish** to complete), **Point to Face**
+  (perpendicular distance from a point to a picked face), or **Angle Between Two Edges**.
+- Snaps under the cursor prioritise vertices, edge midpoints, edges, and faces. Dimension lines
+  and labels appear in 3D in millimetres, and every measurement is listed in the Measure panel with
+  one-click copy and clear controls.
+
+### Hide and isolate
+
+- Use the Revit-style two-key shortcuts in the 3D view (or **... > Hide / Isolate**):
+  - **HH**: temporarily hide the selected element(s).
+  - **HI**: temporarily isolate the selected element(s).
+  - **HC**: temporarily hide the category (element class) of the selection.
+  - **IC**: temporarily isolate the category of the selection.
+  - **HR**: reset all temporary hide/isolate overrides.
+- A banner over the view shows when temporary hide/isolate is active, with **Reset (HR)** and
+  **Apply Permanently**.
+- **Permanent hide**: **Hide Element Permanently** hides elements in the saved view state. Toggle
+  **Reveal Hidden Elements** (lightbulb icon) to highlight permanently hidden elements in magenta so
+  you can select and **Unhide Selected** or **Unhide All**.
 
 ## Export IFC
 
@@ -64,4 +100,3 @@ cost, carbon, and the checks of the current files.
 
 - The exact mouse buttons for orbit and pan are the defaults of the 3D library (That Open
   Components camera controls) and are not set by SAEngine.
-- The 3D view has no section, measure or hide tools in this version.

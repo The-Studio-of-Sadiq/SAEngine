@@ -55,6 +55,8 @@ OUTPUT_VARIABLES = (
     "Zone Ideal Loads Supply Air Sensible Cooling Rate",
     "Zone Ideal Loads Supply Air Latent Cooling Rate",
     "Zone Ideal Loads Zone Total Cooling Rate",
+    "Zone Ideal Loads Supply Air Sensible Heating Rate",
+    "Zone Ideal Loads Zone Heating Rate",
     "Zone Ideal Loads Outdoor Air Total Cooling Rate",
     "Zone Ideal Loads Outdoor Air Sensible Cooling Rate",
     "Zone Ideal Loads Outdoor Air Latent Cooling Rate",
@@ -64,6 +66,35 @@ OUTPUT_VARIABLES = (
     "Zone Air Humidity Ratio",
     "Zone Air Relative Humidity",
 )
+
+ANNUAL_OUTPUT_METERS = (
+    "Electricity:Facility",
+    "InteriorLights:Electricity",
+    "InteriorEquipment:Electricity",
+    "Cooling:EnergyTransfer",
+    "Heating:EnergyTransfer",
+    "DistrictCooling:Facility",
+    "DistrictHeatingWater:Facility",
+)
+
+ANNUAL_OUTPUT_VARIABLES = (
+    "Zone Ideal Loads Zone Total Cooling Energy",
+    "Zone Ideal Loads Zone Total Heating Energy",
+    "Zone Lights Electricity Energy",
+    "Zone Electric Equipment Electricity Energy",
+    "Zone Heating Setpoint Not Met Time",
+    "Zone Cooling Setpoint Not Met Time",
+)
+
+#: Seasonal plant COP defaults (cooling, heating) when converting IdealLoads thermal energy
+#: to electrical input (ASHRAE 90.1 / BNBC Table 8.2.11 practice, to be checked).
+_SYSTEM_COP_DEFAULTS: dict[str, tuple[float, float, str]] = {
+    "vrf": (3.5, 3.2, "VRF seasonal COP 3.5 cooling / 3.2 heating (to be checked)"),
+    "split": (3.0, 3.0, "Split system seasonal COP 3.0 (to be checked)"),
+    "packaged": (3.1, 1.0, "Packaged DX seasonal COP 3.1 cooling / 1.0 heating (to be checked)"),
+    "none": (1.0, 1.0, "Ideal loads thermal energy (COP = 1.0)"),
+    "idealLoads": (1.0, 1.0, "Ideal loads thermal energy (COP = 1.0)"),
+}
 
 
 class EnergyPlusError(RuntimeError):
@@ -149,6 +180,28 @@ def _schedule(model: dict[str, Any], value: float) -> str:
     return name
 
 
+def _compact_schedule(
+    model: dict[str, Any],
+    name: str,
+    weekday: list[float],
+    weekend: list[float],
+) -> str:
+    """Add an EnergyPlus ``Schedule:Compact`` with 24-hour weekday and weekend profiles."""
+    data: list[dict[str, Any]] = [{"field": "Through: 12/31"}, {"field": "For: Weekdays"}]
+    for hour, val in enumerate(weekday, 1):
+        data.append({"field": f"Until: {hour:02d}:00"})
+        data.append({"field": round(float(val), 4)})
+    data.append({"field": "For: AllOtherDays"})
+    for hour, val in enumerate(weekend, 1):
+        data.append({"field": f"Until: {hour:02d}:00"})
+        data.append({"field": round(float(val), 4)})
+    model.setdefault("Schedule:Compact", {})[name] = {
+        "schedule_type_limits_name": "Fraction",
+        "data": data,
+    }
+    return name
+
+
 @dataclass
 class Model:
     """The epJSON of a building and the names it gave the zones' parts."""
@@ -156,6 +209,8 @@ class Model:
     epjson: dict[str, Any]
     #: zone name -> ideal loads system name (conditioned zones only)
     systems: dict[str, str] = field(default_factory=dict)
+    annual: bool = False
+    system: str = "split"
 
 
 def build(
@@ -163,8 +218,37 @@ def build(
     gains: dict[str, ZoneGains],
     envelope: EnvelopeChoice,
     design: Design,
+    *,
+    annual: bool = False,
+    system: str = "split",
 ) -> Model:
-    """The epJSON input of the building (``gains``: zone name -> its gains)."""
+    """The epJSON input of the building (``gains``: zone name -> its gains).
+
+    When ``annual`` is True, includes a full-year ``RunPeriod`` (Jan 1 - Dec 31), hourly
+    ``Schedule:Compact`` occupancy/lighting/equipment schedules per zone from the code pack's
+    use profiles, and annual energy ``Output:Meter`` objects.
+    """
+    summary_reports = [
+        {"report_name": "ZoneComponentLoadSummary"},
+        {"report_name": "EnvelopeSummary"},
+    ]
+    if annual:
+        summary_reports.extend(
+            [
+                {"report_name": "AnnualBuildingUtilityPerformanceSummary"},
+                {"report_name": "SystemSummary"},
+            ]
+        )
+    out_vars = ANNUAL_OUTPUT_VARIABLES if annual else OUTPUT_VARIABLES
+    out_freq = "RunPeriod" if annual else "Timestep"
+    schedule_limits: dict[str, Any] = {"Any Number": {}}
+    if annual:
+        schedule_limits["Fraction"] = {
+            "lower_limit_value": 0.0,
+            "upper_limit_value": 1.0,
+            "numeric_type": "Continuous",
+            "unit_type": "Dimensionless",
+        }
     m: dict[str, Any] = {
         "Version": {"Version 1": {"version_identifier": VERSION}},
         "SimulationControl": {
@@ -173,7 +257,7 @@ def build(
                 "do_system_sizing_calculation": "No",
                 "do_plant_sizing_calculation": "No",
                 "run_simulation_for_sizing_periods": "Yes",
-                "run_simulation_for_weather_file_run_periods": "No",
+                "run_simulation_for_weather_file_run_periods": "Yes" if annual else "No",
             }
         },
         "Building": {
@@ -206,25 +290,39 @@ def build(
         "Sizing:Parameters": {
             "Sizing:Parameters 1": {"heating_sizing_factor": 1.0, "cooling_sizing_factor": 1.0}
         },
-        "ScheduleTypeLimits": {"Any Number": {}},
+        "ScheduleTypeLimits": schedule_limits,
         "Output:SQLite": {"Output:SQLite 1": {"option_type": "SimpleAndTabular"}},
         "Output:Table:SummaryReports": {
-            "Output:Table:SummaryReports 1": {
-                "reports": [
-                    {"report_name": "ZoneComponentLoadSummary"},
-                    {"report_name": "EnvelopeSummary"},
-                ]
-            }
+            "Output:Table:SummaryReports 1": {"reports": summary_reports}
         },
         "Output:Variable": {
             f"Output {i}": {
                 "key_value": "*",
                 "variable_name": name,
-                "reporting_frequency": "Timestep",
+                "reporting_frequency": out_freq,
             }
-            for i, name in enumerate(OUTPUT_VARIABLES, 1)
+            for i, name in enumerate(out_vars, 1)
         },
     }
+    if annual:
+        m["RunPeriod"] = {
+            "Annual": {
+                "begin_month": 1,
+                "begin_day_of_month": 1,
+                "end_month": 12,
+                "end_day_of_month": 31,
+                "day_of_week_for_start_day": "Sunday",
+                "use_weather_file_holidays_and_special_days": "Yes",
+                "use_weather_file_daylight_saving_period": "Yes",
+                "apply_weekend_holiday_rule": "No",
+                "use_weather_file_rain_indicators": "Yes",
+                "use_weather_file_snow_indicators": "Yes",
+            }
+        }
+        m["Output:Meter"] = {
+            f"Meter {i}": {"key_name": meter, "reporting_frequency": "RunPeriod"}
+            for i, meter in enumerate(ANNUAL_OUTPUT_METERS, 1)
+        }
     days: dict[str, Any] = {}
     for month in design.months:
         days[f"Cooling {month:02d}-21"] = {
@@ -243,6 +341,22 @@ def build(
             "solar_model_indicator": "ASHRAEClearSky",
             "sky_clearness": 1.0,
         }
+    days["Heating 01-21"] = {
+        "month": 1,
+        "day_of_month": 21,
+        "day_type": "WinterDesignDay",
+        "maximum_dry_bulb_temperature": design.heatingDB,
+        "daily_dry_bulb_temperature_range": 0.0,
+        "humidity_condition_type": "WetBulb",
+        "wetbulb_or_dewpoint_at_maximum_dry_bulb": design.heatingDB - 2.0,
+        "wind_speed": T.DESIGN_WIND_SPEED,
+        "wind_direction": 180.0,
+        "rain_indicator": "No",
+        "snow_indicator": "No",
+        "daylight_saving_time_indicator": "No",
+        "solar_model_indicator": "ASHRAEClearSky",
+        "sky_clearness": 0.0,
+    }
     m["SizingPeriod:DesignDay"] = days
     m.update(epjson_objects(envelope))
     on = _schedule(m, 1.0)
@@ -276,7 +390,29 @@ def build(
                 shading_windows.setdefault(zone.name, []).append(w.name)
         g = gains.get(zone.name)
         if g is not None:
-            _internal(m, zone, g, on)
+            if annual:
+                _, prof = T.schedule_profile_for(g.use)
+                occ_s = _compact_schedule(
+                    m,
+                    f"{zone.name} occupancy schedule",
+                    list(prof.occupancyWeekday),
+                    list(prof.occupancyWeekend),
+                )
+                lgt_s = _compact_schedule(
+                    m,
+                    f"{zone.name} lighting schedule",
+                    list(prof.lightingWeekday),
+                    list(prof.lightingWeekend),
+                )
+                eqp_s = _compact_schedule(
+                    m,
+                    f"{zone.name} equipment schedule",
+                    list(prof.equipmentWeekday),
+                    list(prof.equipmentWeekend),
+                )
+                _internal(m, zone, g, occ_s, lgt_s, eqp_s)
+            else:
+                _internal(m, zone, g, on)
         if zone.conditioned and g is not None:
             systems[zone.name] = _ideal_loads(m, zone, g)
         elif not zone.conditioned:
@@ -310,14 +446,21 @@ def build(
             }
             for zone, names in shading_windows.items()
         }
-    return Model(m, systems)
+    return Model(m, systems, annual=annual, system=system)
 
 
-def _internal(m: dict[str, Any], zone: ThermalZone, g: ZoneGains, on: str) -> None:
+def _internal(
+    m: dict[str, Any],
+    zone: ThermalZone,
+    g: ZoneGains,
+    occ_schedule: str,
+    light_schedule: str | None = None,
+    equip_schedule: str | None = None,
+) -> None:
     if g.occupants > 0:
         m.setdefault("People", {})[f"{zone.name} people"] = {
             "zone_or_zonelist_or_space_or_spacelist_name": zone.name,
-            "number_of_people_schedule_name": on,
+            "number_of_people_schedule_name": occ_schedule,
             "number_of_people_calculation_method": "People",
             "number_of_people": round(g.occupants, 3),
             "fraction_radiant": 0.3,
@@ -326,7 +469,7 @@ def _internal(m: dict[str, Any], zone: ThermalZone, g: ZoneGains, on: str) -> No
     if g.lighting > 0:
         m.setdefault("Lights", {})[f"{zone.name} lights"] = {
             "zone_or_zonelist_or_space_or_spacelist_name": zone.name,
-            "schedule_name": on,
+            "schedule_name": light_schedule or occ_schedule,
             "design_level_calculation_method": "Watts/Area",
             "watts_per_floor_area": g.lighting,
             "fraction_radiant": 0.37,
@@ -335,7 +478,7 @@ def _internal(m: dict[str, Any], zone: ThermalZone, g: ZoneGains, on: str) -> No
     if g.equipment > 0:
         m.setdefault("ElectricEquipment", {})[f"{zone.name} equipment"] = {
             "zone_or_zonelist_or_space_or_spacelist_name": zone.name,
-            "schedule_name": on,
+            "schedule_name": equip_schedule or occ_schedule,
             "design_level_calculation_method": "Watts/Area",
             "watts_per_floor_area": g.equipment,
             "fraction_radiant": 0.3,
@@ -389,7 +532,7 @@ def _ideal_loads(m: dict[str, Any], zone: ThermalZone, g: ZoneGains) -> str:
         }
     stat = f"{zone.name} setpoints"
     m.setdefault("ThermostatSetpoint:DualSetpoint", {})[stat] = {
-        "heating_setpoint_temperature_schedule_name": _schedule(m, -50.0),
+        "heating_setpoint_temperature_schedule_name": _schedule(m, g.heatingIndoorDB),
         "cooling_setpoint_temperature_schedule_name": _schedule(m, g.indoorDB),
     }
     m.setdefault("ZoneControl:Thermostat", {})[f"{zone.name} thermostat"] = {
@@ -472,25 +615,43 @@ def run(
     exe: Path,
     folder: Path | None = None,
     timeout: float = TIMEOUT,
+    *,
+    epw: str | Path | None = None,
+    floor_area_m2: float | None = None,
 ) -> dict[str, Any]:
     """Run EnergyPlus on the model in ``folder`` (a new temporary folder, deleted afterwards,
     when None) and return :func:`read_results`. Raises :class:`EnergyPlusError`."""
+    weather: Path | None = None
+    if model.annual:
+        if not epw:
+            raise EnergyPlusError(
+                "Annual simulation requires an EPW weather file path (no weather file is bundled)"
+            )
+        weather = Path(epw)
+        if not weather.is_file():
+            raise EnergyPlusError(f"EPW weather file not found: {weather}")
     own = folder is None
     work = Path(tempfile.mkdtemp(prefix="saengine-eplus-")) if own else Path(folder)
     work.mkdir(parents=True, exist_ok=True)
     try:
         path = work / "in.epJSON"
         path.write_text(json.dumps(model.epjson, indent=1), encoding="utf-8")
+        cmd = [str(exe)]
+        if weather is not None:
+            cmd.extend(["-w", str(weather)])
+        cmd.extend(["-d", str(work), str(path)])
         start = time.perf_counter()
-        done = _run_cancellable(
-            [str(exe), "-d", str(work), str(path)], work, timeout
-        )  # fmt: skip
+        done = _run_cancellable(cmd, work, timeout)
         seconds = time.perf_counter() - start
         problems = errors(work)
         if done.returncode != 0 or not (work / "eplusout.sql").is_file():
             detail = "; ".join(problems[:8]) or done.stdout[-600:] or done.stderr[-600:]
             raise EnergyPlusError(f"EnergyPlus failed (exit {done.returncode}): {detail}")
         results = read_results(work / "eplusout.sql", model)
+        if model.annual:
+            results["annual"] = read_annual_results(
+                work / "eplusout.sql", model, floor_area_m2 or 0.0
+            )
         results["seconds"] = round(seconds, 2)
         results["warnings"] = _warning_count(work)
         results["geometryWarnings"] = geometry_warnings(work)
@@ -623,6 +784,12 @@ def read_results(sql: Path, model: Model) -> dict[str, Any]:
             "from ZoneSizes where LoadType = 'Cooling'"
         ):
             sizes[row[0].upper()] = row
+        heat_sizes = {}
+        for row in con.execute(
+            "select ZoneName, CalcDesLoad, UserDesFlow, DesDayName, PeakHrMin, PeakTemp "
+            "from ZoneSizes where LoadType = 'Heating'"
+        ):
+            heat_sizes[row[0].upper()] = row
         series = _series(con)
         components = _components(con)
         envelope = _envelope(con)
@@ -647,11 +814,16 @@ def read_results(sql: Path, model: Model) -> dict[str, Any]:
             if key.upper() == "ENVIRONMENT"
         }
         size = sizes.get(z)
+        h_size = heat_sizes.get(z)
+        heat_series = series.get(("Zone Ideal Loads Supply Air Sensible Heating Rate", s), {})
+        heat_peak = max(heat_series.values(), default=0.0) / 1000.0
         environment, month, day, hour, minute = when
         zones[zone] = {
             "sensible": at.get("Supply Air Sensible Cooling Rate", 0.0) / 1000.0,
             "latent": at.get("Supply Air Latent Cooling Rate", 0.0) / 1000.0,
             "total": total[when] / 1000.0,
+            "heating": float(h_size[1]) / 1000.0 if h_size and h_size[1] is not None else heat_peak,
+            "heatingAirflow": float(h_size[2]) if h_size and h_size[2] is not None else 0.0,
             "zoneTotal": at.get("Zone Total Cooling Rate", 0.0) / 1000.0,
             "ventilation": {
                 "sensible": at.get("Outdoor Air Sensible Cooling Rate", 0.0) / 1000.0,
@@ -757,3 +929,152 @@ def _envelope(con: sqlite3.Connection) -> dict[str, Any]:
             if name and u is not None:
                 out["glazing"][name] = {"u": u, "shgc": shgc}
     return out
+
+
+def system_cop(system: str, cooling_kw: float = 0.0) -> tuple[float, float, str]:
+    """Seasonal cooling and heating COP for converting IdealLoads thermal energy to plant input."""
+    if system == "chilledWater":
+        try:
+            plant_cfg = T.plant()
+            if cooling_kw >= plant_cfg.waterCooledFrom:
+                rows = plant_cfg.cop.get("centrifugal") or plant_cfg.cop.get("screw") or []
+                label = "Water-cooled chiller"
+            else:
+                rows = plant_cfg.cop.get("airCooled") or []
+                label = "Air-cooled chiller"
+            cop = 3.0
+            for step in rows:
+                if step.upTo is None or cooling_kw <= step.upTo:
+                    cop = float(step.cop)
+                    break
+            return cop, 1.0, f"{label} COP {cop:g} (Table 8.2.11) / 1.0 heating"
+        except Exception:  # noqa: BLE001 - pack may omit hvac.plant
+            return 3.0, 1.0, "Chilled water default COP 3.0 cooling / 1.0 heating (to be checked)"
+    return _SYSTEM_COP_DEFAULTS.get(system, (1.0, 1.0, "Ideal loads thermal energy (COP = 1.0)"))
+
+
+def annual_summary_from_tables(
+    tables: dict[str, Any],
+    floor_area_m2: float,
+    *,
+    system: str = "idealLoads",
+    cooling_cop: float | None = None,
+    heating_cop: float | None = None,
+    unmet_heating_hours: float | None = None,
+    unmet_cooling_hours: float | None = None,
+) -> dict[str, Any]:
+    """Compute annual kWh end uses, EUI [kWh/m²·yr], and unmet hours from a results table.
+
+    ``tables`` accepts ``coolingKwh`` (or ``Cooling:EnergyTransfer``), ``heatingKwh``
+    (or ``Heating:EnergyTransfer``), ``lightingKwh`` (or ``InteriorLights:Electricity``),
+    ``equipmentKwh`` (or ``InteriorEquipment:Electricity``), and optional ``fansPumpsKwh``,
+    ``unmetHeatingHours``, ``unmetCoolingHours``.
+    """
+    c_cop, h_cop, cop_note = system_cop(system)
+    if cooling_cop is not None:
+        c_cop = float(cooling_cop)
+    if heating_cop is not None:
+        h_cop = float(heating_cop)
+
+    def _pick(*keys: str) -> float:
+        for k in keys:
+            if k in tables and tables[k] is not None:
+                return float(tables[k])
+        return 0.0
+
+    cooling_thermal = _pick("coolingKwh", "Cooling:EnergyTransfer", "cooling")
+    heating_thermal = _pick("heatingKwh", "Heating:EnergyTransfer", "heating")
+    lighting = _pick("lightingKwh", "InteriorLights:Electricity", "lighting")
+    equipment = _pick("equipmentKwh", "InteriorEquipment:Electricity", "equipment")
+    fans_pumps = _pick("fansPumpsKwh", "fansPumps")
+
+    cooling = cooling_thermal / c_cop if c_cop > 0 else cooling_thermal
+    heating = heating_thermal / h_cop if h_cop > 0 else heating_thermal
+    total = heating + cooling + lighting + equipment + fans_pumps
+    area = float(floor_area_m2)
+    eui = (total / area) if area > 0 else None
+
+    uh = (
+        float(unmet_heating_hours)
+        if unmet_heating_hours is not None
+        else _pick("unmetHeatingHours")
+    )
+    uc = (
+        float(unmet_cooling_hours)
+        if unmet_cooling_hours is not None
+        else _pick("unmetCoolingHours")
+    )
+    return {
+        "system": system,
+        "coolingCop": round(c_cop, 3),
+        "heatingCop": round(h_cop, 3),
+        "copNote": cop_note,
+        "heatingKwh": round(heating, 2),
+        "coolingKwh": round(cooling, 2),
+        "lightingKwh": round(lighting, 2),
+        "equipmentKwh": round(equipment, 2),
+        "fansPumpsKwh": round(fans_pumps, 2),
+        "totalKwh": round(total, 2),
+        "floorAreaM2": round(area, 2),
+        "euiKwhM2Yr": round(eui, 2) if eui is not None else None,
+        "unmetHours": {
+            "heating": round(uh, 2),
+            "cooling": round(uc, 2),
+            "total": round(uh + uc, 2),
+        },
+    }
+
+
+def read_annual_results(sql: Path, model: Model, floor_area_m2: float) -> dict[str, Any]:
+    """Read annual energy end uses [kWh] and unmet hours from EnergyPlus ``eplusout.sql``."""
+    j_to_kwh = 1.0 / 3_600_000.0
+    con = sqlite3.connect(str(sql))
+    try:
+        meters: dict[str, float] = {}
+        query = (
+            "select d.Name, sum(r.Value) from ReportData r "
+            "join ReportDataDictionary d on r.ReportDataDictionaryIndex = d.ReportDataDictionaryIndex "
+            "join Time t on r.TimeIndex = t.TimeIndex "
+            "where (t.WarmupFlag is null or t.WarmupFlag = 0) and d.IsMeter = 1 "
+            "group by d.Name"
+        )
+        for name, val in con.execute(query):
+            if val is not None:
+                meters[str(name)] = float(val) * j_to_kwh
+
+        uh = 0.0
+        uc = 0.0
+        unmet_query = (
+            "select RowName, ColumnName, Value from TabularDataWithStrings "
+            "where ReportName = 'SystemSummary' and TableName = 'Time Setpoint Not Met'"
+        )
+        for row_name, col_name, value in con.execute(unmet_query):
+            if str(row_name).strip().upper() == "FACILITY":
+                num = _number(value)
+                if num is None:
+                    continue
+                col = str(col_name).strip().lower()
+                if "during heating" in col:
+                    uh = num
+                elif "during cooling" in col:
+                    uc = num
+    finally:
+        con.close()
+
+    table = {
+        "coolingKwh": meters.get(
+            "Cooling:EnergyTransfer", meters.get("DistrictCooling:Facility", 0.0)
+        ),
+        "heatingKwh": meters.get(
+            "Heating:EnergyTransfer", meters.get("DistrictHeatingWater:Facility", 0.0)
+        ),
+        "lightingKwh": meters.get("InteriorLights:Electricity", 0.0),
+        "equipmentKwh": meters.get("InteriorEquipment:Electricity", 0.0),
+    }
+    return annual_summary_from_tables(
+        table,
+        floor_area_m2,
+        system=model.system,
+        unmet_heating_hours=uh,
+        unmet_cooling_hours=uc,
+    )

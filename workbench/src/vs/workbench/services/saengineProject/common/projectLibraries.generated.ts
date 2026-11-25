@@ -12475,6 +12475,49 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			title: 'DrawingRevision',
 			type: 'object',
 		},
+		DrawingScopeBox: {
+			additionalProperties: false,
+			description: 'A named plan crop used to generate dependent drawing sheets.',
+			properties: {
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				bounds: {
+					description: 'Crop bounds [x0, y0, x1, y1] in model millimetres.',
+					maxItems: 4,
+					minItems: 4,
+					prefixItems: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+						{
+							type: 'number',
+						},
+					],
+					title: 'Plan rectangle',
+					type: 'array',
+				},
+				levels: {
+					description: 'Level ids to generate; empty means every level with a plan.',
+					items: {
+						type: 'string',
+					},
+					title: 'Levels',
+					type: 'array',
+				},
+			},
+			required: ['name', 'bounds'],
+			title: 'DrawingScopeBox',
+			type: 'object',
+		},
 		Drawings: {
 			additionalProperties: false,
 			description: 'The structural drawings of 11 Exports: the title block and the sheets. The project\'s\nname, number, client and address come from Project; the fields here print on every sheet.',
@@ -12566,6 +12609,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/DrawingRevision',
 					},
 					title: 'Revisions',
+					type: 'array',
+				},
+				scopeBoxes: {
+					description: 'Named plan rectangles in model millimetres. When present, each applicable level is generated as a dependent sheet per scope box, with matchlines and key plans.',
+					items: {
+						$ref: '#/$defs/DrawingScopeBox',
+					},
+					title: 'Dependent plan scope boxes',
 					type: 'array',
 				},
 				sheetSize: {
@@ -13697,6 +13748,46 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'Helipad',
+			type: 'object',
+		},
+		IfcExportSettings: {
+			additionalProperties: false,
+			description: 'IFC export options (11 Exports and 6 BIM).',
+			properties: {
+				schema: {
+					default: 'IFC4',
+					description: 'IFC4 (default) or IFC2X3 Coordination View.',
+					enum: ['IFC4', 'IFC2X3'],
+					enumDescriptions: ['IFC4', 'IFC2X3'],
+					title: 'IFC schema',
+					type: 'string',
+				},
+				includeStructuralAnalysis: {
+					default: false,
+					description: 'Add IfcStructuralAnalysisModel (members, supports, load groups and actions).',
+					title: 'Include structural analysis view',
+					type: 'boolean',
+				},
+				includeGeoreferencing: {
+					default: true,
+					description: 'Write IfcMapConversion / IfcProjectedCRS (or ePSet_MapConversion in IFC2X3) when the site is located.',
+					title: 'Include georeferencing',
+					type: 'boolean',
+				},
+				includeSteelConnections: {
+					default: true,
+					description: 'Write fabricated steel connection plates, bolts and bolt holes.',
+					title: 'Include steel connections',
+					type: 'boolean',
+				},
+				crs: {
+					default: 'BTM',
+					description: 'CRS for IFC georeferencing: BTM (EPSG:9678), UTM, or EPSG:<code>.',
+					title: 'Coordinate reference system',
+					type: 'string',
+				},
+			},
+			title: 'IfcExportSettings',
 			type: 'object',
 		},
 		LatticeTower: {
@@ -16672,6 +16763,11 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			$ref: '#/$defs/Report',
 			description: 'The printed design report (11 Exports).',
 			title: 'Design report',
+		},
+		ifc: {
+			$ref: '#/$defs/IfcExportSettings',
+			description: 'Schema (IFC4 or IFC2X3), structural analysis view, georeferencing and steel connections.',
+			title: 'IFC export',
 		},
 		units: {
 			$ref: '#/$defs/DisplayUnits',
@@ -34039,6 +34135,131 @@ export const DEFAULT_SUBSTRUCTURE: object = {
 
 export const MEP_SCHEMA: IJSONSchema = {
 	$defs: {
+		AirTerminal: {
+			additionalProperties: false,
+			description: 'A supply diffuser, return grille or exhaust grille connected to a duct run.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'supplyDiffuser',
+					enum: ['supplyDiffuser', 'returnGrille', 'exhaustGrille', 'freshAirLouvre'],
+					enumDescriptions: ['Supply diffuser', 'Return grille', 'Exhaust grille', 'Fresh air louvre'],
+					title: 'Kind',
+					type: 'string',
+				},
+				system: {
+					default: 'supply',
+					enum: ['supply', 'return', 'exhaust', 'freshAir', 'kitchenExhaust', 'smoke'],
+					enumDescriptions: ['Supply air', 'Return air', 'Exhaust air', 'Fresh air', 'Kitchen exhaust', 'Smoke extract'],
+					title: 'System',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation [mm]; empty: ceiling duct level.',
+					title: 'Z',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design airflow [l/s].',
+					title: 'Flow',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'AirTerminal',
+			type: 'object',
+		},
 		CableTray: {
 			additionalProperties: false,
 			description: 'A horizontal cable tray under a floor.',
@@ -34114,9 +34335,271 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Sum of the cables\' cross-sections (outside diameter) [mm²]: checks the fill.',
 					title: 'Cable area',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'path', 'width'],
 			title: 'CableTray',
+			type: 'object',
+		},
+		Circuit: {
+			additionalProperties: false,
+			description: 'One final circuit fed from a distribution board.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				way: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Way number on the DB.',
+					title: 'Way',
+				},
+				description: {
+					default: '',
+					title: 'Description',
+					type: 'string',
+				},
+				kind: {
+					default: 'power',
+					enum: ['lighting', 'socket', 'ac', 'power', 'motor', 'spare'],
+					title: 'Kind',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id or name served.',
+					title: 'Room',
+				},
+				points: {
+					default: 1,
+					description: 'Number of points on the circuit.',
+					minimum: 0,
+					title: 'Points',
+					type: 'integer',
+				},
+				loadW: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Connected active load [W].',
+					title: 'Load w',
+				},
+				loadVA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Connected apparent load [VA].',
+					title: 'Load v a',
+				},
+				powerFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Power factor',
+				},
+				phases: {
+					default: 1,
+					enum: [1, 3],
+					title: 'Phases',
+					type: 'integer',
+				},
+				phase: {
+					anyOf: [
+						{
+							enum: ['L1', 'L2', 'L3', '3P'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Phase assignment; empty: balanced greedily across L1, L2, L3.',
+					title: 'Phase',
+				},
+				deviceType: {
+					default: 'MCB',
+					enum: ['MCB', 'MCCB', 'RCBO', 'ACB'],
+					title: 'Device type',
+					type: 'string',
+				},
+				curve: {
+					anyOf: [
+						{
+							enum: ['B', 'C', 'D'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Curve',
+				},
+				rating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Protective device In [A].',
+					title: 'Rating',
+				},
+				breakingCapacityKa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Icu / Icn [kA].',
+					title: 'Breaking capacity ka',
+				},
+				cableSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Conductor size [mm²].',
+					title: 'Cable size',
+				},
+				cpcSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Protective conductor [mm²].',
+					title: 'Cpc size',
+				},
+				conductor: {
+					default: 'Cu',
+					enum: ['Cu', 'Al'],
+					title: 'Conductor',
+					type: 'string',
+				},
+				insulation: {
+					default: 'PVC',
+					enum: ['PVC', 'XLPE'],
+					title: 'Insulation',
+					type: 'string',
+				},
+				method: {
+					default: 'C',
+					description: 'IEC 60364-5-52 installation method.',
+					title: 'Method',
+					type: 'string',
+				},
+				length: {
+					default: 20.0,
+					description: 'One-way run length [m].',
+					minimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+				ambientTemp: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Ambient temperature [°C].',
+					title: 'Ambient temp',
+				},
+				groupedCircuits: {
+					default: 1,
+					description: 'Circuits grouped together.',
+					minimum: 1,
+					title: 'Grouped circuits',
+					type: 'integer',
+				},
+				groupingArrangement: {
+					default: 'bunched',
+					enum: ['bunched', 'singleLayerWall', 'perforatedTray'],
+					title: 'Grouping arrangement',
+					type: 'string',
+				},
+				thermalInsulation: {
+					default: 'none',
+					enum: ['none', 'oneSide', 'enclosed50mm', 'enclosed100mm', 'enclosed200mm', 'surrounded'],
+					title: 'Thermal insulation',
+					type: 'string',
+				},
+			},
+			required: ['id'],
+			title: 'Circuit',
 			type: 'object',
 		},
 		ClashTest: {
@@ -34190,6 +34673,220 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'ClashTest',
 			type: 'object',
 		},
+		Connector: {
+			additionalProperties: false,
+			description: 'A connection port on an MEP element: domain, size, flow direction and system\nclassification. When omitted on an element, SAEngine derives connectors from its geometry\nand run endpoints.',
+			properties: {
+				id: {
+					default: '',
+					description: 'Port id within the element.',
+					title: 'ID',
+					type: 'string',
+				},
+				domain: {
+					enum: ['duct', 'pipe', 'electrical', 'cableTray'],
+					enumDescriptions: ['Duct', 'Pipe', 'Electrical', 'Cable tray'],
+					title: 'Domain',
+					type: 'string',
+				},
+				shape: {
+					default: 'round',
+					enum: ['round', 'rect', 'oval', 'point'],
+					enumDescriptions: ['Round', 'Rectangular', 'Oval', 'Point'],
+					title: 'Shape',
+					type: 'string',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Diameter',
+				},
+				direction: {
+					default: 'bidirectional',
+					enum: ['in', 'out', 'bidirectional'],
+					enumDescriptions: ['In (supply into element)', 'Out (from element)', 'Bidirectional'],
+					title: 'Direction',
+					type: 'string',
+				},
+				classification: {
+					enum: ['supplyAir', 'returnAir', 'exhaustAir', 'freshAir', 'kitchenExhaust', 'smokeExtract', 'chilledWater', 'condenserWater', 'domesticColdWater', 'domesticHotWater', 'sanitary', 'vent', 'stormWater', 'fireProtection', 'power', 'cableTray'],
+					enumDescriptions: ['Supply air', 'Return air', 'Exhaust air', 'Fresh air', 'Kitchen exhaust', 'Smoke extract', 'Chilled water', 'Condenser water', 'Domestic cold water', 'Domestic hot water', 'Sanitary', 'Vent', 'Storm water', 'Fire protection', 'Power circuit', 'Cable tray'],
+					title: 'Classification',
+					type: 'string',
+				},
+				systemName: {
+					default: '',
+					description: 'Logical system name.',
+					title: 'System name',
+					type: 'string',
+				},
+				story: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Story id when z is omitted.',
+					title: 'Story',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan X [mm].',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan Y [mm].',
+					title: 'Y',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Elevation [mm].',
+					title: 'Z',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Flow [l/s].',
+					title: 'Flow',
+				},
+				fixtureUnits: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Fixture units',
+				},
+				load: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical load [kW].',
+					title: 'Load',
+				},
+				circuit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical circuit reference.',
+					title: 'Circuit',
+				},
+				connectedTo: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional explicit target \'<elementId>\' or \'<elementId>:<connectorId>\'.',
+					title: 'Connected to',
+				},
+			},
+			required: ['domain', 'classification'],
+			title: 'Connector',
+			type: 'object',
+		},
 		Coordination: {
 			additionalProperties: false,
 			description: 'Multi-discipline coordination: the other IFC models, the clash tests, the IDS files the\nmodels are checked against, and the issues with their status workflow (exchanged as BCF).',
@@ -34256,6 +34953,236 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['path'],
 			title: 'CoordinationModel',
+			type: 'object',
+		},
+		DistributionBoard: {
+			additionalProperties: false,
+			description: 'A distribution board (panel) fed from a rising main or upstream panel.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					title: 'Name',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it is located on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id or name where the DB stands.',
+					title: 'Room',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Y',
+				},
+				fedFrom: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Upstream rising main or panel id (empty: auto).',
+					title: 'Fed from',
+				},
+				feederLength: {
+					default: 15.0,
+					description: 'Sub-main run length [m].',
+					minimum: 0,
+					title: 'Feeder length',
+					type: 'number',
+				},
+				feederMethod: {
+					default: 'C',
+					title: 'Feeder method',
+					type: 'string',
+				},
+				feederInsulation: {
+					default: 'XLPE',
+					enum: ['PVC', 'XLPE'],
+					title: 'Feeder insulation',
+					type: 'string',
+				},
+				feederConductor: {
+					default: 'Cu',
+					enum: ['Cu', 'Al'],
+					title: 'Feeder conductor',
+					type: 'string',
+				},
+				feederCableSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Feeder cable size',
+				},
+				feederCpcSize: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Feeder cpc size',
+				},
+				feederGrouped: {
+					default: 1,
+					minimum: 1,
+					title: 'Feeder grouped',
+					type: 'integer',
+				},
+				phases: {
+					default: 3,
+					enum: [1, 3],
+					title: 'Phases',
+					type: 'integer',
+				},
+				poles: {
+					default: 4,
+					enum: [2, 3, 4],
+					title: 'Poles',
+					type: 'integer',
+				},
+				incomerType: {
+					default: 'MCCB',
+					enum: ['MCCB', 'MCB', 'ACB', 'Isolator'],
+					title: 'Incomer type',
+					type: 'string',
+				},
+				incomerRating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[A]',
+					title: 'Incomer rating',
+				},
+				incomerCurve: {
+					anyOf: [
+						{
+							enum: ['B', 'C', 'D'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Incomer curve',
+				},
+				breakingCapacityKa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kA]',
+					title: 'Breaking capacity ka',
+				},
+				busbarRating: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[A]',
+					title: 'Busbar rating',
+				},
+				ways: {
+					anyOf: [
+						{
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ways',
+				},
+				circuits: {
+					items: {
+						$ref: '#/$defs/Circuit',
+					},
+					title: 'Circuits',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story'],
+			title: 'DistributionBoard',
 			type: 'object',
 		},
 		Duct: {
@@ -34403,6 +35330,99 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: '[m³/s]',
 					title: 'Flow',
 				},
+				material: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Duct material key for roughness.',
+					title: 'Material',
+				},
+				fittings: {
+					anyOf: [
+						{
+							items: {},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fitting keys or {kind, count, c} entries along this segment.',
+					title: 'Fittings',
+				},
+				parent: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Upstream duct segment id.',
+					title: 'Parent',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Target room id for branch/runout ducts.',
+					title: 'Room',
+				},
+				role: {
+					anyOf: [
+						{
+							enum: ['main', 'branch', 'runout', 'riser'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Role',
+				},
+				terminalDrop: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Fixed terminal/diffuser pressure drop [Pa].',
+					title: 'Terminal drop',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'path'],
 			title: 'Duct',
@@ -34480,6 +35500,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					title: 'Rooms',
 					type: 'array',
 				},
+				boards: {
+					items: {
+						$ref: '#/$defs/DistributionBoard',
+					},
+					title: 'Boards',
+					type: 'array',
+				},
 				lightning: {
 					anyOf: [
 						{
@@ -34491,6 +35518,25 @@ export const MEP_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Lightning',
+				},
+				lighting: {
+					anyOf: [
+						{
+							$ref: '#/$defs/LightingSettings',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Lighting',
+				},
+				luminaires: {
+					items: {
+						$ref: '#/$defs/Luminaire',
+					},
+					title: 'Luminaires',
+					type: 'array',
 				},
 			},
 			title: 'Electrical',
@@ -34671,6 +35717,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'story', 'x', 'y'],
 			title: 'ElectricalEquipment',
@@ -34798,6 +35851,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: '[A]; empty: sized.',
 					title: 'Rating',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
@@ -35346,6 +36406,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Fundamental period of the non-building structure itself [s]; empty: the plateau of the design spectrum (on the safe side).',
 					title: 'Own period',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'x', 'y', 'length', 'width', 'operatingWeight'],
 			title: 'Equipment',
@@ -35501,8 +36568,208 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Pump room',
 				},
+				sprinklerHeads: {
+					items: {
+						$ref: '#/$defs/SprinklerHead',
+					},
+					title: 'Sprinkler heads',
+					type: 'array',
+				},
+				sprinklerPipes: {
+					items: {
+						$ref: '#/$defs/SprinklerPipe',
+					},
+					title: 'Sprinkler pipes',
+					type: 'array',
+				},
+				alarm: {
+					anyOf: [
+						{
+							$ref: '#/$defs/FireAlarmSettings',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Alarm',
+				},
+				alarmDevices: {
+					items: {
+						$ref: '#/$defs/FireAlarmDevice',
+					},
+					title: 'Alarm devices',
+					type: 'array',
+				},
 			},
 			title: 'Fire',
+			type: 'object',
+		},
+		FireAlarmDevice: {
+			additionalProperties: false,
+			description: 'A fire alarm device (detector, manual call point, sounder, or panel).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					enum: ['smokeDetector', 'heatDetector', 'callPoint', 'sounder', 'panel'],
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mounting height above the floor [mm].',
+					title: 'Z',
+				},
+				zone: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Zone',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'kind', 'story', 'x', 'y'],
+			title: 'FireAlarmDevice',
+			type: 'object',
+		},
+		FireAlarmSettings: {
+			additionalProperties: false,
+			description: 'Fire alarm battery and device sizing parameters.',
+			properties: {
+				standbyHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Standby hours',
+				},
+				alarmMinutes: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Alarm minutes',
+				},
+				ageingFactor: {
+					anyOf: [
+						{
+							minimum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ageing factor',
+				},
+				panelStandbyA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Panel standby a',
+				},
+				panelAlarmA: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Panel alarm a',
+				},
+			},
+			title: 'FireAlarmSettings',
 			type: 'object',
 		},
 		FireBuilding: {
@@ -35633,6 +36900,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Pipe bottom above the story\'s floor [mm]; empty: 150 mm below the soffit of the slab above (as the cable trays).',
 					title: 'Bottom',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'story', 'path'],
@@ -35797,6 +37071,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'An equipment of 07 MEP that is this pump (loaded once).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'story', 'x', 'y'],
 			title: 'FirePump',
@@ -35907,6 +37188,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Nominal [mm]; empty: sized.',
 					title: 'Diameter',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'fromStory', 'toStory'],
@@ -36146,6 +37434,276 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Fixtures',
 			type: 'object',
 		},
+		GasAppliance: {
+			additionalProperties: false,
+			description: 'A fuel gas appliance (cooker, boiler, water heater, lab burner).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				kind: {
+					default: 'domesticCooker',
+					description: 'Appliance key in the code pack.',
+					title: 'Kind',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Room',
+				},
+				x: {
+					default: 0.0,
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0.0,
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				ratingKw: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Thermal input [kW].',
+					title: 'Rating kw',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+			},
+			required: ['id', 'story'],
+			title: 'GasAppliance',
+			type: 'object',
+		},
+		GasMeter: {
+			additionalProperties: false,
+			description: 'Gas meter and pressure regulator location.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				ventilated: {
+					default: true,
+					description: 'Located in a ventilated enclosure or outdoors.',
+					title: 'Ventilated',
+					type: 'boolean',
+				},
+				outdoor: {
+					default: false,
+					description: 'Located outdoors / on building exterior.',
+					title: 'Outdoor',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'GasMeter',
+			type: 'object',
+		},
+		GasPipe: {
+			additionalProperties: false,
+			description: 'A fuel gas pipe run (horizontal or riser).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				flowM3h: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [m³/h].',
+					title: 'Flow m3h',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'GasPipe',
+			type: 'object',
+		},
+		GasSystem: {
+			additionalProperties: false,
+			description: 'LPG or natural gas piping system.',
+			properties: {
+				fuel: {
+					default: 'naturalGas',
+					enum: ['naturalGas', 'lpg'],
+					title: 'Fuel',
+					type: 'string',
+				},
+				supplyPressureKpa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Supply pressure kpa',
+				},
+				maxDropKpa: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Max drop kpa',
+				},
+				meter: {
+					anyOf: [
+						{
+							$ref: '#/$defs/GasMeter',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Meter',
+				},
+				appliances: {
+					items: {
+						$ref: '#/$defs/GasAppliance',
+					},
+					title: 'Appliances',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/GasPipe',
+					},
+					title: 'Pipes',
+					type: 'array',
+				},
+			},
+			title: 'GasSystem',
+			type: 'object',
+		},
 		Harvest: {
 			additionalProperties: false,
 			description: 'Rainwater harvesting storage (the default pack\'s Part 8 Sec 7.8.9).',
@@ -36204,6 +37762,331 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Harvest',
 			type: 'object',
 		},
+		HotWaterHeater: {
+			additionalProperties: false,
+			description: 'A domestic hot water heater or calorifier (its operating weight loads the floor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story it stands on.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				length: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Length',
+				},
+				width: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				height: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Height',
+				},
+				volumeL: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Storage capacity [litres].',
+					title: 'Volume l',
+				},
+				powerKw: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Recovery heating power [kW].',
+					title: 'Power kw',
+				},
+				operatingWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN]',
+					title: 'Operating weight',
+				},
+				emptyWeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[kN]',
+					title: 'Empty weight',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				equipment: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '07 MEP equipment that already carries its weight.',
+					title: 'Equipment',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'HotWaterHeater',
+			type: 'object',
+		},
+		HotWaterSystem: {
+			additionalProperties: false,
+			description: 'Domestic hot water generation and recirculation loop.',
+			properties: {
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+				coldTempC: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cold inlet temperature [°C].',
+					title: 'Cold temp c',
+				},
+				storageTempC: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Storage temperature [°C].',
+					title: 'Storage temp c',
+				},
+				returnDropC: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Allowable recirculation loop temperature drop [K].',
+					title: 'Return drop c',
+				},
+				peakHours: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Peak draw duration [h].',
+					title: 'Peak hours',
+				},
+				usableFraction: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Usable storage tank fraction.',
+					title: 'Usable fraction',
+				},
+				storageVolumeL: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override storage [l].',
+					title: 'Storage volume l',
+				},
+				recoveryRateLph: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override recovery [l/h].',
+					title: 'Recovery rate lph',
+				},
+				heatLossWPerM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Loop heat loss [W/m].',
+					title: 'Heat loss w per m',
+				},
+				loopLengthM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Recirculation loop length [m].',
+					title: 'Loop length m',
+				},
+				material: {
+					anyOf: [
+						{
+							enum: ['uPVC', 'GI', 'PPR', 'HDPE', 'CI'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Material',
+				},
+				heater: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HotWaterHeater',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Heater',
+				},
+			},
+			title: 'HotWaterSystem',
+			type: 'object',
+		},
 		Hvac: {
 			additionalProperties: false,
 			description: 'Air-conditioning and ventilation the structure coordinates with (the default pack\'s Part 8\nChapter 2): cooling loads, plant weights, ducts through the structure.',
@@ -36213,6 +38096,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					enum: ['vrf', 'chilledWater', 'split', 'packaged', 'none'],
 					enumDescriptions: ['Variable refrigerant flow (VRF)', 'Chilled water (chillers, AHUs, FCUs)', 'Split air-conditioners', 'Packaged units', 'None (naturally ventilated)'],
 					title: 'System',
+					type: 'string',
+				},
+				zoning: {
+					default: 'room',
+					description: 'Thermal zoning mode: per room (when architecture rooms exist) or per story.',
+					enum: ['room', 'story'],
+					title: 'Zoning',
 					type: 'string',
 				},
 				design: {
@@ -36242,6 +38132,20 @@ export const MEP_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/Duct',
 					},
 					title: 'Ducts',
+					type: 'array',
+				},
+				terminals: {
+					items: {
+						$ref: '#/$defs/AirTerminal',
+					},
+					title: 'Terminals',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/Pipe',
+					},
+					title: 'Pipes',
 					type: 'array',
 				},
 			},
@@ -36335,6 +38239,65 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Of the outdoor dry bulb [°C]; empty: Table 8.2.2 column 14.',
 					title: 'Daily range',
 					unitKind: 'temperatureChange',
+				},
+				heatingOutdoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Winter design dry bulb [°C]; empty: the station\'s winter design temperature.',
+					title: 'Heating outdoor dry bulb',
+				},
+				heatingIndoorDB: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Winter heating setpoint [°C]; empty: 20 °C (ASHRAE practice, to be checked).',
+					title: 'Heating indoor dry bulb',
+				},
+				infiltrationACH: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Envelope infiltration [ACH] for heating; empty: default from code/practice table.',
+					title: 'Infiltration rate',
+				},
+				annual: {
+					default: false,
+					description: 'Run a full-year EnergyPlus simulation (Jan 1 - Dec 31) using weatherFile.',
+					title: 'Annual simulation',
+					type: 'boolean',
+				},
+				weatherFile: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Path to an EnergyPlus .epw weather file for annual simulation (none bundled).',
+					title: 'Weather file (EPW)',
 				},
 			},
 			title: 'HvacDesign',
@@ -36594,6 +38557,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'The 07 MEP equipment that already carries its weight in the analysis; empty: SAEngine loads the model with this item (unless an equipment stands there).',
 					title: 'Equipment',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'story', 'x', 'y'],
 			title: 'HvacPlant',
@@ -36734,7 +38704,7 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 				source: {
 					default: 'clash',
-					enum: ['clash', 'ids', 'bcf', 'manual'],
+					enum: ['clash', 'ids', 'bcf', 'manual', 'systems'],
 					title: 'Source',
 					type: 'string',
 				},
@@ -36868,6 +38838,215 @@ export const MEP_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'IssueComment',
+			type: 'object',
+		},
+		LightingRoomOverride: {
+			additionalProperties: false,
+			description: 'Room-specific lighting design inputs.',
+			properties: {
+				room: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Room',
+					type: 'string',
+				},
+				use: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Use',
+				},
+				targetLux: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Target lux',
+				},
+				luminaireType: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Luminaire type',
+				},
+				lumens: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Lumens',
+				},
+				watts: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Watts',
+				},
+				uf: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Uf',
+				},
+				mf: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Mf',
+				},
+				reflectance: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reflectance',
+				},
+				workPlaneM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Work plane m',
+				},
+				ceilingHeightM: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Ceiling height m',
+				},
+			},
+			required: ['room'],
+			title: 'LightingRoomOverride',
+			type: 'object',
+		},
+		LightingSettings: {
+			additionalProperties: false,
+			description: 'Project-level lighting design settings (lumen method).',
+			properties: {
+				enabled: {
+					default: true,
+					title: 'Enabled',
+					type: 'boolean',
+				},
+				luminaireType: {
+					default: 'ledPanel600',
+					title: 'Luminaire type',
+					type: 'string',
+				},
+				maintenanceFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							maximum: 1.0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Maintenance factor',
+				},
+				reflectance: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Reflectance',
+				},
+				workPlaneM: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Work plane m',
+				},
+				rooms: {
+					items: {
+						$ref: '#/$defs/LightingRoomOverride',
+					},
+					title: 'Rooms',
+					type: 'array',
+				},
+			},
+			title: 'LightingSettings',
 			type: 'object',
 		},
 		Lightning: {
@@ -37005,6 +39184,333 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'Lightning',
 			type: 'object',
 		},
+		Luminaire: {
+			additionalProperties: false,
+			description: 'A luminaire placed in a room (generated by lighting design or entered manually).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					default: 'ledPanel600',
+					description: 'Luminaire type key in the code pack.',
+					title: 'Type',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mounting height above the floor [mm].',
+					title: 'Z',
+				},
+				watts: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Electrical power [W].',
+					title: 'Watts',
+				},
+				lumens: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Initial luminous flux [lm].',
+					title: 'Lumens',
+				},
+				circuit: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Lighting circuit reference.',
+					title: 'Circuit',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'Luminaire',
+			type: 'object',
+		},
+		MedicalGasOutlet: {
+			additionalProperties: false,
+			description: 'A medical gas terminal unit (outlet) in a clinical room.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				gas: {
+					enum: ['O2', 'N2O', 'MA4', 'MA7', 'VAC', 'AGSS'],
+					title: 'Gas',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Room',
+				},
+				x: {
+					description: '[mm]',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: '[mm]',
+					title: 'Y',
+					type: 'number',
+				},
+				count: {
+					default: 1,
+					minimum: 1,
+					title: 'Number of bars',
+					type: 'integer',
+				},
+				sized: {
+					default: false,
+					title: 'Sized',
+					type: 'boolean',
+				},
+			},
+			required: ['id', 'gas', 'story', 'x', 'y'],
+			title: 'MedicalGasOutlet',
+			type: 'object',
+		},
+		MedicalGasPipe: {
+			additionalProperties: false,
+			description: 'A medical gas copper pipe run.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				gas: {
+					enum: ['O2', 'N2O', 'MA4', 'MA7', 'VAC', 'AGSS'],
+					title: 'Gas',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				flowLpm: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [l/min].',
+					title: 'Flow lpm',
+				},
+				sized: {
+					default: false,
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'gas', 'story', 'path'],
+			title: 'MedicalGasPipe',
+			type: 'object',
+		},
+		MedicalGasRoom: {
+			additionalProperties: false,
+			description: 'A clinical room\'s type and bed/station count for medical gas outlet generation.',
+			properties: {
+				room: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Room',
+					type: 'string',
+				},
+				kind: {
+					title: 'Kind',
+					type: 'string',
+				},
+				beds: {
+					default: 1,
+					minimum: 1,
+					title: 'Beds',
+					type: 'integer',
+				},
+			},
+			required: ['room', 'kind'],
+			title: 'MedicalGasRoom',
+			type: 'object',
+		},
+		MedicalGasSystem: {
+			additionalProperties: false,
+			description: 'Medical gas piping system (O2, N2O, MA4, MA7, VAC, AGSS).',
+			properties: {
+				outlets: {
+					items: {
+						$ref: '#/$defs/MedicalGasOutlet',
+					},
+					title: 'Outlets',
+					type: 'array',
+				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/MedicalGasPipe',
+					},
+					title: 'Pipes',
+					type: 'array',
+				},
+				rooms: {
+					items: {
+						$ref: '#/$defs/MedicalGasRoom',
+					},
+					title: 'Rooms',
+					type: 'array',
+				},
+			},
+			title: 'MedicalGasSystem',
+			type: 'object',
+		},
 		Motor: {
 			additionalProperties: false,
 			description: 'Lifts, pumps and fans the building\'s load must include (Sec 1.3.2).',
@@ -37047,6 +39553,57 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'On the standby generator; empty: lifts, pumps and fire pumps are.',
 					title: 'Essential',
+				},
+				story: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional story it stands on.',
+					title: 'Story',
+				},
+				x: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional plan X [mm].',
+					title: 'X',
+				},
+				y: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional plan Y [mm].',
+					title: 'Y',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'power'],
@@ -37243,6 +39800,127 @@ export const MEP_SCHEMA: IJSONSchema = {
 			title: 'OtherFixture',
 			type: 'object',
 		},
+		Pipe: {
+			additionalProperties: false,
+			description: 'A horizontal pipe run on a story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				system: {
+					default: 'coldWater',
+					enum: ['coldWater', 'hotWater', 'soil', 'waste', 'soilWaste', 'vent', 'rainwater', 'pumpMain', 'chilledWater', 'condenserWater', 'fireProtection'],
+					title: 'System',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pipe bottom above the story\'s floor [mm].',
+					title: 'Bottom',
+				},
+				material: {
+					anyOf: [
+						{
+							enum: ['uPVC', 'GI', 'PPR', 'HDPE', 'CI'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Material',
+				},
+				flow: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Design flow [l/s].',
+					title: 'Flow',
+				},
+				fixtureUnits: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Fixture units',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'Pipe',
+			type: 'object',
+		},
 		Plinth: {
 			additionalProperties: false,
 			description: 'A concrete plinth under a piece of equipment, of the equipment\'s footprint.',
@@ -37304,6 +39982,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					title: 'Risers',
 					type: 'array',
 				},
+				pipes: {
+					items: {
+						$ref: '#/$defs/Pipe',
+					},
+					title: 'Pipes',
+					type: 'array',
+				},
 				tanks: {
 					items: {
 						$ref: '#/$defs/PlumbingTank',
@@ -37322,6 +40007,18 @@ export const MEP_SCHEMA: IJSONSchema = {
 					],
 					default: null,
 					title: 'Roof',
+				},
+				hotWater: {
+					anyOf: [
+						{
+							$ref: '#/$defs/HotWaterSystem',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Hot water',
 				},
 				disposal: {
 					default: 'septic',
@@ -37905,6 +40602,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					description: 'Soak well: percolation test rate [minutes for 25 mm]; empty: estimated from 01 Soil Report.',
 					title: 'Percolation',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'kind', 'x', 'y'],
 			title: 'PlumbingTank',
@@ -38016,6 +40720,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					title: 'Material',
 				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
 			},
 			required: ['id', 'system', 'x', 'y', 'fromStory', 'toStory'],
 			title: 'Riser',
@@ -38062,6 +40773,13 @@ export const MEP_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Catchment [m²]; empty: its share of the roof slab.',
 					title: 'Area',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
 				},
 			},
 			required: ['id', 'x', 'y', 'story'],
@@ -38136,6 +40854,211 @@ export const MEP_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'outline', 'fromStory', 'toStory'],
 			title: 'Shaft',
+			type: 'object',
+		},
+		SprinklerHead: {
+			additionalProperties: false,
+			description: 'An individual sprinkler head placed on a grid inside a room or story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Room id in 05 Floor Plan/architecture.json.',
+					title: 'Room',
+				},
+				x: {
+					description: 'Plan X [mm].',
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					description: 'Plan Y [mm].',
+					title: 'Y',
+					type: 'number',
+				},
+				z: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Deflector elevation above the floor [mm].',
+					title: 'Z',
+				},
+				kFactor: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: '[l/min/bar^0.5]',
+					title: 'K factor',
+				},
+				hazard: {
+					anyOf: [
+						{
+							enum: ['lightI', 'lightII', 'ordinaryI', 'ordinaryII', 'ordinaryIII', 'extra'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Hazard',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'x', 'y'],
+			title: 'SprinklerHead',
+			type: 'object',
+		},
+		SprinklerPipe: {
+			additionalProperties: false,
+			description: 'A sprinkler branch line or cross main segment routed from a riser.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				story: {
+					description: 'Building-model story.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				kind: {
+					default: 'branch',
+					enum: ['crossMain', 'branch', 'armover'],
+					title: 'Kind',
+					type: 'string',
+				},
+				path: {
+					description: 'Plan points [[x, y], ...] mm.',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Path',
+					type: 'array',
+				},
+				diameter: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Nominal diameter [mm].',
+					title: 'Diameter',
+				},
+				heads: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Sprinkler heads supplied.',
+					title: 'Heads',
+				},
+				bottom: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Pipe bottom above story floor [mm].',
+					title: 'Bottom',
+				},
+				sized: {
+					default: false,
+					description: 'Proposed by SAEngine (editable).',
+					title: 'Sized',
+					type: 'boolean',
+				},
+				connectors: {
+					items: {
+						$ref: '#/$defs/Connector',
+					},
+					title: 'Connectors',
+					type: 'array',
+				},
+			},
+			required: ['id', 'story', 'path'],
+			title: 'SprinklerPipe',
 			type: 'object',
 		},
 		StoryUseEntry: {
@@ -38326,6 +41249,32 @@ export const MEP_SCHEMA: IJSONSchema = {
 			description: 'Fire protection: the systems required, standpipes, sprinklers, fire pumps and the fire reservoir, to the default pack\'s Part 4.',
 			title: 'Fire',
 		},
+		gas: {
+			anyOf: [
+				{
+					$ref: '#/$defs/GasSystem',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Fuel gas piping (natural gas or LPG): appliances, meter/regulator and pipes.',
+			title: 'Gas',
+		},
+		medicalGas: {
+			anyOf: [
+				{
+					$ref: '#/$defs/MedicalGasSystem',
+				},
+				{
+					type: 'null',
+				},
+			],
+			default: null,
+			description: 'Medical gas piping (O2, N2O, MA4, MA7, VAC, AGSS): outlets and pipes.',
+			title: 'Medical gas',
+		},
 		coordination: {
 			anyOf: [
 				{
@@ -38463,6 +41412,899 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'ArchWall',
 			type: 'object',
 		},
+		Ceiling: {
+			additionalProperties: false,
+			description: 'A ceiling element hosted in a room or drawn by a closed plan outline at ``height`` above\nits story\'s level.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Ceiling type',
+					type: 'string',
+				},
+				story: {
+					description: 'Story the ceiling belongs to.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				height: {
+					default: 2700,
+					description: 'Clear height of the ceiling soffit above the story level [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				room: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Host room id (instead of outline).',
+					title: 'Room',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							minItems: 3,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline [mm] (instead of room).',
+					title: 'Outline',
+				},
+				gridRotation: {
+					default: 0,
+					description: 'Tile grid angle [°].',
+					title: 'Grid rotation',
+					type: 'number',
+				},
+				gridOrigin: {
+					anyOf: [
+						{
+							description: '[x, y] in mm.',
+							items: {
+								type: 'number',
+							},
+							maxItems: 2,
+							minItems: 2,
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional origin point for tile grid [mm].',
+					title: 'Grid origin',
+				},
+				openings: {
+					items: {
+						$ref: '#/$defs/CeilingOpening',
+					},
+					title: 'Openings',
+					type: 'array',
+				},
+			},
+			required: ['id', 'type', 'story'],
+			title: 'Ceiling',
+			type: 'object',
+		},
+		CeilingOpening: {
+			additionalProperties: false,
+			description: 'An opening cut into a ceiling (e.g. for an access hatch, atrium or shaft).',
+			properties: {
+				id: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'ID',
+				},
+				outline: {
+					description: 'Opening boundary [mm].',
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 3,
+					title: 'Outline',
+					type: 'array',
+				},
+			},
+			required: ['outline'],
+			title: 'CeilingOpening',
+			type: 'object',
+		},
+		CeilingType: {
+			additionalProperties: false,
+			description: 'A false/suspended or applied ceiling type (gypsum board, grid tiles, plaster, etc.).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'gypsum',
+					enum: ['gypsum', 'grid', 'plaster', 'timber', 'metal', 'other'],
+					title: 'Kind',
+					type: 'string',
+				},
+				thickness: {
+					default: 12.5,
+					description: 'Ceiling board or tile thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				weight: {
+					default: 0.15,
+					description: 'Weight per m² [kN/m²].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				gridX: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Tile grid module along X [mm] (e.g. 600).',
+					title: 'Grid X',
+				},
+				gridY: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Tile grid module along Y [mm] (e.g. 600).',
+					title: 'Grid Y',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CeilingType',
+			type: 'object',
+		},
+		ComponentInstance: {
+			additionalProperties: false,
+			description: 'A placed instance of a :class:`ComponentType` on a story.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				type: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Component type',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				point: {
+					description: 'Insertion centre [x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Point',
+					type: 'array',
+				},
+				rotation: {
+					default: 0.0,
+					description: 'Plan rotation CCW [°].',
+					title: 'Rotation',
+					type: 'number',
+				},
+				mirrored: {
+					default: false,
+					description: 'Mirrored across local Y axis before rotation.',
+					title: 'Mirrored',
+					type: 'boolean',
+				},
+				elevation: {
+					default: 0.0,
+					description: 'Offset above the story level [mm].',
+					title: 'Elevation',
+					type: 'number',
+				},
+				hostRoom: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Id of the room enclosing this component.',
+					title: 'Host room',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					description: 'Instance parameter overrides.',
+					title: 'Parameters',
+					type: 'object',
+				},
+			},
+			required: ['id', 'type', 'story', 'point'],
+			title: 'ComponentInstance',
+			type: 'object',
+		},
+		ComponentType: {
+			additionalProperties: false,
+			description: 'Parametric component type definition (no family editor).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				category: {
+					default: 'furniture',
+					enum: ['furniture', 'casework', 'plumbingFixture', 'equipment', 'generic'],
+					title: 'Category',
+					type: 'string',
+				},
+				width: {
+					description: 'Overall plan X extent [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					description: 'Overall plan Y extent [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				height: {
+					description: 'Overall Z height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				weight: {
+					default: 0.0,
+					description: 'Mass [kg].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				material: {
+					default: '',
+					description: 'Primary material description.',
+					title: 'Material',
+					type: 'string',
+				},
+				symbol2d: {
+					description: 'Simple outline primitives in local mm (origin at centre).',
+					items: {
+						oneOf: [
+							{
+								$ref: '#/$defs/SymbolLine',
+							},
+							{
+								$ref: '#/$defs/SymbolRect',
+							},
+							{
+								$ref: '#/$defs/SymbolCircle',
+							},
+							{
+								$ref: '#/$defs/SymbolPolyline',
+							},
+						],
+					},
+					title: '2D plan symbol',
+					type: 'array',
+				},
+				representation3d: {
+					default: 'box',
+					description: 'Simple 3D solid representation used in BIM/IFC export.',
+					enum: ['box', 'cylinder', 'extrusion'],
+					title: '3D representation',
+					type: 'string',
+				},
+				extrusionOutline: {
+					anyOf: [
+						{
+							items: {
+								description: '[x, y] in mm.',
+								items: {
+									type: 'number',
+								},
+								maxItems: 2,
+								minItems: 2,
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan outline [mm] in local coordinates when representation3d is extrusion.',
+					title: 'Extrusion outline',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					description: 'Default parametric attributes (type properties).',
+					title: 'Parameters',
+					type: 'object',
+				},
+				ifcClass: {
+					anyOf: [
+						{
+							enum: ['IfcFurniture', 'IfcSanitaryTerminal', 'IfcFlowTerminal', 'IfcBuildingElementProxy'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Override default IFC class for this component\'s category.',
+					title: 'IFC class',
+				},
+				ifcPredefinedType: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional IFC4 PredefinedType (e.g. BED, CHAIR, TOILETPAN).',
+					title: 'IFC predefined type',
+				},
+			},
+			required: ['id', 'name', 'width', 'depth', 'height'],
+			title: 'ComponentType',
+			type: 'object',
+		},
+		ConceptualMass: {
+			additionalProperties: false,
+			description: 'A conceptual architectural mass volume (excluded from structural analysis).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: 'Mass',
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'extrusion',
+					enum: ['extrusion', 'box', 'cylinder', 'loft'],
+					title: 'Kind',
+					type: 'string',
+				},
+				baseElevation: {
+					default: 0.0,
+					description: 'Base elevation [mm].',
+					title: 'Base elevation',
+					type: 'number',
+				},
+				height: {
+					description: 'Height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Plan polygon [mm] for extrusion.',
+					title: 'Outline',
+				},
+				origin: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre [x, y] in mm for box.',
+					title: 'Origin',
+				},
+				width: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Box X width [mm].',
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Box Y depth [mm].',
+					title: 'Depth',
+				},
+				rotation: {
+					default: 0.0,
+					description: 'Plan rotation CCW [°] for box.',
+					title: 'Rotation',
+					type: 'number',
+				},
+				center: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Centre [x, y] in mm for cylinder.',
+					title: 'Center',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Cylinder radius [mm].',
+					title: 'Radius',
+				},
+				baseOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Bottom polygon [mm] for loft.',
+					title: 'Base outline',
+				},
+				topOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Top polygon [mm] for loft.',
+					title: 'Top outline',
+				},
+				floorHeight: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional uniform mass-floor spacing [mm] when slicing floors.',
+					title: 'Floor height',
+				},
+				use: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional planning use key (e.g. residential, commercial).',
+					title: 'Use',
+				},
+			},
+			required: ['id', 'height'],
+			title: 'ConceptualMass',
+			type: 'object',
+		},
+		CurtainGridRule: {
+			additionalProperties: false,
+			description: 'Rule dividing a curtain wall along its length or height.',
+			properties: {
+				layout: {
+					default: 'fixedDistance',
+					description: 'How grid divisions are placed: fixedDistance, fixedNumber, maxSpacing, or none.',
+					enum: ['fixedDistance', 'fixedNumber', 'maxSpacing', 'none'],
+					title: 'Layout',
+					type: 'string',
+				},
+				spacing: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Target or maximum spacing [mm] (for fixedDistance and maxSpacing).',
+					title: 'Spacing',
+				},
+				count: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of interior grid lines (for fixedNumber; 2 lines give 3 divisions).',
+					title: 'Number of bars',
+				},
+			},
+			title: 'CurtainGridRule',
+			type: 'object',
+		},
+		CurtainMullionType: {
+			additionalProperties: false,
+			description: 'A curtain wall vertical mullion or horizontal transom profile.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				width: {
+					default: 50,
+					description: 'Face width along the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					default: 150,
+					description: 'Profile depth across the wall [mm].',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+				wallThickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hollow extrusion wall thickness [mm] (omit for solid or explicit weight).',
+					title: 'Wall thickness',
+				},
+				material: {
+					default: 'Aluminium',
+					minLength: 1,
+					title: 'Material',
+					type: 'string',
+				},
+				unitWeight: {
+					default: 27.0,
+					description: '[kN/m³]',
+					minimum: 0,
+					title: 'Unit weight',
+					type: 'number',
+				},
+				weightPerMetre: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Explicit weight per metre run [kN/m] (overrides profile section × unit weight).',
+					title: 'Weight per metre',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CurtainMullionType',
+			type: 'object',
+		},
+		CurtainPanelOverride: {
+			additionalProperties: false,
+			description: 'Override the infill panel type at a specific grid cell of a curtain wall.',
+			properties: {
+				segment: {
+					default: 0,
+					description: '0-based path segment index.',
+					minimum: 0,
+					title: 'Segment',
+					type: 'integer',
+				},
+				column: {
+					description: '0-based column index along the segment.',
+					minimum: 0,
+					title: 'Column',
+					type: 'integer',
+				},
+				row: {
+					description: '0-based row index from the bottom up.',
+					minimum: 0,
+					title: 'Row',
+					type: 'integer',
+				},
+				panelType: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Panel type',
+					type: 'string',
+				},
+			},
+			required: ['column', 'row', 'panelType'],
+			title: 'CurtainPanelOverride',
+			type: 'object',
+		},
+		CurtainPanelType: {
+			additionalProperties: false,
+			description: 'A curtain wall infill panel type (glazed, solid spandrel/cladding, or door panel).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					default: 'glazed',
+					enum: ['glazed', 'solid', 'door'],
+					title: 'Kind',
+					type: 'string',
+				},
+				material: {
+					default: 'Glass',
+					minLength: 1,
+					title: 'Material',
+					type: 'string',
+				},
+				thickness: {
+					default: 12,
+					description: 'Panel thickness [mm].',
+					exclusiveMinimum: 0,
+					title: 'Thickness',
+					type: 'number',
+				},
+				unitWeight: {
+					anyOf: [
+						{
+							description: '[kN/m³]',
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Material unit weight [kN/m³] (used when weight is not given).',
+					title: 'Unit weight',
+				},
+				weight: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Explicit panel weight per m² [kN/m²] (overrides thickness × unitWeight).',
+					title: 'Weight',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'CurtainPanelType',
+			type: 'object',
+		},
 		CurtainWall: {
 			additionalProperties: false,
 			description: 'A curtain wall: as a wall (its base, top or height, and path), of a curtain wall type\n(``type``); doors and windows are not hosted in it (its glazing is its own).',
@@ -38576,6 +42418,14 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Essential',
 					type: 'boolean',
 				},
+				panelOverrides: {
+					description: 'Per-panel overrides by (segment, column, row).',
+					items: {
+						$ref: '#/$defs/CurtainPanelOverride',
+					},
+					title: 'Panel overrides',
+					type: 'array',
+				},
 			},
 			required: ['id', 'type', 'base', 'path'],
 			title: 'CurtainWall',
@@ -38583,7 +42433,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 		},
 		CurtainWallType: {
 			additionalProperties: false,
-			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal), as one weight per m².\n\nThe weight is the glass\'s (thickness × unit weight) plus the frame\'s, per m² of wall; the\nframe\'s 0.15 kN/m² default is an SAEngine choice for aluminium framing (enter the\nsupplier\'s). The default pack\'s Part 6 Sec 2.2 takes dead loads as the actual weights of the\nmaterials; glass\'s 25 kN/m³ is its usual density (2,500 kg/m³).',
+			description: 'Glazing on a grid of mullions (vertical) and transoms (horizontal).\n\nSupports either a simple weight per m² (``glassThickness × glassUnitWeight + frameWeight``)\nor explicit grid rules, panel types and mullion profile types (panels + mullions weights).',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -38638,6 +42488,96 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					exclusiveMinimum: 0,
 					title: 'Transom spacing',
 					type: 'number',
+				},
+				verticalGrid: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CurtainGridRule',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rule dividing the curtain wall along its length into panel columns.',
+					title: 'Vertical grid',
+				},
+				horizontalGrid: {
+					anyOf: [
+						{
+							$ref: '#/$defs/CurtainGridRule',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Rule dividing the curtain wall up its height into panel rows.',
+					title: 'Horizontal grid',
+				},
+				panelType: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Default curtain panel type id from curtainPanelTypes.',
+					title: 'Default panel type',
+				},
+				verticalMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mullion type id for vertical grid mullions.',
+					title: 'Vertical mullion type',
+				},
+				horizontalMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Mullion type id for horizontal transoms.',
+					title: 'Horizontal mullion type',
+				},
+				borderMullion: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional mullion type id for perimeter mullions.',
+					title: 'Border mullion type',
 				},
 			},
 			required: ['id', 'name'],
@@ -38726,6 +42666,57 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					exclusiveMinimum: 0,
 					title: 'Frame',
 					type: 'number',
+				},
+				leafCount: {
+					anyOf: [
+						{
+							maximum: 4,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of door leaves/panels.',
+					title: 'Leaf count',
+				},
+				swing: {
+					anyOf: [
+						{
+							enum: ['left', 'right', 'both', 'none'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Hinge side or swing direction (left, right, both for double, none for sliding).',
+					title: 'Swing',
+				},
+				sill: {
+					default: 0,
+					description: 'Threshold/sill height above floor [mm].',
+					minimum: 0,
+					title: 'Sill',
+					type: 'number',
+				},
+				lintel: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional lintel depth above the door [mm].',
+					title: 'Lintel',
 				},
 			},
 			required: ['id', 'name', 'width', 'height'],
@@ -38865,6 +42856,230 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'name', 'kind', 'thickness', 'unitWeight'],
 			title: 'FinishType',
+			type: 'object',
+		},
+		InPlaceElement: {
+			additionalProperties: false,
+			description: 'A one-off in-place architectural element with custom geometry, category and parameters.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				category: {
+					default: 'generic',
+					enum: ['furniture', 'casework', 'plumbingFixture', 'equipment', 'generic'],
+					title: 'Category',
+					type: 'string',
+				},
+				story: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Story',
+					type: 'string',
+				},
+				geometry: {
+					default: 'extrusion',
+					enum: ['extrusion', 'box', 'cylinder', 'loft'],
+					title: 'Geometry',
+					type: 'string',
+				},
+				baseOffset: {
+					default: 0.0,
+					description: 'Offset above story level [mm].',
+					title: 'Base offset',
+					type: 'number',
+				},
+				height: {
+					description: 'Height [mm].',
+					exclusiveMinimum: 0,
+					title: 'Height',
+					type: 'number',
+				},
+				outline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Outline',
+				},
+				origin: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Origin',
+				},
+				width: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Width',
+				},
+				depth: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Depth',
+				},
+				rotation: {
+					default: 0.0,
+					title: 'Rotation',
+					type: 'number',
+				},
+				center: {
+					anyOf: [
+						{
+							items: {
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Center',
+				},
+				radius: {
+					anyOf: [
+						{
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Radius',
+				},
+				baseOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Base outline',
+				},
+				topOutline: {
+					anyOf: [
+						{
+							items: {
+								items: {
+									type: 'number',
+								},
+								type: 'array',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Top outline',
+				},
+				weight: {
+					default: 0.0,
+					description: 'Mass [kg].',
+					minimum: 0,
+					title: 'Weight',
+					type: 'number',
+				},
+				material: {
+					default: '',
+					title: 'Material',
+					type: 'string',
+				},
+				hostRoom: {
+					anyOf: [
+						{
+							maxLength: 64,
+							minLength: 1,
+							pattern: '^[A-Za-z0-9._-]+$',
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					title: 'Host room',
+				},
+				parameters: {
+					additionalProperties: {
+						anyOf: [
+							{
+								type: 'number',
+							},
+							{
+								type: 'string',
+							},
+							{
+								type: 'boolean',
+							},
+						],
+					},
+					title: 'Parameters',
+					type: 'object',
+				},
+			},
+			required: ['id', 'name', 'story', 'height'],
+			title: 'InPlaceElement',
 			type: 'object',
 		},
 		Railing: {
@@ -39083,7 +43298,7 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 		},
 		Roof: {
 			additionalProperties: false,
-			description: 'A roof covering over a plan outline on a story (the roof slab\'s level): flat, or of one\npitch rising ``slope`` degrees towards ``direction``.',
+			description: 'A roof over a plan outline on a story: flat, drainage-sloped, single-pitch, or a\nfootprint roof with per-edge slopes (hip, gable, shed, mansard) and overhangs.',
 			properties: {
 				id: {
 					maxLength: 64,
@@ -39154,6 +43369,106 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					default: null,
 					description: 'Area use from the code pack for its live load (e.g. the default pack\'s roof uses).',
 					title: 'Occupancy',
+				},
+				edgeSlopes: {
+					anyOf: [
+						{
+							items: {
+								anyOf: [
+									{
+										type: 'number',
+									},
+									{
+										type: 'null',
+									},
+								],
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Slope [°] per outline edge (0 or null: non-sloping gable edge).',
+					title: 'Edge slopes',
+				},
+				overhang: {
+					default: 0,
+					description: 'Uniform horizontal eaves overhang outside the outline [mm].',
+					minimum: 0,
+					title: 'Overhang',
+					type: 'number',
+				},
+				edgeOverhangs: {
+					anyOf: [
+						{
+							items: {
+								description: '[mm]',
+								type: 'number',
+							},
+							type: 'array',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Per-edge horizontal eaves overhang [mm] (overrides overhang).',
+					title: 'Edge overhangs',
+				},
+				upperSlope: {
+					anyOf: [
+						{
+							exclusiveMaximum: 90,
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Second (upper) slope [°] above breakHeight for a mansard roof.',
+					title: 'Upper slope',
+				},
+				breakHeight: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Height above eaves [mm] where a mansard roof changes to upperSlope.',
+					title: 'Break height',
+				},
+				drainageSlope: {
+					default: 0,
+					description: 'Small fall [°] on a flat roof towards direction.',
+					exclusiveMaximum: 45,
+					minimum: 0,
+					title: 'Drainage slope',
+					type: 'number',
+				},
+				thickness: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional thickness override [mm] (defaults to the roof type\'s thickness).',
+					title: 'Thickness',
 				},
 			},
 			required: ['id', 'type', 'story', 'outline'],
@@ -39339,6 +43654,143 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'RoomSeparator',
 			type: 'object',
 		},
+		SymbolCircle: {
+			additionalProperties: false,
+			description: 'A circle in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'circle',
+					default: 'circle',
+					title: 'Kind',
+					type: 'string',
+				},
+				center: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Center',
+					type: 'array',
+				},
+				radius: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Radius',
+					type: 'number',
+				},
+			},
+			required: ['radius'],
+			title: 'SymbolCircle',
+			type: 'object',
+		},
+		SymbolLine: {
+			additionalProperties: false,
+			description: 'A line segment in the component\'s local plan coordinates (mm, origin at centre).',
+			properties: {
+				kind: {
+					const: 'line',
+					default: 'line',
+					title: 'Kind',
+					type: 'string',
+				},
+				start: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'Start',
+					type: 'array',
+				},
+				end: {
+					description: '[x, y] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 2,
+					minItems: 2,
+					title: 'End',
+					type: 'array',
+				},
+			},
+			required: ['start', 'end'],
+			title: 'SymbolLine',
+			type: 'object',
+		},
+		SymbolPolyline: {
+			additionalProperties: false,
+			description: 'A polyline (open or closed) in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'polyline',
+					default: 'polyline',
+					title: 'Kind',
+					type: 'string',
+				},
+				points: {
+					items: {
+						description: '[x, y] in mm.',
+						items: {
+							type: 'number',
+						},
+						maxItems: 2,
+						minItems: 2,
+						type: 'array',
+					},
+					minItems: 2,
+					title: 'Points',
+					type: 'array',
+				},
+				closed: {
+					default: false,
+					title: 'Closed',
+					type: 'boolean',
+				},
+			},
+			required: ['points'],
+			title: 'SymbolPolyline',
+			type: 'object',
+		},
+		SymbolRect: {
+			additionalProperties: false,
+			description: 'An axis-aligned rectangle centred at ``(x, y)`` in local plan coordinates (mm).',
+			properties: {
+				kind: {
+					const: 'rect',
+					default: 'rect',
+					title: 'Kind',
+					type: 'string',
+				},
+				x: {
+					default: 0.0,
+					title: 'X',
+					type: 'number',
+				},
+				y: {
+					default: 0.0,
+					title: 'Y',
+					type: 'number',
+				},
+				width: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Width',
+					type: 'number',
+				},
+				depth: {
+					description: '[mm]',
+					exclusiveMinimum: 0,
+					title: 'Depth',
+					type: 'number',
+				},
+			},
+			required: ['width', 'depth'],
+			title: 'SymbolRect',
+			type: 'object',
+		},
 		WallLayer: {
 			additionalProperties: false,
 			description: 'One layer of a wall type, from the wall\'s left face to its right (seen along its path).',
@@ -39501,6 +43953,50 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 					title: 'Frame',
 					type: 'number',
 				},
+				leafCount: {
+					anyOf: [
+						{
+							maximum: 6,
+							minimum: 1,
+							type: 'integer',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Number of sashes/panels.',
+					title: 'Leaf count',
+				},
+				swing: {
+					anyOf: [
+						{
+							enum: ['inward', 'outward', 'left', 'right', 'none'],
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Opening direction (inward, outward, left, right, or none for fixed).',
+					title: 'Swing',
+				},
+				lintel: {
+					anyOf: [
+						{
+							description: '[mm]',
+							exclusiveMinimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Optional lintel depth above the window [mm].',
+					title: 'Lintel',
+				},
 			},
 			required: ['id', 'name', 'width', 'height'],
 			title: 'WindowType',
@@ -39550,6 +44046,27 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Curtain wall types',
 			type: 'array',
 		},
+		curtainPanelTypes: {
+			items: {
+				$ref: '#/$defs/CurtainPanelType',
+			},
+			title: 'Curtain panel types',
+			type: 'array',
+		},
+		curtainMullionTypes: {
+			items: {
+				$ref: '#/$defs/CurtainMullionType',
+			},
+			title: 'Curtain mullion types',
+			type: 'array',
+		},
+		ceilingTypes: {
+			items: {
+				$ref: '#/$defs/CeilingType',
+			},
+			title: 'Ceiling types',
+			type: 'array',
+		},
 		roofTypes: {
 			items: {
 				$ref: '#/$defs/RoofType',
@@ -39562,6 +44079,13 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 				$ref: '#/$defs/RailingType',
 			},
 			title: 'Railing types',
+			type: 'array',
+		},
+		componentTypes: {
+			items: {
+				$ref: '#/$defs/ComponentType',
+			},
+			title: 'Component types',
 			type: 'array',
 		},
 		walls: {
@@ -39606,6 +44130,13 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 			title: 'Curtain walls',
 			type: 'array',
 		},
+		ceilings: {
+			items: {
+				$ref: '#/$defs/Ceiling',
+			},
+			title: 'Ceilings',
+			type: 'array',
+		},
 		roofs: {
 			items: {
 				$ref: '#/$defs/Roof',
@@ -39625,6 +44156,27 @@ export const ARCHITECTURE_SCHEMA: IJSONSchema = {
 				$ref: '#/$defs/Railing',
 			},
 			title: 'Railings',
+			type: 'array',
+		},
+		components: {
+			items: {
+				$ref: '#/$defs/ComponentInstance',
+			},
+			title: 'Components',
+			type: 'array',
+		},
+		masses: {
+			items: {
+				$ref: '#/$defs/ConceptualMass',
+			},
+			title: 'Masses',
+			type: 'array',
+		},
+		inPlaceElements: {
+			items: {
+				$ref: '#/$defs/InPlaceElement',
+			},
+			title: 'In-place elements',
 			type: 'array',
 		},
 		imports: {
@@ -39696,6 +44248,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 1000.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'D2',
@@ -39704,6 +44257,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 900.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'D3',
@@ -39712,6 +44266,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 750.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 		{
 			id: 'DD',
@@ -39720,6 +44275,7 @@ export const DEFAULT_ARCHITECTURE: object = {
 			width: 1500.0,
 			height: 2100.0,
 			frame: 50.0,
+			sill: 0.0,
 		},
 	],
 	windowTypes: [
@@ -39789,6 +44345,79 @@ export const DEFAULT_ARCHITECTURE: object = {
 			transomSpacing: 1500.0,
 		},
 	],
+	curtainPanelTypes: [
+		{
+			id: 'CP-GLZ',
+			name: 'Double glazed unit 24 mm',
+			kind: 'glazed',
+			material: 'Glass',
+			thickness: 12.0,
+			unitWeight: 25.0,
+		},
+		{
+			id: 'CP-SOL',
+			name: 'Insulated aluminium spandrel panel',
+			kind: 'solid',
+			material: 'Spandrel',
+			thickness: 25.0,
+			unitWeight: 20.0,
+		},
+		{
+			id: 'CP-DOOR',
+			name: 'Curtain wall glazed door leaf',
+			kind: 'door',
+			material: 'Glass + Aluminium',
+			thickness: 45.0,
+			weight: 0.45,
+		},
+	],
+	curtainMullionTypes: [
+		{
+			id: 'CM-50x150',
+			name: 'Aluminium mullion 50x150 mm',
+			width: 50.0,
+			depth: 150.0,
+			wallThickness: 3.0,
+			material: 'Aluminium',
+			unitWeight: 27.0,
+		},
+		{
+			id: 'CM-50x100',
+			name: 'Aluminium transom 50x100 mm',
+			width: 50.0,
+			depth: 100.0,
+			wallThickness: 3.0,
+			material: 'Aluminium',
+			unitWeight: 27.0,
+		},
+	],
+	ceilingTypes: [
+		{
+			id: 'CL1',
+			name: 'Gypsum board ceiling 12.5 mm',
+			kind: 'gypsum',
+			thickness: 12.5,
+			weight: 0.15,
+		},
+		{
+			id: 'CL2',
+			name: 'Acoustic grid ceiling 600x600 mm',
+			kind: 'grid',
+			thickness: 15.0,
+			weight: 0.12,
+			gridX: 600.0,
+			gridY: 600.0,
+		},
+		{
+			id: 'CL3',
+			name: 'Acoustic grid ceiling 600x1200 mm',
+			kind: 'grid',
+			thickness: 15.0,
+			weight: 0.12,
+			gridX: 600.0,
+			gridY: 1200.0,
+		},
+	],
 	roofTypes: [
 		{
 			id: 'RF1',
@@ -39841,15 +44470,566 @@ export const DEFAULT_ARCHITECTURE: object = {
 			postSpacing: 1200.0,
 		},
 	],
+	componentTypes: [
+		{
+			id: 'BED-DBL',
+			name: 'Double bed',
+			category: 'furniture',
+			width: 2000.0,
+			depth: 1600.0,
+			height: 550.0,
+			weight: 65.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2000.0,
+					depth: 1600.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: -380.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: 380.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -800.0],
+					end: [-450.0, 800.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				headboardHeight: 1000.0,
+				sizeLabel: 'Queen/Double',
+			},
+			ifcPredefinedType: 'BED',
+		},
+		{
+			id: 'BED-SGL',
+			name: 'Single bed',
+			category: 'furniture',
+			width: 2000.0,
+			depth: 1000.0,
+			height: 550.0,
+			weight: 40.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2000.0,
+					depth: 1000.0,
+				},
+				{
+					kind: 'rect',
+					x: -750.0,
+					y: 0.0,
+					width: 360.0,
+					depth: 620.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -500.0],
+					end: [-450.0, 500.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				headboardHeight: 950.0,
+				sizeLabel: 'Single',
+			},
+			ifcPredefinedType: 'BED',
+		},
+		{
+			id: 'SOFA-3',
+			name: '3-seat sofa',
+			category: 'furniture',
+			width: 2100.0,
+			depth: 900.0,
+			height: 850.0,
+			weight: 55.0,
+			material: 'Fabric / timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 2100.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -250.0],
+					end: [900.0, -250.0],
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -250.0],
+					end: [-900.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [900.0, -250.0],
+					end: [900.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [-300.0, -250.0],
+					end: [-300.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [300.0, -250.0],
+					end: [300.0, 450.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seats: 3.0,
+			},
+			ifcPredefinedType: 'SOFA',
+		},
+		{
+			id: 'TABLE-DIN',
+			name: 'Dining table',
+			category: 'furniture',
+			width: 1800.0,
+			depth: 900.0,
+			height: 750.0,
+			weight: 45.0,
+			material: 'Timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1680.0,
+					depth: 780.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seats: 6.0,
+			},
+			ifcPredefinedType: 'TABLE',
+		},
+		{
+			id: 'WARDROBE',
+			name: 'Wardrobe',
+			category: 'casework',
+			width: 1800.0,
+			depth: 600.0,
+			height: 2100.0,
+			weight: 95.0,
+			material: 'Engineered wood',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 600.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, -300.0],
+					end: [900.0, 300.0],
+				},
+				{
+					kind: 'line',
+					start: [-900.0, 300.0],
+					end: [900.0, -300.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				doors: 3.0,
+				mount: 'floor',
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'CAB-BASE',
+			name: 'Kitchen cabinet run (base)',
+			category: 'casework',
+			width: 1800.0,
+			depth: 600.0,
+			height: 850.0,
+			weight: 60.0,
+			material: 'Engineered wood / stone',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 600.0,
+				},
+				{
+					kind: 'line',
+					start: [-300.0, -300.0],
+					end: [-300.0, 300.0],
+				},
+				{
+					kind: 'line',
+					start: [300.0, -300.0],
+					end: [300.0, 300.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'floor',
+				counterThickness: 30.0,
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'CAB-WALL',
+			name: 'Kitchen cabinet run (wall)',
+			category: 'casework',
+			width: 1800.0,
+			depth: 350.0,
+			height: 720.0,
+			weight: 35.0,
+			material: 'Engineered wood',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1800.0,
+					depth: 350.0,
+				},
+				{
+					kind: 'line',
+					start: [-900.0, 0.0],
+					end: [900.0, 0.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'wall',
+				mountingHeight: 1450.0,
+			},
+			ifcPredefinedType: 'USERDEFINED',
+		},
+		{
+			id: 'WC',
+			name: 'Water closet (WC)',
+			category: 'plumbingFixture',
+			width: 380.0,
+			depth: 680.0,
+			height: 760.0,
+			weight: 32.0,
+			material: 'Vitreous china',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 240.0,
+					width: 380.0,
+					depth: 200.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, -100.0],
+					radius: 175.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 3.0,
+				flushLitres: 6.0,
+			},
+			ifcPredefinedType: 'TOILETPAN',
+		},
+		{
+			id: 'BASIN',
+			name: 'Wash basin',
+			category: 'plumbingFixture',
+			width: 550.0,
+			depth: 450.0,
+			height: 850.0,
+			weight: 18.0,
+			material: 'Vitreous china',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 550.0,
+					depth: 450.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, -20.0],
+					radius: 150.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 1.0,
+			},
+			ifcPredefinedType: 'WASHHANDBASIN',
+		},
+		{
+			id: 'SINK',
+			name: 'Kitchen sink',
+			category: 'plumbingFixture',
+			width: 1000.0,
+			depth: 500.0,
+			height: 850.0,
+			weight: 15.0,
+			material: 'Stainless steel',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1000.0,
+					depth: 500.0,
+				},
+				{
+					kind: 'rect',
+					x: -210.0,
+					y: 0.0,
+					width: 440.0,
+					depth: 380.0,
+				},
+				{
+					kind: 'circle',
+					center: [-210.0, 0.0],
+					radius: 25.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 2.0,
+				bowls: 1.0,
+			},
+			ifcPredefinedType: 'SINK',
+		},
+		{
+			id: 'SHOWER',
+			name: 'Shower tray',
+			category: 'plumbingFixture',
+			width: 900.0,
+			depth: 900.0,
+			height: 120.0,
+			weight: 28.0,
+			material: 'Acrylic / ceramic',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 900.0,
+					depth: 900.0,
+				},
+				{
+					kind: 'line',
+					start: [-450.0, -450.0],
+					end: [450.0, 450.0],
+				},
+				{
+					kind: 'line',
+					start: [-450.0, 450.0],
+					end: [450.0, -450.0],
+				},
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 35.0,
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				fixtureUnits: 2.0,
+			},
+			ifcPredefinedType: 'SHOWER',
+		},
+		{
+			id: 'DESK',
+			name: 'Office desk',
+			category: 'furniture',
+			width: 1400.0,
+			depth: 700.0,
+			height: 750.0,
+			weight: 32.0,
+			material: 'Engineered wood / steel',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1400.0,
+					depth: 700.0,
+				},
+				{
+					kind: 'line',
+					start: [-550.0, -350.0],
+					end: [-550.0, 350.0],
+				},
+				{
+					kind: 'line',
+					start: [550.0, -350.0],
+					end: [550.0, 350.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				cableTray: true,
+			},
+			ifcPredefinedType: 'DESK',
+		},
+		{
+			id: 'CHAIR',
+			name: 'Chair',
+			category: 'furniture',
+			width: 500.0,
+			depth: 500.0,
+			height: 850.0,
+			weight: 7.0,
+			material: 'Timber / fabric',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 500.0,
+					depth: 500.0,
+				},
+				{
+					kind: 'line',
+					start: [-250.0, 170.0],
+					end: [250.0, 170.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				seatHeight: 450.0,
+			},
+			ifcPredefinedType: 'CHAIR',
+		},
+		{
+			id: 'SHELF',
+			name: 'Shelving unit',
+			category: 'casework',
+			width: 1200.0,
+			depth: 350.0,
+			height: 1800.0,
+			weight: 40.0,
+			material: 'Steel / timber',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 1200.0,
+					depth: 350.0,
+				},
+				{
+					kind: 'line',
+					start: [-600.0, -175.0],
+					end: [600.0, 175.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				shelves: 5.0,
+			},
+			ifcPredefinedType: 'SHELF',
+		},
+		{
+			id: 'AC-IDU',
+			name: 'AC indoor unit',
+			category: 'equipment',
+			width: 900.0,
+			depth: 220.0,
+			height: 300.0,
+			weight: 14.0,
+			material: 'ABS / metal',
+			symbol2d: [
+				{
+					kind: 'rect',
+					x: 0.0,
+					y: 0.0,
+					width: 900.0,
+					depth: 220.0,
+				},
+				{
+					kind: 'line',
+					start: [-400.0, -60.0],
+					end: [400.0, -60.0],
+				},
+			],
+			representation3d: 'box',
+			parameters: {
+				mount: 'wall',
+				mountingHeight: 2200.0,
+				coolingKw: 5.2,
+			},
+		},
+		{
+			id: 'WH-ELEC',
+			name: 'Water heater',
+			category: 'equipment',
+			width: 450.0,
+			depth: 450.0,
+			height: 700.0,
+			weight: 55.0,
+			material: 'Enamelled steel',
+			symbol2d: [
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 225.0,
+				},
+				{
+					kind: 'circle',
+					center: [0.0, 0.0],
+					radius: 60.0,
+				},
+			],
+			representation3d: 'cylinder',
+			parameters: {
+				capacityLitres: 50.0,
+				powerKw: 2.0,
+			},
+		},
+	],
 	walls: [],
 	doors: [],
 	windows: [],
 	rooms: [],
 	separators: [],
 	curtainWalls: [],
+	ceilings: [],
 	roofs: [],
 	ramps: [],
 	railings: [],
+	components: [],
+	masses: [],
+	inPlaceElements: [],
 	imports: [],
 };
 

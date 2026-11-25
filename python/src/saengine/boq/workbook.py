@@ -33,6 +33,7 @@ GROUP_TITLES = {
     "concrete": "Concrete",
     "masonry": "Masonry",
     "finishes": "Finishes",
+    "furniture": "Furniture, casework and components",
     "reinforcement": "Reinforcement",
     "formwork": "Formwork",
     "steel": "Structural steel",

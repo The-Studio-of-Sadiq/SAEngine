@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,13 @@ from saengine.drawings.sheets import architecture as ar
 from saengine.drawings.sheets import details, plans, pt, schedules
 from saengine.drawings.sheets import mep as mp
 from saengine.drawings.sheets import steel as st
+from saengine.drawings.sheets.documentation import (
+    DependentPlan,
+    ScopeBox,
+    _key_plan,
+    _matchline,
+    _shared_edge,
+)
 from saengine.drawings.sheets.layout import (
     Sheet,
     ViewSpec,
@@ -70,6 +77,7 @@ class DrawingSettings:
     first: int = 101
     ppi: float = 60
     standard: dict[str, Any] | None = None  # the office standard (Drawings > Office standard)
+    scope_boxes: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> DrawingSettings:
@@ -84,6 +92,8 @@ class DrawingSettings:
             "firstNumber": "first",
             "previewPpi": "ppi",
             "standard": "standard",
+            "scopeBoxes": "scope_boxes",
+            "scope_boxes": "scope_boxes",
         }
         values = {}
         for key, name in keys.items():
@@ -178,7 +188,6 @@ def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Cate
     if specs:
         out.append(_Category("General notes", 1, specs, scale_text="NTS"))
     # plans
-    by_scale: dict[float, list[ViewSpec]] = {}
     spec, p = _fit_plan(lambda s: plans.foundation_plan(b, s), settings.plan_scale, area)
     problems += p
     if spec is not None:
@@ -193,15 +202,53 @@ def _categories(data: DrawingSet, settings: DrawingSettings) -> tuple[list[_Cate
         )
         out.append(_Category("Pile cap schedule", 1, specs, scale_text="NTS"))
     levels = sorted(b.levels, key=lambda lv: lv.elevation)
-    for lv in levels:
-        if plans.level_has_plan(b, lv):
-            spec, p = _fit_plan(
-                lambda s, lv=lv: plans.framing_plan(b, lv, s), settings.plan_scale, area
-            )
-            problems += p
-            by_scale.setdefault(spec.scale, []).append(spec)
-    for scale, specs in by_scale.items():
-        out.append(_Category("Framing plans", scale, specs, plan=True))
+    scope_boxes = [
+        item
+        if isinstance(item, ScopeBox)
+        else ScopeBox(
+            str(item["name"]),
+            tuple(float(v) for v in item["bounds"]),
+            tuple(str(v) for v in item.get("levels") or ()),
+        )
+        for item in settings.scope_boxes
+    ]
+    if scope_boxes:
+        if len({box.name for box in scope_boxes}) != len(scope_boxes):
+            raise ValueError("scope box names must be unique")
+        level_ids = {level.id for level in levels}
+        for box in scope_boxes:
+            unknown = set(box.levels) - level_ids
+            if unknown:
+                raise ValueError(
+                    f"scope box '{box.name}' refers to unknown level(s): "
+                    f"{', '.join(sorted(unknown))}"
+                )
+        for lv in levels:
+            if not plans.level_has_plan(b, lv):
+                continue
+            for box in scope_boxes:
+                if box.levels and lv.id not in box.levels:
+                    continue
+                spec, p = _fit_plan(
+                    lambda s, lv=lv, box=box: plans.framing_plan(b, lv, s, box.bounds),
+                    settings.plan_scale,
+                    area,
+                )
+                problems += p
+                spec.title = f"Framing plan - {lv.name} - {box.name}"
+                spec.key = f"dependent:{lv.id}:{box.name}"
+                out.append(_Category(spec.title, spec.scale, [spec], plan=True, notes=[]))
+    else:
+        by_scale: dict[float, list[ViewSpec]] = {}
+        for lv in levels:
+            if plans.level_has_plan(b, lv):
+                spec, p = _fit_plan(
+                    lambda s, lv=lv: plans.framing_plan(b, lv, s), settings.plan_scale, area
+                )
+                problems += p
+                by_scale.setdefault(spec.scale, []).append(spec)
+        for scale, specs in by_scale.items():
+            out.append(_Category("Framing plans", scale, specs, plan=True))
     by_scale = {}
     for lv in levels:
         if any(s.level == lv.id for s in data.slabs):
@@ -339,7 +386,7 @@ def build_sheets(
     standard = Standard.from_dict(settings.standard) if settings.standard else None
     if standard is not None:
         data.problems += standard.problems
-    sheets: list[Sheet] = []
+    planned: list[tuple[_Category, list[tuple[ViewSpec, float, float]], str, str]] = []
     numbers: dict[str, int] = {}
     for cat in cats:
         prefix = _prefix(cat.prefix or settings.prefix, standard)
@@ -350,39 +397,83 @@ def build_sheets(
             title = cat.title
             if cat.plan:
                 names = [spec.title.split(" - ", 1)[-1] for spec, _, _ in page]
-                title = f"{cat.title} - {', '.join(names)}" if len(names) > 0 else title
+                title = f"{cat.title} - {', '.join(names)}" if names else title
                 if len(page) == 1:
                     title = page[0][0].title
             elif len(pages) > 1:
                 title = f"{cat.title} ({i + 1} of {len(pages)})"
             number = numbers.setdefault(prefix, settings.first)
             numbers[prefix] += 1
-            sheet = Sheet(
-                f"{prefix}{number}",
-                title,
-                settings.size,
-                cat.scale,
-                data.title,
-                scale_text=(
-                    "AS SHOWN"
-                    if any(spec.group == "refit" for spec, _, _ in page)
-                    else cat.scale_text or f"1:{cat.scale:g}"
-                ),
-                north=data.building.north if cat.plan else None,
-                standard=standard,
-            )
-            sheet.category = cat.title  # type: ignore[attr-defined]
-            sheet.members = members_of(page, data)  # type: ignore[attr-defined]
-            for spec, x, y in page:
-                sheet.view(spec, x, y)
-            if cat.notes:
-                sheet.notes(cat.notes)
-            elif cat.plan:
-                sheet.notes(_plan_notes(data))
-            if before_finish is not None:
-                before_finish(sheet)
-            sheet.finish()
-            sheets.append(sheet)
+            planned.append((cat, page, title, f"{prefix}{number}"))
+    scope_boxes = [
+        item
+        if isinstance(item, ScopeBox)
+        else ScopeBox(
+            str(item["name"]),
+            tuple(float(v) for v in item["bounds"]),
+            tuple(str(v) for v in item.get("levels") or ()),
+        )
+        for item in settings.scope_boxes
+    ]
+    scope_by_name = {box.name: box for box in scope_boxes}
+    dependent_numbers = {
+        tuple(spec.key.split(":", 2)[1:]): number
+        for _, page, _, number in planned
+        for spec, _, _ in page
+        if spec.key.startswith("dependent:")
+    }
+    overall_scope = (
+        (
+            min(box.bounds[0] for box in scope_boxes),
+            min(box.bounds[1] for box in scope_boxes),
+            max(box.bounds[2] for box in scope_boxes),
+            max(box.bounds[3] for box in scope_boxes),
+        )
+        if scope_boxes
+        else None
+    )
+    sheets: list[Sheet] = []
+    for cat, page, title, number in planned:
+        sheet = Sheet(
+            number,
+            title,
+            settings.size,
+            cat.scale,
+            data.title,
+            scale_text=(
+                "AS SHOWN"
+                if any(spec.group == "refit" for spec, _, _ in page)
+                else cat.scale_text or f"1:{cat.scale:g}"
+            ),
+            north=data.building.north if cat.plan else None,
+            standard=standard,
+        )
+        sheet.category = cat.title  # type: ignore[attr-defined]
+        sheet.members = members_of(page, data)  # type: ignore[attr-defined]
+        dependent: list[DependentPlan] = []
+        for spec, x, y in page:
+            view = sheet.view(spec, x, y)
+            if spec.key.startswith("dependent:"):
+                _, level_id, scope_name = spec.key.split(":", 2)
+                dependent.append(DependentPlan(scope_by_name[scope_name], level_id, sheet, view))
+        if overall_scope is not None:
+            for plan in dependent:
+                _key_plan(sheet, plan.scope, overall_scope)
+                for other in scope_boxes:
+                    if other.name == plan.scope.name:
+                        continue
+                    reference = dependent_numbers.get((plan.level, other.name))
+                    edge = _shared_edge(plan.scope, other)
+                    if reference is not None and edge is not None:
+                        _matchline(plan, edge, reference)
+        if cat.notes:
+            sheet.notes(cat.notes)
+        elif cat.plan and not dependent:
+            sheet.notes(_plan_notes(data))
+        if before_finish is not None:
+            before_finish(sheet)
+        sheet.finish()
+        sheets.append(sheet)
     return sheets
 
 

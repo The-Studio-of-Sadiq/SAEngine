@@ -111,8 +111,10 @@ export class BannerPart extends Part implements IBannerService {
 
 	showStrip(element: HTMLElement, height: number): IDisposable {
 		const strip = { element, height };
-		clearNode(this.stripContainer);
-		this.stripContainer.appendChild(element);
+		if (this.strip?.element !== element) {
+			clearNode(this.stripContainer);
+			this.stripContainer.appendChild(element);
+		}
 		this.stripContainer.style.display = '';
 		this.stripContainer.style.height = `${height}px`;
 		this.strip = strip;

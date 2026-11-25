@@ -270,6 +270,12 @@ class PartitionAllowance(_Row):
         "in the seismic weight as the floor live load) or SD (superimposed dead). Empty: L. A "
         "project setting may choose either.",
     )
+    explicitFurnishings: bool = Field(
+        default=False,
+        description="Whether the code pack allows movable furniture/furnishing weights to be "
+        "applied explicitly as superimposed dead load (SD) in addition to occupancy live loads; "
+        "False: ordinary furnishings are covered by occupancy live loads (report-only).",
+    )
 
 
 class VehicleLoads(_Row):
@@ -6064,6 +6070,70 @@ class TankRules(_Group):
         return self
 
 
+class HotWaterTable(_Group):
+    """R7: domestic hot water heater sizing and recirculation loop data (ASHRAE / CIBSE)."""
+
+    fixtureDemandLph: dict[str, NonNegNum]
+    demandFactor: dict[str, Share]
+    storageFactor: dict[str, PosNum]
+    usableFraction: Share
+    peakHours: PosNum
+    coldTempC: Num
+    storageTempC: Num
+    returnDropC: PosNum
+    heatLossWPerM: NonNegNum
+    specificHeatKjKgK: PosNum
+    recircVelocityMaxMs: PosNum
+
+
+class GasFuel(_Row):
+    label: str
+    cvMjPerM3: PosNum
+    sg: PosNum
+    supplyPressureKpa: PosNum
+    maxDropKpa: PosNum
+
+
+class DiversityStep(_Row):
+    upTo: Annotated[int, Field(gt=0)] | None = None
+    factor: Share
+
+
+class PipeBoreRow(_Row):
+    nominal: PosNum
+    bore: PosNum
+
+
+class GasTable(_Group):
+    """R7: fuel gas (natural gas / LPG) demand, diversity and Pole's formula sizing data."""
+
+    fuels: dict[str, GasFuel]
+    poleConstant: PosNum
+    maxVelocityMs: PosNum
+    fittingFactor: PosNum
+    appliances: dict[str, PosNum]
+    diversity: list[DiversityStep]
+    pipes: list[PipeBoreRow]
+
+
+class MedicalGasSpec(_Row):
+    label: str
+    firstLpm: PosNum
+    additionalLpm: PosNum
+    maxVelocityMs: PosNum
+    supplyPressureKpa: Num
+    maxDropKpa: PosNum
+
+
+class MedicalGasTable(_Group):
+    """R7: medical gas outlets per room type, diversified flows and copper pipe sizing (HTM 02-01 / NFPA 99)."""
+
+    gases: dict[str, MedicalGasSpec]
+    roomOutlets: dict[str, dict[str, Annotated[int, Field(gt=0)]]]
+    diversity: list[DiversityStep]
+    pipes: list[PipeBoreRow]
+
+
 class PlumbingTable(_Services):
     """The default pack's Part 8 Chapters 5-7: water supply, drainage, rainwater; and SAEngine's pipe
     data where the code is silent (marked in ``sources``)."""
@@ -6132,6 +6202,10 @@ class PlumbingTable(_Services):
     )
     fittings: PipeFittings | None = None
     tanks: TankRules | None = None
+    # R7: hot water, fuel gas and medical gas (None: not covered by the pack)
+    hotWater: HotWaterTable | None = None
+    gas: GasTable | None = None
+    medicalGas: MedicalGasTable | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> PlumbingTable:
@@ -6250,6 +6324,88 @@ class HvacPlant(_Group):
     )
 
 
+class HvacHeating(_Group):
+    """Winter heating design conditions and infiltration defaults (ASHRAE Fundamentals Ch 16-18)."""
+
+    indoorDb: Num = Field(default=20.0, description="Default winter indoor setpoint [°C].")
+    defaultOutdoorDb: Num = Field(
+        default=11.0, description="Default winter outdoor design dry bulb [°C]."
+    )
+    infiltrationAch: NonNegNum = Field(
+        default=0.5, description="Default envelope infiltration rate [ACH]."
+    )
+    stations: dict[str, Num] = Field(
+        default_factory=dict, description="Station key -> winter 99 % design dry bulb [°C]."
+    )
+
+
+class HvacDuctDesign(_Group):
+    """Duct material roughness, fitting loss coefficients, sizing targets and noise limits
+    (ASHRAE Fundamentals Ch 21, Ch 48; ASHRAE Duct Fitting Database / SMACNA)."""
+
+    defaultMaterial: str = Field(
+        default="galvanisedSteel", description="Default duct material key."
+    )
+    roughness: dict[str, PosNum] = Field(
+        default_factory=dict, description="Material key -> absolute roughness ε [mm]."
+    )
+    fittings: dict[str, NonNegNum] = Field(
+        default_factory=dict, description="Fitting key -> local loss coefficient C."
+    )
+    staticRegainFactor: Share = Field(
+        default=0.75, description="Static pressure regain recovery factor R (ASHRAE Ch 21)."
+    )
+    velocityReduction: dict[str, dict[str, PosNum]] = Field(
+        default_factory=dict,
+        description="Duct system -> {main, branch, runout} target velocity [m/s].",
+    )
+    noiseVelocityMax: dict[str, PosNum] = Field(
+        default_factory=dict,
+        description="Duct role (main, branch, runout, riser) -> noise velocity limit [m/s].",
+    )
+
+
+ScheduleFrac = Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class HvacScheduleProfile(_Row):
+    """24-hour fractional weekday and weekend schedules (0-1) for annual energy simulation
+    (ASHRAE 90.1 Appendix G / BNBC Part 8 practice, to be checked)."""
+
+    occupancyWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    occupancyWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    lightingWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    lightingWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    equipmentWeekday: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+    equipmentWeekend: list[ScheduleFrac] = Field(min_length=24, max_length=24)
+
+
+class HvacSchedules(_Group):
+    """Hourly operating schedules by room use / ventilation group for annual EnergyPlus runs."""
+
+    defaultProfile: str = Field(default="office")
+    groupSchedule: dict[str, str] = Field(default_factory=dict)
+    profiles: dict[str, HvacScheduleProfile] = Field(default_factory=dict)
+
+
+class HvacEnvelopeCompliance(_Group):
+    """Prescriptive envelope compliance limits (U-values [W/m²K], max WWR, SHGC fallback;
+    ASHRAE 90.1 Table 5.5-1 / ECBC Table 4-1..4-6 / BNBC Part 3 Ch 4, to be checked)."""
+
+    uWallMax: PosNum = Field(default=0.6, description="Maximum opaque wall U-value [W/m²K].")
+    uRoofMax: PosNum = Field(default=0.35, description="Maximum roof U-value [W/m²K].")
+    uGlazingMax: PosNum = Field(default=3.3, description="Maximum glazing U-value [W/m²K].")
+    wwrMax: Share = Field(default=0.4, description="Maximum window-to-wall ratio (0-1).")
+    shgcMaxDefault: Share = Field(
+        default=0.25,
+        description="Fallback maximum SHGC when shgcByWwr is absent (0-1).",
+    )
+    reference: str = Field(
+        default="ASHRAE 90.1 Table 5.5-1 / ECBC / BNBC Part 3 Ch 4 (to be checked)",
+        description="Standard or table citation.",
+    )
+
+
 class HvacTable(_Services):
     """The default pack's Part 8 Chapter 2 (air-conditioning) and Part 3 Chapter 4 (energy); SAEngine's
     stated assumptions where the code is silent (marked in ``sources``, listed in
@@ -6285,6 +6441,12 @@ class HvacTable(_Services):
     # D5: the air distribution's and the plant's code values (None: not covered by the pack)
     air: HvacAir | None = None
     plant: HvacPlant | None = None
+    # R6: winter heating defaults and duct pressure/sizing data (optional for custom packs)
+    heating: HvacHeating | None = None
+    ductDesign: HvacDuctDesign | None = None
+    # R10: annual energy schedules and envelope compliance limits (optional for custom packs)
+    schedules: HvacSchedules | None = None
+    envelopeCompliance: HvacEnvelopeCompliance | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> HvacTable:
@@ -6379,6 +6541,131 @@ class LtPanel(_Group):
     ampsPerSection: PosNum = Field(description="Amperes per section beyond the incomer.")
 
 
+class CircuitDefault(_Row):
+    """Default parameters of one final circuit category."""
+
+    wattsPerPoint: PosNum = Field(description="Assumed load per point [W].")
+    areaPerPoint: PosNum = Field(description="Floor area per point when points are estimated [m²].")
+    pf: Share = Field(description="Default power factor.")
+    curve: Literal["B", "C", "D"] = Field(description="Default MCB tripping curve.")
+    maxLoadW: PosNum = Field(description="Maximum active load per circuit [W].")
+    minCableMm2: PosNum = Field(description="Minimum conductor cross-section [mm²].")
+
+
+class CircuitRulesGroup(_Group):
+    """Distribution-board, circuiting, breaker and phase-voltage rules."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    phaseVoltage: PosNum = Field(description="Nominal phase-to-neutral voltage U0 [V].")
+    defaultConductor: Literal["Cu", "Al"] = "Cu"
+    defaultFinalInsulation: Literal["PVC", "XLPE"] = "PVC"
+    defaultFeederInsulation: Literal["PVC", "XLPE"] = "XLPE"
+    defaultMethod: str = "C"
+    defaultAmbientTemp: float = 30.0
+    maxPointsPerCircuit: dict[str, Annotated[int, Field(gt=0)]]
+    circuitDefaults: dict[str, CircuitDefault]
+    circuitDiversity: dict[str, Share]
+    breakerRatings: list[PosNum]
+    standardWays: list[Annotated[int, Field(gt=0)]]
+    busbarRatings: list[PosNum]
+    breakingCapacityKa: dict[str, PosNum] = Field(
+        description="Default breaking capacity Icu/Icn [kA] by device type."
+    )
+    standardBreakingCapacitiesKa: list[PosNum] = Field(
+        default_factory=lambda: [6.0, 10.0, 15.0, 25.0, 36.0, 50.0, 65.0],
+        description="Standard short-circuit breaking capacities Icu/Icn [kA] for auto-selection.",
+    )
+
+
+class CableImpedance(_Row):
+    """Cable resistance at 20 °C and reactance at 50 Hz [ohm/km]."""
+
+    r20: PosNum = Field(description="DC resistance at 20 °C [ohm/km].")
+    x: NonNegNum = Field(description="AC reactance at 50 Hz [ohm/km].")
+
+
+class CablesGroup(_Group):
+    """IEC 60364-5-52 ampacity, correction factors, voltage drop and adiabatic withstand."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    sizes: list[PosNum] = Field(description="Standard conductor cross-sections [mm²].")
+    referenceAmbient: float = Field(description="Reference ambient temperature in air [°C].")
+    ampacity: dict[str, dict[str, dict[str, dict[str, dict[str, PosNum]]]]] = Field(
+        description="conductor -> insulation -> method -> loadedCores ('2'|'3') -> size -> It [A]."
+    )
+    ambientFactor: dict[str, dict[str, PosNum]] = Field(
+        description="insulation -> ambientTemp [°C] -> Ca."
+    )
+    groupingFactor: dict[str, dict[str, PosNum]] = Field(
+        description="arrangement -> circuitCount -> Cg."
+    )
+    thermalInsulationFactor: dict[str, PosNum] = Field(description="condition -> Ci.")
+    conductorTempFactor: dict[str, PosNum] = Field(
+        description="insulation -> R_op / R_20 multiplier at operating temperature."
+    )
+    impedance: dict[str, dict[str, CableImpedance]] = Field(
+        description="conductor -> size -> {r20, x}."
+    )
+    mvAm: dict[str, dict[str, dict[str, dict[str, PosNum]]]] = Field(
+        description="conductor -> insulation -> ('1ph'|'3ph') -> size -> mV/A/m."
+    )
+    voltageDropLimits: dict[str, PosNum] = Field(
+        description="Maximum cumulative voltage drop [%] by category."
+    )
+    adiabaticK: dict[str, dict[str, PosNum]] = Field(
+        description="conductor -> insulation -> adiabatic constant k [A·s^0.5/mm²]."
+    )
+
+
+class ShortCircuitGroup(_Group):
+    """IEC 60909 simplified short-circuit and IEC 60364-4-41 disconnection parameters."""
+
+    source: str | None = Field(default=None, description="Clause (and page) of this group.")
+    cMax: PosNum = Field(description="IEC 60909 voltage factor c_max for Ik3 max.")
+    cMin: PosNum = Field(description="IEC 60909 voltage factor c_min for Ik1 min.")
+    zsCmin: PosNum = Field(description="Voltage factor Cmin for earth-fault loop Zs limit.")
+    gridSkMva: PosNum | None = Field(
+        default=None, description="Default HV grid fault level [MVA]; null for infinite bus."
+    )
+    gridRxRatio: NonNegNum = Field(description="Upstream HV grid R/X ratio.")
+    transformerUk: dict[str, PosNum] = Field(description="Transformer kVA -> uk [%].")
+    transformerXr: dict[str, PosNum] = Field(description="Transformer kVA -> X/R ratio.")
+    mcbTripMultiplier: dict[str, PosNum] = Field(
+        description="Instantaneous magnetic trip multiple (Ia / In) by curve ('B'|'C'|'D')."
+    )
+    faultDurationS: dict[str, PosNum] = Field(
+        description="Default fault clearing time [s] by circuit role ('final'|'submain'|'incomer')."
+    )
+    busbarImpedancePerM: dict[str, tuple[NonNegNum, NonNegNum]] = Field(
+        default_factory=dict, description="Busbar rating [A] -> (R [mohm/m], X [mohm/m])."
+    )
+
+
+class LuminaireSpec(_Row):
+    label: str
+    lumens: PosNum
+    watts: PosNum
+    shrMax: PosNum
+    mounting: Literal["recessed", "surface", "suspended"] = "recessed"
+    length: PosNum
+    width: PosNum
+    height: PosNum
+
+
+class LightingTable(_Group):
+    """R7: lumen-method lighting design data (EN 12464-1 / IES)."""
+
+    targets: dict[str, PosNum]
+    maintenanceFactor: Share
+    defaultWorkPlane: NonNegNum
+    defaultReflectance: str
+    roomIndexSteps: list[PosNum]
+    ufTable: dict[str, list[Share]]
+    luminaires: dict[str, LuminaireSpec]
+    circuitVoltage: PosNum
+    circuitMaxWatts: PosNum
+
+
 class ElectricalTable(_Services):
     """The default pack's Part 8 Chapter 1 (electrical services) and Sec 4.2.1 (lifts); typical equipment
     data for the first layout and SAEngine practice where the code is silent (marked in
@@ -6465,6 +6752,10 @@ class ElectricalTable(_Services):
     upsAutonomyMin: PosNum
     tankPlate: PosNum
     steelWeight: PosNum
+    circuitRules: CircuitRulesGroup | None = None
+    cables: CablesGroup | None = None
+    shortCircuit: ShortCircuitGroup | None = None
+    lighting: LightingTable | None = None
 
 
 class FireFlow(_Row):
@@ -6488,6 +6779,46 @@ class Extinguisher(_Group):
     perUnit: PosNum = Field(description="Area per unit of A rating [m²].")
     rating: PosNum = Field(description="The smallest rating.")
     max: PosNum = Field(description="The largest area per extinguisher [m²].")
+
+
+class SprinklerLayoutRules(_Group):
+    wallDistanceFactor: Share
+    minWallDistance: NonNegNum
+    minHeadSpacing: PosNum
+
+
+class DetectorSpec(_Row):
+    maxArea: PosNum
+    maxSpacing: PosNum
+    radius: PosNum
+    standbyMa: NonNegNum
+    alarmMa: NonNegNum
+
+
+class AlarmDeviceSpec(_Row):
+    standbyMa: NonNegNum
+    alarmMa: NonNegNum
+    maxTravelM: PosNum | None = None
+    maxArea: PosNum | None = None
+
+
+class AlarmPanelSpec(_Group):
+    standbyA: NonNegNum
+    alarmA: NonNegNum
+
+
+class FireAlarmTable(_Group):
+    """R7: fire alarm device layout and battery sizing data (NFPA 72 / BS 5839-1)."""
+
+    detectors: dict[str, DetectorSpec]
+    heatRoomUses: list[str]
+    callPoint: AlarmDeviceSpec
+    sounder: AlarmDeviceSpec
+    panel: AlarmPanelSpec
+    standbyHours: PosNum
+    alarmMinutes: PosNum
+    ageingFactor: PosNum
+    batterySizesAh: list[PosNum]
 
 
 class FireTable(_Services):
@@ -6558,6 +6889,8 @@ class FireTable(_Services):
     pumpClearance: NonNegNum = Field(description="[m]")
     controllerStrip: NonNegNum = Field(description="[m]")
     pumpCentre: NonNegNum = Field(description="[m]")
+    sprinklerLayout: SprinklerLayoutRules | None = None
+    alarm: FireAlarmTable | None = None
 
     @model_validator(mode="after")
     def _keys(self) -> FireTable:

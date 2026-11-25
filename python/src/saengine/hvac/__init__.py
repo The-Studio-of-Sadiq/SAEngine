@@ -25,13 +25,26 @@ from importlib import import_module
 from typing import Any
 
 _EXPORTS = {
+    "annual_summary_from_tables": "saengine.hvac.energyplus",
+    "auto_route_ducts": "saengine.hvac.routing",
+    "building_wwr": "saengine.hvac.compliance",
+    "check_envelope_compliance": "saengine.hvac.compliance",
+    "find_energyplus": "saengine.hvac.energyplus",
     "hvac_loads": "saengine.hvac.report",
     "hvac_results": "saengine.hvac.report",
     "plant_equipment": "saengine.hvac.report",
-    "find_energyplus": "saengine.hvac.energyplus",
 }
 
-__all__ = ["find_energyplus", "hvac_loads", "hvac_results", "plant_equipment"]
+__all__ = [
+    "annual_summary_from_tables",
+    "auto_route_ducts",
+    "building_wwr",
+    "check_envelope_compliance",
+    "find_energyplus",
+    "hvac_loads",
+    "hvac_results",
+    "plant_equipment",
+]
 
 
 def __getattr__(name: str) -> Any:
