@@ -176,6 +176,7 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['Solver', localize('ribbon.grp.solver', "Solver")],
 	['Advanced', localize('ribbon.grp.advanced', "Advanced")],
 	['MeshAndView', localize('ribbon.grp.meshView', "Mesh & View")],
+	['Assign', localize('ribbon.grp.assign', "Assign")],
 	['Display', localize('ribbon.grp.display', "Display")],
 	['ChartsAndTables', localize('ribbon.grp.chartsTables', "Charts & Tables")],
 	['Inspect3D', localize('ribbon.grp.inspect3d', "3D Inspect")],
@@ -804,6 +805,10 @@ addItem(RibbonMenus.Analyze, '3_MeshAndView', 1, 'saengine.fem.toggleMeshNodes',
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 2, 'saengine.fem.fitView', localize('rib.analyze.fitView', "Zoom to Fit"), Codicon.screenFull, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 3, 'saengine.fem.showLog', localize('rib.analyze.log', "Analysis Log"), Codicon.output, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.Analyze, '3_MeshAndView', 4, 'saengine.runAll.showSteps', localize('rib.analyze.steps', "Run All Steps"), Codicon.listFlat, 'small', { precondition: projectOpen });
+
+// #303: the picked member's end releases and the picked joint's point spring (Properties panel).
+addItem(RibbonMenus.Analyze, '4_Assign', 1, 'saengine.fem.endReleases', localize('rib.analyze.endReleases', "End Releases…"), Codicon.debugDisconnect, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.Analyze, '4_Assign', 2, 'saengine.fem.pointSpring', localize('rib.analyze.pointSpring', "Point Spring…"), Codicon.pinned, 'small', { precondition: projectOpen });
 
 //#endregion
 

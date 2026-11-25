@@ -62,6 +62,9 @@ def test_default_is_empty_and_unbuilt() -> None:
             "stairs": [],
             "members": [],
             "slabTendons": [],
+            # #303: member end releases and point springs
+            "endReleases": [],
+            "pointSprings": [],
         },
         "supports": [],
         "towers": [],

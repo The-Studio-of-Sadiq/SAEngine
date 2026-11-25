@@ -448,6 +448,105 @@ class SlabTendon(_Model):
         return self
 
 
+#: The actions at a member end, in the member's axes 1-2-3 (the axes its results are shown in,
+#: :func:`saengine.fem.derive.member_axes`): axial P, shears V2 and V3, torsion T, moments M2, M3.
+END_ACTIONS = ("P", "V2", "V3", "T", "M2", "M3")
+_END_HELP = "Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that "
+
+
+def _end_action(title: str, unit: str) -> Any:
+    return Field(default=None, ge=0, title=title, description=f"{_END_HELP}stiffness [{unit}].")
+
+
+class MemberEndRelease(_Model):
+    """What one end of a member passes to its joint (#303): each action fixed, released or
+    partly fixed by a spring (partial fixity)."""
+
+    P: float | None = _end_action("Axial P", "kN/m")
+    V2: float | None = _end_action("Shear V2", "kN/m")
+    V3: float | None = _end_action("Shear V3", "kN/m")
+    T: float | None = _end_action("Torsion T", "kN·m/rad")
+    M2: float | None = _end_action("Moment M2", "kN·m/rad")
+    M3: float | None = _end_action("Moment M3", "kN·m/rad")
+
+    def actions(self) -> dict[int, float]:
+        """The released actions (index into :data:`END_ACTIONS`) -> their spring [kN/m or
+        kN·m/rad; 0: released in full]."""
+        return {
+            k: float(v)
+            for k, name in enumerate(END_ACTIONS)
+            if (v := getattr(self, name)) is not None
+        }
+
+
+class EndRelease(_Model):
+    """The end releases of one member (#303): the actions its start and end do not pass, or
+    pass through a spring. The start is the member's first point (a column's bottom)."""
+
+    id: Id
+    member: Id = Field(
+        title="Member",
+        description="Id of the beam, column, member element or inclined member it applies to.",
+    )
+    start: MemberEndRelease = Field(default_factory=MemberEndRelease, title="Start (i)")
+    end: MemberEndRelease = Field(default_factory=MemberEndRelease, title="End (j)")
+
+
+def _spring(title: str, unit: str) -> Any:
+    return Field(
+        default=None, ge=0, title=title, description=f"Empty or 0: no spring; a value [{unit}]."
+    )
+
+
+class PointSpring(_Model):
+    """A spring from a joint of the model to the ground (#303), in the global axes, and
+    optionally a support at that joint (a supported direction takes no spring)."""
+
+    id: Id
+    at: Point3
+    UX: float | None = _spring("Spring X", "kN/m")
+    UY: float | None = _spring("Spring Y", "kN/m")
+    UZ: float | None = _spring("Spring Z", "kN/m")
+    RX: float | None = _spring("Spring about X", "kN·m/rad")
+    RY: float | None = _spring("Spring about Y", "kN·m/rad")
+    RZ: float | None = _spring("Spring about Z", "kN·m/rad")
+    support: Literal["none", "pinned", "fixed"] = Field(
+        default="none",
+        description="A support at the joint as well: pinned holds the translations, fixed all six.",
+    )
+
+    def stiffness(self) -> list[float]:
+        """The six springs [kN/m ×3, kN·m/rad ×3] (0: none)."""
+        return [float(getattr(self, k) or 0.0) for k in ("UX", "UY", "UZ", "RX", "RY", "RZ")]
+
+    def restraint(self) -> list[bool]:
+        pinned = self.support != "none"
+        fixed = self.support == "fixed"
+        return [pinned] * 3 + [fixed] * 3
+
+
+def release_mechanisms(release: EndRelease) -> list[str]:
+    """Why a member with these end releases would be a mechanism on its own (it could move as
+    a rigid body): an action released at both ends (P, V2, V3 or T), or a moment released at
+    both ends with its shear released at either. A spring is not a release here."""
+    start = {END_ACTIONS[k] for k, v in release.start.actions().items() if v == 0}
+    end = {END_ACTIONS[k] for k, v in release.end.actions().items() if v == 0}
+    both = start & end
+    problems = [
+        f"{action} is released at both ends of {release.member}: it can "
+        + {"P": "slide along its axis", "T": "spin about its axis"}.get(action, "move sideways")
+        for action in ("P", "V2", "V3", "T")
+        if action in both
+    ]
+    for moment, shear in (("M3", "V2"), ("M2", "V3")):
+        if moment in both and shear not in both and shear in start | end:
+            problems.append(
+                f"{moment} is released at both ends of {release.member} and {shear} at one: "
+                "it can turn as a rigid body"
+            )
+    return problems
+
+
 class Additions(_Model):
     """Elements the building model adds to what it is built from; rebuilding keeps them."""
 
@@ -457,6 +556,16 @@ class Additions(_Model):
     members: list[InclinedMember] = Field(default_factory=list, title="Inclined members")
     slabTendons: list[SlabTendon] = Field(
         default_factory=list, title="Slab tendons", description="Post-tensioning tendons."
+    )
+    endReleases: list[EndRelease] = Field(
+        default_factory=list,
+        title="End releases",
+        description="Member end releases and partial fixity (analysis only).",
+    )
+    pointSprings: list[PointSpring] = Field(
+        default_factory=list,
+        title="Point springs",
+        description="Springs from joints to the ground, with optional supports (analysis only).",
     )
 
     def all(self) -> list[SlabOpening | WallOpening | Stair | InclinedMember | SlabTendon]:
@@ -614,12 +723,37 @@ class BuildingModel(_Model):
                     f"{tendon.id}: its profile runs to {tendon.profile[-1].at:g} mm, past its "
                     f"length of {length:.0f} mm"
                 )
+        problems += self._check_releases(kinds)
         for stair in self.additions.stairs:
             missing = [s for s in (stair.base, stair.top) if s not in stories]
             if missing:
                 problems.append(f"{stair.id}: no story '{missing[0]}'")
             elif stories[stair.base] >= stories[stair.top]:
                 problems.append(f"{stair.id}: its top story must be above its base story")
+        return problems
+
+    def _check_releases(self, kinds: dict[str, str]) -> list[str]:
+        """Problems with the end releases and point springs (#303)."""
+        problems = []
+        linear = {i for i, k in kinds.items() if k in ("beam", "column", "member")}
+        linear |= {m.id for m in self.additions.members}
+        ids = [r.id for r in (*self.additions.endReleases, *self.additions.pointSprings)]
+        for duplicate in sorted({i for i in ids if ids.count(i) > 1}):
+            problems.append(f"{duplicate}: two end releases or point springs use this id")
+        seen: dict[str, str] = {}
+        for release in self.additions.endReleases:
+            if release.member not in linear:
+                problems.append(
+                    f"{release.id}: there is no beam, column or member '{release.member}'"
+                )
+            if release.member in seen:
+                problems.append(
+                    f"{release.id}: member {release.member} already has end releases "
+                    f"({seen[release.member]}); only the first counts"
+                )
+            else:
+                seen[release.member] = release.id
+            problems += [f"{release.id}: {p}" for p in release_mechanisms(release)]
         return problems
 
     def check_model(self) -> list[str]:

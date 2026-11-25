@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import itertools
 import json
 import math
@@ -18,6 +19,26 @@ from saengine.features import (
     text,
 )
 from saengine.features.plan_common import profile, selected_members
+
+#: #303: the releases and springs the analysis uses live in one place (no duplication): the
+#: building model's additions, edited in 8 FEM (Analyze > End Releases..., Point Spring...) or
+#: 6 BIM's Additions. These buttons only work values out; they say where to apply them.
+_APPLIED_IN_FEM = (
+    "To apply end releases or springs in the analysis, pick the member or joint in 8 FEM and "
+    "use Analyze > End Releases... or Point Spring... (stored in 6 BIM, Additions)."
+)
+
+
+def _points_to_fem(function):
+    """Adds :data:`_APPLIED_IN_FEM` to the result's notes."""
+
+    @functools.wraps(function)
+    def wrapped(ctx: FeatureContext, values: dict) -> dict:
+        out = function(ctx, values)
+        out["notes"] = [*out.get("notes", []), _APPLIED_IN_FEM]
+        return out
+
+    return wrapped
 
 
 def _selected(ctx: FeatureContext, ids: str) -> list[dict]:
@@ -36,6 +57,7 @@ def _selected(ctx: FeatureContext, ids: str) -> list[dict]:
         checkbox("torsion", "Release torsion", False),
     ],
 )
+@_points_to_fem
 def release_start(ctx: FeatureContext, values: dict) -> dict:
     """Prepare start-end force release assignments for selected members."""
     rows = _selected(ctx, values["memberIds"])
@@ -79,6 +101,7 @@ def release_start(ctx: FeatureContext, values: dict) -> dict:
         checkbox("torsion", "Release torsion", False),
     ],
 )
+@_points_to_fem
 def release_end(ctx: FeatureContext, values: dict) -> dict:
     """Prepare end-end force release assignments for selected members."""
     rows = _selected(ctx, values["memberIds"])
@@ -128,6 +151,7 @@ def release_end(ctx: FeatureContext, values: dict) -> dict:
         ),
     ],
 )
+@_points_to_fem
 def partial_fixity(ctx: FeatureContext, values: dict) -> dict:
     """Calculate a dimensionless end-restraint ratio for each selected member."""
     rows = _selected(ctx, values["memberIds"])
@@ -156,6 +180,7 @@ def partial_fixity(ctx: FeatureContext, values: dict) -> dict:
         checkbox("releaseMz", "Release minor-axis bending", False),
     ],
 )
+@_points_to_fem
 def moment_release(ctx: FeatureContext, values: dict) -> dict:
     """Select major and minor-axis moment releases at specified member ends."""
     rows = _selected(ctx, values["memberIds"])
@@ -276,6 +301,7 @@ def roller_support(ctx: FeatureContext, values: dict) -> dict:
         number("horizontalStiffnessKnPerM", "Horizontal spring stiffness", 0, unit="kN/m", min=0),
     ],
 )
+@_points_to_fem
 def spring_support(ctx: FeatureContext, values: dict) -> dict:
     """Report translational support spring constants and stiffness ratio."""
     ratio = (
@@ -433,6 +459,7 @@ def apply_offsets(ctx: FeatureContext, values: dict) -> dict:
         number("kzKnPerM", "Z spring stiffness", 10000, unit="kN/m", min=0),
     ],
 )
+@_points_to_fem
 def translational_spring(ctx: FeatureContext, values: dict) -> dict:
     """Prepare directional translational spring constants and identify restrained directions."""
     ks = [values[k] for k in ("kxKnPerM", "kyKnPerM", "kzKnPerM")]
@@ -463,6 +490,7 @@ def translational_spring(ctx: FeatureContext, values: dict) -> dict:
         number("krzKnMPerRad", "Z rotation stiffness", 1000, unit="kN·m/rad", min=0),
     ],
 )
+@_points_to_fem
 def rotational_spring(ctx: FeatureContext, values: dict) -> dict:
     """Prepare directional rotational spring constants at a structural joint."""
     ks = [values[k] for k in ("krxKnMPerRad", "kryKnMPerRad", "krzKnMPerRad")]

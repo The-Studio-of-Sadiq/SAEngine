@@ -716,6 +716,10 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "y2": 0,
         "z2": 3200,
     },
+    # #303: a member's end releases (the end's moments released) and a joint's spring
+    "EndRelease": {"id": "ER1", "member": "B1", "start": {}, "end": {"M2": 0, "M3": 0}},
+    "MemberEndRelease": {},
+    "PointSpring": {"id": "PS1", "at": [0, 0, 0], "UZ": 10000},
     "ColumnElement": {
         "id": "C1",
         "type": "C",

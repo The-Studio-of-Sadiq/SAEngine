@@ -1157,9 +1157,74 @@ class FemViewerImpl implements FemViewer {
 			this.pickTargets.push(this.nodes);
 		}
 
+		// #303: released member ends (`<member>/pin` links: a dot just inside the member's end) and
+		// point springs (`<id>/spring` links to a fixed ground node: a coil post under the joint,
+		// not the ground node's fixed-support block).
+		const grounds = new Set<number>();
+		const springAt: number[] = [];
+		const releaseAt: number[] = [];
+		const linkName = (e: { readonly name?: string }) => (e.name ?? '').split('#')[0];
+		const frameAt = new Map<number, number>(); // twin node -> the other end of its member
+		for (const element of model.elements) {
+			if (element.nodes.length === 2 && element.type !== 'ZeroLength') {
+				frameAt.set(element.nodes[0], element.nodes[1]);
+				frameAt.set(element.nodes[1], element.nodes[0]);
+			}
+		}
+		for (const element of model.elements) {
+			if (element.type !== 'ZeroLength' || element.nodes.length !== 2) {
+				continue;
+			}
+			const [joint, other] = element.nodes;
+			const at = index.offset(joint);
+			if (at < 0 || used && !used.has(joint)) {
+				continue;
+			}
+			if (linkName(element).endsWith('/spring')) {
+				grounds.add(other);
+				springAt.push(at);
+			} else if (linkName(element).endsWith('/pin')) {
+				const far = index.offset(frameAt.get(other) ?? -1);
+				const point = [world[at], world[at + 1], world[at + 2]];
+				if (far >= 0) {
+					const d = [world[far] - point[0], world[far + 1] - point[1], world[far + 2] - point[2]];
+					const length = Math.hypot(d[0], d[1], d[2]) || 1;
+					const step = Math.min(scale * 0.02, length * 0.2) / length;
+					point[0] += d[0] * step;
+					point[1] += d[1] * step;
+					point[2] += d[2] * step;
+				}
+				releaseAt.push(...point);
+			}
+		}
+		const addMarks = (positions: number[], geometry: THREE.BufferGeometry, material: THREE.Material) => {
+			const count = positions.length / 3;
+			if (!count) {
+				geometry.dispose();
+				material.dispose();
+				return;
+			}
+			const marks = new THREE.InstancedMesh(geometry, material, count);
+			const matrix = new THREE.Matrix4();
+			for (let k = 0; k < count; k++) {
+				marks.setMatrixAt(k, matrix.makeTranslation(positions[k * 3], positions[k * 3 + 1], positions[k * 3 + 2]));
+			}
+			marks.computeBoundingSphere();
+			this.modelGroup.add(marks);
+		};
+		// A hinge: a hollow (wireframe) dot in the supports' colour.
+		addMarks(releaseAt, new THREE.SphereGeometry(scale * 0.007, 10, 6), new THREE.MeshBasicMaterial({ color: this.theme.support, wireframe: true }));
+		// A spring: an open wire post below the joint (world space is Y up).
+		const coil = new THREE.CylinderGeometry(scale * 0.008, scale * 0.008, scale * 0.04, 6, 6, true);
+		coil.translate(0, -scale * 0.02, 0);
+		addMarks(springAt.flatMap(at => [world[at], world[at + 1], world[at + 2]]), coil, new THREE.MeshBasicMaterial({ color: this.theme.support, wireframe: true }));
+
 		const fixed: number[] = [];
 		const pinned: number[] = [];
 		model.nodes.forEach((node, i) => {
+			if (grounds.has(node.id)) {
+				return;
+			}
 			if (node.restraint?.some(Boolean) && !solidOnly.has(node.id) && (!used || used.has(node.id))) {
 				(node.restraint.length >= 6 && node.restraint.every(Boolean) ? fixed : pinned).push(i);
 			}

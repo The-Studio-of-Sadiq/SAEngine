@@ -21632,6 +21632,22 @@ export const BIM_SCHEMA: IJSONSchema = {
 					title: 'Slab tendons',
 					type: 'array',
 				},
+				endReleases: {
+					description: 'Member end releases and partial fixity (analysis only).',
+					items: {
+						$ref: '#/$defs/EndRelease',
+					},
+					title: 'End releases',
+					type: 'array',
+				},
+				pointSprings: {
+					description: 'Springs from joints to the ground, with optional supports (analysis only).',
+					items: {
+						$ref: '#/$defs/PointSpring',
+					},
+					title: 'Point springs',
+					type: 'array',
+				},
 			},
 			title: 'Additions',
 			type: 'object',
@@ -22580,6 +22596,38 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'DesignOverwrites',
 			type: 'object',
 		},
+		EndRelease: {
+			additionalProperties: false,
+			description: 'The end releases of one member (#303): the actions its start and end do not pass, or\npass through a spring. The start is the member\'s first point (a column\'s bottom).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				member: {
+					description: 'Id of the beam, column, member element or inclined member it applies to.',
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'Member',
+					type: 'string',
+				},
+				start: {
+					$ref: '#/$defs/MemberEndRelease',
+					title: 'Start (i)',
+				},
+				end: {
+					$ref: '#/$defs/MemberEndRelease',
+					title: 'End (j)',
+				},
+			},
+			required: ['id', 'member'],
+			title: 'EndRelease',
+			type: 'object',
+		},
 		FootingElement: {
 			additionalProperties: false,
 			description: 'A footing or pile cap with its top at ``elevation``.',
@@ -22893,6 +22941,98 @@ export const BIM_SCHEMA: IJSONSchema = {
 			title: 'MemberElement',
 			type: 'object',
 		},
+		MemberEndRelease: {
+			additionalProperties: false,
+			description: 'What one end of a member passes to its joint (#303): each action fixed, released or\npartly fixed by a spring (partial fixity).',
+			properties: {
+				P: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN/m].',
+					title: 'Axial P',
+				},
+				V2: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN/m].',
+					title: 'Shear V2',
+				},
+				V3: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN/m].',
+					title: 'Shear V3',
+				},
+				T: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN·m/rad].',
+					title: 'Torsion T',
+				},
+				M2: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN·m/rad].',
+					title: 'Moment M2',
+				},
+				M3: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty: fixed (passed in full); 0: released (not passed); a value: a spring of that stiffness [kN·m/rad].',
+					title: 'Moment M3',
+				},
+			},
+			title: 'MemberEndRelease',
+			type: 'object',
+		},
 		MomentMagnifiers: {
 			additionalProperties: false,
 			description: 'Moment magnification factors given instead of worked out (RC columns, the default pack\'s 6.3.10).',
@@ -22942,6 +23082,123 @@ export const BIM_SCHEMA: IJSONSchema = {
 				},
 			},
 			title: 'MomentMagnifiers',
+			type: 'object',
+		},
+		PointSpring: {
+			additionalProperties: false,
+			description: 'A spring from a joint of the model to the ground (#303), in the global axes, and\noptionally a support at that joint (a supported direction takes no spring).',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				at: {
+					description: '[x, y, z] in mm.',
+					items: {
+						type: 'number',
+					},
+					maxItems: 3,
+					minItems: 3,
+					title: 'At',
+					type: 'array',
+				},
+				UX: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN/m].',
+					title: 'Spring X',
+				},
+				UY: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN/m].',
+					title: 'Spring Y',
+				},
+				UZ: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN/m].',
+					title: 'Spring Z',
+				},
+				RX: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN·m/rad].',
+					title: 'Spring about X',
+				},
+				RY: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN·m/rad].',
+					title: 'Spring about Y',
+				},
+				RZ: {
+					anyOf: [
+						{
+							minimum: 0,
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Empty or 0: no spring; a value [kN·m/rad].',
+					title: 'Spring about Z',
+				},
+				support: {
+					default: 'none',
+					description: 'A support at the joint as well: pinned holds the translations, fixed all six.',
+					enum: ['none', 'pinned', 'fixed'],
+					title: 'Support',
+					type: 'string',
+				},
+			},
+			required: ['id', 'at'],
+			title: 'PointSpring',
 			type: 'object',
 		},
 		ShellModifiers: {
@@ -23762,6 +24019,8 @@ export const DEFAULT_BIM: object = {
 		stairs: [],
 		members: [],
 		slabTendons: [],
+		endReleases: [],
+		pointSprings: [],
 	},
 	supports: [],
 	towers: [],
@@ -24988,6 +25247,21 @@ export const TEMPLATES: { readonly [defName: string]: object } = {
 		x2: 6000,
 		y2: 0,
 		z2: 3200,
+	},
+	EndRelease: {
+		id: 'ER1',
+		member: 'B1',
+		start: {},
+		end: {
+			M2: 0,
+			M3: 0,
+		},
+	},
+	MemberEndRelease: {},
+	PointSpring: {
+		id: 'PS1',
+		at: [0, 0, 0],
+		UZ: 10000,
 	},
 	ColumnElement: {
 		id: 'C1',

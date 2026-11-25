@@ -62,6 +62,8 @@ import { ISaengineModelSelectionService, ModelSelection } from '../../../service
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { renderEndReleases, renderPointSpring } from './femReleases.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
 export function memberOf(name: string): string {
@@ -785,6 +787,11 @@ export class FemModelEditor extends EditorPane {
 
 	/** The floor plan, to name the building model member of an element picked here. */
 	private floorPlanModel: ITextModel | undefined;
+	/** The building model, where a member's end releases and a joint's point spring are kept (#303). */
+	private bimModel: ITextModel | undefined;
+	private readonly releasesStore = this._register(new MutableDisposable<DisposableStore>());
+	/** The End Releases or Point Spring section shown, to bring into view from the ribbon. */
+	private releasesSection: HTMLElement | undefined;
 	/** True while a member selected elsewhere is being shown here (it is not published back). */
 	private applyingModelSelection = false;
 
@@ -806,6 +813,8 @@ export class FemModelEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ISaengineModelSelectionService private readonly modelSelectionService: ISaengineModelSelectionService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 		this._register(modelSelectionService.onDidChangeSelection(({ selection, source }) => {
@@ -898,6 +907,7 @@ export class FemModelEditor extends EditorPane {
 		this.updateChrome(); // a run of this model may already be going
 		void this.derivation?.setResource(input.resource);
 		void this.trackFloorPlan(input.resource);
+		void this.trackBuildingModel(input.resource);
 
 		const viewer = await this.ensureViewer();
 		if (token.isCancellationRequested || !viewer) {
@@ -1297,6 +1307,7 @@ export class FemModelEditor extends EditorPane {
 		this.renderMeasurement(panel);
 		this.results?.renderProperties(panel);
 		this.renderMemberLink(panel);
+		this.renderReleases(panel);
 		appendPropertyHeading(panel, localize('femEditor.modelHeading', "Model"));
 		appendPropertyRow(panel, localize('femEditor.nodes', "Nodes"), String(this.nodeCount));
 		appendPropertyRow(panel, localize('femEditor.elements', "Elements"), String(this.elementCount));
@@ -1481,6 +1492,94 @@ export class FemModelEditor extends EditorPane {
 		} catch {
 			// A special structure, or a model outside a project: its elements select nothing elsewhere.
 		}
+	}
+
+	/** Keeps the project's building model open beside the analysis model (#303: end releases, point springs). */
+	private async trackBuildingModel(resource: URI): Promise<void> {
+		this.bimModel = undefined;
+		const part = partById('bim');
+		if (!part?.mainFile) {
+			return;
+		}
+		const file = joinPath(dirname(dirname(resource)), part.folder, part.mainFile);
+		try {
+			if (!await this.fileService.exists(file)) {
+				return;
+			}
+			const reference = await this.textModelService.createModelReference(file);
+			if (this.resource?.toString() !== resource.toString()) {
+				reference.dispose();
+				return;
+			}
+			this.inputDisposables.add(reference);
+			const model = this.bimModel = reference.object.textEditorModel;
+			// Edited here or in 6 BIM: the panel shows the stored values.
+			this.inputDisposables.add(model.onDidChangeContent(() => this.renderProperties()));
+			this.renderProperties();
+		} catch {
+			// No building model yet: the panel says to build it.
+		}
+	}
+
+	/**
+	 * The member or joint picked in the view: its end releases or its point spring (#303),
+	 * edited here and stored in the building model.
+	 */
+	private renderReleases(panel: HTMLElement): void {
+		this.releasesSection = undefined;
+		const store = this.releasesStore.value = new DisposableStore();
+		const selection = this.selection;
+		if (!selection || !this.femModel) {
+			return;
+		}
+		const options = {
+			contextViewService: this.contextViewService,
+			bimText: this.bimModel?.getValue(),
+			write: (text: string) => this.writeBuildingModel(text),
+		};
+		if (selection.kind === 'element') {
+			const element = this.femModel.elements.find(e => e.id === selection.id);
+			if (!element || element.nodes.length !== 2 || !element.name || element.type === 'ZeroLength') {
+				return;
+			}
+			this.releasesSection = renderEndReleases(panel, memberOf(element.name), store, options);
+		} else {
+			const node = this.femModel.nodes.find(n => n.id === selection.id);
+			if (!node || node.coords.length < 3) {
+				return;
+			}
+			// The model is in metres; the building model in millimetres.
+			this.releasesSection = renderPointSpring(panel, node.coords.slice(0, 3).map(v => Math.round(v * 1000)), store, options);
+		}
+	}
+
+	/** Writes the building model's new text as one undoable edit and saves it (the derivation reads it). */
+	private writeBuildingModel(text: string): void {
+		const model = this.bimModel;
+		if (!model || model.isDisposed() || model.getValue() === text) {
+			return;
+		}
+		model.pushStackElement();
+		model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+		model.pushStackElement();
+		void this.textFileService.save(model.uri).catch(() => undefined);
+	}
+
+	/**
+	 * The ribbon's End Releases… / Point Spring…: the Properties panel shown on the picked member
+	 * (or joint) with its section in view; with nothing of that kind picked, how to pick one.
+	 */
+	showReleases(kind: 'element' | 'node'): void {
+		if (this.selection?.kind !== kind) {
+			this.notificationService.info(kind === 'element'
+				? localize('femEditor.pickMember', "Pick a member in the 3D view first: its end releases show in the Properties panel.")
+				: localize('femEditor.pickJoint', "Pick a joint in the 3D view first (Mesh Nodes shows them all): its point spring shows in the Properties panel."));
+			return;
+		}
+		this.frame?.setPropertiesVisible(true);
+		this.renderProperties();
+		this.releasesSection?.scrollIntoView({ block: 'nearest' });
+		this.releasesSection?.querySelector('input')?.focus();
 	}
 
 	/**
