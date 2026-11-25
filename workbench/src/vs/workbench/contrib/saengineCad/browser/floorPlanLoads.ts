@@ -25,7 +25,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyRow, appendPropertyNote, applyPropertyOnCommit } from '../../saengineProject/browser/editorFrame.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { allPatterns, ILoadPattern, PATTERN_ID, patternLabel } from '../../../services/saengineProject/common/loadPatterns.js';
+import { allPatterns, BUILT_IN_PATTERNS, ILoadPattern, PATTERN_ID, patternLabel, reservedPatternId } from '../../../services/saengineProject/common/loadPatterns.js';
 import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
 import { familyOf, masterOf } from './floorPlanTypical.js';
 
@@ -194,8 +194,9 @@ function readableLoad(l: Json): boolean {
 	if (typeof l.id !== 'string' || typeof l.story !== 'string' || typeof l.member !== 'string') {
 		return false;
 	}
-	if (l.case !== undefined && (typeof l.case !== 'string' || !PATTERN_ID.test(l.case))) {
-		return false; // any load pattern's id (the analysis notes one the project lacks)
+	if (l.case !== undefined && (typeof l.case !== 'string' || !PATTERN_ID.test(l.case)
+		|| (reservedPatternId(l.case) && !BUILT_IN_PATTERNS.some(p => p.id === l.case)))) {
+		return false; // a built-in case or a load pattern's id (the analysis notes one the project lacks), never a code the program forms itself (WX, EX, LP1, ...)
 	}
 	if (l.kind === 'point') {
 		return num(l.value) !== undefined && (l.distance === undefined || num(l.distance) !== undefined);
