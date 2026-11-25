@@ -2949,7 +2949,12 @@ def _derive_fem(
         b.notes.append(summary["seismicWeight"]["note"])
 
     # ── simple connections: pinned member ends (after the loads and diaphragms) ──
-    pins = _release_simple_ends(b, simple_ends)
+    # #303: the engineer's point springs and end releases go the same way.
+    grounded, held = _point_springs(b, building)
+    for constraint in constraints:
+        for n in constraint["constrained_nodes"]:
+            held.setdefault(n, set()).update((0, 1, 5))
+    pins = _release_simple_ends(b, simple_ends, _end_releases(building), held)
 
     # ── end offsets: rigid end zones, forces at the support faces (saengine.fem.end_zones) ──
     faces = None
@@ -3045,11 +3050,14 @@ def _derive_fem(
                 "material_id": solid.material,
             }
         )
-    for source, node_id, twin, material_ids, dofs in pins:
+    for source, node_id, twin, material_ids, dofs in [
+        *((f"{s}/pin", n, t, m, d) for s, n, t, m, d in pins),
+        *((f"{s}/spring", n, t, m, d) for s, n, t, m, d in grounded),
+    ]:
         elements.append(
             {
                 "id": len(elements) + 1,
-                "name": name(f"{source}/pin"),
+                "name": name(source),
                 "type": "ZeroLength",
                 "nodes": [node_id, twin],
                 "material_ids": material_ids,
@@ -5496,25 +5504,92 @@ PIN_TRANSLATION = 1e13
 PIN_TORSION = 1e12
 
 
+#: The member end actions (member axes 1-2-3: P, V2, V3, T, M2, M3) a simple steel connection
+#: releases: T, M2 and M3 (it passes shear and axial force, no moment).
+_SIMPLE_RELEASE = {3: 0.0, 4: 0.0, 5: 0.0}
+#: kN/m and kN·m/rad (end releases' and point springs' springs) in N/m and N·m/rad.
+_KN = 1e3
+
+#: Released actions of a member's two ends (#303): source -> (its two end points [mm], the
+#: start's and the end's actions, index into P, V2, V3, T, M2, M3 -> 0 or a spring).
+Released = dict[str, tuple[tuple[np.ndarray, np.ndarray], dict[int, float], dict[int, float]]]
+#: Zero-length links: (source, joint node, other node, material ids, dofs 1-6).
+Links = list[tuple[str, int, int, list[int], list[int]]]
+
+
+class MechanismError(ValueError):
+    """End releases that leave part of the model free to move (#303): the model is not
+    derived, and the message says where and which release to remove."""
+
+
+def _nearest_axes(axes: np.ndarray) -> tuple[list[int], float]:
+    """The global axis (0 X, 1 Y, 2 Z) each of the member axes 1, 2, 3 (rows of ``axes``) is
+    analysed about, the permutation nearest them, and the smallest |cos| between a member axis
+    and its global one (1: aligned)."""
+    best = max(
+        itertools.permutations(range(3)),
+        key=lambda p: sum(abs(float(axes[m][p[m]])) for m in range(3)),
+    )
+    return list(best), min(abs(float(axes[m][best[m]])) for m in range(3))
+
+
 def _release_simple_ends(
-    b: _Builder, ends: dict[str, tuple[np.ndarray, np.ndarray]]
-) -> list[tuple[str, int, int, list[int], list[int]]]:
-    """Pin the ends of the members in ``ends`` (source -> its two end points, mm): the steel
-    beams and braces whose type has a simple connection (fin plate, end plate, gusset), which
-    transfers shear or axial force but no moment.
+    b: _Builder,
+    ends: dict[str, tuple[np.ndarray, np.ndarray]],
+    released: Released | None = None,
+    held: dict[int, set[int]] | None = None,
+) -> Links:
+    """Release member ends: the steel beams and braces in ``ends`` (source -> its two end
+    points, mm) whose type has a simple connection (fin plate, end plate, gusset), which
+    transfers shear or axial force but no moment; and the engineer's end releases in
+    ``released`` (#303, :func:`_end_releases`). An end's actions are indices into P, V2, V3, T,
+    M2, M3 (the member axes 1-2-3, :func:`member_axes`) -> 0 (released) or a spring [kN/m,
+    kN·m/rad] (partial fixity); an action not listed is fixed. ``held``: nodes -> the global
+    DOFs (0-5) something besides the members holds there (a rigid diaphragm, a point spring).
 
-    Each pinned end connects to a twin node at the joint's place instead of the joint's node;
-    a zero-length link (``ZeroLength``, named ``<member>/pin``) joins the two with stiff springs
-    in translation only, so no moment passes. (A link element, not an equal-DOF tie: a tie on
-    a floor node that a rigid diaphragm already constrains would be a chain of constraints,
-    which the Transformation handler does not enforce.) A member pinned at both ends keeps its
-    torsion at its first end (the spring about the global axis nearest its own), or it could
-    spin about its axis. An end stays rigid at a support (its reaction stays at the support
-    node) and where nothing else holds the joint's rotation (a free end).
+    Each released end connects to a twin node at the joint's place instead of the joint's
+    node; a zero-length link (``ZeroLength``, named ``<member>/pin``) joins the two with stiff
+    springs in the fixed actions and the partial fixity's springs, nothing in the released
+    ones. (A link element, not an equal-DOF tie: a tie on a floor node that a rigid diaphragm
+    already constrains would be a chain of constraints, which the Transformation handler does
+    not enforce.) The link's springs are along the global axes nearest the member's (exact for
+    members along the grid). A simple connection pinned at both ends keeps its torsion at its
+    first end, or it could spin about its axis; it stays rigid at a support (its reaction stays
+    at the support node) and where nothing else holds the joint's rotation (a free end). An
+    engineer's release is kept at a support too; one at a free end (nothing else meets the
+    joint) changes nothing and is left out.
 
-    Returns the links: ``(source, joint node, twin node, material ids, dofs)``; their two
-    elastic materials are added to the builder's materials."""
-    if not ends:
+    A joint only released member ends meet: a rotation nothing holds there is restrained
+    (nothing passes it), a translation nothing holds is a mechanism (:class:`MechanismError`),
+    as is a member released so it could move as a rigid body.
+
+    Returns the links: ``(source, joint node, twin node, material ids, dofs)``; their elastic
+    materials are added to the builder's materials."""
+    from saengine.library.bim import END_ACTIONS, EndRelease, MemberEndRelease, release_mechanisms
+
+    released = released or {}
+    held = held or {}
+    specs: dict[str, tuple[tuple[np.ndarray, np.ndarray], list[dict[int, float]], bool]] = {
+        source: (span, [dict(_SIMPLE_RELEASE), dict(_SIMPLE_RELEASE)], False)
+        for source, span in ends.items()
+    }
+    problems: list[str] = []
+    for source, (span, start, end) in released.items():
+        if source in specs:
+            b.notes.append(f"{source}: its end releases replace the simple connection's pins")
+        release = EndRelease(
+            id=source,
+            member=source,
+            start=MemberEndRelease(**{END_ACTIONS[k]: v for k, v in start.items()}),
+            end=MemberEndRelease(**{END_ACTIONS[k]: v for k, v in end.items()}),
+        )
+        problems += release_mechanisms(release)
+        specs[source] = (span, [start, end], True)
+    if problems:
+        raise MechanismError(
+            "end releases leave a mechanism: " + "; ".join(problems) + ". Remove a release."
+        )
+    if not specs:
         return []
     holds: dict[int, int] = {}
     for member in b.members:
@@ -5523,30 +5598,61 @@ def _release_simple_ends(
     for shell in b.shells:
         for n in shell.nodes:
             holds[n] = holds.get(n, 0) + 1
-    candidates: list[tuple[int, int, int]] = []  # (member index, 0: i / 1: j, node)
+    # (member index, 0: i / 1: j, node, the end's actions, the engineer's)
+    candidates: list[tuple[int, int, int, dict[int, float], bool]] = []
     for index, member in enumerate(b.members):
-        span = ends.get(member.source)
-        if span is None:
+        entry = specs.get(member.source)
+        if entry is None:
             continue
+        span, actions, user = entry
         for end, n in ((0, member.i), (1, member.j)):
             at = b.coords[n] / MM
-            if any(float(np.linalg.norm(at - p)) < 1.0 for p in span):
-                candidates.append((index, end, n))
-    for _, _, n in candidates:
+            for k, p in enumerate(span):
+                if actions[k] and float(np.linalg.norm(at - p)) < 1.0:
+                    candidates.append((index, end, n, actions[k], user))
+                    break
+    ends_at: dict[int, int] = {}
+    for _, _, n, _, _ in candidates:
         holds[n] -= 1
+        ends_at[n] = ends_at.get(n, 0) + 1
     twin_id = max(b.coords, default=0) + 1
-    links: list[list[Any]] = []  # [source, node, twin, dofs]
+    links: list[list[Any]] = []  # [source, node, twin, {dof 1-6: N/m or N·m/rad}]
     pinned: dict[str, list[tuple[int, int]]] = {}  # source -> [(member index, link)]
     kept: dict[str, list[str]] = {}
-    for index, end, n in candidates:
+    rigid_at: set[int] = set()
+    skewed: set[str] = set()
+    users: set[str] = set()
+    for index, end, n, actions, user in candidates:
         member = b.members[index]
         restraint = b.restraints.get(n) or [False] * 6
-        if any(restraint[:3]):
+        free = holds.get(n, 0) <= 0
+        if not user and any(restraint[:3]):
             kept.setdefault("at a support", []).append(member.source)
+            rigid_at.add(n)
             continue
-        if holds.get(n, 0) <= 0 and not any(restraint[3:]):
+        if not user and free and not any(restraint[3:]):
             kept.setdefault("at a free end", []).append(member.source)
+            rigid_at.add(n)
             continue
+        if user and free and ends_at[n] == 1 and not any(restraint) and not held.get(n):
+            b.notes.append(
+                f"{member.source}: its end release at a free end changes nothing; left out"
+            )
+            rigid_at.add(n)
+            continue
+        order, aligned = _nearest_axes(member_axes(np.array(b.member_axes(member))))
+        if aligned < 0.9995:
+            skewed.add(member.source)
+        stiffness: dict[int, float] = {}
+        for m in range(3):
+            for action, dof, penalty in (
+                (m, order[m] + 1, PIN_TRANSLATION),
+                (3 + m, order[m] + 4, PIN_TORSION),
+            ):
+                if action not in actions:
+                    stiffness[dof] = penalty
+                elif actions[action] > 0:
+                    stiffness[dof] = actions[action] * _KN
         twin = twin_id
         twin_id += 1
         b.coords[twin] = b.coords[n].copy()
@@ -5554,20 +5660,29 @@ def _release_simple_ends(
             member.i = twin
         else:
             member.j = twin
-        links.append([member.source, n, twin, [1, 2, 3]])
+        links.append([member.source, n, twin, dict(sorted(stiffness.items()))])
         pinned.setdefault(member.source, []).append((index, len(links) - 1))
-    for items in pinned.values():
-        if len(items) < 2:
+        if user:
+            users.add(member.source)
+    for source, items in pinned.items():
+        if len(items) < 2 or source in users:
             continue
         index, link = items[0]
         member = b.members[index]
         axis = np.abs(b.coords[member.j] - b.coords[member.i])
-        links[link][3] = [1, 2, 3, 4 + int(np.argmax(axis))]
+        links[link][3][4 + int(np.argmax(axis))] = PIN_TORSION
+        links[link][3] = dict(sorted(links[link][3].items()))
     for why, sources in kept.items():
         names = sorted(set(sources))
         b.notes.append(
             f"simple connections: {len(sources)} end(s) analysed rigid {why} "
             f"(e.g. {', '.join(names[:5])}); the design flags the moment there"
+        )
+    _hold_released_joints(b, links, holds, rigid_at, held)
+    if skewed:
+        b.notes.append(
+            "released or pinned ends: members not along the global axes are released about "
+            "the global axes nearest their own (approximate), e.g. " + ", ".join(sorted(skewed)[:5])
         )
     if not links:
         return []
@@ -5584,14 +5699,150 @@ def _release_simple_ends(
     b.materials.append(
         {"id": torsion, "name": "pinned end, torsion", "type": "Elastic", "E": PIN_TORSION}
     )
-    b.notes.append(
-        f"simple connections: {len(links)} member end(s) of {len(pinned)} steel member(s) "
-        "pinned (no end moment), e.g. " + ", ".join(sorted(pinned)[:5])
-    )
+    material_of = {PIN_TRANSLATION: translation, PIN_TORSION: torsion}
+    for _, _, _, stiffness in links:
+        for value in stiffness.values():
+            if value not in material_of:
+                material_of[value] = len(b.materials) + 1
+                b.materials.append(
+                    {
+                        "id": material_of[value],
+                        "name": "partial fixity",
+                        "type": "Elastic",
+                        "E": value,
+                    }
+                )
+    simple = sorted(set(pinned) - users)
+    if simple:
+        b.notes.append(
+            f"simple connections: {sum(len(pinned[s]) for s in simple)} member end(s) of "
+            f"{len(simple)} steel member(s) pinned (no end moment), e.g. " + ", ".join(simple[:5])
+        )
+    if users:
+        b.notes.append(
+            f"end releases: {sum(len(pinned[s]) for s in users)} member end(s) of {len(users)} "
+            "member(s) released, e.g. " + ", ".join(sorted(users)[:5])
+        )
     return [
-        (source, n, twin, [translation if d <= 3 else torsion for d in dofs], dofs)
-        for source, n, twin, dofs in links
+        (source, n, twin, [material_of[v] for v in stiffness.values()], list(stiffness))
+        for source, n, twin, stiffness in links
     ]
+
+
+def _hold_released_joints(
+    b: _Builder,
+    links: list[list[Any]],
+    holds: dict[int, int],
+    rigid_at: set[int],
+    held: dict[int, set[int]],
+) -> None:
+    """The joints only released member ends meet (:func:`_release_simple_ends`): a rotation
+    nothing holds there is restrained (nothing passes it, so it takes no reaction); a
+    translation nothing holds is a mechanism."""
+    covered: dict[int, set[int]] = {}
+    for _, n, _, stiffness in links:
+        if holds.get(n, 0) <= 0 and n not in rigid_at:
+            covered.setdefault(n, set()).update(d - 1 for d in stiffness)
+    restrained = 0
+    for n, dofs in covered.items():
+        restraint = b.restraints.get(n) or [False] * 6
+        dofs |= {d for d in range(6) if restraint[d]} | held.get(n, set())
+        loose = [d for d in range(3) if d not in dofs]
+        if loose:
+            x, y, z = (round(float(v) / MM) for v in b.coords[n])
+            raise MechanismError(
+                f"the joint at ({x}, {y}, {z}) mm is free to move in "
+                + ", ".join("XYZ"[d] for d in loose)
+                + ": every member end there releases it ("
+                + ", ".join(sorted({link[0] for link in links if link[1] == n}))
+                + "). Remove a release, or add a support or a point spring there."
+            )
+        turns = [d for d in range(3, 6) if d not in dofs]
+        if turns:
+            b.restraints[n] = [r or d in turns for d, r in enumerate(restraint)]
+            restrained += 1
+    if restrained:
+        b.notes.append(
+            f"end releases: {restrained} joint(s) where every member end releases a rotation "
+            "are held in that rotation (nothing passes it)"
+        )
+
+
+#: A joint's six DOFs by the names of a point spring's springs.
+_DOF_NAMES = ("UX", "UY", "UZ", "RX", "RY", "RZ")
+
+
+def _point_springs(b: _Builder, building: BuildingModel) -> tuple[Links, dict[int, set[int]]]:
+    """The point springs of the building model (#303): each joint's springs to a fixed ground
+    node at its place (``ZeroLength``, named ``<spring>/spring``), along the global axes, and
+    its support. Returns the links ``(spring id, joint node, ground node, material ids,
+    dofs)`` and the DOFs (0-5) they and the supports hold per joint."""
+    links: Links = []
+    held: dict[int, set[int]] = {}
+    for spring in building.additions.pointSprings:
+        key = tuple(round(v) for v in spring.at)
+        if key not in b.nodes:
+            b.notes.append(
+                f"{spring.id}: not at a member end or an area corner of the model; left out"
+            )
+            continue
+        n = b.nodes[key]
+        support = spring.restraint()
+        if any(support):
+            old = b.restraints.get(n) or [False] * 6
+            b.restraints[n] = [a or c for a, c in zip(old, support, strict=True)]
+        restraint = b.restraints.get(n) or [False] * 6
+        k = spring.stiffness()
+        dofs = [d for d in range(6) if k[d] > 0 and not restraint[d]]
+        # A spring in a direction the joint's support already holds would do nothing: say so.
+        idle = [_DOF_NAMES[d] for d in range(6) if k[d] > 0 and restraint[d]]
+        if idle:
+            b.notes.append(
+                f"{spring.id}: the joint's support already holds {', '.join(idle)};"
+                " the spring(s) there do nothing"
+            )
+        held.setdefault(n, set()).update({d for d in range(6) if restraint[d]} | set(dofs))
+        if not dofs:
+            continue
+        ground = max(b.coords) + 1
+        b.coords[ground] = b.coords[n].copy()
+        b.restraints[ground] = [True] * 6
+        ids = []
+        for d in dofs:
+            ids.append(len(b.materials) + 1)
+            b.materials.append(
+                {"id": ids[-1], "name": f"{spring.id} spring", "type": "Elastic", "E": k[d] * _KN}
+            )
+        links.append((spring.id, n, ground, ids, [d + 1 for d in dofs]))
+    if links:
+        b.notes.append(f"point springs: {len(links)} joint(s) on springs to the ground")
+    return links, held
+
+
+def _end_releases(building: BuildingModel) -> Released:
+    """The engineer's end releases (#303) for :func:`_release_simple_ends`. Only a member's
+    first release counts (the model check reports the others)."""
+    points: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for e in building.elements:
+        if isinstance(e, BeamElement):
+            z = float(e.elevation)
+            points[e.id] = (np.array([*e.start, z], float), np.array([*e.end, z], float))
+        elif isinstance(e, ColumnElement):
+            x, y = e.position
+            points[e.id] = (np.array([x, y, e.bottom], float), np.array([x, y, e.top], float))
+        elif isinstance(e, MemberElement):
+            points[e.id] = (np.array(e.start, float), np.array(e.end, float))
+    for m in building.additions.members:
+        points[m.id] = (np.array([m.x1, m.y1, m.z1], float), np.array([m.x2, m.y2, m.z2], float))
+    out: Released = {}
+    for release in building.additions.endReleases:
+        span = points.get(release.member)
+        if span is None or release.member in out:
+            continue
+        start, end = release.start.actions(), release.end.actions()
+        if start or end:
+            out[release.member] = (span, start, end)
+    return out
 
 
 def pinned_twins(project: dict[str, Any]) -> dict[int, int]:

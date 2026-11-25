@@ -843,22 +843,30 @@ def derive_fem(
         if soil_text is not None:
             stamps["soil"] = stamp(soil_text)
     from saengine.codes.registry import recording_tables
-    from saengine.fem.derive import CODE_TABLES_KEY, code_tables_text, sources_description
+    from saengine.fem.derive import (
+        CODE_TABLES_KEY,
+        MechanismError,
+        code_tables_text,
+        sources_description,
+    )
 
-    with recording_tables() as tables_read:
-        derivation = derive(
-            parsed["bim"],
-            parsed["objects"],
-            parsed["materials"],
-            settings,
-            stamps,
-            model_folder,
-            mep=mep if _has_content(mep) else None,
-            substructure=substructure,
-            soil_text=soil_text,
-            member_loads=member_loads if member_loads.loads else None,
-            architecture=architecture if has_loads(architecture) else False,
-        )
+    try:
+        with recording_tables() as tables_read:
+            derivation = derive(
+                parsed["bim"],
+                parsed["objects"],
+                parsed["materials"],
+                settings,
+                stamps,
+                model_folder,
+                mep=mep if _has_content(mep) else None,
+                substructure=substructure,
+                soil_text=soil_text,
+                member_loads=member_loads if member_loads.loads else None,
+                architecture=architecture if has_loads(architecture) else False,
+            )
+    except MechanismError as exc:  # #303: end releases that leave part of the model free
+        return {"problems": [f"Building model: {exc}"]}
     # The settings' stamp with the overrides of the code tables the derivation read only, and
     # those tables: a project override the analysis never reads (a ramp slope, φ) leaves the
     # model current (B10-32 of usability walk 3).

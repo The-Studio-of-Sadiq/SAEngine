@@ -807,9 +807,9 @@ def combination_results(
         return value
 
     def frame_like(element: int) -> bool:
-        """Not a pinned end's link (``<member>/pin``, fem.derive): its spring forces are not
-        member end forces."""
-        return not str(names.get(element, "")).split("#")[0].endswith("/pin")
+        """Not a pinned end's link (``<member>/pin``, fem.derive) or a point spring
+        (``<spring>/spring``): its spring forces are not member end forces."""
+        return not str(names.get(element, "")).split("#")[0].endswith(("/pin", "/spring"))
 
     # Tension-only members (saengine.fem.tension_only): their axial force per case.
     releases = to.release_cases(project)
@@ -964,7 +964,7 @@ def _seismic_entries(
             e
             for r in by_case.values()
             for e in r.element_forces
-            if not str(names.get(e, "")).split("#")[0].endswith("/pin")
+            if not str(names.get(e, "")).split("#")[0].endswith(("/pin", "/spring"))
         }
     )
     supports = sorted({n for r in by_case.values() for n in r.node_reaction})

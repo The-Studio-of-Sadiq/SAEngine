@@ -174,6 +174,9 @@ const ADDITION_LISTS: { readonly [list: string]: string } = {
 	stairs: 'ST',
 	members: 'M',
 	slabTendons: 'PT',
+	// #303: analysis-only additions, also edited in 8 FEM's Properties panel (End Releases…, Point Spring…)
+	endReleases: 'ER',
+	pointSprings: 'PS',
 };
 
 /** The schema definition of an entry of each additions list. */
@@ -183,6 +186,8 @@ const ADDITION_DEFINITIONS: { readonly [list: string]: string } = {
 	stairs: 'Stair',
 	members: 'InclinedMember',
 	slabTendons: 'SlabTendon',
+	endReleases: 'EndRelease',
+	pointSprings: 'PointSpring',
 };
 
 /** The parts of the building model that are generated, not edited in the Additions form. */
@@ -1196,6 +1201,8 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 			['stairs', localize('building.stairs', "Stairs")],
 			['members', localize('building.inclinedMembers', "Inclined members")],
 			['slabTendons', localize('building.slabTendons', "Slab tendons")],
+			['endReleases', localize('building.endReleases', "End releases")],
+			['pointSprings', localize('building.pointSprings', "Point springs")],
 		]) {
 			append(additionTable, $('span', undefined, label));
 			append(additionTable, $('span.number', undefined, String(Array.isArray(additions[list]) ? additions[list].length : 0)));
@@ -1563,7 +1570,12 @@ export class BuildingEditor extends JsonDocumentEditor implements IPartSectionPa
 					localize('building.noStaircaseType', "There is no staircase type in 04 Objects yet. Add one there, then pick it as this stair's object type."),
 					[{ label: localize('building.openObjects', "Open 04 Objects"), run: () => this.openObjects() }]);
 			}
-		} else {
+		} else if (name === 'endReleases') {
+			// The first member without releases yet (one entry per member).
+			const released = new Set(list.filter(isObject).map(r => r.member));
+			const members = [...this.elementIds('beam'), ...this.elementIds('column'), ...this.elementIds('member')];
+			item.member = members.find(m => !released.has(m)) ?? members[0] ?? item.member;
+		} else if (name !== 'pointSprings') {
 			item.type = first(this.typeIds(['brace', 'beam', 'column'])) ?? item.type;
 		}
 		return item;

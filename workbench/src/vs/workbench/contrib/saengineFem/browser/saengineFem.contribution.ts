@@ -827,6 +827,8 @@ function registerFemEditorCommand(
 registerFemEditorCommand('saengine.fem.deriveModel', localize2('saengine.fem.deriveModel', "Derive Analysis Model"), Codicon.symbolStructure, e => e.deriveModel());
 registerFemEditorCommand('saengine.fem.toggleMeshNodes', localize2('saengine.fem.toggleMeshNodes', "Toggle Mesh Nodes"), Codicon.circleSmallFilled, e => e.toggleMeshNodes());
 registerFemEditorCommand('saengine.fem.fitView', localize2('saengine.fem.fitView', "Zoom to Fit"), Codicon.screenFull, e => e.fitView());
+registerFemEditorCommand('saengine.fem.endReleases', localize2('saengine.fem.endReleases', "End Releases..."), Codicon.debugDisconnect, e => e.showReleases('element'));
+registerFemEditorCommand('saengine.fem.pointSpring', localize2('saengine.fem.pointSpring', "Point Spring..."), Codicon.pinned, e => e.showReleases('node'));
 registerFemEditorCommand('saengine.fem.toggleTables', localize2('saengine.fem.toggleTables', "Toggle Result Tables"), Codicon.table, e => e.toggleTables());
 registerFemEditorCommand('saengine.fem.exportResultTables', localize2('saengine.fem.exportResultTables', "Export Result Tables..."), Codicon.export, e => e.exportResultTables());
 registerFemEditorCommand('saengine.fem.exportAnimation', localize2('saengine.fem.exportAnimation', "Export Animation..."), Codicon.deviceCameraVideo, e => e.exportResultAnimation());
