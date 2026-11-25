@@ -129,6 +129,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
+	async setWindowBackgroundMaterial(material: 'acrylic' | 'none'): Promise<boolean> { return false; }
 	async updateWindowAccentColor(color: string): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }

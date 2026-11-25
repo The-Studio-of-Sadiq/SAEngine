@@ -182,6 +182,8 @@ const GROUP_LABELS: readonly [string, string][] = [
 	['Checks', localize('ribbon.grp.checks', "Checks")],
 	['Detailing', localize('ribbon.grp.detailing', "Detailing")],
 	['Standards', localize('ribbon.grp.standards', "Standards")],
+	// The Project tab's packages, updates and manuals: the catalog's own Standards group sits beside it.
+	['Manage', localize('ribbon.grp.manage', "Manage")],
 	// Foundations
 	['Shallow', localize('ribbon.grp.shallow', "Shallow Foundations")],
 	['Sizing', localize('ribbon.grp.sizing', "Sizing")],
@@ -297,6 +299,7 @@ const GROUP_PRIORITIES: readonly [string, number][] = [
 	['SyncAndWorksharing', 70],
 	['LiveCoEditing', 60],
 	['Standards', 50],
+	['Manage', 50],
 	['OfficeServer', 40],
 	['AIControl', 30],
 	['Automation', 20],
@@ -520,14 +523,14 @@ addSubItem(RibbonSubmenus.CollabLive, '1_live', 3, 'saengine.collaboration.stop'
 addSubItem(RibbonSubmenus.CollabLive, '2_relay', 1, 'saengine.collaboration.hostRelay', localize('rib.collab.hostRelay', "Host Co-Editing Relay"), Codicon.server, { precondition: relayHosted.negate() });
 addSubItem(RibbonSubmenus.CollabLive, '2_relay', 2, 'saengine.collaboration.stopRelay', localize('rib.collab.stopRelay', "Stop Hosting Relay"), Codicon.debugStop, { precondition: relayHosted });
 
-addSubmenu(RibbonMenus.Project, '4_Standards', 1, RibbonSubmenus.ManagePackages, localize('rib.manage.packages', "Packages"), Codicon.package, 'large', true, 'saengine.packages.show');
+addSubmenu(RibbonMenus.Project, '4_Manage', 1, RibbonSubmenus.ManagePackages, localize('rib.manage.packages', "Packages"), Codicon.package, 'large', true, 'saengine.packages.show');
 addSubItem(RibbonSubmenus.ManagePackages, '1_pkg', 1, 'saengine.packages.show', localize('rib.manage.showPackages', "Packages..."), Codicon.package);
 addSubItem(RibbonSubmenus.ManagePackages, '1_pkg', 2, 'saengine.codePacks.new', localize('rib.manage.newCodePack', "New Code Pack..."), Codicon.newFile);
 addSubItem(RibbonSubmenus.ManagePackages, '1_pkg', 3, 'saengine.codePacks.install', localize('rib.manage.installPkg', "Install Package from File..."), Codicon.cloudDownload);
-addItem(RibbonMenus.Project, '4_Standards', 2, 'saengine.showPlannedFeatures', localize('rib.manage.planned', "Planned Features"), Codicon.lightbulb, 'small');
-addItem(RibbonMenus.Project, '4_Standards', 3, 'saengine.components.show', localize('rib.manage.components', "Installer Components"), Codicon.extensions, 'small');
-addItem(RibbonMenus.Project, '4_Standards', 4, 'saengine.update.check', localize('rib.manage.updates', "Check Updates"), Codicon.refresh, 'small');
-addItem(RibbonMenus.Project, '4_Standards', 5, 'saengine.manage.verificationManual', localize('rib.manage.verificationManual', "Verification Manual (PDF)"), Codicon.filePdf, 'small');
+addItem(RibbonMenus.Project, '4_Manage', 2, 'saengine.showPlannedFeatures', localize('rib.manage.planned', "Planned Features"), Codicon.lightbulb, 'small');
+addItem(RibbonMenus.Project, '4_Manage', 3, 'saengine.components.show', localize('rib.manage.components', "Installer Components"), Codicon.extensions, 'small');
+addItem(RibbonMenus.Project, '4_Manage', 4, 'saengine.update.check', localize('rib.manage.updates', "Check Updates"), Codicon.refresh, 'small');
+addItem(RibbonMenus.Project, '4_Manage', 5, 'saengine.manage.verificationManual', localize('rib.manage.verificationManual', "Verification Manual (PDF)"), Codicon.filePdf, 'small');
 
 addItem(RibbonMenus.Project, '5_OfficeServer', 1, 'saengine.officeServer.run', localize('rib.manage.runServer', "Run on Server"), Codicon.server, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.Project, '5_OfficeServer', 2, 'saengine.officeServer.check', localize('rib.manage.checkServer', "Check Server"), Codicon.pass, 'small');

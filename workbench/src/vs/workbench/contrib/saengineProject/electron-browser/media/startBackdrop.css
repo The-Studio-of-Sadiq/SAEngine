@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) SAEngine contributors. All rights reserved.
+ *  Licensed under the AGPL-3.0-only license. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The Start page on the Windows 11 acrylic backdrop (body.saengine-acrylic, set only while no
+ * project is open and the OS shows the material). The window itself is transparent; the
+ * workbench lays one light tint of the theme's own background over the frosted desktop, and the
+ * layers above it (title bar, editor area, Start page) let it through.
+ */
+
+body.saengine-acrylic,
+body.saengine-acrylic .monaco-workbench {
+	background-color: transparent !important;
+}
+
+body.saengine-acrylic .monaco-workbench {
+	/* the theme's background, thinned: dark stays dark and light stays light, text keeps its contrast */
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 62%, transparent) !important;
+}
+
+/* The OS material follows the Windows app mode (often light): a dark theme needs a deeper tint to keep muted text readable. */
+body.saengine-acrylic .monaco-workbench.vs-dark {
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 82%, transparent) !important;
+}
+
+body.saengine-acrylic .monaco-workbench .monaco-grid-view,
+body.saengine-acrylic .monaco-workbench .part.titlebar,
+body.saengine-acrylic .monaco-workbench .part.titlebar > .titlebar-container,
+body.saengine-acrylic .monaco-workbench .part.editor,
+body.saengine-acrylic .monaco-workbench .part.editor > .content,
+body.saengine-acrylic .monaco-workbench .part.editor .editor-group-container,
+body.saengine-acrylic .monaco-workbench .part.editor .editor-group-container > .editor-container,
+body.saengine-acrylic .monaco-workbench .part.editor .split-view-view,
+body.saengine-acrylic .monaco-workbench .saengine-start {
+	background-color: transparent !important;
+}
+
+/* The search box in the title bar: frosted like the window, its border keeps it findable. */
+body.saengine-acrylic .monaco-workbench .part.titlebar .command-center .action-item.command-center-center {
+	background-color: color-mix(in srgb, var(--vscode-commandCenter-background) 55%, transparent) !important;
+}
+
+/* Rows and buttons on the Start page: a faint wash instead of the solid list hover. */
+body.saengine-acrylic .saengine-start .action:hover,
+body.saengine-acrylic .saengine-start .recent-project:hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+body.saengine-acrylic .saengine-start .credits {
+	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+/* Contrast first: the solid look wherever the user or the theme asks for it. */
+@media (prefers-reduced-transparency: reduce) {
+	body.saengine-acrylic .monaco-workbench {
+		background-color: var(--vscode-editor-background) !important;
+	}
+}
+
+body.saengine-acrylic .monaco-workbench.hc-black,
+body.saengine-acrylic .monaco-workbench.hc-light {
+	background-color: var(--vscode-editor-background) !important;
+}
