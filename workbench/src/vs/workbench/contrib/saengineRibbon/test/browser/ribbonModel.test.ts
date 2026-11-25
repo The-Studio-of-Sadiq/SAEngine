@@ -16,6 +16,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { CAD_DRAFT_COMMANDS, DRAFT_RIBBON_GROUPS, DraftRibbonSubmenus } from '../../../saengineCad/browser/cadDraftCommands.js';
 import '../../../saengineCad/browser/cadDraftRibbon.contribution.js';
 import '../../browser/ribbonActions.contribution.js';
+import { CATALOG_GROUPS } from '../../browser/ribbonCatalog.generated.js';
 import {
 	collectControlCollapsedActions,
 	controlVisibilitySignature,
@@ -35,6 +36,7 @@ import {
 	getRibbonGroupWhen,
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
+	isRibbonHidden,
 	packRibbonColumns,
 	parseRibbonGroup,
 	registerRibbonCustomGroup,
@@ -50,6 +52,7 @@ import {
 	SAENGINE_DATA_PANEL_PART_CONTEXT,
 	SAENGINE_SUB_VIEW_CONTEXT,
 	SAENGINE_EDITOR_IDS,
+	SAENGINE_PROJECT_OPEN_CONTEXT,
 } from '../../browser/ribbonRegistry.js';
 
 const fakeContextKeyService = {
@@ -225,6 +228,38 @@ suite('SAEngine - ribbon model', () => {
 			}
 		}
 		assert.ok(RIBBON_TABS.find(t => t.id === 'draft')?.contextualTag);
+	});
+
+	test('isRibbonHidden hides the ribbon on the Start page only while no project is open', () => {
+		const start = 'workbench.editor.saengine.start';
+		const hidden = (editorId: string, projectOpen: boolean) => isRibbonHidden(contextFor({
+			[ActiveEditorContext.key]: editorId,
+			[SAENGINE_PROJECT_OPEN_CONTEXT]: projectOpen,
+		}));
+		assert.strictEqual(hidden(start, false), true);
+		assert.strictEqual(hidden('', false), true, 'no editor, no project');
+		assert.strictEqual(hidden(start, true), false);
+		assert.strictEqual(hidden(SAENGINE_EDITOR_IDS.overview, true), false);
+		// Windows that work without a project keep their contextual tabs.
+		assert.strictEqual(hidden(SAENGINE_EDITOR_IDS.settings, false), false);
+		assert.strictEqual(hidden(SAENGINE_EDITOR_IDS.library, false), false);
+	});
+
+	test('the Project tab shows each group label once', () => {
+		const labelByKey = new Map<string, string>();
+		for (const item of MenuRegistry.getMenuItems(RibbonMenus.Project)) {
+			if (item.group) {
+				const { key, label } = parseRibbonGroup(item.group, getRibbonGroupLabel);
+				labelByKey.set(key, label);
+			}
+		}
+		for (const group of CATALOG_GROUPS) {
+			if (group.tab === 'project') {
+				labelByKey.set(group.key, group.label);
+			}
+		}
+		const labels = [...labelByKey.values()];
+		assert.deepStrictEqual(labels.filter((label, i) => labels.indexOf(label) !== i), []);
 	});
 
 	test('getVisibleRibbonTabs shows only contextual tabs for soil, floor plan, CAD, FEM and other editors', () => {

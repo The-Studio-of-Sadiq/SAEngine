@@ -337,7 +337,20 @@ export const PROJECT_TAB_WHEN: ContextKeyExpression = allOf([
 	anyOf([ActiveEditorContext.notEqualsTo(SAENGINE_EDITOR_IDS.dataPanel), NOT_SPECIALIZED_PANEL]),
 ]);
 
-export const FLOOR_PLAN_WHEN = ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.floorPlan);
+/** Set by the project service while a SAEngine project is open (plain string: no cross-contrib import). */
+export const SAENGINE_PROJECT_OPEN_CONTEXT = 'saengineProjectOpen';
+
+/**
+ * The ribbon hides on the Start page (and with no editor) while no project is open: every Home,
+ * Project and Overview button there needs a project. A window that works without a project
+ * (Settings, Library, Packages) keeps its own contextual tabs.
+ */
+export const RIBBON_HIDDEN_WHEN: ContextKeyExpression = allOf([
+	ContextKeyExpr.not(SAENGINE_PROJECT_OPEN_CONTEXT),
+	PROJECT_TAB_WHEN,
+]);
+
+export const FLOOR_PLAN_WHEN =ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.floorPlan);
 export const CAD_ONLY_WHEN = ActiveEditorContext.isEqualTo(SAENGINE_EDITOR_IDS.cad);
 export const DRAFT_WHEN = editorWhen([SAENGINE_EDITOR_IDS.floorPlan, SAENGINE_EDITOR_IDS.cad]);
 export const SOIL_WHEN = editorWhen([SAENGINE_EDITOR_IDS.soil], 'soil');
@@ -1065,6 +1078,11 @@ export function resolveDataPanelSubView(panelId: string | undefined): string {
 }
 
 /** Returns the ribbon tabs whose `when` rule matches the current context key state. */
+/** Whether the whole ribbon hides (see {@link RIBBON_HIDDEN_WHEN}). */
+export function isRibbonHidden(contextKeyService: Pick<IContextKeyService, 'contextMatchesRules'>): boolean {
+	return contextKeyService.contextMatchesRules(RIBBON_HIDDEN_WHEN);
+}
+
 export function getVisibleRibbonTabs(
 	contextKeyService: Pick<IContextKeyService, 'contextMatchesRules'>,
 	tabs: readonly IRibbonTabDescriptor[] = RIBBON_TABS,
