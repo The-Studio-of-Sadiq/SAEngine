@@ -224,6 +224,10 @@ jobs:
           npm_config_arch: ${{ env.NPM_ARCH }}
           npm_config_foreground_scripts: 'true'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          # #275: MSBuild reads environment variables as properties; UseEnv makes the C++ targets
+          # link with the developer environment's LIB (set above) instead of their own library
+          # path, which did not hold delayimp.lib on this runner.
+          UseEnv: 'true'
 
       # The @saengine/* packages are file:../packages/* junctions: kept out of the archive (it
       # would store a stale copy of the packages) and made again after an extract.
