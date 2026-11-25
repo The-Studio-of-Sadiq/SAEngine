@@ -10,8 +10,9 @@ distinct profiles but thousands of elements, and the analysis model, the design 
 others all ask for them (the answer is cached by the profile's dimensions; a designed section
 by its whole definition, so editing it gives a new entry). The answers are also kept on disk
 (:func:`cache_folder`), so the next derivation, in this project or another with the same
-profiles, reads them instead of solving again, and :func:`prefetch_section_properties` solves
-the distinct profiles a building still needs in parallel processes.
+profiles, reads them instead of solving again. The solves run one by one where first used: a
+profile takes about 0.2 s, and parallel processes (SAENGINE_SECTION_JOBS until #277) saved about
+2 s on 60 new profiles while a worker sometimes died on 20- and 30-storey buildings.
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -214,50 +214,6 @@ def _properties(key: str) -> SectionProperties:
         found = _solve(key)
         _write_cached(key, found)
     return _remember(key, found)
-
-
-#: ``SAENGINE_SECTION_JOBS``: the processes :func:`prefetch_section_properties` may start. Off
-#: (1) by default: on the 20- and 30-storey benchmarks a worker of the pool died ("the handle is
-#: invalid") on a loaded Windows machine; the disk cache alone already spares the solves of every
-#: derivation after the first.
-JOBS_ENV = "SAENGINE_SECTION_JOBS"
-
-
-def prefetch_section_properties(profiles: Iterable[o.Profile]) -> None:
-    """Works out the properties of ``profiles`` that are neither known nor kept on disk, in
-    parallel processes (``SAENGINE_SECTION_JOBS`` of them) when there are several (each is a
-    finite-element solve of seconds), so the next :func:`section_properties` calls find them.
-    Leaves them to be solved one by one where first used when the variable is unset or the
-    processes fail."""
-    keys: list[str] = []
-    for profile in profiles:
-        try:
-            key = profile_key(profile)
-        except Exception:  # noqa: BLE001, S112 - an unresolvable profile fails where it is used
-            continue
-        if key in _MEMO or key in keys:
-            continue
-        cached = _read_cached(key)
-        if cached is not None:
-            _remember(key, cached)
-        else:
-            keys.append(key)
-    allowed = os.environ.get(JOBS_ENV, "").strip()
-    jobs = min(len(keys), int(allowed) if allowed.isdigit() else 1)
-    if jobs < 2:
-        return  # one or none: solved where it is first used
-    from concurrent.futures import ProcessPoolExecutor
-
-    try:
-        with ProcessPoolExecutor(max_workers=jobs) as pool:
-            solved = list(pool.map(_solve, keys))
-    except Exception:  # noqa: BLE001
-        # Processes that could not start or died, or a profile that fails to solve: each is
-        # solved (or fails, with its own message) where it is first used.
-        return
-    for key, props in zip(keys, solved, strict=True):
-        _write_cached(key, props)
-        _remember(key, props)
 
 
 def profile_key(profile: o.Profile) -> str:
