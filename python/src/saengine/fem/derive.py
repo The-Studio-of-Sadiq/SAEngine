@@ -1503,6 +1503,8 @@ def _derive_fem(
     for p in user_patterns:
         patterns[p.id] = {"nodal": {}, "element": {}}
     own_weight = [(p.id, float(p.selfWeight)) for p in user_patterns if p.selfWeight]
+    # The live loads the arrangements copy: L and the project's Live-type patterns.
+    arranged_cases = {"L", *lp.arranged_patterns(settings)}
     node_weight: dict[int, float] = {}  # N, D + SD + share of L, for masses and lateral forces
 
     # Construction sequence: the self-weight (D) also goes, per element, to the stage of the
@@ -1533,7 +1535,7 @@ def _derive_fem(
         return stage_of(max(float(b.coords[n][2]) for n in node_ids))
 
     # Live load arrangements (analysis.patternLive, saengine.fem.pattern_live): every live load
-    # (case L) is logged with the point that places it in a bay (``live_at``: a shell's centre,
+    # (case L and the project's Live-type load patterns, issue #301) is logged with the point that places it in a bay (``live_at``: a shell's centre,
     # a slab panel's centroid; else the node or the member's middle) [mm], and copied into the
     # arrangement cases once all loads are in.
     live_log: list[tuple[str, int, np.ndarray, tuple[float, float, float]]] = []
@@ -1550,7 +1552,7 @@ def _derive_fem(
         local = np.array([vector @ x, vector @ y, vector @ z])
         total = patterns[case]["element"].setdefault(index, np.zeros(3))
         total += local
-        if case == "L":
+        if case in arranged_cases:
             log_live("element", index, local, (b.coords[member.i] + b.coords[member.j]) / 2)
         if staged and case == "D":
             stage = stage_patterns.setdefault(
@@ -1562,7 +1564,7 @@ def _derive_fem(
         """A nodal force (global N); ``stage``: the construction stage of the element it comes
         from (by default the stage of the node's level)."""
         patterns[case]["nodal"].setdefault(node_id, np.zeros(6))[:3] += force
-        if case == "L":
+        if case in arranged_cases:
             log_live("nodal", node_id, np.asarray(force, dtype=float), b.coords[node_id])
         if staged and case == "D":
             k = stage if stage is not None else top_stage((node_id,))
@@ -5893,6 +5895,7 @@ def _live_arrangements(
     Returns the arrangements kept (they carry no seismic weight and no construction stage)."""
     from saengine.design import slab_systems
     from saengine.fem import pattern_live
+    from saengine.library import load_patterns as lp
 
     if mode == "off" or not live_log:
         return []
@@ -5976,6 +5979,12 @@ def _live_arrangements(
             f"live load arrangements: {len(renamed)} cases LP1-LP{len(renamed)} ("
             + (f"{ref}: " if (ref := code_context.cite("concrete", "patternLive")) else "")
             + "adjacent and alternate bays of the column grid; the design envelopes them with "
-            "the full live load L)"
+            "the full live load L"
+            + (
+                f"; the Live-type load patterns {', '.join(arranged)} are arranged with L"
+                if (arranged := lp.arranged_patterns(settings))
+                else ""
+            )
+            + ")"
         )
     return renamed

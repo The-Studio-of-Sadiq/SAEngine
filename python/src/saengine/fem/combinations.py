@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -494,27 +494,51 @@ def wind_case_combinations(
     return out
 
 
+def _lateral(combination: LoadCombination, letters: str) -> bool:
+    """Whether ``combination`` has a program case starting with one of ``letters`` (W wind, E
+    earthquake, R response spectrum). The project's own load patterns are not looked at by name
+    (issue #301: an "EQP" equipment pattern is no earthquake case)."""
+    own = set(getattr(combination, "patterns", None) or {})
+    return any(case[:1] in letters and case not in own for case in combination_factors(combination))
+
+
 def pattern_live_combinations(
-    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+    combinations: list[LoadCombination],
+    present: set[str] | frozenset[str],
+    arranged: Iterable[str] = (),
+    skipped: list[str] | None = None,
 ) -> list[LoadCombination] | None:
     """The project's combinations followed by, for each gravity combination with live load
     (no wind or earthquake), one per live load arrangement the model has (cases LP1, LP2 ...,
     :mod:`saengine.fem.pattern_live`, the default pack's Part 6 Sec 6.1.12.2) with the live case L
     replaced by the arrangement's case at the same factor, named "<name> [LPk]". None when the
-    model has no arrangements."""
+    model has no arrangements.
+
+    ``arranged``: the project's Live-type load patterns (issue #301,
+    :func:`saengine.library.load_patterns.arranged_patterns`), whose loads the arrangement cases
+    hold with L's. They are replaced too, so a combination is arranged only when it gives each of
+    them L's factor; the names of the others go to ``skipped``."""
     arrangements = sorted(
         (c for c in present if c.startswith("LP") and c[2:].isdigit()), key=lambda c: int(c[2:])
     )
     if not arrangements:
         return None
+    live_patterns = [pid for pid in arranged if pid in present]
     out = list(combinations)
     for combination in combinations:
         if combination.L <= 0:
             continue
         # Lateral: wind (W*), earthquake (E*) or response spectrum (R*) cases.
-        if any(case[:1] in "WER" for case in combination_factors(combination)):
+        if _lateral(combination, "WER"):
+            continue
+        own = dict(getattr(combination, "patterns", None) or {})
+        if any(abs(own.get(pid, 0.0) - combination.L) > 1e-9 for pid in live_patterns):
+            if skipped is not None:
+                skipped.append(combination.name)
             continue
         data = combination.model_dump(by_alias=True)
+        if live_patterns:
+            data["patterns"] = {k: v for k, v in own.items() if k not in live_patterns}
         for case in arrangements:
             out.append(
                 CaseCombination(
@@ -562,7 +586,7 @@ def crane_combinations(
         factor = float(getattr(combination, rule.factorOf, 0) or 0)
         if factor <= 0:
             continue
-        lateral = any(case[:1] in "WE" for case in combination_factors(combination))
+        lateral = _lateral(combination, "WE")
         sets = rule.lateral if lateral else rule.gravity
         data = combination.model_dump(by_alias=True)
         for crane, position, side in keys:

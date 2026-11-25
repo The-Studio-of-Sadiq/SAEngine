@@ -903,8 +903,20 @@ export class FloorPlanLoadsFile extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	/** Every load pattern a load may go to: the built-in ones, then the project's own (as saved). */
+	/**
+	 * Every load pattern a load may go to: the built-in ones, then the project's own. While Project
+	 * Settings has the file open, its text as edited (patterns added but not yet saved); else the
+	 * saved file.
+	 */
 	patterns(): readonly ILoadPattern[] {
+		const open = this.settings ? this.textFileService.files.get(this.settings)?.textEditorModel : undefined;
+		if (open) {
+			try {
+				return allPatterns(JSON.parse(open.getValue()));
+			} catch {
+				// Mid-edit text that is not JSON: the saved patterns.
+			}
+		}
 		return this.loadPatterns;
 	}
 

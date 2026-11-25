@@ -305,3 +305,138 @@ def test_area_other_load_and_self_weight_multiplier() -> None:
     # 6 m × 5 m panel (column-line to column-line): 2 kN/m² over it.
     assert -_applied(project, "EQP") / 1e3 == pytest.approx(2.0 * 6.0 * 5.0, rel=0.02)
     assert _applied(project, "SW2") == pytest.approx(2.0 * _applied(project, "D"), rel=0.02)
+
+
+# ── live load arrangements ──
+
+
+def test_live_pattern_loads_are_arranged_with_l() -> None:
+    """A point load in a Live-type pattern goes into the arrangement cases whose bays hold it
+    (bay 1: LP1 alternate 1 and 3, LP3 adjacent 1-2), not into the others; an Other-type
+    pattern's load stays out of them."""
+    import numpy as np
+
+    from saengine.fem.derive import derive_fem
+    from saengine.fem.end_zones import element_offsets
+    from saengine.library import default_material_library
+    from tests.test_correctness_wiring import _three_bays_two_storeys
+    from tests.test_line_loads import loads
+
+    building, objects = _three_bays_two_storeys()
+    point = {
+        "id": "PUMP",
+        "story": "L1",
+        "member": "BAB1L1",
+        "kind": "point",
+        "value": P_KN,
+        "distance": 2500,
+    }
+
+    def totals(pattern: LoadPattern) -> dict[str, float]:
+        settings = with_patterns(default_project_settings("Arrangements"), pattern)
+        member_loads = loads({**point, "case": pattern.id})
+        project = derive_fem(
+            building,
+            objects,
+            default_material_library(),
+            settings,
+            {"b": "x"},
+            member_loads=member_loads,
+        ).project
+        coords = {n["id"]: np.array(n["coords"]) for n in project["nodes"]}
+        elements = {e["id"]: e for e in project["elements"]}
+        out = {}
+        for p in project["load_patterns"]:
+            total = sum(n["forces"][2] for n in p["nodal_loads"])
+            for load in p["element_loads"]:
+                element = elements[load["element_id"]]
+                a, c = (coords[k] for k in element["nodes"])
+                length = float(np.linalg.norm(c - a)) - sum(element_offsets(element))
+                total += load["wz"] * length
+            out[p["name"]] = total
+        return out
+
+    live = totals(LoadPattern(id="EQL", name="Equipment", type="Live"))
+    other = totals(LoadPattern(id="EQO", name="Equipment", type="Other"))
+    assert live["EQL"] / 1e3 == pytest.approx(-P_KN, rel=1e-9)
+    for case, change in (("LP1", -P_KN), ("LP2", 0.0), ("LP3", -P_KN), ("LP4", 0.0)):
+        assert (live[case] - other[case]) / 1e3 == pytest.approx(change, abs=1e-6), case
+
+
+def test_arrangement_combinations_replace_live_patterns() -> None:
+    """The arrangement combinations replace L and the Live-type patterns by LPk at L's factor;
+    a combination giving such a pattern another factor is not arranged and is reported."""
+    from saengine.fem.combinations import pattern_live_combinations
+
+    present = {"D", "L", "EQL", "LP1", "LP2"}
+    same = LoadCombination(name="1.2D + 1.6L", D=1.2, L=1.6, patterns={"EQL": 1.6})
+    other = LoadCombination(name="1.2D + 1.0L", D=1.2, L=1.0, patterns={"EQL": 1.6})
+    skipped: list[str] = []
+    formed = pattern_live_combinations([same, other], present, ["EQL"], skipped)
+    assert formed is not None
+    assert skipped == ["1.2D + 1.0L"]
+    arranged = [c for c in formed if "[LP" in c.name]
+    assert [c.name for c in arranged] == ["1.2D + 1.6L [LP1]", "1.2D + 1.6L [LP2]"]
+    assert combination_factors(arranged[0], present) == {"D": 1.2, "SD": 1.2, "LP1": 1.6}
+    # Without Live-type patterns, as before.
+    plain = pattern_live_combinations([other], present)
+    assert plain is not None and [c.name for c in plain][1:] == [
+        "1.2D + 1.0L [LP1]",
+        "1.2D + 1.0L [LP2]",
+    ]
+
+
+# ── exporters ──
+
+
+def test_exporters_write_the_patterns() -> None:
+    """The e2k file declares the project's patterns (type, self-weight), their member and area
+    loads, their mass share and their combination factors; the neutral model behind the SAP,
+    SAF and STAAD files gives each its type's kind."""
+    from saengine.exporters.analytical import from_osmodel
+    from saengine.exporters.etabs import write_e2k
+    from saengine.fem.derive import derive_fem
+    from saengine.library import default_material_library
+    from saengine.library.bim import generate
+    from tests.test_line_loads import OBJECTS, loads, plan
+
+    base = default_project_settings("Bay")
+    data = base.model_dump(mode="json", by_alias=True)
+    data["areaLoads"] = [{**a, "otherLoad": 2.0, "otherPattern": "SWX"} for a in data["areaLoads"]]
+    data["loadPatterns"] = [
+        LoadPattern(id="EQL", name="Equipment", type="Live").model_dump(),
+        LoadPattern(id="SWX", name="Extra dead", type="Dead", selfWeight=0.5).model_dump(),
+    ]
+    data["combinations"] = [
+        {"name": "1.2D + 1.6EQL", "D": 1.2, "patterns": {"EQL": 1.6, "SWX": 1.2}},
+    ]
+    settings = ProjectSettings.model_validate(data)
+    building = generate(plan(), "s")
+    member_loads = loads(
+        {
+            "id": "PUMP",
+            "story": "L1",
+            "member": "B12",
+            "kind": "point",
+            "value": P_KN,
+            "distance": 2000,
+            "case": "EQL",
+        }
+    )
+    materials = default_material_library()
+    text = write_e2k(building, OBJECTS, materials, settings, member_loads=member_loads).text
+    assert 'LOADPATTERN "EQL"  TYPE  "Live"  SELFWEIGHT  0' in text
+    assert 'LOADPATTERN "SWX"  TYPE  "Dead"  SELFWEIGHT  0.5' in text
+    assert 'LC "EQL"' in text and 'LC "SWX"' in text
+    assert 'MASSSOURCELOAD  "MsSrc1"  "SWX"  1 ' in text
+    assert 'LOADCASE "EQL"  LOADPAT  "EQL"' in text
+    assert 'COMBO "1.2D + 1.6EQL"  LOADCASE "EQL"  SF 1.6 ' in text
+    assert 'COMBO "1.2D + 1.6EQL"  LOADCASE "SWX"  SF 1.2 ' in text
+
+    project = derive_fem(
+        building, OBJECTS, materials, settings, {"b": "x"}, member_loads=member_loads
+    ).project
+    model = from_osmodel(project, OBJECTS, materials, settings)
+    kinds = {c.name: c.kind for c in model.cases}
+    assert kinds["EQL"] == "L" and kinds["SWX"] == "D"
+    assert dict(model.combinations)["1.2D + 1.6EQL"]["EQL"] == 1.6

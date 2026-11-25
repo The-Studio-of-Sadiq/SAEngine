@@ -26,6 +26,15 @@ from saengine.features.plan_common import (
 _CASES = [("D", "Dead"), ("SD", "Superimposed dead"), ("L", "Live"), ("Lr", "Roof live")]
 
 
+def _case_ids(ctx: FeatureContext) -> set[str]:
+    """The load cases a member load may be in: the built-in ones and, with a project, its own
+    load patterns (issue #301; the ribbon's case pickers list them too)."""
+    from saengine.library.load_patterns import pattern_ids
+
+    built_in = {case for case, _ in _CASES}
+    return built_in | pattern_ids(ctx.settings()) if ctx.root else built_in
+
+
 @feature(
     "planLoads.slabLoad",
     "Slab Load",
@@ -263,7 +272,7 @@ def pattern_ranges(ctx: FeatureContext, values: dict) -> dict:
 def load_groups(ctx: FeatureContext, values: dict) -> dict:
     """Validate a named load group against the load cases supported by the member-load model."""
     cases = [item.strip() for item in values["cases"].split(",") if item.strip()]
-    allowed = {case for case, _ in _CASES}
+    allowed = _case_ids(ctx)
     unknown = sorted(set(cases) - allowed)
     if not cases or unknown:
         raise FeatureInputError(
@@ -431,7 +440,7 @@ def load_check(ctx: FeatureContext, values: dict) -> dict:
     """Find stored loads with deleted member references, unsupported cases or negligible values."""
     plan, data = plan_data(ctx), loads_data(ctx)
     known = {row["id"] for row in member_rows(plan)}
-    cases = {case for case, _ in _CASES}
+    cases = _case_ids(ctx)
     issues = []
     for item in data.get("loads", []):
         if values["checkMemberExists"] and item.get("member") not in known:

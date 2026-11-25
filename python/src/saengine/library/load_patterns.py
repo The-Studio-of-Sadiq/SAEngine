@@ -136,6 +136,28 @@ def weight_case(settings: Any, case: str) -> str:
     return case
 
 
+#: The load kind a type is exported as (the exchange formats' pattern types: D, SD, L, Lr, W, E,
+#: other; :mod:`saengine.exporters.analytical`).
+TYPE_EXPORT_KIND: dict[str, str] = {
+    "Dead": "D",
+    "SuperDead": "SD",
+    "Live": "L",
+    "RoofLive": "Lr",
+    "Wind": "W",
+    "Seismic": "E",
+    "Other": "other",
+}
+
+
+def export_kind(settings: Any, case: str) -> str | None:
+    """The exported load kind of the user pattern ``case`` (:data:`TYPE_EXPORT_KIND`); None when
+    the project has no such pattern."""
+    for p in user_patterns(settings):
+        if p.id == case:
+            return TYPE_EXPORT_KIND.get(p.type, "other")
+    return None
+
+
 def kind_patterns(settings: Any) -> dict[str, list[str]]:
     """Code pack factor kind -> the user patterns that take its factor (:data:`TYPE_KIND`)."""
     out: dict[str, list[str]] = {}
@@ -144,6 +166,13 @@ def kind_patterns(settings: Any) -> dict[str, list[str]]:
         if kind:
             out.setdefault(kind, []).append(p.id)
     return out
+
+
+def arranged_patterns(settings: Any) -> list[str]:
+    """The user patterns the live load arrangements (:mod:`saengine.fem.pattern_live`) copy with
+    L: the Live-type ones. Their loads go into the arrangement cases LP1, LP2 ... with L's, so an
+    arrangement combination replaces L and them by the arrangement case at L's factor."""
+    return [p.id for p in user_patterns(settings) if p.type == "Live"]
 
 
 def pattern_factors(

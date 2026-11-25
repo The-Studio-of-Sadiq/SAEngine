@@ -18,8 +18,10 @@ import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { registerPlannedFeature } from '../../../services/saengineProject/common/plannedFeatures.js';
+import { userPatterns } from '../../../services/saengineProject/common/loadPatterns.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { openEngineDataPanel } from '../../saengineProject/browser/engineDataPanelInput.js';
-import { DataPanelRow, DataPanelValues, IDataPanelResult, IDataPanelTable, registerEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
+import { DataPanelRow, DataPanelValues, IDataPanelContext, IDataPanelFieldOption, IDataPanelResult, IDataPanelTable, registerEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
 import { OPEN_PLANNED_FEATURE_COMMAND } from '../../saengineProject/browser/plannedFeatureEditor.js';
 import { CATALOG_GROUPS, ICatalogButton } from './ribbonCatalog.generated.js';
 import { registerRibbonGroupLabel, registerRibbonItemHint, RIBBON_TABS } from './ribbonRegistry.js';
@@ -66,9 +68,39 @@ function toPanelResult(raw: IFeatureRunResult): IDataPanelResult {
 	};
 }
 
+/** A field that picks one of the built-in load cases (its options hold SD and Lr). */
+function isCaseField(field: { readonly type: string; readonly options?: readonly { readonly value: string }[] }): boolean {
+	return field.type === 'select' && !!field.options?.some(o => o.value === 'SD') && !!field.options.some(o => o.value === 'Lr');
+}
+
+/** Issue #301: the case pickers also offer the project's own load patterns (as saved). */
+async function withProjectPatterns(context: IDataPanelContext, fields: readonly { readonly key: string; readonly type: string; readonly options?: readonly IDataPanelFieldOption[] }[]) {
+	const root = context.project?.root;
+	if (!root) {
+		return undefined;
+	}
+	let patterns;
+	try {
+		patterns = userPatterns(JSON.parse((await context.fileService.readFile(joinPath(root, '02 Project Settings', 'project-settings.json'))).value.toString()));
+	} catch {
+		return undefined;
+	}
+	if (!patterns.length) {
+		return undefined;
+	}
+	const options: { [key: string]: readonly IDataPanelFieldOption[] } = {};
+	for (const field of fields) {
+		if (isCaseField(field)) {
+			options[field.key] = [...field.options!, ...patterns.map(p => ({ value: p.id, label: `${p.id}: ${p.name}` }))];
+		}
+	}
+	return { options };
+}
+
 function registerFeaturePanel(button: ICatalogButton, part: string): void {
 	const feature = button.feature!;
 	const featureId = button.id.slice(CATALOG_PREFIX.length);
+	const caseFields = feature.fields.some(isCaseField);
 	registerEngineDataPanel({
 		id: button.id,
 		title: button.label,
@@ -85,6 +117,7 @@ function registerFeaturePanel(button: ICatalogButton, part: string): void {
 			max: field.max,
 			help: field.help,
 		})),
+		loadInitial: caseFields ? context => withProjectPatterns(context, feature.fields) : undefined,
 		run: async (context, values: DataPanelValues) => toPanelResult(await context.engineRequest<IFeatureRunResult>('features/run', {
 			id: featureId,
 			projectRoot: context.project?.root.fsPath,
