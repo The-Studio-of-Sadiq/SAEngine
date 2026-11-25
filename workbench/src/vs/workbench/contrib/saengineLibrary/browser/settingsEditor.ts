@@ -1271,7 +1271,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			return;
 		}
 		for (const c of Array.isArray(this.document?.combinations) ? this.document.combinations.filter(isObject) : []) {
-			if (isObject(c.patterns) && old in c.patterns) {
+			if (isObject(c.patterns) && c.patterns[old] !== undefined) {
 				c.patterns[now] = c.patterns[old];
 				delete c.patterns[old];
 			}
