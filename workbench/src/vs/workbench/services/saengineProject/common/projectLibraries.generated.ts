@@ -11211,6 +11211,26 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'Partitions',
 					type: 'number',
 				},
+				otherLoad: {
+					default: 0,
+					description: 'A further area load [kN/m²] in a load pattern of the project\'s own (Load Patterns); 0: none.',
+					minimum: 0,
+					title: 'Other load',
+					type: 'number',
+				},
+				otherPattern: {
+					anyOf: [
+						{
+							type: 'string',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'The load pattern of the other load (the id of one of the project\'s own load patterns).',
+					title: 'Other load pattern',
+				},
 			},
 			required: ['id', 'name', 'live'],
 			title: 'AreaLoad',
@@ -14030,9 +14050,54 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 					title: 'S',
 					type: 'number',
 				},
+				patterns: {
+					additionalProperties: {
+						type: 'number',
+					},
+					description: 'Factors on the project\'s own load patterns (Load Patterns), by id.',
+					formHidden: true,
+					title: 'Load patterns',
+					type: 'object',
+				},
 			},
 			required: ['name'],
 			title: 'LoadCombination',
+			type: 'object',
+		},
+		LoadPattern: {
+			additionalProperties: false,
+			description: 'A load pattern of the project\'s own (issue #301; :mod:`saengine.library.load_patterns`):\na load case beside the built-in D, SD, L and Lr, for construction, equipment or special\nloads. Its type says which factor of the code\'s combinations it takes.',
+			properties: {
+				id: {
+					description: 'Its code in the analysis model, the combinations and the tables (letters, digits and _; up to 16 characters; not a code the program uses, such as D, L or WX).',
+					pattern: '^[A-Za-z][A-Za-z0-9_]{0,15}$',
+					title: 'Id',
+					type: 'string',
+				},
+				name: {
+					description: 'What it is (equipment, construction load, ...).',
+					minLength: 1,
+					title: 'Name',
+					type: 'string',
+				},
+				type: {
+					default: 'Other',
+					description: 'How it combines: the code\'s combinations give it the factor of its type (Dead and Superimposed dead: D\'s; Live: L\'s; Roof live: Lr\'s; Wind and Seismic: the wind\'s and the earthquake\'s, as entered); Other: only the factors you give it. The type also sets its share in the seismic weight.',
+					enum: ['Dead', 'SuperDead', 'Live', 'RoofLive', 'Wind', 'Seismic', 'Other'],
+					enumDescriptions: ['Dead', 'Superimposed dead', 'Live', 'Roof live', 'Wind', 'Seismic', 'Other'],
+					title: 'Type',
+					type: 'string',
+				},
+				selfWeight: {
+					default: 0,
+					description: 'That many times the structure\'s self-weight is added to the pattern (0: none; the built-in D carries it once). It adds load, not mass.',
+					minimum: 0,
+					title: 'Self-weight multiplier',
+					type: 'number',
+				},
+			},
+			required: ['id', 'name'],
+			title: 'LoadPattern',
 			type: 'object',
 		},
 		MassSource: {
@@ -16726,6 +16791,14 @@ export const SETTINGS_SCHEMA: IJSONSchema = {
 			pattern: '^[A-Za-z0-9._-]+$',
 			title: 'Roof',
 			type: 'string',
+		},
+		loadPatterns: {
+			description: 'The project\'s own load patterns (load cases) beside the built-in D, SD, L and Lr: construction, equipment or special loads. Member, point and area loads go to them; the combinations give them factors.',
+			items: {
+				$ref: '#/$defs/LoadPattern',
+			},
+			title: 'Load patterns',
+			type: 'array',
 		},
 		combinations: {
 			items: {

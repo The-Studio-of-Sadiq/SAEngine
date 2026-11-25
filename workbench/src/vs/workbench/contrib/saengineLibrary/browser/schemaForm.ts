@@ -76,6 +76,14 @@ export interface ISchemaFormContext {
 	confirmRemove?(path: string, index: number, entry: JsonValue): Promise<boolean>;
 }
 
+/**
+ * A field the form leaves out because its editor shows it in a control of its own (`formHidden`
+ * in the Python model's schema, e.g. a combination's factors on the project's load patterns).
+ */
+function formHidden(property: IJSONSchema): boolean {
+	return property.formHidden === true;
+}
+
 /** How {@link SchemaForm.render} lays the form out. */
 export interface ISchemaFormRenderOptions {
 	/**
@@ -290,8 +298,8 @@ export class SchemaForm {
 
 	private renderObject(container: HTMLElement, schema: IJSONSchema, value: JsonObject, path: string, skip: readonly string[] = []): void {
 		for (const [key, property] of Object.entries(schema.properties ?? {})) {
-			if (property.const !== undefined || skip.includes(key)) {
-				continue; // fixed values (schema id, union discriminators) are not edited here
+			if (property.const !== undefined || skip.includes(key) || formHidden(property)) {
+				continue; // fixed values (schema id, union discriminators) are not edited here; nor fields the editor shows itself
 			}
 			this.renderProperty(container, key, property, value, path ? `${path}.${key}` : key);
 		}
@@ -572,7 +580,7 @@ export class SchemaForm {
 	private flatColumns(schema: IJSONSchema): { title: string; description?: string; width: string }[] | undefined {
 		const columns: { title: string; description?: string; width: string }[] = [];
 		for (const [key, property] of Object.entries(schema.properties ?? {})) {
-			if (property.const !== undefined) {
+			if (property.const !== undefined || formHidden(property)) {
 				continue;
 			}
 			const inner = this.optional(property) ?? property;

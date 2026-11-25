@@ -1495,6 +1495,14 @@ def _derive_fem(
     # B16: the rain case R and the flood cases FaX, FaY (only in the model when loaded).
     for case in SPECIAL_CASES:
         patterns[case] = {"nodal": {}, "element": {}}
+    # Issue #301: the project's own load patterns (saengine.library.load_patterns), each its own
+    # case after the program's; ``own_weight``: those that carry a multiple of the self-weight.
+    from saengine.library import load_patterns as lp
+
+    user_patterns = [p for p in lp.user_patterns(settings) if p.id not in patterns]
+    for p in user_patterns:
+        patterns[p.id] = {"nodal": {}, "element": {}}
+    own_weight = [(p.id, float(p.selfWeight)) for p in user_patterns if p.selfWeight]
     node_weight: dict[int, float] = {}  # N, D + SD + share of L, for masses and lateral forces
 
     # Construction sequence: the self-weight (D) also goes, per element, to the stage of the
@@ -1596,6 +1604,8 @@ def _derive_fem(
             own = modifiers_of.get(member.source, {})
             add_element_load("D", index, down * w * own.get("weight", 1.0))
             share_weight(index, w, own.get("mass", 1.0))
+            for pid, times in own_weight:  # issue #301: load only, no mass
+                add_element_load(pid, index, down * w * own.get("weight", 1.0) * times)
 
     for solid in b.solids:
         corners = [b.coords[n] for n in solid.nodes]
@@ -1605,6 +1615,8 @@ def _derive_fem(
             for node_id in solid.nodes:
                 add_nodal("D", node_id, down * w, top_stage(solid.nodes))
                 add_weight(node_id, w)
+                for pid, times in own_weight:  # issue #301: load only, no mass
+                    add_nodal(pid, node_id, down * w * times)
 
     # The shares of the loads in W (saengine.library.settings.seismic_weight_rule): the code
     # pack's live share and heavy-live rule (Sec 2.5.7.3 (a), (b); a pack without the heavy
@@ -1625,6 +1637,7 @@ def _derive_fem(
         allowance counted apart (:data:`PARTITIONS`): its own share."""
         if case == PARTITIONS:
             return part_rule.share()
+        case = lp.weight_case(settings, case)  # issue #301: a user pattern counts by its type
         if case in ("D", "SD"):
             return 1.0
         if case != "L":
@@ -1636,6 +1649,7 @@ def _derive_fem(
     use_at: list[str | None] = [None]
 
     def part_of(case: str) -> str:
+        case = lp.weight_case(settings, case)  # issue #301: a user pattern by its type
         return case if case in ("D", "SD", "L", PARTITIONS) else "other"
 
     def case_of(key: str) -> str:
@@ -1985,6 +1999,14 @@ def _derive_fem(
             pressures["R"] = rain_kpa * 1e3  # B16: rain with the primary drains blocked
         if roof and snow_kpa:
             pressures["S"] = snow_kpa * 1e3  # C1: the roof snow load
+        # Issue #301: the area load's other load in a project pattern, and the patterns that
+        # carry a multiple of the self-weight (load only: the slab's mass is D's).
+        other_pattern = getattr(area_load, "otherPattern", None) if area_load else None
+        if other_pattern in patterns and area_load.otherLoad:
+            pressures[other_pattern] = pressures.get(other_pattern, 0.0) + area_load.otherLoad * 1e3
+        for pid, times in own_weight:
+            if self_weight:
+                pressures[pid] = pressures.get(pid, 0.0) + self_weight * times
 
         def room_pressures(
             room: Any,
@@ -2004,7 +2026,9 @@ def _derive_fem(
         rooms_here = al.room_shares(arch_set, element) if arch_set is not None else []
         if element.id in shells_of:
             for case, pressure in pressures.items():
-                if case not in ("D", "R", "S") and rooms_here:
+                # Rooms replace the floor's SD and live loads, not the others (issue #301: nor
+                # the project's own patterns).
+                if case in ("SD", "L", "Lr", PARTITIONS) and rooms_here:
                     continue
                 for shell in shells_of[element.id] if pressure else []:
                     shell_pressure(shell, case, pressure)
@@ -2191,12 +2215,29 @@ def _derive_fem(
 
     # ── line and point loads on members (05 Floor Plan/loads.json) ──
     if member_set is not None:
+        missing: set[str] = set()
 
         def point_load(case: str, node_id: int, force: float, z: float) -> None:
+            if case not in patterns:  # issue #301: a pattern deleted since
+                missing.add(case)
+                return
             add_nodal(case, node_id, down * force, stage_of(z))
             add_weight(node_id, force * seismic_share(case), part_of(case))
 
-        b.notes += ml.apply(member_set, b.coords, line_load, point_load)
+        def member_line_load(
+            source: str, case: str, p0: np.ndarray, p1: np.ndarray, load: float
+        ) -> bool:
+            if case not in patterns:
+                missing.add(case)
+                return True
+            return line_load(source, case, p0, p1, load)
+
+        b.notes += ml.apply(member_set, b.coords, member_line_load, point_load)
+        if missing:
+            b.notes.append(
+                f"member loads in load pattern(s) {', '.join(sorted(missing))}, which the "
+                "project does not have (Load Patterns): not applied"
+            )
 
     # ── the architecture's walls on beams (saengine.fem.architecture_loads) ──
     if arch_set is not None:
@@ -3082,6 +3123,11 @@ def _derive_fem(
         for c in SPECIAL_CASES
         if c in patterns and (patterns[c]["nodal"] or patterns[c]["element"])
     ]
+    # Issue #301: the project's own load patterns, every one (an empty one too, so the
+    # combinations that name it have its results), after the program's cases.
+    for p in user_patterns:
+        cases.append(p.id)
+        extra_labels[p.id] = p.name
     # The release cases of the tension-only members (saengine.fem.tension_only): a unit pair of
     # forces pulling each such element's ends apart, last so the other cases keep their ids.
     for code, element_name, pair in tension_only_cases(elements, b.coords, tension_sources):

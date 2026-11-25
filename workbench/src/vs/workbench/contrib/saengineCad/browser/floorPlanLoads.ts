@@ -25,6 +25,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { propertyLink } from '../../saengineModel/browser/propertySheetView.js';
 import { appendPropertyHeading, appendPropertyRow, appendPropertyNote, applyPropertyOnCommit } from '../../saengineProject/browser/editorFrame.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { allPatterns, ILoadPattern, PATTERN_ID, patternLabel } from '../../../services/saengineProject/common/loadPatterns.js';
 import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
 import { familyOf, masterOf } from './floorPlanTypical.js';
 
@@ -52,9 +53,13 @@ type Json = { readonly [key: string]: unknown };
 export const LOADS_FILE = 'loads.json';
 export const LOADS_SCHEMA = 'saengine.memberLoads/1';
 
-export type LoadCase = 'D' | 'SD' | 'L' | 'Lr';
+/**
+ * A member load's load case (load pattern): a built-in gravity case below or one of the project's
+ * own load patterns (issue #301, Project Settings › Load Patterns), by id.
+ */
+export type LoadCase = string;
 
-/** The gravity cases a member load goes to; superimposed dead (SD) first, the default. */
+/** The built-in gravity cases a member load goes to; superimposed dead (SD) first, the default. */
 export const LOAD_CASES: readonly { readonly id: LoadCase; readonly label: string }[] = [
 	{ id: 'SD', label: localize('loads.caseSD', "SD: superimposed dead") },
 	{ id: 'D', label: localize('loads.caseD', "D: dead") },
@@ -189,8 +194,8 @@ function readableLoad(l: Json): boolean {
 	if (typeof l.id !== 'string' || typeof l.story !== 'string' || typeof l.member !== 'string') {
 		return false;
 	}
-	if (l.case !== undefined && !LOAD_CASES.some(c => c.id === l.case)) {
-		return false;
+	if (l.case !== undefined && (typeof l.case !== 'string' || !PATTERN_ID.test(l.case))) {
+		return false; // any load pattern's id (the analysis notes one the project lacks)
 	}
 	if (l.kind === 'point') {
 		return num(l.value) !== undefined && (l.distance === undefined || num(l.distance) !== undefined);
@@ -862,6 +867,9 @@ export class FloorPlanLoadsFile extends Disposable {
 	private derivation: URI | undefined;
 	private architecture: URI | undefined;
 	private derived: IArchitectureLoads | undefined;
+	/** Issue #301: the project settings, whose load patterns the loads may go to. */
+	private settings: URI | undefined;
+	private loadPatterns: readonly ILoadPattern[] = allPatterns(undefined);
 
 	constructor(
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -873,6 +881,9 @@ export class FloorPlanLoadsFile extends Disposable {
 			if ((this.derivation && e.contains(this.derivation)) || (this.architecture && e.contains(this.architecture))) {
 				void this.readDerived().then(() => this._onDidChange.fire());
 			}
+			if (this.settings && e.contains(this.settings)) {
+				void this.readPatterns().then(() => this._onDidChange.fire());
+			}
 		}));
 	}
 
@@ -881,13 +892,28 @@ export class FloorPlanLoadsFile extends Disposable {
 		this.resource = loadsFileOf(planFile);
 		this.derivation = joinPath(dirname(dirname(planFile)), '08 FEM', DERIVATION_FILE);
 		this.architecture = joinPath(dirname(planFile), 'architecture.json');
+		this.settings = joinPath(dirname(dirname(planFile)), '02 Project Settings', 'project-settings.json');
 		this.reference.clear();
 		this.listener.clear();
 		if (await this.fileService.exists(this.resource)) {
 			await this.resolve(this.resource);
 		}
 		await this.readDerived();
+		await this.readPatterns();
 		this._onDidChange.fire();
+	}
+
+	/** Every load pattern a load may go to: the built-in ones, then the project's own (as saved). */
+	patterns(): readonly ILoadPattern[] {
+		return this.loadPatterns;
+	}
+
+	private async readPatterns(): Promise<void> {
+		try {
+			this.loadPatterns = this.settings ? allPatterns(JSON.parse((await this.fileService.readFile(this.settings)).value.toString())) : allPatterns(undefined);
+		} catch {
+			this.loadPatterns = allPatterns(undefined);
+		}
 	}
 
 	/** The architecture's loads as the last derivation applied them, undefined when it applied none. */
@@ -1202,6 +1228,17 @@ export class FloorPlanLoadsPanel extends Disposable {
 		return box;
 	}
 
+	/**
+	 * Issue #301: the load patterns a load may go to (built-in, then the project's own); `current`, a
+	 * load's pattern the project no longer has, stays listed so the list shows it.
+	 */
+	private caseChoices(current: string | undefined): readonly ILoadPattern[] {
+		const patterns = this.file.patterns();
+		return current && !patterns.some(p => p.id === current)
+			? [...patterns, { id: current, name: localize('loads.missingPattern', "not a load pattern of the project"), type: 'Other', selfWeight: 0, builtIn: false }]
+			: patterns;
+	}
+
 	private select(container: HTMLElement, store: DisposableStore, label: string, options: readonly string[], index: number, onSelect: (index: number) => void): SelectBox {
 		const cell = $('.floor-plan-prop-control');
 		const box = store.add(new SelectBox(options.map(text => ({ text })), index, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: label }));
@@ -1272,8 +1309,9 @@ export class FloorPlanLoadsPanel extends Disposable {
 				return { story, member, on: member ? wallOn(layout, objects, wall, member) : undefined };
 			});
 		});
+		const cases = this.caseChoices(undefined);
 		const spec = (): ILineLoadSpec | undefined => {
-			const kase = LOAD_CASES[caseIndex].id;
+			const kase = cases[caseIndex].id;
 			if (fromWall) {
 				const h = Number(c.height?.value), o = Number(c.openings?.value || '0');
 				const worked = auto() ? { auto: true, ...(c.roof?.checkbox.checked ? { skipRoof: true } : {}) } : {};
@@ -1375,7 +1413,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		}
 		c.value = this.input(form, store, localize('loads.valueKnm', "Load (kN/m)"), '', localize('loads.valueKnmHint', "e.g. 7.5"), refresh, apply);
 		c.valueRow = form.lastElementChild as HTMLElement;
-		this.select(form, store, localize('loads.case', "Load case"), LOAD_CASES.map(c => c.label), caseIndex, index => caseIndex = index);
+		this.select(form, store, localize('loads.case', "Load case"), cases.map(patternLabel), caseIndex, index => caseIndex = index);
 		c.onlyHere = this.familyCheckbox(form, store, context, context.story, refresh);
 		c.result = appendPropertyNote(form, '');
 		const doubled = beams.flatMap(beam => partitionsOn(layout, objects, beam).map(wall => `${beam} (${wall})`));
@@ -1399,6 +1437,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		const ends = onBeam ? beamEnds(context.layout, member.id) : undefined;
 		const length = ends ? Math.round(Math.hypot(ends[1][0] - ends[0][0], ends[1][1] - ends[0][1])) : 0;
 		let caseIndex = 0;
+		const cases = this.caseChoices(undefined);
 		const c: { value?: InputBox; distance?: InputBox } = {};
 		const apply = () => {
 			const text = c.value?.value ?? '';
@@ -1408,7 +1447,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 				context.notify(localize('loads.pointIncomplete', "Give the load in kN and, on a beam, a distance from 0 to {0} mm.", length));
 				return;
 			}
-			const edit = addPointLoad(loads, context.layout, member, context.story ?? '', { case: LOAD_CASES[caseIndex].id, value, distance, thisStoryOnly: onlyHere() });
+			const edit = addPointLoad(loads, context.layout, member, context.story ?? '', { case: cases[caseIndex].id, value, distance, thisStoryOnly: onlyHere() });
 			if (!edit.ids.length) {
 				context.notify(edit.problems.join(' '));
 				return;
@@ -1420,7 +1459,7 @@ export class FloorPlanLoadsPanel extends Disposable {
 		if (onBeam) {
 			c.distance = this.input(form, store, localize('loads.distance', "From start (mm)"), String(Math.round(length / 2)), localize('loads.distanceHint', "0 to {0}", length), undefined, apply);
 		}
-		this.select(form, store, localize('loads.case', "Load case"), LOAD_CASES.map(c => c.label), caseIndex, index => caseIndex = index);
+		this.select(form, store, localize('loads.case', "Load case"), cases.map(patternLabel), caseIndex, index => caseIndex = index);
 		const onlyHere = this.familyCheckbox(form, store, context, context.story);
 		const links = append(form, $('.sa-props-links'));
 		propertyLink(links, localize('loads.add', "Add"), apply, store);
@@ -1467,9 +1506,10 @@ export class FloorPlanLoadsPanel extends Disposable {
 			const caseCell = append(tr, $('td'));
 			const load = loads.loads.find(l => l.id === row.id)!;
 			if (context.editable) {
-				const box = store.add(new SelectBox(LOAD_CASES.map(c => ({ text: c.id })), Math.max(0, LOAD_CASES.findIndex(c => c.id === row.case)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('loads.caseOf', "Load case of {0}", row.id) }));
+				const cases = this.caseChoices(row.case);
+				const box = store.add(new SelectBox(cases.map(c => ({ text: c.id, description: c.name })), Math.max(0, cases.findIndex(c => c.id === row.case)), this.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('loads.caseOf', "Load case of {0}", row.id) }));
 				box.render(caseCell);
-				store.add(box.onDidSelect(({ index }) => void this.write(updateLoad(loads, row.id, { case: LOAD_CASES[index].id }), localize('loads.changed', "Changed {0}.", row.id), context)));
+				store.add(box.onDidSelect(({ index }) => void this.write(updateLoad(loads, row.id, { case: cases[index].id }), localize('loads.changed', "Changed {0}.", row.id), context)));
 			} else {
 				caseCell.textContent = row.case;
 			}

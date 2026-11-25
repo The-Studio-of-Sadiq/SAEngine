@@ -237,11 +237,19 @@ _FLOOD_KIND: ContextVar[str | None] = ContextVar("saengine_flood_kind", default=
 
 
 def set_flood_kind(settings: Any) -> None:
-    """The project's flood zone kind for :func:`allowable_combinations` (None outside one)."""
+    """The project's flood zone kind for :func:`allowable_combinations` (None outside one),
+    and its own load patterns (issue #301), which the pack's rows give factors by type."""
     from saengine.fem.flood import zone_kind
 
     flood = getattr(getattr(settings, "site", None), "flood", None)
     _FLOOD_KIND.set(zone_kind(getattr(flood, "zone", None)))
+    _PATTERN_SETTINGS.set(settings)
+
+
+#: Issue #301: the project settings whose own load patterns the pack's allowable and service
+#: rows take (by type, :func:`saengine.library.load_patterns.pattern_factors`); set with the
+#: flood kind by the design check (:func:`set_flood_kind`).
+_PATTERN_SETTINGS: ContextVar[Any] = ContextVar("saengine_pattern_settings", default=None)
 
 
 def flood_rows(category: str, flood: str | None) -> list[Any]:
@@ -275,6 +283,13 @@ def _formed(
                 continue
             for case in KIND_CASES.get(kind, (kind,)):
                 cases[case] = value
+        project = _PATTERN_SETTINGS.get()
+        if project is not None:  # issue #301: the project's own patterns, by their type
+            from saengine.library.load_patterns import pattern_factors
+
+            for case, value in pattern_factors(factors, project).items():
+                if present is None or case in present:
+                    cases[case] = value
         temperature = cases.pop("T", None)
         signs = [(name, cases)]
         if temperature:
@@ -375,6 +390,11 @@ def combination_factors(
                 if present is not None and case in OPTIONAL_CASES and case not in present:
                     continue
                 factors[case] = value
+    # Issue #301: the project's own load patterns (a pattern the results lack is left out: a
+    # model derived before the pattern was added).
+    for case, value in (getattr(combination, "patterns", None) or {}).items():
+        if value and (present is None or case in present):
+            factors[case] = factors.get(case, 0.0) + value
     # Cases a formed combination adds by name (CaseCombination: the torsional wind cases, the
     # live load arrangements), never stored in the settings.
     for case, value in (getattr(combination, "cases", None) or {}).items():

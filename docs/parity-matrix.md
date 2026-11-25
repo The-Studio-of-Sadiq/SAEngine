@@ -74,7 +74,7 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 
 | Feature | ETABS | SAP2000 | STAAD.Pro | SAFE | Robot | SAEngine status | Evidence | Part | Benchmark that would prove it |
 |---|---|---|---|---|---|---|---|---|---|
-| User-defined load patterns / cases | ✓ | ✓ | ✓ | ✓ | ✓ | Partial. The set of cases is fixed; member loads can only be D, SD, L or Lr; the manual says the user does not define cases | python/src/saengine/library/line_loads.py:40; docs/manual/08-fem.md (Load cases) | 2/5 | – (feature gap) |
+| User-defined load patterns / cases | ✓ | ✓ | ✓ | ✓ | ✓ | Built (#301, not walked yet): Project Settings › Load Patterns (id, name, type, self-weight multiplier); member, point and area loads take any pattern; one analysis case per pattern; combinations by type plus a factor table | python/src/saengine/library/load_patterns.py; python/tests/test_load_patterns.py; docs/manual/08-fem.md (Load cases) | 2 | M_mid = 1.2wL²/8 + 1.6PL/4 by hand |
 | Self-weight | ✓ | ✓ | ✓ | ✓ | ✓ | Verified (A1, A2) | python/src/saengine/verification/cases/analysis.py | 8 | wL²/8 and 5wL⁴/384EI |
 | Area loads by occupancy | ✓ | ✓ | ✓ | ✓ | ✓ | Verified (load totals; values of the code table) | python/tests/test_fem_shells.py; python/tests/test_live_loads_combinations.py | 2 | Load total by hand |
 | One-way / two-way slab load to beams | ✓ | ✓ | ✓ | ✓ | ✓ | Verified (AN1) | python/src/saengine/verification/cases/correctness.py; python/tests/test_fem_slab_load_shapes.py; python/src/saengine/fem/slab_load_shapes.py | 8 | 45° tributary area by hand |

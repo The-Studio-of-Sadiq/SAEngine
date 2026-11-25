@@ -28,7 +28,15 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    field_validator,
+    model_validator,
+)
 
 from saengine.library.labels import field_title
 from saengine.library.materials import Id
@@ -36,8 +44,11 @@ from saengine.library.materials import Id
 SCHEMA_ID = "saengine.memberLoads/1"
 LOADS_FILE = "05 Floor Plan/loads.json"
 
-#: Gravity load cases a member load can go to (the analysis model's, saengine.fem.derive.CASES).
-LoadCase = Literal["D", "SD", "L", "Lr"]
+#: The load case (load pattern) of a member load: a built-in gravity case of the analysis model
+#: (saengine.fem.derive.CASES) or one of the project's own load patterns (issue #301,
+#: :mod:`saengine.library.load_patterns`), by its id. The analysis model checks it is one.
+LoadCase = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,15}$")]
+#: The built-in ones.
 LOAD_CASES: dict[str, str] = {
     "D": "Dead",
     "SD": "Superimposed dead",
@@ -120,6 +131,17 @@ class _Load(_Model):
         description="On a typical floor: only on this story, not on the stories like it.",
     )
     note: str = ""
+
+    @field_validator("case")
+    @classmethod
+    def _gravity_or_own(cls, case: str) -> str:
+        """A built-in gravity case or a project pattern's id, never a case the program forms
+        itself (WX, EX, LP1, ...: :func:`saengine.library.load_patterns.reserved`)."""
+        from saengine.library import load_patterns as lp
+
+        if case not in lp.BUILT_IN_IDS and lp.reserved(case):
+            raise ValueError(f"a member load cannot go to the load case {case}")
+        return case
 
 
 class LineLoad(_Load):

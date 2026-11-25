@@ -644,6 +644,10 @@ addItem(RibbonMenus.Settings, '3_Packages', 3, 'saengine.codePacks.install', loc
 addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 1, 'saengine.settings.areaLoads', localize('set.rib.areaLoads', "Area Loads Audit"), Codicon.layers, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 2, 'saengine.settings.packChoices', localize('set.rib.choices', "Occupancies & Systems"), Codicon.listFlat, 'large', { precondition: projectOpen });
 
+// Issue #301: the project's own load patterns (load cases), edited in Project Settings › Load Patterns.
+addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 3, 'saengine.settings.loadPatterns', localize('set.rib.loadPatterns', "Load Patterns..."), Codicon.symbolEnum, 'large', { precondition: projectOpen });
+addItem(RibbonMenus.FemLoads, '1_LoadPattern', 0, 'saengine.settings.loadPatterns', localize('u6e.rib.fem.loadPatterns', "Load Patterns..."), Codicon.symbolEnum, 'large', { precondition: projectOpen });
+
 addItem(RibbonMenus.SettingsLoads, '2_Combinations', 1, 'saengine.settings.combinationsPreview', localize('set.rib.combos', "Load Combinations"), Codicon.symbolOperator, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.SettingsLoads, '2_Combinations', 2, 'saengine.settings.resetDefaults', localize('rib.set.reset', "Reset to Defaults"), Codicon.discard, 'small', { precondition: projectOpen });
 
