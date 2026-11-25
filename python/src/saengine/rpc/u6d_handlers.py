@@ -293,8 +293,10 @@ def soil_earth_pressure(
             profile_rows.append(
                 {
                     "z": z,
-                    "sigmaV": round(pa.get("sigmaV", 0.0), 2),
-                    "u": round(pa.get("u", 0.0), 2),
+                    # total vertical stress and pore pressure from the column itself
+                    # (pressure() returns K, soil, surcharge, water and total only)
+                    "sigmaV": round(soil_col.sigma_v(z), 2),
+                    "u": round(soil_col.u(z), 2),
                     "active": round(pa.get("total", 0.0), 2),
                     "atRest": round(p0.get("total", 0.0), 2),
                     "passive": round(pp.get("total", 0.0), 2),
