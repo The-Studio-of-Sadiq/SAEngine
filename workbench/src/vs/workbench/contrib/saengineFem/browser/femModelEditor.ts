@@ -63,7 +63,7 @@ import { partById } from '../../../services/saengineProject/common/saengineProje
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { renderEndReleases, renderPointSpring } from './femReleases.js';
+import { IReleaseSection, renderEndReleases, renderPointSpring } from './femReleases.js';
 
 /** The building member an analysis element belongs to (`C3#2` -> `C3`). */
 export function memberOf(name: string): string {
@@ -791,7 +791,7 @@ export class FemModelEditor extends EditorPane {
 	private bimModel: ITextModel | undefined;
 	private readonly releasesStore = this._register(new MutableDisposable<DisposableStore>());
 	/** The End Releases or Point Spring section shown, to bring into view from the ribbon. */
-	private releasesSection: HTMLElement | undefined;
+	private releasesSection: IReleaseSection | undefined;
 	/** True while a member selected elsewhere is being shown here (it is not published back). */
 	private applyingModelSelection = false;
 
@@ -1578,8 +1578,8 @@ export class FemModelEditor extends EditorPane {
 		}
 		this.frame?.setPropertiesVisible(true);
 		this.renderProperties();
-		this.releasesSection?.scrollIntoView({ block: 'nearest' });
-		this.releasesSection?.querySelector('input')?.focus();
+		this.releasesSection?.section.scrollIntoView({ block: 'nearest' });
+		this.releasesSection?.first?.focus();
 	}
 
 	/**

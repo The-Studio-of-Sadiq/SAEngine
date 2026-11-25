@@ -5768,6 +5768,10 @@ def _hold_released_joints(
         )
 
 
+#: A joint's six DOFs by the names of a point spring's springs.
+_DOF_NAMES = ("UX", "UY", "UZ", "RX", "RY", "RZ")
+
+
 def _point_springs(b: _Builder, building: BuildingModel) -> tuple[Links, dict[int, set[int]]]:
     """The point springs of the building model (#303): each joint's springs to a fixed ground
     node at its place (``ZeroLength``, named ``<spring>/spring``), along the global axes, and
@@ -5790,6 +5794,13 @@ def _point_springs(b: _Builder, building: BuildingModel) -> tuple[Links, dict[in
         restraint = b.restraints.get(n) or [False] * 6
         k = spring.stiffness()
         dofs = [d for d in range(6) if k[d] > 0 and not restraint[d]]
+        # A spring in a direction the joint's support already holds would do nothing: say so.
+        idle = [_DOF_NAMES[d] for d in range(6) if k[d] > 0 and restraint[d]]
+        if idle:
+            b.notes.append(
+                f"{spring.id}: the joint's support already holds {', '.join(idle)};"
+                " the spring(s) there do nothing"
+            )
         held.setdefault(n, set()).update({d for d in range(6) if restraint[d]} | set(dofs))
         if not dofs:
             continue

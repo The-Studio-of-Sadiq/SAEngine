@@ -127,11 +127,13 @@ def test_point_spring_with_a_support():
         _beam({"id": "S1", "at": point(0, 0, 0), "fixity": "fixed"}),
         pointSprings=[PointSpring(id="PS1", at=[6000, 0, 0], UZ=100, RY=50, support="pinned")],
     )
-    project = derive(model, objects(BEAM), MATERIALS, settings()).project
+    derived = derive(model, objects(BEAM), MATERIALS, settings())
+    project = derived.project
     end = next(n for n in project["nodes"] if n["id"] == node_at(project, (L, 0, 0)))
     assert end["restraint"] == [True, True, True, False, False, False]
     (link,) = [e for e in project["elements"] if e["type"] == "ZeroLength"]
     assert link["dofs"] == [5]  # about Y only: Z is supported
+    assert any("PS1: the joint's support already holds UZ" in n for n in derived.notes)
 
 
 def test_partial_fixity_is_a_spring_in_the_link():

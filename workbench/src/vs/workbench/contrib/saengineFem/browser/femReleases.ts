@@ -224,7 +224,7 @@ export interface IReleasePanelOptions {
 	readonly write: (text: string) => void;
 }
 
-function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IReleasePanelOptions, label: string, value: number | undefined, placeholder: string, apply: (value: number | undefined) => string | undefined): void {
+function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IReleasePanelOptions, label: string, value: number | undefined, placeholder: string, apply: (value: number | undefined) => string | undefined): HTMLInputElement {
 	const box = store.add(new InputBox(row, options.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder, ariaLabel: label }));
 	box.value = value === undefined ? '' : String(value);
 	store.add(applyPropertyOnCommit(box.inputElement, typed => {
@@ -239,19 +239,27 @@ function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IRele
 			options.write(next);
 		}
 	}));
+	return box.inputElement;
+}
+
+/** A release panel: its section, and its first box (focused when the ribbon opens it). */
+export interface IReleaseSection {
+	readonly section: HTMLElement;
+	readonly first?: HTMLInputElement;
 }
 
 /**
  * The "End Releases" section for a member: per action its start and end, each empty (fixed),
  * 0 (released) or a spring (partial fixity), and buttons that pin an end (release M2 and M3).
  */
-export function renderEndReleases(panel: HTMLElement, member: string, store: DisposableStore, options: IReleasePanelOptions): HTMLElement {
+export function renderEndReleases(panel: HTMLElement, member: string, store: DisposableStore, options: IReleasePanelOptions): IReleaseSection {
 	const section = append(panel, $('.fem-releases'));
+	let first: HTMLInputElement | undefined;
 	const releases = memberReleases(options.bimText, member);
 	appendPropertyHeading(section, localize('femReleases.heading', "End Releases"), member);
 	if (options.bimText === undefined) {
 		appendPropertyNote(section, localize('femReleases.noBim', "Build the building model (6 BIM) first: end releases are stored there."));
-		return section;
+		return { section };
 	}
 	appendPropertyNote(section, localize('femReleases.help', "In the member axes. Empty: fixed; 0: released; a value: a spring (kN/m, kN·m/rad). Derive the model again to apply."));
 	const ends = $('.fem-releases-pair.fem-releases-ends');
@@ -262,8 +270,9 @@ export function renderEndReleases(panel: HTMLElement, member: string, store: Dis
 		const cells = $('.fem-releases-pair');
 		for (const end of ['start', 'end'] as const) {
 			const label = localize('femReleases.cellAria', "{0} at the {1} of {2}", ACTION_LABELS[action], end === 'start' ? localize('femReleases.start', "start") : localize('femReleases.end', "end"), member);
-			stiffnessInput(cells, store, options, label, releases[end][action], localize('femReleases.fixed', "fixed"),
+			const input = stiffnessInput(cells, store, options, label, releases[end][action], localize('femReleases.fixed', "fixed"),
 				value => withMemberRelease(options.bimText, member, end, action, value));
+			first ??= input;
 		}
 		appendPropertyRow(section, ACTION_LABELS[action], cells);
 	}
@@ -291,23 +300,25 @@ export function renderEndReleases(panel: HTMLElement, member: string, store: Dis
 			}
 		}));
 	}
-	return section;
+	return { section, first };
 }
 
 /** The "Point Spring" section for a joint at `at` [mm]: six springs and a support. */
-export function renderPointSpring(panel: HTMLElement, at: readonly number[], store: DisposableStore, options: IReleasePanelOptions): HTMLElement {
+export function renderPointSpring(panel: HTMLElement, at: readonly number[], store: DisposableStore, options: IReleasePanelOptions): IReleaseSection {
 	const section = append(panel, $('.fem-releases'));
+	let first: HTMLInputElement | undefined;
 	const spring = pointSpring(options.bimText, at);
 	appendPropertyHeading(section, localize('femReleases.springHeading', "Point Spring"), `(${at.map(v => Math.round(v)).join(', ')}) mm`);
 	if (options.bimText === undefined) {
 		appendPropertyNote(section, localize('femReleases.springNoBim', "Build the building model (6 BIM) first: point springs are stored there."));
-		return section;
+		return { section };
 	}
 	appendPropertyNote(section, localize('femReleases.springHelp', "Springs to the ground along and about the global axes (empty: none), and a support. Derive the model again to apply."));
 	for (const key of SPRING_KEYS) {
 		const cell = $('.fem-releases-single');
-		stiffnessInput(cell, store, options, SPRING_LABELS[key], spring.springs[key], localize('femReleases.none', "none"),
+		const input = stiffnessInput(cell, store, options, SPRING_LABELS[key], spring.springs[key], localize('femReleases.none', "none"),
 			value => withPointSpring(options.bimText, at, key, value));
+		first ??= input;
 		appendPropertyRow(section, SPRING_LABELS[key], cell);
 	}
 	const supports: readonly SpringSupport[] = ['none', 'pinned', 'fixed'];
@@ -325,5 +336,5 @@ export function renderPointSpring(panel: HTMLElement, at: readonly number[], sto
 		}
 	}));
 	appendPropertyRow(section, localize('femReleases.support', "Support"), cell);
-	return section;
+	return { section, first };
 }
