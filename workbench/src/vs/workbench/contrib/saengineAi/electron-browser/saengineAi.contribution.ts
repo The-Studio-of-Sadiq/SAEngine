@@ -13,7 +13,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { Extensions as OutputExtensions, IOutputChannelRegistry, IOutputService } from '../../../services/output/common/output.js';
+import { Extensions as OutputExtensions, IOutputChannelRegistry } from '../../../services/output/common/output.js';
 import { ALLOW_CONTROL_SETTING, PORT_SETTING } from '../common/aiTools.js';
 import { AI_ACTIVITY_CHANNEL_ID, AiEditsAllowedContext, AiServerRunningContext, ISaengineAiService, MANAGE_AI_COMMAND, SaengineAiService } from './aiController.js';
 import { ISaengineAiDataConsentService, MANAGE_PROJECT_CONSENT_COMMAND, PROJECT_DATA_CONSENT_SETTING, SaengineAiDataConsentService } from '../browser/aiDataConsent.js';
@@ -194,7 +194,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IOutputService).showChannel(AI_ACTIVITY_CHANNEL_ID);
+		await accessor.get(ICommandService).executeCommand('saengine.showLog', AI_ACTIVITY_CHANNEL_ID);
 	}
 });
 
@@ -206,7 +206,6 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const service = accessor.get(ISaengineAiService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const outputService = accessor.get(IOutputService);
 		const commandService = accessor.get(ICommandService);
 		type Item = IQuickPickItem & { run: () => unknown };
 		const items: Item[] = [
@@ -216,7 +215,7 @@ registerAction2(class extends Action2 {
 				: { label: localize('manage.allowEdits', "Allow AI Edits for This Session"), detail: localize('manage.allowEdits.detail', "The assistant may change the project: undoable, and unsaved until you save."), run: () => service.setEditsAllowed(true) },
 			{ label: localize('manage.connection', "Show Connection Details"), run: () => service.showConnection() },
 			{ label: localize('manage.consent', "AI Data Sharing for This Project..."), run: () => commandService.executeCommand(MANAGE_PROJECT_CONSENT_COMMAND) },
-			{ label: localize('manage.activity', "Show AI Activity"), run: () => outputService.showChannel(AI_ACTIVITY_CHANNEL_ID) },
+			{ label: localize('manage.activity', "Show AI Activity"), run: () => commandService.executeCommand('saengine.showLog', AI_ACTIVITY_CHANNEL_ID) },
 		];
 		const picked = await quickInputService.pick(items, { placeHolder: localize('manage.placeholder', "AI assistant access to this window") });
 		await picked?.run();

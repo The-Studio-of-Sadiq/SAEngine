@@ -1330,7 +1330,7 @@ export class StructureModelerEditor extends EditorPane {
 			const why = result?.error ?? result?.problems?.join('; ') ?? localize('modeler.noBackend', "The SAEngine Python backend did not answer.");
 			this.notice = localize('modeler.scriptFailed', "{0} failed: {1}", basename(script), why);
 			if (result?.output) {
-				void this.outputService.showChannel(SCRIPT_OUTPUT_CHANNEL_ID, true);
+				void this.commandService.executeCommand('saengine.showLog', SCRIPT_OUTPUT_CHANNEL_ID, true);
 			}
 		}
 		this.renderStatus();

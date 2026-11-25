@@ -57,6 +57,7 @@ import {
 	getRibbonItemHint,
 	getVisibleRibbonTabs,
 	IRibbonCustomGroup,
+	isRibbonHidden,
 	IRibbonGroupModel,
 	IRibbonTabDescriptor,
 	onDidChangeRibbonRegistry,
@@ -70,6 +71,7 @@ import {
 	RibbonItem,
 	RibbonTabId,
 	SAENGINE_EDITOR_IDS,
+	SAENGINE_PROJECT_OPEN_CONTEXT,
 	SubViewContext,
 } from './ribbonRegistry.js';
 
@@ -147,6 +149,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 	private collapsed: boolean;
 	private toolbarFocusIndex = 0;
 	private activePanelLayout: IActivePanelLayout | undefined;
+	private hidden = false;
 
 	constructor(
 		@IBannerService private readonly bannerService: IBannerService,
@@ -180,7 +183,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 
 		this.collapseBtn.type = 'button';
 
-		const keys = new Set<string>([ActiveEditorContext.key, DataPanelPartContext.key, SubViewContext.key]);
+		const keys = new Set<string>([ActiveEditorContext.key, DataPanelPartContext.key, SubViewContext.key, SAENGINE_PROJECT_OPEN_CONTEXT]);
 		for (const tab of RIBBON_TABS) {
 			if (tab.when) {
 				for (const key of tab.when.keys()) {
@@ -301,6 +304,7 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 			this.activeFrame = nextFrame;
 
 			this.renderTabs(tabs);
+			this.syncStripVisibility();
 			if (tabChanged) {
 				this.bindActiveTabMenu();
 			} else if (frameChanged || subViewChanged) {
@@ -354,7 +358,20 @@ export class SaengineRibbonContribution extends Disposable implements IWorkbench
 		return getVisibleRibbonTabs(this.contextKeyService);
 	}
 
+	/** Shows or hides the whole ribbon: hidden on the Start page while no project is open. */
+	private syncStripVisibility(): void {
+		const hidden = isRibbonHidden(this.contextKeyService);
+		if (hidden !== this.hidden) {
+			this.hidden = hidden;
+			this.mountStrip();
+		}
+	}
+
 	private mountStrip(): void {
+		if (this.hidden) {
+			this.strip.clear();
+			return;
+		}
 		const height = this.collapsed ? RIBBON_TABS_HEIGHT : RIBBON_EXPANDED_HEIGHT;
 		this.strip.value = this.bannerService.showStrip(this.root, height);
 	}

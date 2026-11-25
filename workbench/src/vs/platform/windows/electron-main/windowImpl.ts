@@ -38,6 +38,7 @@ import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsM
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
+import { acrylicWindows } from '../../saengine/electron-main/backgroundMaterial.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IStateService } from '../../state/node/state.js';
@@ -513,7 +514,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this.lastWindowControlColors = { backgroundColor, foregroundColor };
 			}
 
-			const effectiveBackgroundColor = this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
+			// SAEngine: over the acrylic backdrop the buttons have no fill of their own
+			const effectiveBackgroundColor = acrylicWindows.has(win) ? '#00000000' : this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
 			const effectiveForegroundColor = this.windowControlsDimmed && foregroundColor ? this.dimColor(foregroundColor) : foregroundColor;
 
 			win.setTitleBarOverlay({

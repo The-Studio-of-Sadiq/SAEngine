@@ -15,6 +15,7 @@ import { ThemeTypeSelector } from '../common/theme.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
+import { acrylicWindows } from '../../saengine/electron-main/backgroundMaterial.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IThemeMainService } from './themeMainService.js';
 
@@ -330,6 +331,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
 		for (const window of getAllWindowsExcludingOffscreen()) {
 			if (window.id === windowId) {
+				if (acrylicWindows.has(window)) {
+					break; // SAEngine: the acrylic backdrop needs a transparent background
+				}
 				window.setBackgroundColor(splash.colorInfo.background);
 				break;
 			}

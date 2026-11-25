@@ -144,6 +144,17 @@ export function projectStages(statuses: readonly IPartStatus[]): IProjectStage[]
 			state = stageState(worst!.state);
 		}
 		const focus = state === 'done' || !worst ? members[0] : worst;
+		// #274: a stage after the analysis is never further along than the analysis it needs:
+		// out of date while it is, else waiting for it.
+		const analysis = stages.find(stage => stage.id === 'analysis');
+		if (analysis && definition.runAll && definition.id !== 'analysis' && (state === 'inProgress' || state === 'done')) {
+			if (analysis.state === 'stale') {
+				state = 'stale';
+			} else if (analysis.state !== 'done') {
+				state = 'notStarted';
+				waitsFor = 'analysis';
+			}
+		}
 		const action: StageAction | undefined = state === 'done'
 			? undefined
 			: focus.action ?? (definition.runAll && state !== 'failed' ? 'runAll' : undefined);

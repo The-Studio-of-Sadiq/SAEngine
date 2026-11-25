@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag Pre-Alpha-v<N>. Empty: a test build of the chosen branch (artefacts only, no release)'
+        description: 'Release tag Alpha-v<N> (Pre-Alpha-v<N> for old ones), on the merge of beta into main or a v<x.y.z> commit. Empty: a test build of the chosen branch (artefacts only, no release)'
         required: false
         type: string
         default: ''
@@ -88,6 +88,17 @@ jobs:
           $libs = @(Get-ChildItem -Path (Join-Path $vs 'VC\Tools\MSVC') -Filter delayimp.lib -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -eq 'lib' })
           $libs | ForEach-Object { Write-Host "delayimp.lib: $($_.FullName)" }
           if ($libs.Count -eq 0) { throw "Visual Studio 2022 at $vs has no MSVC lib\x64\delayimp.lib." }
+          # #275: node-gyp's MSBuild still did not find delayimp.lib (LNK1181) on windows-2022:
+          # build in the x64 developer environment, whose LIB holds the MSVC and SDK lib folders.
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          $vars = cmd /c "`"$vcvars`" >nul && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvars64.bat failed ($LASTEXITCODE)." }
+          foreach ($line in $vars) {
+            if ($line -match '^(?<name>LIB|LIBPATH|INCLUDE|PATH|VCINSTALLDIR|VCToolsInstallDir|VCToolsVersion|WindowsSdkDir|WindowsSDKVersion|UCRTVersion|UniversalCRTSdkDir|VSINSTALLDIR|VisualStudioVersion)=(?<value>.*)$') {
+              Add-Content -Path $env:GITHUB_ENV -Value "$($Matches.name)=$($Matches.value)"
+            }
+          }
+          Write-Host "LIB: $(($vars | Where-Object { $_ -like 'LIB=*' }) -replace '^LIB=', '')"
           Add-Content -Path $env:GITHUB_ENV -Value 'npm_config_msvs_version=2022'
           Add-Content -Path $env:GITHUB_ENV -Value "npm_config_python=$(Join-Path $env:pythonLocation 'python.exe')"
 
@@ -213,6 +224,10 @@ jobs:
           npm_config_arch: ${{ env.NPM_ARCH }}
           npm_config_foreground_scripts: 'true'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          # #275: MSBuild reads environment variables as properties; UseEnv makes the C++ targets
+          # link with the developer environment's LIB (set above) instead of their own library
+          # path, which did not hold delayimp.lib on this runner.
+          UseEnv: 'true'
 
       # The @saengine/* packages are file:../packages/* junctions: kept out of the archive (it
       # would store a stale copy of the packages) and made again after an extract.

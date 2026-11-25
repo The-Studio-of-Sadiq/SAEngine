@@ -33,6 +33,7 @@ import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainSe
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { acrylicWindows } from '../../saengine/electron-main/backgroundMaterial.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
@@ -464,6 +465,31 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
+	}
+
+	async setWindowBackgroundMaterial(windowId: number | undefined, material: 'acrylic' | 'none', options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		const win = window?.win;
+		if (!window || !win || !isWindows) {
+			return false;
+		}
+		if (material === 'acrylic') {
+			// Backdrop materials need Windows 11 22H2 (build 22621) or later.
+			const build = Number(release().split('.')[2]);
+			if (!(build >= 22621)) {
+				return false;
+			}
+			acrylicWindows.add(win);
+			win.setBackgroundColor('#00000000');
+			win.setBackgroundMaterial('acrylic');
+			window.updateWindowControls({}); // the buttons drop their fill (see CodeWindow.updateWindowControls)
+			return true;
+		}
+		acrylicWindows.delete(win);
+		win.setBackgroundMaterial('none');
+		win.setBackgroundColor(this.themeMainService.getBackgroundColor());
+		window.updateWindowControls({}); // the title bar's last colours again
+		return false;
 	}
 
 	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void> {

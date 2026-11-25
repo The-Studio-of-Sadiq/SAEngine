@@ -316,6 +316,13 @@ export interface ICommonNativeHostService {
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
+	/**
+	 * SAEngine: switches the window's backdrop. 'acrylic' makes the window background transparent over
+	 * the Windows 11 acrylic material (Windows 11 22H2, build 22621, and later); 'none' restores the
+	 * theme's solid background. Resolves to whether acrylic is now shown (false where unsupported).
+	 */
+	setWindowBackgroundMaterial(material: 'acrylic' | 'none', options?: INativeHostOptions): Promise<boolean>;
+
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;

@@ -10,6 +10,7 @@ import { process } from '../../../../base/parts/sandbox/electron-browser/globals
 import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -92,6 +93,7 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 		@IDialogService private readonly dialogService: IDialogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IOutputService private readonly outputService: IOutputService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -182,7 +184,7 @@ export class SaengineAiService extends Disposable implements ISaengineAiService 
 					message: localize('connected', "{0} connected to this window and can now use SAEngine here. Every action is listed in AI Activity.", this.client),
 					actions: {
 						primary: [
-							{ id: 'saengine.ai.showActivity', label: localize('showActivity', "Show AI Activity"), tooltip: '', class: undefined, enabled: true, run: () => this.outputService.showChannel(AI_ACTIVITY_CHANNEL_ID) },
+							{ id: 'saengine.ai.showActivity', label: localize('showActivity', "Show AI Activity"), tooltip: '', class: undefined, enabled: true, run: () => this.commandService.executeCommand('saengine.showLog', AI_ACTIVITY_CHANNEL_ID) },
 							{ id: 'saengine.ai.stopNow', label: localize('stopAccess', "Stop AI Access"), tooltip: '', class: undefined, enabled: true, run: () => this.stop() },
 						],
 					},
