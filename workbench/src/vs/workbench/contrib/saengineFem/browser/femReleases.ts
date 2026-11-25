@@ -248,12 +248,16 @@ function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IRele
 export function renderEndReleases(panel: HTMLElement, member: string, store: DisposableStore, options: IReleasePanelOptions): HTMLElement {
 	const section = append(panel, $('.fem-releases'));
 	const releases = memberReleases(options.bimText, member);
-	appendPropertyHeading(section, localize('femReleases.heading', "End Releases"), releases.id ?? member);
+	appendPropertyHeading(section, localize('femReleases.heading', "End Releases"), member);
 	if (options.bimText === undefined) {
 		appendPropertyNote(section, localize('femReleases.noBim', "Build the building model (6 BIM) first: end releases are stored there."));
 		return section;
 	}
-	appendPropertyNote(section, localize('femReleases.help', "Start (i) and end (j), in the member axes. Empty: fixed; 0: released; a value: a spring (kN/m, kN·m/rad). Derive the model again to apply."));
+	appendPropertyNote(section, localize('femReleases.help', "In the member axes. Empty: fixed; 0: released; a value: a spring (kN/m, kN·m/rad). Derive the model again to apply."));
+	const ends = $('.fem-releases-pair.fem-releases-ends');
+	append(ends, $('span', undefined, localize('femReleases.startHead', "Start (i)")));
+	append(ends, $('span', undefined, localize('femReleases.endHead', "End (j)")));
+	appendPropertyRow(section, '', ends);
 	for (const action of END_ACTIONS) {
 		const cells = $('.fem-releases-pair');
 		for (const end of ['start', 'end'] as const) {
@@ -294,7 +298,7 @@ export function renderEndReleases(panel: HTMLElement, member: string, store: Dis
 export function renderPointSpring(panel: HTMLElement, at: readonly number[], store: DisposableStore, options: IReleasePanelOptions): HTMLElement {
 	const section = append(panel, $('.fem-releases'));
 	const spring = pointSpring(options.bimText, at);
-	appendPropertyHeading(section, localize('femReleases.springHeading', "Point Spring"), spring.id ?? `(${at.map(v => Math.round(v)).join(', ')}) mm`);
+	appendPropertyHeading(section, localize('femReleases.springHeading', "Point Spring"), `(${at.map(v => Math.round(v)).join(', ')}) mm`);
 	if (options.bimText === undefined) {
 		appendPropertyNote(section, localize('femReleases.springNoBim', "Build the building model (6 BIM) first: point springs are stored there."));
 		return section;

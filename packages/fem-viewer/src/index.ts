@@ -1212,12 +1212,23 @@ class FemViewerImpl implements FemViewer {
 			marks.computeBoundingSphere();
 			this.modelGroup.add(marks);
 		};
-		// A hinge: a hollow (wireframe) dot in the supports' colour.
-		addMarks(releaseAt, new THREE.SphereGeometry(scale * 0.007, 10, 6), new THREE.MeshBasicMaterial({ color: this.theme.support, wireframe: true }));
-		// A spring: an open wire post below the joint (world space is Y up).
-		const coil = new THREE.CylinderGeometry(scale * 0.008, scale * 0.008, scale * 0.04, 6, 6, true);
-		coil.translate(0, -scale * 0.02, 0);
-		addMarks(springAt.flatMap(at => [world[at], world[at + 1], world[at + 2]]), coil, new THREE.MeshBasicMaterial({ color: this.theme.support, wireframe: true }));
+		// A hinge: a dot of fixed screen size in the supports' colour, drawn over the members and
+		// slabs so it reads at any zoom (a model-sized mark vanished on a whole-building view).
+		if (releaseAt.length) {
+			const hinges = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(releaseAt, 3)), roundPointMaterial(this.theme.support, 9, { depthTest: false }));
+			hinges.renderOrder = 2;
+			this.modelGroup.add(hinges);
+		}
+		// A spring: an open wire post below the joint (world space is Y up), and a dot on the joint.
+		const springPoints = springAt.flatMap(at => [world[at], world[at + 1], world[at + 2]]);
+		const coil = new THREE.CylinderGeometry(scale * 0.012, scale * 0.012, scale * 0.06, 6, 8, true);
+		coil.translate(0, -scale * 0.03, 0);
+		addMarks(springPoints, coil, new THREE.MeshBasicMaterial({ color: this.theme.support, wireframe: true }));
+		if (springPoints.length) {
+			const dots = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(springPoints, 3)), roundPointMaterial(this.theme.support, 9, { depthTest: false }));
+			dots.renderOrder = 2;
+			this.modelGroup.add(dots);
+		}
 
 		const fixed: number[] = [];
 		const pinned: number[] = [];

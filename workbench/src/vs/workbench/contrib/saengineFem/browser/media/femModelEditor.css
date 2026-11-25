@@ -674,3 +674,40 @@
 	gap: var(--sa-space-1, 4px);
 	margin: var(--sa-space-1, 4px) 0 var(--sa-space-2, 8px);
 }
+
+/* #303: End Releases (start and end side by side) and Point Spring editors */
+.fem-releases-pair {
+	display: grid;
+	width: 100%;
+	grid-template-columns: 1fr 1fr;
+	gap: 4px;
+	min-width: 0;
+}
+.fem-releases-pair input,
+.fem-releases-single input {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+}
+.fem-releases-ends span {
+	text-align: center;
+	font-size: 11px;
+	opacity: 0.8;
+}
+.fem-releases-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+.fem-releases-buttons .monaco-button {
+	flex: 1 1 auto;
+	width: auto;
+}
+.fem-releases .sa-props-row > .name {
+	flex: 0 0 38%;
+}
+.fem-releases .sa-props-row > .value {
+	flex: 1 1 0;
+	text-align: left;
+}

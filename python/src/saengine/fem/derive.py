@@ -5681,8 +5681,8 @@ def _release_simple_ends(
     _hold_released_joints(b, links, holds, rigid_at, held)
     if skewed:
         b.notes.append(
-            "end releases: members not along the grid are released about the global axes "
-            "nearest their own, e.g. " + ", ".join(sorted(skewed)[:5])
+            "released or pinned ends: members not along the global axes are released about "
+            "the global axes nearest their own (approximate), e.g. " + ", ".join(sorted(skewed)[:5])
         )
     if not links:
         return []
