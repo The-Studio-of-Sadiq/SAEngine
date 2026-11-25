@@ -83,7 +83,7 @@ from saengine.library.bim import (
 )
 from saengine.library.materials import MaterialLibrary
 from saengine.library.objects import ObjectLibrary
-from saengine.library.sections import prefetch_section_properties, section_properties
+from saengine.library.sections import section_properties
 from saengine.library.settings import (
     ProjectSettings,
     derived,
@@ -884,13 +884,6 @@ def _derive_fem(
         materials, modulus_notes = rc_detailing.aggregate_moduli(materials)
     b.notes += modulus_notes
     mats = {m.id: m for m in materials.materials}
-    # The distinct profiles the members use, solved in parallel where not kept from before.
-    prefetch_section_properties(
-        types[t].profile
-        for t in sorted(
-            {e.type for e in building.elements if hasattr(types.get(e.type), "profile")}
-        )
-    )
     levels = sorted({s.elevation for s in building.stories})
     base = levels[0] if levels else 0.0
     # Stiffness modifiers per element (saengine.library.modifiers): the member's over its type's.
