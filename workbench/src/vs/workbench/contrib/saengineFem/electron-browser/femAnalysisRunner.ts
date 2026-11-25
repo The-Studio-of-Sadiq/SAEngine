@@ -86,7 +86,7 @@ export class FemAnalysisRunner {
 
 	/** Opens the output channel holding the log of the last run. */
 	async showLog(): Promise<void> {
-		await this.outputService.showChannel(FEM_OUTPUT_CHANNEL_ID);
+		await this.commandService.executeCommand('saengine.showLog', FEM_OUTPUT_CHANNEL_ID);
 	}
 
 	/**

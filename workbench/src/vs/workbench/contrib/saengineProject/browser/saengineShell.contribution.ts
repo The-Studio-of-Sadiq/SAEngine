@@ -400,8 +400,10 @@ registerWorkbenchContribution2(DeveloperModeContribution.ID, DeveloperModeContri
  * Keeps the code-editor views out of sight outside developer mode where gating their views is
  * not enough:
  *
- * - the Output panel shows while it holds one of SAEngine's own logs (Show Log of the analysis,
- *   the AI activity), and is a developer tool otherwise;
+ * - the Output panel shows from the engineer's Show Log (`saengine.showLog`: the analysis log,
+ *   the AI activity, a script's output) until the panel moves on or closes, and is a developer
+ *   tool otherwise. Not from the active channel: the output service makes a channel active as it
+ *   registers, which showed the Output tab at every start (#272);
  * - a side bar or panel restored on, or opened to, a container that is out of sight (the side
  *   bar of a window last closed on Search, an extension's shortcut) goes back to the project's
  *   parts, or closes: that restored, emptied side bar is what made Search look as if it opened
@@ -416,17 +418,23 @@ class DeveloperContainersGuard extends Disposable implements IWorkbenchContribut
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOutputService outputService: IOutputService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISaengineProjectService private readonly projectService: ISaengineProjectService,
 	) {
 		super();
 		this.logShown = SaengineLogShownContext.bindTo(contextKeyService);
-		const isSaengineLog = (id: string | undefined) => !!id?.startsWith('saengine.');
-		this.logShown.set(isSaengineLog(outputService.getActiveChannel()?.id));
-		// Fired before the Output view opens, so the view is there when Show Log asks for it.
-		this._register(outputService.onActiveOutputChannel(id => this.logShown.set(isSaengineLog(id))));
+		// Set by Show Log (`saengine.showLog`); cleared when the panel shows something else or closes.
+		this._register(paneCompositeService.onDidPaneCompositeOpen(({ composite, viewContainerLocation }) => {
+			if (viewContainerLocation === ViewContainerLocation.Panel && composite.getId() !== OUTPUT_VIEW_CONTAINER) {
+				this.logShown.set(false);
+			}
+		}));
+		this._register(paneCompositeService.onDidPaneCompositeClose(({ composite }) => {
+			if (composite.getId() === OUTPUT_VIEW_CONTAINER) {
+				this.logShown.set(false);
+			}
+		}));
 		this._register(new ViewsGate(
 			ContextKeyExpr.or(DeveloperModeContext, SaengineLogShownContext)!,
 			new Set([OUTPUT_VIEW_CONTAINER]), new Set(),
@@ -471,6 +479,18 @@ class DeveloperContainersGuard extends Disposable implements IWorkbenchContribut
 }
 
 registerWorkbenchContribution2(DeveloperContainersGuard.ID, DeveloperContainersGuard, WorkbenchPhase.AfterRestored);
+
+/**
+ * Show Log: one of SAEngine's own output channels (the analysis log, the AI activity, a script's
+ * output) in the Output panel, which is out of sight otherwise (#272). Internal: called by id
+ * from the parts, which do not import each other.
+ */
+CommandsRegistry.registerCommand('saengine.showLog', async (accessor, channelId: string, preserveFocus?: boolean) => {
+	const outputService = accessor.get(IOutputService);
+	// Before the view opens, so it is there when the channel asks for it.
+	SaengineLogShownContext.bindTo(accessor.get(IContextKeyService)).set(true);
+	await outputService.showChannel(channelId, preserveFocus);
+});
 
 registerAction2(class extends Action2 {
 	constructor() {

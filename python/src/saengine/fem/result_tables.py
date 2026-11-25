@@ -534,7 +534,7 @@ def result_table(
             [_MEMBER_NOTE],
         )
     if table in (BUCKLING[0], EFFECTIVE_LENGTHS[0]):
-        return _buckling_table(project_path, key, label, parts, model, table)
+        return _buckling_table(out_dir, project_path, key, label, parts, model, table)
     raise ValueError(f"{label} has no table {table}")
 
 
@@ -558,25 +558,112 @@ _EFFECTIVE_NOTE = (
 )
 
 
-def _buckling(project_path: str | Path, key: str, parts: list[Any], model: _Model) -> Any:
-    """The buckling result of a combination, computed once while the model stays the same."""
+#: Changes when the buckling result or its analysis changes, so earlier answers are not read.
+_BUCKLING_DISK_VERSION = 1
+#: The newest answers kept on disk (each holds the mode shapes of one combination).
+_BUCKLING_DISK_KEEP = 200
+
+
+def _buckling_disk_folder() -> Path | None:
+    """Where the buckling answers are kept between sessions (#278), beside the section
+    properties' (``saengine.library.sections.cache_folder``): in the user's own cache, never in
+    the project, whose files may come from someone else. None when that cache is off."""
+    from saengine.library.sections import cache_folder
+
+    sections = cache_folder()
+    return None if sections is None else sections.parent / "buckling"
+
+
+def _buckling_stamp(out_dir: str | Path, project_path: str | Path) -> str:
+    """What a buckling answer depends on: the model file and the run's results."""
+    path = Path(project_path).resolve()
+    stat = path.stat()
+    newest = 0
+    try:
+        for entry in os.scandir(out_dir):
+            if entry.is_file():
+                newest = max(newest, entry.stat().st_mtime_ns)
+    except OSError:
+        pass
+    return f"{_BUCKLING_DISK_VERSION}|{path}|{stat.st_mtime_ns}|{stat.st_size}|{newest}"
+
+
+def _buckling_disk_file(stamp: str, key: str) -> Path | None:
+    import hashlib
+
+    folder = _buckling_disk_folder()
+    if folder is None:
+        return None
+    return folder / f"{hashlib.sha256(f'{stamp}|{key}'.encode()).hexdigest()}.pkl"
+
+
+def _buckling_disk_load(stamp: str, key: str) -> Any:
+    """The buckling answer of ``key`` kept on disk for ``stamp``; None when there is none or it
+    cannot be read."""
+    import pickle
+
+    file = _buckling_disk_file(stamp, key)
+    if file is None:
+        return None
+    try:
+        with file.open("rb") as handle:
+            data = pickle.load(handle)  # the user's own cache, written below
+    except Exception:  # noqa: BLE001 - a missing or damaged answer is worked out again
+        return None
+    if not isinstance(data, dict) or data.get("stamp") != stamp or data.get("key") != key:
+        return None
+    return data.get("result")
+
+
+def _buckling_disk_save(stamp: str, key: str, result: Any) -> None:
+    """Keeps ``result`` on disk (written beside, then renamed); the oldest answers beyond
+    :data:`_BUCKLING_DISK_KEEP` go. A failure only means it is worked out again next time."""
+    import pickle
+
+    file = _buckling_disk_file(stamp, key)
+    if file is None:
+        return
+    try:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        part = file.with_suffix(f".{os.getpid()}.tmp")
+        with part.open("wb") as handle:
+            pickle.dump({"stamp": stamp, "key": key, "result": result}, handle)
+        os.replace(part, file)
+        kept = sorted(file.parent.glob("*.pkl"), key=lambda p: p.stat().st_mtime_ns, reverse=True)
+        for old in kept[_BUCKLING_DISK_KEEP:]:
+            old.unlink(missing_ok=True)
+    except Exception:  # noqa: BLE001 - the cache is an optimisation only
+        return
+
+
+def _buckling(
+    out_dir: str | Path, project_path: str | Path, key: str, parts: list[Any], model: _Model
+) -> Any:
+    """The buckling result of a combination, computed once per run and model: in memory for
+    the table shown, on disk for the rest (#278: an export of every combination reruns none of
+    those already worked out)."""
     from saengine.fem.buckling import linear_buckling
     from saengine.fem.thermal import load_corrections
 
-    path = Path(project_path).resolve()
-    cache_key = (str(path), path.stat().st_mtime, key)
+    stamp = _buckling_stamp(out_dir, project_path)
+    cache_key = (stamp, key)
     found = _buckling_cache.get(cache_key)
+    if found is None:
+        found = _buckling_disk_load(stamp, key)
     if found is None:
         ids = [e.id for _, chain, _ in model.members for e, _ in chain]
         ends = _summed(parts, "element_forces", ids, 12, load_corrections(project_path))
         # Axial force, tension positive: the mean of the two ends (fem.display convention).
         axial = {i: float((-end[0] + end[6]) / 2) for i, end in ends.items()}
-        _buckling_cache.clear()  # one at a time: it holds mode shapes
-        found = _buckling_cache[cache_key] = linear_buckling(model.project, axial)
+        found = linear_buckling(model.project, axial)
+        _buckling_disk_save(stamp, key, found)
+    _buckling_cache.clear()  # one at a time: it holds mode shapes
+    _buckling_cache[cache_key] = found
     return found
 
 
 def _buckling_table(
+    out_dir: str | Path,
     project_path: str | Path,
     key: str,
     label: str,
@@ -587,7 +674,7 @@ def _buckling_table(
     from saengine.fem.buckling import BucklingError, member_effective_lengths, mode_shares
 
     try:
-        result = _buckling(project_path, key, parts, model)
+        result = _buckling(out_dir, project_path, key, parts, model)
     except BucklingError as error:
         title = BUCKLING[1] if table == BUCKLING[0] else EFFECTIVE_LENGTHS[1]
         return _table(title, f"{title}: {label}", ["Note"], [[str(error)]], [_BUCKLING_NOTE])

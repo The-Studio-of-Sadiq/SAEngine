@@ -65,6 +65,15 @@ suite('SAEngine project stages', () => {
 		assert.deepStrictEqual([stages[4].state, stages[4].focus?.part], ['failed', 'substructure']);
 	});
 
+	test('stages after the analysis are never further along than it (#274)', () => {
+		const waiting = projectStages(building(part('fem', 'notStarted', { phase: 'model' }), { substructure: 'inProgress', exports: 'inProgress' }));
+		assert.deepStrictEqual(waiting.slice(3).map(s => [s.id, s.state, s.waitsFor]), [
+			['analysis', 'notStarted', undefined], ['design', 'notStarted', 'analysis'], ['outputs', 'notStarted', 'analysis'],
+		]);
+		const stale = states(building(part('fem', 'stale', { phase: 'analysis' }), { boq: 'done', exports: 'done' }));
+		assert.deepStrictEqual([stale.analysis, stale.design, stale.outputs], ['stale', 'stale', 'stale']);
+	});
+
 	test('outputs partly made are under way; a done stage opens its main part', () => {
 		const stages = projectStages(building(part('fem', 'done', { phase: 'design' }), { boq: 'done' }));
 		assert.deepStrictEqual([stages[5].state, stages[5].focus?.part], ['inProgress', 'exports']);
