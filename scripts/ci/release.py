@@ -5,7 +5,8 @@ python -I release.py version --tag Pre-Alpha-v5 [--version 0.0.35-alpha.5]
     ``<x.y.z>-alpha.<N>``: x.y.z from HEAD's commit title ``v<x.y.z>`` (a release commit, as
     for every manual release so far), N from the tag ``Alpha-v<N>`` (``Pre-Alpha-v<N>`` up to Pre-Alpha 10). The
     title is ``Alpha Version <N>`` (``Pre Alpha Version <N>``). Fails when HEAD is not a release commit and no --version is
-    given, so a release is never cut from an arbitrary commit by accident.
+    given, so a release is never cut from an arbitrary commit by accident. The merge of beta into
+    main that a release tag sits on also counts: x.y.z then comes from workbench/package.json.
 
 python -I release.py version --tag "" [--version X]
     A test build (workflow_dispatch without a tag): the version is --version or
@@ -39,6 +40,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 TAG = re.compile(r"^(?P<kind>Pre-Alpha|Alpha)-v(?P<n>[0-9]+)$")
 RELEASE_TITLE = re.compile(r"^v(?P<v>[0-9]+\.[0-9]+\.[0-9]+)\s*$")
+#: The merge of beta into main that a release tag sits on (#275): both titles used so far.
+BETA_MERGE_TITLE = re.compile(
+    r"^Merge (pull request #[0-9]+ from [^/\s]+/beta|beta into main\b.*)\s*$"
+)
 SAMPLE = Path("workbench/resources/saengine/samples/Sample Frame")
 NOTES_FILES = {"notes.md", "title.txt"}
 
@@ -85,18 +90,27 @@ def release_number(tag: str) -> int:
     return int(match["n"])
 
 
-def release_version(tag: str, explicit: str | None, head_title: str) -> str:
+def release_version(
+    tag: str, explicit: str | None, head_title: str, package_version: str | None = None
+) -> str:
+    """The version of the release ``tag``: ``explicit`` when given, else x.y.z from the release
+    commit ``v<x.y.z>`` at HEAD, or, when HEAD is the merge of beta into main the tag sits on,
+    from ``package_version`` (workbench/package.json, which the release commit sets)."""
     if explicit:
         if not re.fullmatch(r"[0-9A-Za-z.\-]+", explicit):
             raise ReleaseError(f"version '{explicit}' may only hold letters, digits, . and -")
         return explicit
     match = RELEASE_TITLE.match(head_title)
-    if not match:
+    core = match["v"] if match else None
+    if core is None and BETA_MERGE_TITLE.match(head_title) and package_version:
+        found = re.match(r"^[0-9]+\.[0-9]+\.[0-9]+", package_version)
+        core = found[0] if found else None
+    if core is None:
         raise ReleaseError(
-            f"HEAD's commit title is '{head_title}', not a release commit 'v<x.y.z>': "
-            "release from a release commit, or give the version"
+            f"HEAD's commit title is '{head_title}', not a release commit 'v<x.y.z>' or the "
+            "merge of beta into main: release from one of those, or give the version"
         )
-    return f"{match['v']}-alpha.{release_number(tag)}"
+    return f"{core}-alpha.{release_number(tag)}"
 
 
 def test_build_version(explicit: str | None, package_version: str, run_number: str) -> str:
@@ -220,7 +234,10 @@ def main(argv: list[str] | None = None) -> int:
             write_outputs({"tag": "", "version": value, "title": f"Test build {value}"})
         elif args.command == "version":
             number = release_number(args.tag)
-            value = release_version(args.tag, args.version, git("log", "-1", "--format=%s"))
+            package = json.loads((REPO / "workbench" / "package.json").read_text(encoding="utf-8"))
+            value = release_version(
+                args.tag, args.version, git("log", "-1", "--format=%s"), package["version"]
+            )
             title_file = REPO / "docs" / "release" / args.tag / "title.txt"
             title = (
                 title_file.read_text(encoding="utf-8").strip()
