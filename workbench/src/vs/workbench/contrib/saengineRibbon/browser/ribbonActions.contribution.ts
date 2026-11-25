@@ -11,6 +11,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ProjectStageBar } from '../../saengineProject/browser/projectStageBar.js';
 import {
+	catalogTabMenu,
 	registerRibbonCustomGroup,
 	registerRibbonGroupLabel,
 	registerRibbonGroupPriority,
@@ -647,6 +648,7 @@ addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 2, 'saengine.settings.pac
 // Issue #301: the project's own load patterns (load cases), edited in Project Settings › Load Patterns.
 addItem(RibbonMenus.SettingsLoads, '1_AreaAndChoices', 3, 'saengine.settings.loadPatterns', localize('set.rib.loadPatterns', "Load Patterns..."), Codicon.symbolEnum, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.FemLoads, '1_LoadPattern', 0, 'saengine.settings.loadPatterns', localize('u6e.rib.fem.loadPatterns', "Load Patterns..."), Codicon.symbolEnum, 'large', { precondition: projectOpen });
+addItem(catalogTabMenu('planLoads'), '61_catPlanLoadsPatterns', 0, 'saengine.settings.loadPatterns', localize('plan.rib.loadPatterns', "Load Patterns..."), Codicon.symbolEnum, 'large', { precondition: projectOpen });
 
 addItem(RibbonMenus.SettingsLoads, '2_Combinations', 1, 'saengine.settings.combinationsPreview', localize('set.rib.combos', "Load Combinations"), Codicon.symbolOperator, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.SettingsLoads, '2_Combinations', 2, 'saengine.settings.resetDefaults', localize('rib.set.reset', "Reset to Defaults"), Codicon.discard, 'small', { precondition: projectOpen });

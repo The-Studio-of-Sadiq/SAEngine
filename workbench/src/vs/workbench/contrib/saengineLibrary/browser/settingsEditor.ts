@@ -1452,7 +1452,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	 * Throws when the backend refuses (a pack that cannot be loaded).
 	 */
 	private async packCombinations(document: JsonObject): Promise<IPackCombinations | undefined> {
-		const isDefault = chosenPackId(document) === DEFAULT_CODE_PACK;
+		// Issue #301: the project's own load patterns get their factors by type from the backend
+		// (saengine.library.load_patterns.pattern_factors), the default pack's included.
+		const isDefault = chosenPackId(document) === DEFAULT_CODE_PACK && !userPatterns(document).length;
 		if (isDefault || !CommandsRegistry.getCommand(CODES_COMBINATIONS_COMMAND)) {
 			// The default pack's combinations as this build lists them (unchanged); another pack needs the backend.
 			if (!isDefault) {
@@ -1716,6 +1718,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (!combinations.length) {
 			return;
 		}
+		append(group, $('.sa-props-note', undefined, localize('settings.patternFactorsNote', "Empty: the pattern is not in that combination. Generate from {0} fills them by each pattern's type (a Live pattern takes L's factors); or type them here.", this.codeName)));
 		const table = append(group, $('.form-table'));
 		table.style.gridTemplateColumns = `minmax(120px, 260px) ${patterns.map(() => 'minmax(56px, 72px)').join(' ')}`;
 		append(table, $('.form-table-header', undefined, localize('settings.patternCombination', "Combination")));
