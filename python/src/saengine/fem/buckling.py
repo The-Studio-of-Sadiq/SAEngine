@@ -22,9 +22,13 @@ The stiffness matrices are assembled here, sparse:
 
 Not in the buckling model: shells (walls and slabs: their stiffness is left out, so a building
 held by walls gets lower, conservative, factors; a slab's in-plane stiffness is there only
-through the rigid diaphragms), solids, joint offsets (members are their clear centre-line
-length), and the frames' P-small-delta beyond one element per piece (each analysis piece is one
-element; the derived model splits members at every joint).
+through the rigid diaphragms), solids and joint offsets (members are their clear centre-line
+length).
+
+Each frame element is split into :data:`SUBDIVISIONS` equal elements inside the buckling model
+(#290): one cubic element per member bent in single curvature overestimates its buckling load
+(a pin-ended column drawn as one member: 12 EI/L² in place of π² EI/L², 21.6 % high; split in
+two, 0.75 %). The added interior nodes are dropped from the mode shapes.
 
 Effective length factors (the default pack's Part 6 Sec 10.5, KL/r; the elastic buckling load of a member
 from a buckling analysis of the frame, as in AISC 360-05 Commentary Appendix 7, whose provisions
@@ -38,6 +42,7 @@ Units: the model's (N, m).
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,6 +55,8 @@ K_SHOWN_MAX = 10.0
 DENSE_MAX = 1500
 #: Axial force [N] below which a member is taken as carrying none (no K).
 N_SMALL = 1.0
+#: Elements each frame element is split into in the buckling model (module notes).
+SUBDIVISIONS = 2
 
 _FRAMES = ("ElasticBeamColumn",)
 _TRUSSES = ("Truss", "CorotTruss")
@@ -234,6 +241,44 @@ def _springs(project: dict[str, Any]) -> list[tuple[int, int, int, float]]:
 # ─────────────────────────────────────── assembly ───────────────────────────────────────
 
 
+def _subdivided(
+    project: dict[str, Any], frames: dict[int, _Frame], axial: dict[int, float]
+) -> tuple[dict[str, Any], dict[int, _Frame], dict[int, float]]:
+    """The frames split into :data:`SUBDIVISIONS` pieces each (trusses kept whole): a copy of
+    ``project`` with the interior nodes added (ids from ``_first_added`` up), the pieces keyed
+    by new ids, and their axial forces (the frame's)."""
+    from dataclasses import replace
+
+    if SUBDIVISIONS <= 1:
+        return project, frames, axial
+    coords = {n["id"]: np.asarray(n["coords"], dtype=float) for n in project.get("nodes", [])}
+    next_node = max(coords, default=0) + 1
+    first_added = next_node
+    added: list[dict[str, Any]] = []
+    pieces: dict[int, _Frame] = {}
+    piece_axial: dict[int, float] = {}
+    next_id = max(frames, default=0) + 1
+    for f in frames.values():
+        if f.truss:
+            pieces[f.id] = f
+            piece_axial[f.id] = axial.get(f.id, 0.0)
+            continue
+        a, b = coords[f.i], coords[f.j]
+        chain = [f.i]
+        for k in range(1, SUBDIVISIONS):
+            at = a + (b - a) * k / SUBDIVISIONS
+            added.append({"id": next_node, "coords": at.tolist(), "restraint": [False] * 6})
+            chain.append(next_node)
+            next_node += 1
+        chain.append(f.j)
+        for i, j in itertools.pairwise(chain):
+            pieces[next_id] = replace(f, id=next_id, i=i, j=j, length=f.length / SUBDIVISIONS)
+            piece_axial[next_id] = axial.get(f.id, 0.0)
+            next_id += 1
+    split = {**project, "nodes": [*project.get("nodes", []), *added], "_first_added": first_added}
+    return split, pieces, piece_axial
+
+
 def _transformation(project: dict[str, Any], active: set[int]) -> tuple[Any, list[int]]:
     """The sparse map T from the independent DOFs to all DOFs of the ``active`` nodes (u = T q)
     and the node order: restraints drop DOFs, constraints tie them to their retained node's."""
@@ -352,14 +397,16 @@ def linear_buckling(
     if not any(axial.get(f, 0.0) < -N_SMALL for f in frames):
         raise BucklingError("no member is in compression under these loads")
     springs = _springs(project)
-    active = {n for f in frames.values() for n in (f.i, f.j)}
+    project, pieces, piece_axial = _subdivided(project, frames, axial)
+    active = {n for f in pieces.values() for n in (f.i, f.j)}
     # A link counts when one of its nodes is on a frame; its other node joins the model.
     for i, j, _, _ in springs:
         if i in active or j in active:
             active |= {i, j}
+    first_added = int(project.get("_first_added", 1 << 62))
     t, order = _transformation(project, active)
     position = {n: k for k, n in enumerate(order)}
-    k_full, g_full = _assemble(frames, springs, axial, position, 6 * len(order))
+    k_full, g_full = _assemble(pieces, springs, piece_axial, position, 6 * len(order))
     k = (t.T @ k_full @ t).tocsc()
     g = (t.T @ g_full @ t).tocsc()
     # DOFs with no stiffness (a truss node's rotations) are left out.
@@ -397,9 +444,11 @@ def linear_buckling(
             continue  # only buckling under the loads as they act, not reversed
         full = t @ (expand @ vector)
         shape = full.reshape(-1, 6)
-        peak = float(np.abs(shape[:, :3]).max()) or float(np.abs(shape).max()) or 1.0
+        kept = [k for k, node in enumerate(order) if node < first_added]  # no interior nodes
+        part = shape[kept]
+        peak = float(np.abs(part[:, :3]).max()) or float(np.abs(part).max()) or 1.0
         factors.append(1.0 / float(value))
-        shapes.append({node: shape[k] / peak for k, node in enumerate(order)})
+        shapes.append({order[k]: shape[k] / peak for k in kept})
     return BucklingResult(
         factors=factors,
         modes=shapes,
