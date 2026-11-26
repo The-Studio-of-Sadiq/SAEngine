@@ -33,7 +33,7 @@ import {
 	RibbonSliderModel,
 	RibbonToggleModel,
 } from '../../saengineRibbon/browser/ribbonControls.js';
-import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignElement, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabRebar, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
+import { describeDesignCounts, describeEngineError, describeDesignSummary, describeSlenderness, describeSteel, describeSteelRatio, designElementOf, designInputs, designKindLabel, designUtilisation, formatCheckValues, formatUtilisation, IFemDesignElement, IFemDesignReport, IFemDesignRequired, IFemSteelRequirement, isOtherFailure, isSecondOrderRequired, isSlendernessCheck, IFemSlabServiceCheck, NO_CAPACITY_UTILISATION, otherFailureElements, requiredSteelOf, resultsFolder, runDesign, runDesignRequired, secondOrderRequiredMembers, shortElements, slabCrackIsStress, slabRebar, slabServiceValues, slendernessHeading, sortedChecks, tooSmallElements, writeDesignSummary, STRUT_AND_TIE_COMMAND } from './femDesign.js';
 import { describeScaleOnResult, describeSecondOrder, FemAxis, IFemSecondOrder, isFirstOrderReference, IFemSeismicDesign, runSecondOrder, runSeismicDesign, seismicSection, spectrumAxis, storeyAmplificationRows } from './femSeismicDesign.js';
 import { FemSsiPanel } from './femSsi.js';
 import { describeJointsSummary, describeJointVerdict, detailingSection, FemDetailingItem, generalChecks, IFemDetailingModel, IFemJoint, jointAtNode, jointColouring, jointHeading, jointItems, jointNodeUtilisation, jointOk, jointsOf, jointsOfMember } from './femSeismicDetailing.js';
@@ -100,8 +100,10 @@ const VIEW_STATE_KEY = 'saengine.fem.results.viewState';
 /** `joints`: the beam-column joints' checks, drawn as utilisation of the members framing in. */
 /** A slab layer's rebar contour (the design's steel per shell), drawn as shell values. */
 type RebarShow = 'rebarBottomX' | 'rebarBottomY' | 'rebarTopX' | 'rebarTopY';
+/** #302: a slab's long-term cracked deflection or crack width contour (the design's, per shell). */
+type SlabServiceShow = 'slabDeflection' | 'slabCrackWidth';
 /** `hinges` (P3): a pushover step's members coloured by their hinges' demand / limit. */
-type Show = FemResultQuantity | 'none' | 'joints' | 'hinges' | RebarShow;
+type Show = FemResultQuantity | 'none' | 'joints' | 'hinges' | RebarShow | SlabServiceShow;
 export type FemDisplayShow = Show;
 /** The rebar contours in the order of `SLAB_REBAR_LAYERS`. */
 const REBAR_SHOWS: readonly RebarShow[] = ['rebarBottomX', 'rebarBottomY', 'rebarTopX', 'rebarTopY'];
@@ -110,9 +112,18 @@ function isRebarShow(show: Show): show is RebarShow {
 	return (REBAR_SHOWS as readonly Show[]).includes(show);
 }
 
+function isSlabServiceShow(show: Show): show is SlabServiceShow {
+	return show === 'slabDeflection' || show === 'slabCrackWidth';
+}
+
+/** Whether `show` draws one design value per slab shell (the rebar and serviceability contours). */
+function isShellValueShow(show: Show): show is RebarShow | SlabServiceShow {
+	return isRebarShow(show) || isSlabServiceShow(show);
+}
+
 /** Whether `show` draws design checks (members' utilisation, or the joints'). */
 function isDesignShow(show: Show): boolean {
-	return show === 'utilisation' || show === 'joints' || isRebarShow(show);
+	return show === 'utilisation' || show === 'joints' || isShellValueShow(show);
 }
 
 interface IShowOption {
@@ -168,6 +179,9 @@ const REBAR_OPTIONS: readonly IShowOption[] = [
 	{ show: 'rebarBottomY', label: localize('femResults.rebarBottomY', "Slab Steel Required, Bottom Y") },
 	{ show: 'rebarTopX', label: localize('femResults.rebarTopX', "Slab Steel Required, Top X") },
 	{ show: 'rebarTopY', label: localize('femResults.rebarTopY', "Slab Steel Required, Top Y") },
+	// #302: from the slabs' bars and the service cases (saengine.design.slab_service).
+	{ show: 'slabDeflection', label: localize('femResults.slabDeflection', "Slab Long-Term Deflection") },
+	{ show: 'slabCrackWidth', label: localize('femResults.slabCrackWidth', "Slab Crack Width") },
 ];
 const SHELL_COMPONENTS: readonly Show[] = ['N11', 'N22', 'N12', 'M11', 'M22', 'M12', 'Q13', 'Q23'];
 /** Solid stresses, offered when the result has solids with stresses. */
@@ -1292,7 +1306,7 @@ export class FemResultsBar extends Disposable {
 			view && show !== 'none' ? {
 				// The joints are drawn as the utilisation of the members framing into them; a slab
 				// layer's rebar contour as one value per shell.
-				show: show === 'joints' || show === 'hinges' ? 'utilisation' : isRebarShow(show) ? 'shellValues' : show,
+				show: show === 'joints' || show === 'hinges' ? 'utilisation' : isShellValueShow(show) ? 'shellValues' : show,
 				scale: this.scale,
 				animate: this.animate,
 				memberLabels: this.memberLabels,
@@ -1301,9 +1315,9 @@ export class FemResultsBar extends Disposable {
 					: show === 'utilisation' ? designUtilisation(this.design)
 						: show === 'joints' ? jointColouring(this.design, this.model) : undefined,
 				// The joints as glyphs at their nodes, over the members' or the joints' colours.
-				nodeUtilisation: this.design && isDesignShow(show) && !isRebarShow(show) ? jointNodeUtilisation(this.design, this.model) : undefined,
-				shellValues: this.design && isRebarShow(show) ? slabRebar(this.design, REBAR_SHOWS.indexOf(show)) : undefined,
-				shellValueQuantity: 'areaPerLength',
+				nodeUtilisation: this.design && isDesignShow(show) && !isShellValueShow(show) ? jointNodeUtilisation(this.design, this.model) : undefined,
+				shellValues: this.shellValues(show),
+				shellValueQuantity: this.shellValueQuantity(show),
 			} : undefined,
 		);
 		this.renderLegend();
@@ -1340,6 +1354,9 @@ export class FemResultsBar extends Disposable {
 			}
 			if (isRebarShow(this.show)) {
 				return { text: localize('femResults.rebarStatus', "Steel each slab layer needs for strength (Wood-Armer moments, all combinations), shell by shell; minimum steel not included. X layers run along the slab's local x.") };
+			}
+			if (isSlabServiceShow(this.show)) {
+				return { text: this.slabServiceStatus(this.design, this.show) };
 			}
 			if (this.show === 'joints') {
 				const failing = jointsOf(this.design).some(j => !jointOk(j));
@@ -1474,7 +1491,7 @@ export class FemResultsBar extends Disposable {
 			}
 			append(this.legend, $('.fem-legend-row', undefined, localize('femResults.hingeUncoloured', "Grey: no hinge, or not covered by the code pack")));
 			shown = true;
-		} else if (this.entry && isDesignShow(this.show) && !isRebarShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
+		} else if (this.entry && isDesignShow(this.show) && !isShellValueShow(this.show) && this.design && (this.show === 'utilisation' || jointsOf(this.design).length)) {
 			// The colours of the 3D view's utilisation bands.
 			append(this.legend, $('.fem-legend-title', undefined, this.show === 'joints'
 				? localize('femResults.jointUtilisation', "Joint Utilisation")
@@ -1555,9 +1572,10 @@ export class FemResultsBar extends Disposable {
 
 	/** The lowest and highest value of a shell or solid contour, as the 3D view colours it. */
 	private contourRange(): { readonly min: string; readonly max: string } | undefined {
-		if (isRebarShow(this.show)) {
-			const values = this.design ? Object.values(slabRebar(this.design, REBAR_SHOWS.indexOf(this.show))) : [];
-			return values.length ? { min: this.format('areaPerLength', Math.min(...values)), max: this.format('areaPerLength', Math.max(...values)) } : undefined;
+		if (isShellValueShow(this.show)) {
+			const values = Object.values(this.shellValues(this.show) ?? {});
+			const quantity = this.shellValueQuantity(this.show);
+			return values.length ? { min: this.format(quantity, Math.min(...values)), max: this.format(quantity, Math.max(...values)) } : undefined;
 		}
 		const solidComponent = SOLID_COMPONENTS[this.show];
 		if (solidComponent !== undefined) {
@@ -1628,6 +1646,80 @@ export class FemResultsBar extends Disposable {
 			this.ssi.render(container);
 		}
 		return true;
+	}
+
+	/** The per-shell design values a shell value contour draws, by analysis element id. */
+	private shellValues(show: Show): { [elementId: number]: number } | undefined {
+		if (!this.design) {
+			return undefined;
+		}
+		if (isRebarShow(show)) {
+			return slabRebar(this.design, REBAR_SHOWS.indexOf(show));
+		}
+		if (isSlabServiceShow(show)) {
+			return slabServiceValues(this.design, show === 'slabDeflection' ? 'deflection' : 'crack');
+		}
+		return undefined;
+	}
+
+	private shellValueQuantity(show: Show): FemValueQuantity {
+		if (show === 'slabDeflection') {
+			return 'length';
+		}
+		if (show === 'slabCrackWidth') {
+			return this.design && slabCrackIsStress(this.design) ? 'stress' : 'length';
+		}
+		return 'areaPerLength';
+	}
+
+	/** What the status line says of a slab serviceability contour (#302). */
+	private slabServiceStatus(design: IFemDesignReport, show: SlabServiceShow): string {
+		const service = design.elements.find(e => e.service)?.service;
+		if (!service) {
+			return localize('femResults.slabServiceNone', "No slab analysed as shells has bars and service results: enter the slabs' bars, analyse the slabs as shells and run the design.");
+		}
+		if (show === 'slabDeflection') {
+			return service.deflectionMethod
+				? localize('femResults.slabDeflectionStatus', "Long-term deflection of each slab shell: the analysis's deflection under the service cases scaled to the cracked stiffness of the bars entered, with creep and shrinkage ({0}). The checks per design strip are with the slab's checks.", service.deflectionMethodName)
+				: localize('femResults.slabDeflectionNotProvided', "Cracked long-term deflection of slabs: not provided by this code.");
+		}
+		if (!service.crackMethod) {
+			return localize('femResults.slabCrackNotProvided', "Crack widths of slabs: not provided by this code.");
+		}
+		return service.crackQuantity === 'stress'
+			? localize('femResults.slabSteelStressStatus', "Service steel stress of each slab shell's bars: this code checks crack control by the bar spacing at that stress, not by a crack width.")
+			: localize('femResults.slabCrackStatus', "Crack width of each slab shell's bars under service loads ({0}), the widest of its layers.", service.crackMethodName);
+	}
+
+	/**
+	 * #302: a slab's cracked long-term deflection and crack widths: the code's methods and the
+	 * strips that govern (the governing rows are with its checks above).
+	 */
+	private renderSlabService(container: HTMLElement, element: IFemDesignElement): void {
+		const service = element.service;
+		if (!service) {
+			return;
+		}
+		appendPropertyHeading(container, localize('femResults.slabServiceHeading', "Serviceability (Cracked)"));
+		appendPropertyRow(container, localize('femResults.slabDeflectionMethod', "Deflection"), service.deflectionMethodName);
+		appendPropertyRow(container, localize('femResults.slabCrackMethod', "Cracking"), service.crackMethodName);
+		const ratio = (c: IFemSlabServiceCheck) => c.limit > 0 ? c.value / c.limit : 0;
+		const spans = service.spans
+			.map(span => ({ span, worst: span.checks.reduce<IFemSlabServiceCheck | undefined>((a, c) => !a || ratio(c) > ratio(a) ? c : a, undefined) }))
+			.sort((a, b) => (b.worst ? ratio(b.worst) : 0) - (a.worst ? ratio(a.worst) : 0))
+			.slice(0, 3);
+		for (const { span, worst } of spans) {
+			appendPropertyRow(container, span.strip, worst
+				? localize('femResults.slabSpanRow', "{0} mm total, {1} mm after partitions; {2} mm allowed", span.total.toFixed(1), span.after.toFixed(1), worst.limit.toFixed(1))
+				: localize('femResults.slabSpanTotal', "{0} mm total", span.total.toFixed(1)));
+		}
+		const crack = [...service.cracks].sort((a, b) => (b.limit > 0 ? b.value / b.limit : 0) - (a.limit > 0 ? a.value / a.limit : 0))[0];
+		if (crack) {
+			appendPropertyRow(container, localize('femResults.slabCrackWorst', "{0}, {1}", crack.strip, crack.at), service.crackQuantity === 'stress'
+				? localize('femResults.slabSpacingRow', "bars at {0} mm, {1} mm allowed", crack.value.toFixed(0), crack.limit.toFixed(0))
+				: localize('femResults.slabCrackRow', "wk {0} mm, {1} mm allowed", crack.value.toFixed(2), crack.limit.toFixed(2)));
+		}
+		appendPropertyNote(container, localize('femResults.slabServiceNote', "Every strip: Design > Slab Checks > Cracked Deflection and Crack Widths. Contours: Show > Slab Long-Term Deflection, Slab Crack Width."));
 	}
 
 	/** Chips to the planned features that will extend the result shown. */
@@ -1821,12 +1913,10 @@ export class FemResultsBar extends Disposable {
 			appendPropertyNote(container, localize('femResults.governing', "Governing: {0}.", governing.note));
 		}
 		if (element.kind === 'slab') {
-			const prestressed = element.checks.some(c => c.name.startsWith('PT '));
-			this.appendPlanned(container, [
-				FemPlanned.crackedSlabDeflection,
-				FemPlanned.crackWidths,
-				...(prestressed ? [FemPlanned.tendonLayout, FemPlanned.tendonLongTermLosses] : []),
-			]);
+			this.renderSlabService(container, element);
+			if (element.checks.some(c => c.name.startsWith('PT '))) {
+				this.appendPlanned(container, [FemPlanned.tendonLayout, FemPlanned.tendonLongTermLosses]);
+			}
 		}
 		// A column's slenderness about each axis: how its moments are magnified for it.
 		for (const check of checks.filter(isSlendernessCheck)) {

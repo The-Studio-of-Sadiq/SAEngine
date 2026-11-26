@@ -117,6 +117,52 @@ export interface IFemDesignElement {
 	 * strength only, without the minimum steel).
 	 */
 	readonly rebar?: { readonly [shellId: string]: readonly number[] };
+	/**
+	 * #302: a slab's cracked long-term deflection and crack widths (saengine.design.slab_service),
+	 * per design strip bay, with the per-shell contours; absent for slabs not analysed as shells.
+	 */
+	readonly service?: IFemSlabService;
+}
+
+/** One check of a bay's deflection: its value and limit [mm]. */
+export interface IFemSlabServiceCheck {
+	readonly name: string;
+	readonly value: number;
+	readonly limit: number;
+	readonly ok: boolean;
+	readonly note: string;
+}
+
+/** A slab's cracked deflection and crack widths (#302). Lengths in mm, moments in kN·m/m. */
+export interface IFemSlabService {
+	/** The code pack's methods: ids, and the names the panels show ("not provided by this code"). */
+	readonly deflectionMethod: string | null;
+	readonly crackMethod: string | null;
+	readonly deflectionMethodName: string;
+	readonly crackMethodName: string;
+	/** The crack contour: crack widths [mm], or (a code with the bar spacing rule only) the service steel stress [MPa]. */
+	readonly crackQuantity: 'width' | 'stress';
+	readonly spans: readonly {
+		readonly strip: string;
+		readonly span: number;
+		readonly immediate: number;
+		readonly longTerm: number;
+		readonly total: number;
+		readonly after: number;
+		readonly checks: readonly IFemSlabServiceCheck[];
+	}[];
+	readonly cracks: readonly {
+		readonly strip: string;
+		readonly at: string;
+		readonly face: string;
+		readonly moment: number;
+		readonly value: number;
+		readonly limit: number;
+		readonly ok: boolean;
+	}[];
+	/** Per analysis shell id: the long-term deflection [mm] and the crack contour's value. */
+	readonly deflection: { readonly [shellId: string]: number };
+	readonly crack: { readonly [shellId: string]: number };
 }
 
 /** One bay of a slab's design strip (ACI 318-19 8.4.1.5: column and middle strips). */
@@ -720,6 +766,31 @@ export function slabRebar(report: IFemDesignReport, layer: number): { [elementId
 		}
 	}
 	return result;
+}
+
+/**
+ * #302: the slabs' long-term cracked deflection [m] (`deflection`), or their crack widths [m]
+ * (stresses [Pa] where the code gives the bar spacing rule only), by analysis shell id: the
+ * contours in the model's SI units.
+ */
+export function slabServiceValues(report: IFemDesignReport, kind: 'deflection' | 'crack'): { [elementId: number]: number } {
+	const result: { [elementId: number]: number } = {};
+	for (const element of report.elements) {
+		const service = element.service;
+		if (!service) {
+			continue;
+		}
+		const scale = kind === 'crack' && service.crackQuantity === 'stress' ? 1e6 : 1e-3;
+		for (const [id, value] of Object.entries(kind === 'deflection' ? service.deflection : service.crack)) {
+			result[Number(id)] = value * scale;
+		}
+	}
+	return result;
+}
+
+/** Whether the report's slab crack contour is a stress (the bar spacing rule) rather than widths. */
+export function slabCrackIsStress(report: IFemDesignReport): boolean {
+	return report.elements.some(e => e.service?.crackQuantity === 'stress');
 }
 
 /** The checked member an analysis element belongs to. */

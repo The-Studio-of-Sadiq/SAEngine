@@ -2306,6 +2306,43 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 size=8,
             ),
         ]
+    ss = design.get("slabService") or {}
+    if ss.get("rows"):
+        m = ss.get("methods") or {}
+        out += [
+            h(2, "Slab deflection and cracking"),
+            p(
+                "Slabs analysed as shells, per design strip bay: the analysis's deflection under "
+                "the unfactored dead and live cases scaled to the cracked stiffness of the bars "
+                f"provided, with the long-term part ({m.get('deflection', '')}; sustained share "
+                f"of the live load {float(m.get('sustained') or 0):g}), and the "
+                + (
+                    "bar spacing at the service steel stress (the code gives no crack width "
+                    "calculation)"
+                    if m.get("quantity") == "stress"
+                    else f"crack widths ({m.get('crack', '')})"
+                )
+                + ". Each slab's two governing bays and its governing crack check; deflections "
+                "in mm, spans in m."
+            ),
+            table(
+                [
+                    "Slab",
+                    "Strip",
+                    "Span",
+                    "Immediate",
+                    "Total",
+                    "After partitions",
+                    "Governing check",
+                    "Limit",
+                    "Result",
+                ],
+                ss["rows"],
+                align="llrrrrlrc",
+                bad=ss.get("bad"),
+                size=8,
+            ),
+        ]
     if design.get("stability"):
         out += full(
             h(2, "Stability index Q per storey"),

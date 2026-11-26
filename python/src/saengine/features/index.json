@@ -809,6 +809,8 @@
 "design.bucklingLength": "saengine.features.fem_design",
 "design.columnAxialCheck": "saengine.features.fem_design",
 "design.crackControlCheck": "saengine.features.fem_design",
+"design.crackWidths": "saengine.features.fem_slab_service",
+"design.crackedDeflection": "saengine.features.fem_slab_service",
 "design.deflectionLimit": "saengine.features.fem_design",
 "design.developmentLength": "saengine.features.fem_design",
 "design.footingDesign": "saengine.features.fem_design",

@@ -3855,6 +3855,7 @@ def _design(
 
     strut_and_tie = stm_section(model_path.parent / "strut-and-tie.json", warnings)
     punching = _punching(report)
+    slab_service = _slab_service(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
     # W4C-6 of usability walk 4: what the code pack does not cover is not "no reinforcement".
@@ -3890,6 +3891,7 @@ def _design(
         "takedown": takedown,
         "strutAndTie": strut_and_tie,
         "punching": punching,
+        "slabService": slab_service,
         "steel": steel,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
@@ -4153,6 +4155,64 @@ def _punching(report: dict[str, Any]) -> dict[str, Any]:
             )
             bad.append(_result_label(c) == "FAIL")
     return {"rows": rows, "bad": bad}
+
+
+def _slab_service(report: dict[str, Any]) -> dict[str, Any]:
+    """#302: the slabs' cracked long-term deflection and crack widths per design strip
+    (saengine.design.slab_service), the design run's inputs: per slab its governing bays (the
+    largest deflection to its limit, and the largest crack width or bar spacing to its
+    limit), with the code's methods."""
+    rows, bad, methods = [], [], {}
+    for element in report.get("elements", []):
+        service = element.get("service")
+        if element.get("kind") != "slab" or not isinstance(service, dict):
+            continue
+        methods.setdefault("deflection", service.get("deflectionMethodName", ""))
+        methods.setdefault("crack", service.get("crackMethodName", ""))
+        methods.setdefault("quantity", service.get("crackQuantity", "width"))
+        inputs = service.get("inputs") or {}
+        methods.setdefault("sustained", inputs.get("sustained"))
+
+        def ratio(c: dict[str, Any]) -> float:
+            limit = float(c.get("limit") or 0)
+            return float(c.get("value") or 0) / limit if limit > 0 else 0.0
+
+        spans = [(max(s.get("checks") or [{}], key=ratio), s) for s in service.get("spans", [])]
+        spans.sort(key=lambda found: -ratio(found[0]))
+        for check, span in spans[:2]:
+            rows.append(
+                [
+                    str(element.get("id")),
+                    str(span.get("strip", "")),
+                    fmt((span.get("span") or 0) / 1e3, 2),
+                    fmt(span.get("immediate"), 1),
+                    fmt(span.get("total"), 1),
+                    fmt(span.get("after"), 1),
+                    str(check.get("name", "")).replace(" (FE slab, cracked)", ""),
+                    fmt(check.get("limit"), 1),
+                    "OK" if all(c.get("ok") for c in span.get("checks") or []) else "FAIL",
+                ]
+            )
+            bad.append(rows[-1][-1] == "FAIL")
+        cracks = sorted(service.get("cracks", []), key=lambda c: -ratio(c))
+        if cracks:
+            c = cracks[0]
+            spacing = service.get("crackQuantity") == "stress"
+            rows.append(
+                [
+                    str(element.get("id")),
+                    f"{c.get('strip', '')}, {c.get('at', '')} ({c.get('face', '')} bars)",
+                    "–",
+                    "–",
+                    "–",
+                    "–",
+                    "Bar spacing at service" if spacing else "Crack width wk",
+                    f"{fmt(c.get('value'), 0 if spacing else 2)} / {fmt(c.get('limit'), 0 if spacing else 2)}",
+                    "OK" if c.get("ok") else "FAIL",
+                ]
+            )
+            bad.append(not c.get("ok"))
+    return {"rows": rows, "bad": bad, "methods": methods}
 
 
 DETAILING = "Detailing: "

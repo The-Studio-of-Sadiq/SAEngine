@@ -19434,6 +19434,82 @@
   "fields": []
  },
  {
+  "id": "design.crackWidths",
+  "title": "Crack Widths",
+  "part": "fem",
+  "help": "Crack widths of the slabs analysed as shells at mid-span and at the supports of each design strip, from the steel stress of the bars entered under service loads, by the code pack's method, against the exposure's limit (or the bar spacing rule where the code gives no crack width).",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "sustained",
+    "label": "Sustained share of the live load ψ",
+    "type": "number",
+    "default": 0.25,
+    "min": 0.0,
+    "max": 1.0,
+    "help": "Codes that take the crack width under the quasi-permanent load D + ψ L."
+   },
+   {
+    "key": "exposure",
+    "label": "Exposure class (blank: the project's)",
+    "type": "text",
+    "default": "",
+    "help": "An exposure of the code pack's crack width table, e.g. XC3, moderate."
+   }
+  ]
+ },
+ {
+  "id": "design.crackedDeflection",
+  "title": "Cracked Deflection",
+  "part": "fem",
+  "help": "Long-term cracked deflection of the slabs analysed as shells, per design strip: the analysis's deflection scaled to the cracked stiffness of the bars entered, with creep and shrinkage by the code pack's method, against the code's span limits.",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "sustained",
+    "label": "Sustained share of the live load ψ",
+    "type": "number",
+    "default": 0.25,
+    "min": 0.0,
+    "max": 1.0,
+    "help": "The quasi-permanent load is D + ψ L (Project Settings > Analysis keeps the design run's value)."
+   },
+   {
+    "key": "months",
+    "label": "Load sustained for [months]",
+    "type": "number",
+    "default": 60.0,
+    "min": 3.0,
+    "max": 600.0
+   },
+   {
+    "key": "partitions",
+    "label": "Partitions",
+    "type": "select",
+    "default": "sensitive",
+    "options": [
+     {
+      "value": "sensitive",
+      "label": "Likely to be damaged (masonry partitions)"
+     },
+     {
+      "value": "insensitive",
+      "label": "Not likely to be damaged"
+     }
+    ]
+   },
+   {
+    "key": "creep",
+    "label": "Creep coefficient φ (0: the code's)",
+    "type": "number",
+    "default": 0.0,
+    "min": 0.0,
+    "max": 6.0,
+    "help": "Codes that work the long-term part from φ (ζ interpolation, Annex C type)."
+   }
+  ]
+ },
+ {
   "id": "design.deflectionLimit",
   "title": "Deflection Limit",
   "part": "fem",

@@ -3852,6 +3852,31 @@ class DeflectionLimitsGroup(_Group):
     )
 
 
+# #302: long-term cracked deflection of slabs analysed as shells, by the curvature
+# interpolation between the uncracked and the fully cracked states (saengine.design.slab_service).
+class SlabServiceRules(_Group):
+    """Deflection of FE slabs by ζ interpolation (method ``interpolation``, EN 1992-1-1 7.4.3
+    type): 1/Ie = ζ/Icr + (1 - ζ)/Ig, ζ = 1 - β (Mcr/M)² (0 below Mcr), Mcr = fctm Ig / yt;
+    the long-term part under the quasi-permanent load with Ec,eff = Ec / (1 + φ). A pack
+    without this group uses its other deflection method (``concrete.deflection``,
+    ``concreteMethods.deflection``)."""
+
+    method: Literal["interpolation"] = "interpolation"
+    beta: tuple[Share, Share] = Field(
+        description="β of ζ: (short-term loading, sustained or repeated loading)."
+    )
+    creepCoefficient: Positive = Field(
+        description="φ(∞, t0) where the project gives none: Ec,eff = Ec / (1 + φ)."
+    )
+    limitTotal: Positive = Field(
+        description="Final deflection under the quasi-permanent load at most l / this."
+    )
+    limitAfter: Positive = Field(
+        description="Deflection after construction (the final less the immediate dead load "
+        "part) at most l / this."
+    )
+
+
 # B21: the concrete's modulus and shrinkage steel by its aggregate (Project Settings >
 # Construction > Concrete aggregate).
 class AggregateRules(_Group):
@@ -3944,6 +3969,11 @@ class ConcreteTable(TableModel):
     )
     deflection: DeflectionLimitsGroup | None = Field(
         default=None, description="Deflection limits (saengine.design.deflection)."
+    )
+    slabService: SlabServiceRules | None = Field(
+        default=None,
+        description="#302: FE slab deflection by ζ interpolation and creep "
+        "(saengine.design.slab_service); None: the pack's other deflection method.",
     )
     prestress: PrestressLimits | None = Field(
         default=None, description="Prestressed slabs (saengine.design.prestress)."

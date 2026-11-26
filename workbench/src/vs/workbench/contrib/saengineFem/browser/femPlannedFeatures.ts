@@ -23,9 +23,6 @@ export const FemPlanned = {
 	existingMasonry: 'fem.existingMasonry',
 	/** T35 / B36 / P5: what stays planned of the time histories: searching open record databases and time-domain wavelet matching (scaling, frequency-domain matching and the NLTH design are built). */
 	recordSearch: 'fem.recordSearch',
-	/** T14: cracked long-term FE deflection of slabs, and crack widths. */
-	crackedSlabDeflection: 'fem.crackedSlabDeflection',
-	crackWidths: 'fem.crackWidths',
 	/** T15: automatic tendon layout and time-step long-term losses of PT slabs. */
 	tendonLayout: 'fem.tendonLayout',
 	tendonLongTermLosses: 'fem.tendonLongTermLosses',
