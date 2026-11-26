@@ -93,6 +93,9 @@ export interface IJSONSchema {
 	// SAEngine: the quantity kind of a number field whose description does not write its SI unit
 	// ("temperatureChange"), for the display units (services/saengineProject/common/displayUnits.ts)
 	unitKind?: string;
+	// SAEngine: a field the schema form leaves out because its editor shows it in a control of its
+	// own (a combination's factors on the project's load patterns, issue #301)
+	formHidden?: boolean;
 }
 
 export interface IJSONSchemaMap {

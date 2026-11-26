@@ -939,7 +939,7 @@ export function scopeWhen(scope: RibbonScope): ContextKeyExpression {
 		case 'settings': return SETTINGS_WHEN;
 		// The settings editor reports its section (settingsEditor.ts SECTIONS), as the tree's entries group them.
 		case 'settings.code': return allOf([SETTINGS_WHEN, subViewOrNone('settings.project', 'settings.occupancy', 'settings.construction', 'settings.site', 'settings.packages')]);
-		case 'settings.loads': return allOf([SETTINGS_WHEN, subViewOrNone('settings.areaLoads', 'settings.cranes', 'settings.specialStructures', 'settings.combinations', 'settings.analysis')]);
+		case 'settings.loads': return allOf([SETTINGS_WHEN, subViewOrNone('settings.areaLoads', 'settings.loadPatterns', 'settings.cranes', 'settings.specialStructures', 'settings.combinations', 'settings.analysis')]);
 		case 'settings.hazard': return allOf([SETTINGS_WHEN, subViewOrNone('settings.seismic', 'settings.wind')]);
 		case 'settings.foundation': return allOf([SETTINGS_WHEN, subViewOrNone('settings.foundation')]);
 		case 'settings.drawings': return allOf([SETTINGS_WHEN, subViewOrNone('settings.drawings', 'settings.detailing', 'settings.report')]);

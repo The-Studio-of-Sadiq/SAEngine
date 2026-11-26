@@ -51,6 +51,7 @@ import { applyHazardValues, HAZARD_OFFERS_COMMAND, hazardOffers, hazardSourceSum
 import { clone, IDocumentFrameActions, IShapeError, isObject, JsonDocumentEditor } from './jsonDocumentEditor.js';
 import { LibraryEditorInput } from './libraryEditorInput.js';
 import { humanize, JsonObject, JsonValue, SchemaForm, titleCase } from './schemaForm.js';
+import { patternIdProblem, userPatterns } from '../../../services/saengineProject/common/loadPatterns.js';
 
 const SETTINGS_SCHEMA_ID = 'saengine.projectSettings/1';
 /** The fields that choose from a list of the code pack (field path → the list of `saengine.codes.choices`). */
@@ -432,6 +433,10 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	private bearingSourceCell: HTMLElement | undefined;
 	/** The Seismic section's read-only design category row (see renderSeismicSummary). */
 	private seismicCell: HTMLElement | undefined;
+	/** Issue #301: the ids of the project's load patterns as last rendered (to follow a renamed id). */
+	private patternIdsShown: string[] = [];
+	/** Issue #301: member loads (05 Floor Plan/loads.json) per load case, read when Load Patterns shows. */
+	private memberLoadCases = new Map<string, number>();
 	private readonly seismicDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -467,6 +472,7 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			note: path => this.note(path),
 			referenceLabel: (path, id) => this.referenceLabel(path, id),
 			editing: active => this.fieldEditing(active),
+			confirmRemove: (path, index, entry) => this.confirmRemove(path, index, entry),
 		});
 		this._register({ dispose: () => this.form.dispose() });
 		// Unsaved settings show a Save link in the status line.
@@ -923,6 +929,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 
 	/** The floor and roof loads are picked from the area loads. */
 	private references(path: string): readonly string[] | undefined {
+		if (path === 'areaLoads.otherPattern') {
+			return userPatterns(this.document).map(p => p.id); // issue #301
+		}
 		if (path === 'floorLoad' || path === 'roofLoad') {
 			return this.areaLoads.map(a => String(a.id));
 		}
@@ -1175,12 +1184,113 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 				return localize('settings.duplicateLoad', "Another area load already uses the id {0}.", value);
 			}
 		}
+		const pattern = /^loadPatterns\.(?<index>\d+)\.id$/.exec(path);
+		if (pattern) {
+			// Issue #301: an id of its own, not a code the program uses; not renamed while loads use it.
+			const index = Number(pattern.groups!.index);
+			const others = userPatterns(this.document).filter((_, i) => i !== index).map(p => p.id);
+			const old = this.patternIdsShown[index];
+			const used = old !== undefined && old !== value ? this.memberLoadCases.get(old) ?? 0 : 0;
+			return patternIdProblem(value, others) ?? (used
+				? localize('settings.patternIdUsed', "{0} member load(s) on the floor plan are in {1}: move them to another pattern before changing its id (the name can change freely).", used, old)
+				: undefined);
+		}
 		return undefined;
+	}
+
+	/** Issue #301: member loads per load case (05 Floor Plan/loads.json); empty without the file. */
+	private async readMemberLoadCases(): Promise<Map<string, number>> {
+		const counts = new Map<string, number>();
+		const root = this.project.project?.root;
+		if (!root) {
+			return counts;
+		}
+		try {
+			const text = (await this.textFiles.read(joinPath(root, '05 Floor Plan', 'loads.json'))).value;
+			const loads = (JSON.parse(text) as { loads?: unknown }).loads;
+			for (const load of Array.isArray(loads) ? loads : []) {
+				const kase = isObject(load) && typeof load.case === 'string' ? load.case : 'SD';
+				counts.set(kase, (counts.get(kase) ?? 0) + 1);
+			}
+		} catch {
+			// No loads file (or one that does not read): no member loads.
+		}
+		return counts;
+	}
+
+	/**
+	 * Issue #301: deleting a load pattern. Refused while member loads or area loads are in it (they
+	 * would be lost from the analysis); its factors in the combinations go with it, once confirmed.
+	 */
+	private async confirmRemove(path: string, _index: number, entry: JsonValue): Promise<boolean> {
+		if (path !== 'loadPatterns' || !isObject(entry) || typeof entry.id !== 'string') {
+			return true;
+		}
+		const id = entry.id;
+		this.memberLoadCases = await this.readMemberLoadCases();
+		const members = this.memberLoadCases.get(id) ?? 0;
+		const areas = this.areaLoads.filter(a => a.otherPattern === id).map(a => String(a.id));
+		if (members || areas.length) {
+			const where = [
+				...(members ? [localize('settings.patternMembers', "{0} member load(s) on the floor plan", members)] : []),
+				...(areas.length ? [localize('settings.patternAreas', "area load(s) {0}", areas.join(', '))] : []),
+			].join('; ');
+			await this.dialogService.error(
+				localize('settings.patternInUse', "Load pattern {0} cannot be deleted", id),
+				localize('settings.patternInUseDetail', "It has loads ({0}). Move them to another load pattern or delete them first, then delete the pattern.", where));
+			return false;
+		}
+		const combinations = Array.isArray(this.document?.combinations) ? this.document.combinations.filter(isObject) : [];
+		const factored = combinations.filter(c => isObject(c.patterns) && typeof c.patterns[id] === 'number' && c.patterns[id] !== 0);
+		if (factored.length) {
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('settings.patternDelete', "Delete load pattern {0}?", id),
+				detail: localize('settings.patternDeleteDetail', "Its factors in {0} load combination(s) are removed with it. Edit > Undo brings them back.", factored.length),
+				primaryButton: localize('settings.patternDeleteButton', "&&Delete"),
+			});
+			if (!confirmed) {
+				return false;
+			}
+		}
+		for (const c of combinations) {
+			if (isObject(c.patterns)) {
+				delete c.patterns[id];
+				if (!Object.keys(c.patterns).length) {
+					delete c.patterns;
+				}
+			}
+		}
+		return true;
+	}
+
+	/** Issue #301: a load pattern's id changed: the combinations' factors and the area loads follow it. */
+	private renamePattern(index: number): void {
+		const old = this.patternIdsShown[index];
+		const now = userPatterns(this.document)[index]?.id;
+		if (!old || !now || old === now || patternIdProblem(now, this.patternIdsShown.filter((_, i) => i !== index))) {
+			return;
+		}
+		for (const c of Array.isArray(this.document?.combinations) ? this.document.combinations.filter(isObject) : []) {
+			if (isObject(c.patterns) && c.patterns[old] !== undefined) {
+				c.patterns[now] = c.patterns[old];
+				delete c.patterns[old];
+			}
+		}
+		for (const a of this.areaLoads) {
+			if (a.otherPattern === old) {
+				a.otherPattern = now;
+			}
+		}
+		this.patternIdsShown[index] = now;
 	}
 
 	/** Choosing an area's use sets its live load to the code minimum for that use. */
 	private onChanged(path: string, structural: boolean): void {
 		this.sourcesScheduler.schedule();
+		const renamed = /^loadPatterns\.(?<index>\d+)\.id$/.exec(path);
+		if (renamed) {
+			this.renamePattern(Number(renamed.groups!.index));
+		}
 		if (path === 'site.siteClassSource') {
 			this.changed(true); // the entered site class field shows or hides
 			return;
@@ -1316,6 +1426,15 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			const last = [...list].reverse().find(isObject);
 			return { code: nextRevision(typeof last?.code === 'string' ? last.code : ''), date: new Date().toISOString().slice(0, 10), description: '', by: '' };
 		}
+		if (path === 'loadPatterns') {
+			// Issue #301: the next free id P1, P2, ... of type Other.
+			const used = new Set(list.filter(isObject).map(p => String(p.id)));
+			let k = 1;
+			while (used.has(`P${k}`)) {
+				k++;
+			}
+			return { id: `P${k}`, name: localize('settings.newPattern', "Load pattern {0}", k), type: 'Other', selfWeight: 0 };
+		}
 		if (path !== 'areaLoads') {
 			return undefined;
 		}
@@ -1333,7 +1452,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 	 * Throws when the backend refuses (a pack that cannot be loaded).
 	 */
 	private async packCombinations(document: JsonObject): Promise<IPackCombinations | undefined> {
-		const isDefault = chosenPackId(document) === DEFAULT_CODE_PACK;
+		// Issue #301: the project's own load patterns get their factors by type from the backend
+		// (saengine.library.load_patterns.pattern_factors), the default pack's included.
+		const isDefault = chosenPackId(document) === DEFAULT_CODE_PACK && !userPatterns(document).length;
 		if (isDefault || !CommandsRegistry.getCommand(CODES_COMBINATIONS_COMMAND)) {
 			// The default pack's combinations as this build lists them (unchanged); another pack needs the backend.
 			if (!isDefault) {
@@ -1540,6 +1661,11 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.pageDisposables.add(button.onDidClick(() => void this.resetCombinations()));
 			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.combinationsNote', "Factors on the load cases. D includes the superimposed dead load SD (the finishes). The partition allowance is in L or in SD, as set in Analysis Model › Partition allowance as. T applies to the temperature case (Analysis Model › Temperature) and is 0 elsewhere; F, on the fluid loads of 07 MEP, follows D when empty. These are the base combinations: the analysis expands those with earthquake or wind into more (both signs of each direction, the 100 % + 30 % orthogonal pairs, the accidental eccentricities, and the vertical earthquake on D, so 1.2D shows as 1.29D, say), so the analysis lists more combinations than this table. Hover a column heading for its meaning.")));
 		}
+		this.patternIdsShown = userPatterns(this.document).map(p => p.id);
+		if (section.id === 'loadPatterns') {
+			append(this.page, $('.sa-props-note.settings-section-note', undefined, localize('settings.loadPatternsNote', "The project's own load cases beside the built-in D (dead, with the self-weight), SD (superimposed dead), L (live) and Lr (roof live): equipment, construction or special loads. Member and point loads (Floor Plan › Loads) and an area load's other load go to them. The type sets how a pattern combines: generated combinations give it the factor of its type (Dead: D's, Live: L's, Roof live: Lr's, Wind and Seismic: the wind's and earthquake's as entered); Other only gets the factors you enter under Load Combinations. Deleting a pattern with loads is refused.")));
+			void this.readMemberLoadCases().then(counts => this.memberLoadCases = counts);
+		}
 		this.problemBox = append(this.page, $('.library-problems'));
 		this.renderSectionProblems();
 		if (section.id === CODE_OVERRIDES_KEY) {
@@ -1563,6 +1689,9 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 		if (section.id === 'project' && this.languageShown()) {
 			this.renderDisplayLanguage(this.sourceRow(form, fieldTitle('ProjectInfo', 'language'), localize('settings.displayLanguageRow', "SAEngine screens")));
 		}
+		if (section.id === 'combinations') {
+			this.renderPatternFactors(form);
+		}
 		if (section.id === 'drawings') {
 			this.renderTitleBlockSource(this.sourceRow(form, undefined, localize('settings.titleBlockRow', "Project number and engineer")));
 		}
@@ -1570,6 +1699,64 @@ export class SettingsEditor extends JsonDocumentEditor implements IPartSectionPa
 			this.renderHazardSource(this.sourceRow(form, fieldTitle('Site', 'spectral'), localize('settings.hazardRow', "Hazard values")));
 		}
 		this.renderSources();
+	}
+
+	/**
+	 * Issue #301: the combinations' factors on the project's own load patterns, a column per
+	 * pattern (the schema table has the built-in cases). Empty or 0: the pattern is not in it.
+	 */
+	private renderPatternFactors(form: HTMLElement): void {
+		const patterns = userPatterns(this.document);
+		const combinations = Array.isArray(this.document?.combinations) ? this.document.combinations.filter(isObject) : [];
+		const group = append(form, $('.form-group'));
+		const header = append(group, $('.form-group-header'));
+		append(header, $('span.form-group-title', undefined, localize('settings.patternFactors', "Factors on the Load Patterns")));
+		if (!patterns.length) {
+			append(group, $('.sa-props-note', undefined, localize('settings.noPatterns', "The project has no load patterns of its own (Load Patterns... adds them).")));
+			return;
+		}
+		if (!combinations.length) {
+			return;
+		}
+		append(group, $('.sa-props-note', undefined, localize('settings.patternFactorsNote', "Empty: the pattern is not in that combination. Generate from {0} fills them by each pattern's type (a Live pattern takes L's factors); or type them here.", this.codeName)));
+		const table = append(group, $('.form-table'));
+		table.style.gridTemplateColumns = `minmax(120px, 260px) ${patterns.map(() => 'minmax(56px, 72px)').join(' ')}`;
+		append(table, $('.form-table-header', undefined, localize('settings.patternCombination', "Combination")));
+		for (const p of patterns) {
+			const cell = append(table, $('.form-table-header', undefined, p.id));
+			this.pageDisposables.add(this.hoverService.setupDelayedHover(cell, { content: `${p.id}: ${p.name}` }));
+		}
+		for (const c of combinations) {
+			append(table, $('.form-table-cell', undefined, String(c.name ?? '')));
+			for (const p of patterns) {
+				const factors = isObject(c.patterns) ? c.patterns : undefined;
+				const value = factors && typeof factors[p.id] === 'number' ? String(factors[p.id]) : '';
+				const box = this.pageDisposables.add(new InputBox(append(table, $('.form-table-cell')), this.contextViewService, {
+					inputBoxStyles: defaultInputBoxStyles,
+					ariaLabel: localize('settings.patternFactorOf', "Factor on {0} in {1}", p.id, String(c.name ?? '')),
+					validationOptions: { validation: text => text.trim() === '' || isFinite(Number(text)) ? null : { content: localize('settings.patternFactorNumber', "A number"), type: MessageType.ERROR } },
+				}));
+				box.value = value;
+				this.pageDisposables.add(box.onDidChange(text => {
+					const number = Number(text);
+					if (text.trim() !== '' && !isFinite(number)) {
+						return;
+					}
+					const own: JsonObject = isObject(c.patterns) ? c.patterns : {};
+					if (text.trim() === '' || number === 0) {
+						delete own[p.id];
+					} else {
+						own[p.id] = number;
+					}
+					if (Object.keys(own).length) {
+						c.patterns = own;
+					} else {
+						delete c.patterns;
+					}
+					this.changed(false);
+				}));
+			}
+		}
 	}
 
 	/** C22: the code pack's online hazard services (`saengine.hazard.offers`, no network), by pack. */

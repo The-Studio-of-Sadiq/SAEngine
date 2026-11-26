@@ -99,7 +99,7 @@ export function partSections(partId: string): readonly IPartSection[] {
 	switch (partId) {
 		case 'settings': return [
 			{ id: 'code', label: localize('partSection.settingsCode', "Code, Occupancy, Construction, Site"), sections: ['project', 'occupancy', 'construction', 'site'] },
-			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads and Crane Runways"), sections: ['areaLoads', 'cranes'] },
+			{ id: 'loads', label: localize('partSection.settingsLoads', "Loads, Load Patterns and Crane Runways"), sections: ['areaLoads', 'loadPatterns', 'cranes'] },
 			// Alpha 9 L9: bridges, lattice towers, silos, chimneys, cooling towers, offshore and piping.
 			{ id: 'special', label: localize('partSection.settingsSpecial', "Bridges and Special Structures"), sections: ['specialStructures'] },
 			{ id: 'seismic', label: localize('partSection.settingsSeismic', "Seismic"), sections: ['seismic'] },

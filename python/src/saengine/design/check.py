@@ -614,14 +614,25 @@ def _design_run(
             + (", Case 4 (0.563 in both with both torsions)" if {"WTX", "WTY"} <= present else "")
         )
         formed = by_wind
-    by_pattern = pattern_live_combinations(formed, present)
+    from saengine.library.load_patterns import arranged_patterns
+
+    arranged = arranged_patterns(settings)
+    not_arranged: list[str] = []
+    by_pattern = pattern_live_combinations(formed, present, arranged, not_arranged)
     if by_pattern is not None and len(by_pattern) > len(formed):
         count = len([c for c in present if c.startswith("LP") and c[2:].isdigit()])
         pre_notes.append(
             f"live load arrangements: each gravity combination with live load is also checked "
             f"with L on the {count} arrangements LP1-LP{count} ({clause('check', 'patternLive')})"
+            + (f"; the Live-type load patterns {', '.join(arranged)} with L" if arranged else "")
         )
         formed = by_pattern
+    if not_arranged:
+        pre_notes.append(
+            "live load arrangements: not checked for "
+            + ", ".join(not_arranged)
+            + " (a Live-type load pattern has a factor other than L's there)"
+        )
     # The moving crane load cases (saengine.fem.cranes), by the code pack's crane rule.
     from saengine.fem.combinations import crane_combinations
 

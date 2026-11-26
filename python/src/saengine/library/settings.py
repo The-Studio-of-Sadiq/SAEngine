@@ -2753,6 +2753,22 @@ class AreaLoad(_Model):
         description="Partition allowance [kN/m²] for light partitions not on the plans; a live "
         "load or a superimposed dead load, as set in Analysis Model › Partition allowance as.",
     )
+    # Issue #301: a load of the area in one of the project's own load patterns (equipment,
+    # construction, ...); left out of the file while none.
+    otherLoad: Pressure = Field(
+        default=0,
+        exclude_if=lambda value: not value,
+        title="Other load",
+        description="A further area load [kN/m²] in a load pattern of the project's own "
+        "(Load Patterns); 0: none.",
+    )
+    otherPattern: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        title="Other load pattern",
+        description="The load pattern of the other load (the id of one of the project's own "
+        "load patterns).",
+    )
 
     def superimposed(self, case: str) -> float:
         """Its superimposed dead load SD [kN/m²]: the finish, and the partition allowance when
@@ -2952,6 +2968,37 @@ def seismic_weight_rule(
     )
 
 
+class LoadPattern(_Model):
+    """A load pattern of the project's own (issue #301; :mod:`saengine.library.load_patterns`):
+    a load case beside the built-in D, SD, L and Lr, for construction, equipment or special
+    loads. Its type says which factor of the code's combinations it takes."""
+
+    id: str = Field(
+        pattern=r"^[A-Za-z][A-Za-z0-9_]{0,15}$",
+        title="Id",
+        description="Its code in the analysis model, the combinations and the tables (letters, "
+        "digits and _; up to 16 characters; not a code the program uses, such as D, L or WX).",
+    )
+    name: str = Field(min_length=1, description="What it is (equipment, construction load, ...).")
+    type: Literal["Dead", "SuperDead", "Live", "RoofLive", "Wind", "Seismic", "Other"] = Field(
+        default="Other",
+        description="How it combines: the code's combinations give it the factor of its type "
+        "(Dead and Superimposed dead: D's; Live: L's; Roof live: Lr's; Wind and Seismic: the "
+        "wind's and the earthquake's, as entered); Other: only the factors you give it. The "
+        "type also sets its share in the seismic weight.",
+        json_schema_extra=_labels(
+            ["Dead", "Superimposed dead", "Live", "Roof live", "Wind", "Seismic", "Other"]
+        ),
+    )
+    selfWeight: float = Field(
+        default=0,
+        ge=0,
+        title="Self-weight multiplier",
+        description="That many times the structure's self-weight is added to the pattern "
+        "(0: none; the built-in D carries it once). It adds load, not mass.",
+    )
+
+
 class LoadCombination(_Model):
     """Factors on the load cases. D applies to the dead and superimposed dead loads."""
 
@@ -3019,6 +3066,15 @@ class LoadCombination(_Model):
         title="S",
         description="Factor on the roof snow load S (Site → Snow; a pack whose snow is its own "
         "case). The combination is formed without it while the model has no snow.",
+    )
+    # Issue #301: factors on the project's own load patterns (id -> factor), left out of the
+    # file while none. Edited in its own table under the combinations (formHidden).
+    patterns: dict[str, float] = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        title="Load patterns",
+        description="Factors on the project's own load patterns (Load Patterns), by id.",
+        json_schema_extra={"formHidden": True},
     )
 
     @model_validator(mode="after")
@@ -3439,6 +3495,14 @@ class ProjectSettings(_Model):
         title="Floors", description="Area load of the floors unless the floor plan says otherwise."
     )
     roofLoad: Id = Field(title="Roof", description="Area load of the roof (the top story).")
+    loadPatterns: list[LoadPattern] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        title="Load patterns",
+        description="The project's own load patterns (load cases) beside the built-in D, SD, "
+        "L and Lr: construction, equipment or special loads. Member, point and area loads go "
+        "to them; the combinations give them factors.",
+    )
     combinations: list[LoadCombination] = Field(default_factory=list, title="Load combinations")
     cranes: list[CraneRunway] = Field(
         default_factory=list,
@@ -3490,6 +3554,34 @@ class ProjectSettings(_Model):
         "code pack for every run; a value not overridden follows the pack. An override the "
         "pack has no value for, or that its table does not accept, is reported and not used.",
     )
+
+    @model_validator(mode="after")
+    def _load_patterns(self) -> ProjectSettings:
+        """Issue #301: the project's load patterns have their own ids, none a code the program
+        uses; the combinations and area loads name only patterns there are."""
+        from saengine.library import load_patterns as lp
+
+        ids = [p.id for p in self.loadPatterns]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate load pattern ids: {', '.join(duplicates)}")
+        taken = [i for i in ids if lp.reserved(i)]
+        if taken:
+            raise ValueError(
+                f"load pattern id(s) {', '.join(taken)} are codes the program uses itself; "
+                "choose others"
+            )
+        known = set(ids)
+        for c in self.combinations:
+            unknown = sorted(set(c.patterns) - known)
+            if unknown:
+                raise ValueError(f"combination {c.name}: no load pattern {', '.join(unknown)}")
+        for a in self.areaLoads:
+            if a.otherLoad and not a.otherPattern:
+                raise ValueError(f"area load {a.id}: the other load needs a load pattern")
+            if a.otherPattern is not None and a.otherPattern not in known:
+                raise ValueError(f"area load {a.id}: no load pattern {a.otherPattern}")
+        return self
 
     @model_validator(mode="after")
     def _pack_lists(self) -> ProjectSettings:
@@ -3733,24 +3825,40 @@ def strength_combinations(
         rows = [fc.apply_exception(row, exception) for row in rows]
     first = rows[1].name if len(rows) > 1 else None  # combination 2: where T and ST go
     result = []
+
+    def own(factors: dict[str, float]) -> dict[str, Any]:
+        """Issue #301: the factors of the project's own load patterns, by their type."""
+        if settings is None:
+            return {}
+        from saengine.library.load_patterns import pattern_factors
+
+        found = pattern_factors(factors, settings)
+        return {"patterns": found} if found else {}
+
     for label, factors, row in fc.expand_rows(rows):
-        result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
+        result.append(
+            LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}, **own(factors))
+        )
         if row.name != first:
             continue
         if thermal:
             from saengine.fem.thermal import strength_combinations_with_t
 
             for t_name, t_factors in strength_combinations_with_t():
-                result.append(LoadCombination(name=t_name, **t_factors))
+                result.append(LoadCombination(name=t_name, **t_factors, **own(t_factors)))
         if settlement:
             from saengine.fem.settlement import strength_combinations_with_st
 
             for st_name, st_factors in strength_combinations_with_st(thermal):
-                result.append(LoadCombination(name=st_name, **st_factors))
+                result.append(LoadCombination(name=st_name, **st_factors, **own(st_factors)))
         if creep_shrinkage:
             # Alpha 9 P2: the pack's rows with the creep and shrinkage forces case CS.
             for cs_name, cs_factors, _row in fc.expand_rows(list(table.creepShrinkage)):
-                result.append(LoadCombination(name=cs_name, **{"F": 0.0, "H": 0.0, **cs_factors}))
+                result.append(
+                    LoadCombination(
+                        name=cs_name, **{"F": 0.0, "H": 0.0, **cs_factors}, **own(cs_factors)
+                    )
+                )
     # B16: the pack's combinations of the project's flood or tidal surge zone (Fa with the
     # wind in its direction), with the same permitted factor changes.
     if settings is not None:
@@ -3762,7 +3870,9 @@ def strength_combinations(
             if flood_rows and _exception_wanted(name, exception, settings, pack):
                 flood_rows = [fc.apply_exception(row, exception) for row in flood_rows]
         for label, factors, _row in fc.expand_rows(flood_rows):
-            result.append(LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}))
+            result.append(
+                LoadCombination(name=label, **{"F": 0.0, "H": 0.0, **factors}, **own(factors))
+            )
     return result
 
 
@@ -3800,6 +3910,8 @@ def combinations_from_pack(settings: ProjectSettings, pack: CodePack | None = No
                 for k, v in data.items()
                 if isinstance(v, int | float) and abs(v) > 1e-9  # an empty F or H as 0
             )
+        ) + tuple(  # issue #301: the factors on the project's own load patterns
+            sorted((f"pattern:{k}", round(float(v), 4)) for k, v in c.patterns.items() if v)
         )
 
     try:

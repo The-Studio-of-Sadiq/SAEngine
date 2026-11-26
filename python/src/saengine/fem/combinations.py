@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -237,11 +237,19 @@ _FLOOD_KIND: ContextVar[str | None] = ContextVar("saengine_flood_kind", default=
 
 
 def set_flood_kind(settings: Any) -> None:
-    """The project's flood zone kind for :func:`allowable_combinations` (None outside one)."""
+    """The project's flood zone kind for :func:`allowable_combinations` (None outside one),
+    and its own load patterns (issue #301), which the pack's rows give factors by type."""
     from saengine.fem.flood import zone_kind
 
     flood = getattr(getattr(settings, "site", None), "flood", None)
     _FLOOD_KIND.set(zone_kind(getattr(flood, "zone", None)))
+    _PATTERN_SETTINGS.set(settings)
+
+
+#: Issue #301: the project settings whose own load patterns the pack's allowable and service
+#: rows take (by type, :func:`saengine.library.load_patterns.pattern_factors`); set with the
+#: flood kind by the design check (:func:`set_flood_kind`).
+_PATTERN_SETTINGS: ContextVar[Any] = ContextVar("saengine_pattern_settings", default=None)
 
 
 def flood_rows(category: str, flood: str | None) -> list[Any]:
@@ -275,6 +283,13 @@ def _formed(
                 continue
             for case in KIND_CASES.get(kind, (kind,)):
                 cases[case] = value
+        project = _PATTERN_SETTINGS.get()
+        if project is not None:  # issue #301: the project's own patterns, by their type
+            from saengine.library.load_patterns import pattern_factors
+
+            for case, value in pattern_factors(factors, project).items():
+                if present is None or case in present:
+                    cases[case] = value
         temperature = cases.pop("T", None)
         signs = [(name, cases)]
         if temperature:
@@ -375,6 +390,11 @@ def combination_factors(
                 if present is not None and case in OPTIONAL_CASES and case not in present:
                     continue
                 factors[case] = value
+    # Issue #301: the project's own load patterns (a pattern the results lack is left out: a
+    # model derived before the pattern was added).
+    for case, value in (getattr(combination, "patterns", None) or {}).items():
+        if value and (present is None or case in present):
+            factors[case] = factors.get(case, 0.0) + value
     # Cases a formed combination adds by name (CaseCombination: the torsional wind cases, the
     # live load arrangements), never stored in the settings.
     for case, value in (getattr(combination, "cases", None) or {}).items():
@@ -474,27 +494,51 @@ def wind_case_combinations(
     return out
 
 
+def _lateral(combination: LoadCombination, letters: str) -> bool:
+    """Whether ``combination`` has a program case starting with one of ``letters`` (W wind, E
+    earthquake, R response spectrum). The project's own load patterns are not looked at by name
+    (issue #301: an "EQP" equipment pattern is no earthquake case)."""
+    own = set(getattr(combination, "patterns", None) or {})
+    return any(case[:1] in letters and case not in own for case in combination_factors(combination))
+
+
 def pattern_live_combinations(
-    combinations: list[LoadCombination], present: set[str] | frozenset[str]
+    combinations: list[LoadCombination],
+    present: set[str] | frozenset[str],
+    arranged: Iterable[str] = (),
+    skipped: list[str] | None = None,
 ) -> list[LoadCombination] | None:
     """The project's combinations followed by, for each gravity combination with live load
     (no wind or earthquake), one per live load arrangement the model has (cases LP1, LP2 ...,
     :mod:`saengine.fem.pattern_live`, the default pack's Part 6 Sec 6.1.12.2) with the live case L
     replaced by the arrangement's case at the same factor, named "<name> [LPk]". None when the
-    model has no arrangements."""
+    model has no arrangements.
+
+    ``arranged``: the project's Live-type load patterns (issue #301,
+    :func:`saengine.library.load_patterns.arranged_patterns`), whose loads the arrangement cases
+    hold with L's. They are replaced too, so a combination is arranged only when it gives each of
+    them L's factor; the names of the others go to ``skipped``."""
     arrangements = sorted(
         (c for c in present if c.startswith("LP") and c[2:].isdigit()), key=lambda c: int(c[2:])
     )
     if not arrangements:
         return None
+    live_patterns = [pid for pid in arranged if pid in present]
     out = list(combinations)
     for combination in combinations:
         if combination.L <= 0:
             continue
         # Lateral: wind (W*), earthquake (E*) or response spectrum (R*) cases.
-        if any(case[:1] in "WER" for case in combination_factors(combination)):
+        if _lateral(combination, "WER"):
+            continue
+        own = dict(getattr(combination, "patterns", None) or {})
+        if any(abs(own.get(pid, 0.0) - combination.L) > 1e-9 for pid in live_patterns):
+            if skipped is not None:
+                skipped.append(combination.name)
             continue
         data = combination.model_dump(by_alias=True)
+        if live_patterns:
+            data["patterns"] = {k: v for k, v in own.items() if k not in live_patterns}
         for case in arrangements:
             out.append(
                 CaseCombination(
@@ -542,7 +586,7 @@ def crane_combinations(
         factor = float(getattr(combination, rule.factorOf, 0) or 0)
         if factor <= 0:
             continue
-        lateral = any(case[:1] in "WE" for case in combination_factors(combination))
+        lateral = _lateral(combination, "WE")
         sets = rule.lateral if lateral else rule.gravity
         data = combination.model_dump(by_alias=True)
         for crane, position, side in keys:

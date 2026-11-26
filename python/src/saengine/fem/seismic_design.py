@@ -104,6 +104,7 @@ import numpy as np
 
 from saengine.codes import context as code_context
 from saengine.codes.registry import CodePackError
+from saengine.library.load_patterns import pattern_factors
 
 #: Folder of the modal-force run inside the analysis results folder.
 RS_FOLDER = "rs-design"
@@ -1776,10 +1777,16 @@ def seismic_combinations(
         for label, envelope in directions:
             live_text = f" + {live_factor:.1f}L" if live_factor else ""
             factored = envelope if fe == 1.0 else {k: round(fe * v, 4) for k, v in envelope.items()}
+            loads: dict[str, Any] = {"D": dead, "L": live_factor} if has_live else {"D": dead}
+            # Issue #301: the project's own gravity patterns take D's and L's factors (a Wind or
+            # Seismic pattern is not combined with the response spectrum).
+            own = pattern_factors(loads, settings, positive_lateral=False)
+            if own:
+                loads["patterns"] = own
             result.append(
                 {
                     "name": f"{dead:g}D{live_text} ± {fe:.1f}E(RS {label})",
-                    "loads": {"D": dead, "L": live_factor} if has_live else {"D": dead},
+                    "loads": loads,
                     "envelope": factored,
                     "clause": f"{CLAUSES['combinations']} no. {number}, {part}",
                 }

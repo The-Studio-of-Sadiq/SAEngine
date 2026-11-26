@@ -609,6 +609,8 @@ def from_osmodel(
     for a in osmodel.get("analyses", []):
         if a.get("type") == "Static" and len(a.get("pattern_ids") or []) == 1:
             labels[int(a["pattern_ids"][0])] = str(a.get("name") or "")
+    from saengine.library.load_patterns import export_kind
+
     for p in osmodel.get("load_patterns", []):
         case_name = str(p.get("name") or p.get("id"))
         if case_name.startswith("D, stage"):
@@ -618,7 +620,14 @@ def from_osmodel(
             # saengine.fem.tension_only: unit release cases of SAEngine's own combination rule.
             report.skip("tension-only release cases (SAEngine's combination method)", case_name)
             continue
-        kind = _CASE_KINDS.get(case_name, "other")
+        kind = (
+            _CASE_KINDS.get(case_name)
+            or (
+                # Issue #301: the project's own load patterns by their type.
+                export_kind(settings, case_name) if settings is not None else None
+            )
+            or "other"
+        )
         case = LoadCase(case_name, kind, labels.get(int(p.get("id", 0)), ""))
         for nl in p.get("nodal_loads", []):
             node = merged(int(nl["node_id"]))

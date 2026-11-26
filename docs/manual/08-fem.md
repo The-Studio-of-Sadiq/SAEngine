@@ -95,7 +95,16 @@ Viscous dampers are still planned.
 
 ## Load cases
 
-Load cases are created by SAEngine; you do not define them.
+SAEngine creates the cases below. You can add **load patterns** of your own (construction,
+equipment, special loads) with **Load Patterns...** (Project Settings > Loads ribbon, or the
+analysis model's Loads & Combinations ribbon). Each has an id (its case code, e.g. *EQP*), a name, a
+type (Dead, Superimposed dead, Live, Roof live, Wind, Seismic or Other) and a self-weight
+multiplier. Member and point loads (Floor Plan > Loads) and an area load's *Other load* can go to
+any pattern. Each pattern becomes its own case in the analysis model, after the cases below. Its
+type sets how it combines: *Generate* gives it the factor of its type in every combination (Dead
+takes D's, Live takes L's, and so on), and an Other pattern takes only the factors you enter
+under *Factors on the Load Patterns* in Load Combinations. A pattern that still has loads cannot
+be deleted.
 
 | Case | Meaning |
 | --- | --- |

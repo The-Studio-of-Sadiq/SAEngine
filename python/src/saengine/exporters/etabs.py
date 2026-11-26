@@ -103,6 +103,17 @@ _PATTERNS = (
     ("EX", "Seismic", 0),
     ("EY", "Seismic", 0),
 )
+_PATTERN_IDS = frozenset(p[0] for p in _PATTERNS) | {"F", "PART"}
+#: Issue #301: the ETABS pattern type of a project load pattern's type.
+_USER_TYPES = {
+    "Dead": "Dead",
+    "SuperDead": "Super Dead",
+    "Live": "Live",
+    "RoofLive": "Roof Live",
+    "Wind": "Wind",
+    "Seismic": "Seismic",
+    "Other": "Other",
+}
 
 
 # ─────────────────────────────────────────── report ───────────────────────────────────────────
@@ -455,6 +466,12 @@ class _Writer:
         if self.part_apart and any(a.partitions for a in settings.areaLoads):
             kind = "Live" if self.part_case == "L" else "Super Dead"
             self.patterns.append((PARTITION_PATTERN, kind, 0))
+        # Issue #301: the project's own load patterns, by their type, with their self-weight.
+        from saengine.library.load_patterns import user_patterns
+
+        self.user_patterns = [p for p in user_patterns(settings) if p.id not in _PATTERN_IDS]
+        for p in self.user_patterns:
+            self.patterns.append((p.id, _USER_TYPES.get(p.type, "Other"), _n(p.selfWeight)))
         self.used_materials: set[str] = set()
         self.frame_sections: dict[str, list[str]] = {}  # type id -> lines
         self.concrete_sections: list[str] = []
@@ -1371,6 +1388,10 @@ class _Writer:
             self._pressure(area, PARTITION_PATTERN, load.partitions, m2, carried=case)
         elif roof and case == "L":
             self._pressure(area, "L", load.partitions, m2)
+        # Issue #301: the area load's other load, in its project pattern.
+        other = getattr(load, "otherPattern", None)
+        if other and any(p.id == other for p in self.user_patterns):
+            self._pressure(area, other, getattr(load, "otherLoad", 0.0) or 0.0, m2)
 
     def _live_mass_share(self) -> float:
         """The share of L in the mass source: the floor load's, as SAEngine judges it
@@ -1703,6 +1724,7 @@ class _Writer:
                 else []
             ),
             *(['  MASSSOURCELOAD  "MsSrc1"  "F"  1 '] if self._fluid else []),
+            *self._user_mass(),
             "",
             "$ LOAD CASES",
             '  LOADCASE "Modal"  TYPE  "Modal - Eigen"  INITCOND  "NONE"  ',
@@ -1738,6 +1760,17 @@ class _Writer:
     def _partition_pattern(self) -> bool:
         return any(p[0] == PARTITION_PATTERN for p in self.patterns)
 
+    def _user_mass(self) -> list[str]:
+        """Issue #301: the project's load patterns in the mass source by their type (Dead and
+        Superimposed dead in full, Live at L's share; the others not), as SAEngine counts them in
+        the seismic weight. Their self-weight multiplier is load only (no mass), as in SAEngine."""
+        out = []
+        for p in self.user_patterns:
+            share = {"Dead": 1.0, "SuperDead": 1.0, "Live": self.live_share}.get(p.type)
+            if share:
+                out.append(f"  MASSSOURCELOAD  {_q('MsSrc1')}  {_q(p.id)}  {_n(share)} ")
+        return out
+
     def _combinations(self) -> list[str]:
         out = []
         taken: set[str] = set()
@@ -1753,6 +1786,10 @@ class _Writer:
             if self._fluid:
                 terms.append(("F", c.F or 0.0))
             terms += [(case, getattr(c, case)) for case in ("WX", "WY", "EX", "EY")]
+            own = {p.id for p in self.user_patterns}
+            terms += [
+                (pid, v) for pid, v in (getattr(c, "patterns", None) or {}).items() if pid in own
+            ]
             out.append(f'  COMBO {_q(name)}  TYPE "Linear Add"  ')
             for case, factor in terms:
                 if factor:

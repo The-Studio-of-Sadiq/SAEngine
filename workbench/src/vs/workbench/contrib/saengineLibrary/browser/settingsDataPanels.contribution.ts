@@ -12,6 +12,9 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { openEngineDataPanel } from '../../saengineProject/browser/engineDataPanelInput.js';
 import { DataPanelRow, IDataPanelAction, IDataPanelContext, IEngineDataPanelDescriptor, registerEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ISaengineProjectService, projectParts } from '../../../services/saengineProject/common/saengineProject.js';
+import { openPartSection } from '../../saengineProject/browser/projectParts.js';
 
 const category = localize2('saengine.category', "SAEngine");
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -1243,6 +1246,34 @@ registerSettingsPanel({
 			}],
 		};
 	},
+});
+
+//#endregion
+
+//#region Load patterns (issue #301)
+
+/** Load Patterns...: Project Settings at its Load Patterns page (the project's own load cases). */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'saengine.settings.loadPatterns',
+			title: localize2('set.loadPatterns', "Load Patterns..."),
+			category,
+			icon: Codicon.symbolEnum,
+			f1: true,
+			precondition: projectOpen,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const project = accessor.get(ISaengineProjectService).project;
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+		const part = project && projectParts(project.type).find(p => p.id === 'settings');
+		if (project && part) {
+			await openPartSection(project, part, { id: 'loadPatterns', label: localize('set.loadPatternsPage', "Load Patterns"), sections: ['loadPatterns'] }, { editorService, commandService });
+		}
+	}
 });
 
 //#endregion
