@@ -6950,7 +6950,10 @@ class RolledFamily(_Row):
 
 
 class AngleSection(_Row):
-    leg: PosNum = Field(description="[mm]")
+    leg: PosNum = Field(description="[mm]; the longer leg of an unequal angle.")
+    leg2: PosNum | None = Field(
+        default=None, description="The shorter leg of an unequal angle [mm]; none: equal legs."
+    )
     t: PosNum = Field(description="Thickness [mm].")
     r1: NonNegNum = Field(description="Root radius [mm].")
 
@@ -6998,12 +7001,15 @@ class SteelSectionsTable(TableModel):
     )
     rolled: dict[str, RolledFamily]
     angles: AngleFamily
+    unequalAngles: AngleFamily | None = Field(
+        default=None, description="Unequal angles (family LU), ``leg`` and ``leg2`` each."
+    )
     hollow: HollowFamilies
     notes: list[str] = Field(default_factory=list, description="Shown with the table.")
 
     @model_validator(mode="after")
     def _keys(self) -> SteelSectionsTable:
-        known = {*self.rolled, "L", "SHS", "RHS", "CHS"}
+        known = {*self.rolled, "L", "LU", "SHS", "RHS", "CHS"}
         for family in self.families:
             if family not in known:
                 raise ValueError(f"families: no family '{family}'")

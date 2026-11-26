@@ -387,6 +387,57 @@ def test_type_guardrails(base):
     assert "beam" in refused(base, "type.column.set", {"id": "B250x450", "width": 300}).message
 
 
+def _steel_beam_steps() -> list[tuple[str, dict[str, Any]]]:
+    from saengine.library import steel_sections as tbl
+
+    return [
+        ("material.steel.add", {"kind": "steel", "fy": 250, "grade": "S250"}),
+        (
+            "type.beam.add",
+            {"id": "SB1", "material": "S250", "profile": tbl.find("IPE 240").profile()},
+        ),
+    ]
+
+
+def test_type_section_set_takes_a_catalogue_section(base):
+    from saengine.library import steel_sections as tbl
+
+    batch = run(
+        base, *_steel_beam_steps(), ("type.section.set", {"id": "SB1", "section": "ipe 300"})
+    )
+    assert batch.ok, [r.message for r in batch.results]
+    entry = next(o for o in json.loads(batch.changes[OBJECTS])["objects"] if o["id"] == "SB1")
+    assert entry["profile"] == tbl.find("IPE 300").profile()
+    assert "IPE 300" in batch.results[-1].message
+    batch = run(
+        base, *_steel_beam_steps(), ("type.section.set", {"id": "SB1", "section": "W 12x26"})
+    )
+    assert not batch.ok and "No section" in batch.results[-1].message
+    assert (
+        "only beams"
+        in refused(base, "type.section.set", {"id": "S125", "section": "IPE 300"}).message
+    )
+
+
+def test_design_steel_apply_applies_the_groups_asked(base):
+    from saengine.library import steel_sections as tbl
+
+    label = {"section": "IPE 300", "text": "IPE 300", "profile": tbl.find("IPE 300").profile()}
+    proposal = {
+        "types": [
+            {"type": "SB1", "family": "IPE", "status": "ok", "proposed": label, "current": None}
+        ]
+    }
+    batch = run(base, *_steel_beam_steps(), ("design.steel.apply", {"proposal": proposal}))
+    assert batch.ok, [r.message for r in batch.results]
+    entry = next(o for o in json.loads(batch.changes[OBJECTS])["objects"] if o["id"] == "SB1")
+    assert entry["profile"] == label["profile"]
+    batch = run(
+        base, *_steel_beam_steps(), ("design.steel.apply", {"proposal": proposal, "groups": ["X"]})
+    )
+    assert not batch.ok and "Not in the proposal" in batch.results[-1].message
+
+
 # ─────────────────────────────── members ───────────────────────────────
 
 

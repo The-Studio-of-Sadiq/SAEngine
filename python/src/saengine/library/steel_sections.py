@@ -446,6 +446,22 @@ def _sections(t: Any) -> tuple[SteelSection, ...]:
         angle_section(f"L {a.leg}x{a.leg}x{_fmt(a.t)}", a.leg, a.leg, a.t, a.r1, a.r1 * share)
         for a in t.angles.sections
     ]
+    unequal = getattr(t, "unequalAngles", None)
+    if unequal is not None:  # family LU: the longer leg is the depth
+        out += [
+            replace(
+                angle_section(
+                    f"L {_fmt(a.leg)}x{_fmt(a.leg2 or a.leg)}x{_fmt(a.t)}",
+                    a.leg,
+                    a.leg2 or a.leg,
+                    a.t,
+                    a.r1,
+                    a.r1 * unequal.toeRadiusShare,
+                ),
+                family="LU",
+            )
+            for a in unequal.sections
+        ]
     hollow = t.hollow
     for size in hollow.shs:
         out += [
@@ -461,6 +477,8 @@ def _sections(t: Any) -> tuple[SteelSection, ...]:
     for d in hollow.chs:
         out += [chs_section(f"CHS {_fmt(d)}x{_fmt(w)}", d, w) for w in _walls(hollow.chsWalls, d)]
     order = {f: i for i, f in enumerate(t.families)}
+    # A pack that extends another lists its own families: the parent's others are left out.
+    out = [s for s in out if s.family in order]
     return tuple(sorted(out, key=lambda s: (order[s.family], s.mass, s.h)))
 
 

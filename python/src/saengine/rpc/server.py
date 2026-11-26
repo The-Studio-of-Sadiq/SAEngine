@@ -86,6 +86,10 @@ Methods:
   ``design/strutAndTieTemplate`` ``{template, parameters?}`` -> ``{model}`` to start from
 - ``design/applyProposal`` ``{objectsText, bimText?, proposal, floorPlanText?,
   substructureText?}`` -> the part files with the proposal applied (pure)
+- ``design/steelSizing`` ``{projectRoot, options?}`` -> Size Steel Members: the lightest
+  catalogue section per member group, analysis and design iterated in a temporary copy of the
+  project (``saengine.design.steel_sizing``; in a design thread); applied with
+  ``design/applyProposal``
 - ``import/structural`` ``{path, destParent, name?, overwrite?}`` -> a new project from an
   ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) file (``{root, name, format, report,
   problems, files}`` or ``{error, problems}``; ``saengine.importers.project``; in a worker
@@ -826,6 +830,12 @@ def create_server() -> JsonRPCServer:
     def _strut_and_tie_template(params: Any) -> dict[str, Any]:
         args = _plain(params)
         return handlers.strut_and_tie_template(args["template"], args.get("parameters"))
+
+    @server.feature("design/steelSizing")
+    @_in_design_worker  # analyses the model again (minutes)
+    def _design_steel_sizing(params: Any) -> dict[str, Any]:
+        args = _plain(params)
+        return handlers.steel_sizing(args["projectRoot"], args.get("options"))
 
     @server.feature("design/applyProposal")
     def _design_apply_proposal(params: Any) -> dict[str, Any]:

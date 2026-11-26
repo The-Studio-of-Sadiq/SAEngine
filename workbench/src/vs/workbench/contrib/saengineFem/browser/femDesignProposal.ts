@@ -146,6 +146,11 @@ export interface IDesignProposalType {
 	 */
 	readonly family?: string | null;
 	readonly utilisation?: { readonly [check: string]: number } | null;
+	/** Issue #286: the current section's utilisation under the same forces (before). */
+	readonly currentUtilisation?: number | null;
+	/** Issue #286: the proposed section's largest utilisation and the check that governs it. */
+	readonly proposedUtilisation?: number | null;
+	readonly governingCheck?: string | null;
 	/** False: left out of the apply (set by this page). */
 	readonly apply?: boolean;
 }
@@ -269,9 +274,9 @@ export function steelProposalOf(t: IDesignProposalType): IDesignSteelProposal | 
 		proposed: proposed ? proposed.section ?? proposed.text ?? null : null,
 		currentMass: current?.mass,
 		proposedMass: proposed?.mass,
-		currentUtilisation: undefined,
-		proposedUtilisation: proposed && byCheck.length ? byCheck[0][1] : undefined,
-		governingCheck: proposed && byCheck.length ? byCheck[0][0] : undefined,
+		currentUtilisation: typeof t.currentUtilisation === 'number' ? t.currentUtilisation : undefined,
+		proposedUtilisation: proposed ? (typeof t.proposedUtilisation === 'number' ? t.proposedUtilisation : byCheck.length ? byCheck[0][1] : undefined) : undefined,
+		governingCheck: proposed ? (t.governingCheck ?? (byCheck.length ? byCheck[0][0] : undefined)) : undefined,
 	};
 }
 

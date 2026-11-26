@@ -3369,7 +3369,10 @@ def apply_proposal(
             raise ValueError(f"object type '{new_id}' exists already")
         clone = copy.deepcopy(origin)
         clone["id"], clone["name"] = new_id, new.get("name") or f"{origin['name']} ({new_id})"
-        clone["reinforcement"] = reinforcement_of(new["proposed"])
+        if new.get("profile") is not None:  # issue #286: a steel type split by member
+            clone["profile"] = new["profile"]
+        else:
+            clone["reinforcement"] = reinforcement_of(new["proposed"])
         clone.pop("description", None)
         items = objects["objects"]
         at = items.index(origin) + 1

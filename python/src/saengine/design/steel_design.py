@@ -568,17 +568,21 @@ def composite_checker(
 
 
 def proposal_entries(
-    collected: list[dict[str, Any]], originals: dict[str, dict[str, Any]]
+    collected: list[dict[str, Any]],
+    originals: dict[str, dict[str, Any]],
+    limits: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """The design mode's steel type entries (:func:`saengine.design.steel_proposal.
     propose_type`'s shape, with ``family`` and ``current``/``proposed`` ``{section, mass,
     profile, text}``) for the steel members ``collected`` by :func:`design_member`, and notes.
-    ``originals``: the 04 Objects types as JSON by id."""
+    ``originals``: the 04 Objects types as JSON by id; ``limits``: Size Steel Members' candidate
+    sections and depth limits per type id (:func:`steel_design_proposal`)."""
     from saengine.design.steel_proposal import (
         SteelMaterial,
         SteelMemberDemand,
         steel_design_proposal,
     )
+    from saengine.library import steel_sections
 
     if not collected:
         return [], []
@@ -586,9 +590,27 @@ def proposal_entries(
     materials: dict[str, SteelMaterial] = {}
     checkers: dict[str, Any] = {}
     summaries: dict[str, dict[str, dict[str, Any]]] = {}
+    stiffness: dict[str, float | None] = {}
     for m in collected:
+        if m["type"] not in stiffness:  # issue #286: the analysed section's major-axis I
+            try:
+                profile = (originals.get(m["type"]) or {}).get("profile")
+                stiffness[m["type"]] = steel_sections.section_of_profile(profile).Ix
+            except (TypeError, KeyError, ValueError, AttributeError):
+                stiffness[m["type"]] = None
+        service = [
+            c for c in m.get("checks") or [] if str(c.get("name", "")).startswith("Deflection")
+        ]
         demands.setdefault(m["type"], []).append(
-            SteelMemberDemand(m["id"], m["lengths"], m["stations"], m["kind"], m.get("options"))
+            SteelMemberDemand(
+                m["id"],
+                m["lengths"],
+                m["stations"],
+                m["kind"],
+                m.get("options"),
+                service,
+                stiffness[m["type"]],
+            )
         )
         materials[m["material"].id] = SteelMaterial.from_material(m["material"])
         if "mats" in m and m["type"] not in checkers:  # alpha 9 P8: a composite type
@@ -597,7 +619,7 @@ def proposal_entries(
                 m["object"], m["material"], m["mats"], m["combinations"], summaries[m["type"]]
             )
     types = [originals[t] for t in demands if t in originals]
-    found = steel_design_proposal(types, materials, demands, checkers=checkers)
+    found = steel_design_proposal(types, materials, demands, checkers=checkers, limits=limits)
     for entry in found["types"]:  # alpha 9 P8: the studs of the proposed composite section
         proposed = (entry.get("proposed") or {}).get("section")
         summary = summaries.get(entry["type"], {}).get(proposed or "")

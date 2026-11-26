@@ -10,7 +10,9 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { openEngineDataPanel } from '../../saengineProject/browser/engineDataPanelInput.js';
-import { DataPanelRow, IDataPanelAction, IEngineDataPanelDescriptor, registerEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { partById } from '../../../services/saengineProject/common/saengineProject.js';
+import { DataPanelRow, IDataPanelAction, IDataPanelContext, IDataPanelFieldOption, IEngineDataPanelDescriptor, registerEngineDataPanel } from '../../saengineProject/browser/engineDataPanelRegistry.js';
 
 const category = localize2('saengine.category', "SAEngine");
 const projectOpen = ContextKeyExpr.has('saengineProjectOpen');
@@ -337,46 +339,103 @@ registerLibraryPanel({
 	},
 });
 
+/** The steel beam, column and brace types of the open project (04 Objects), for Assign to Type. */
+async function steelTypeOptions(ctx: IDataPanelContext): Promise<IDataPanelFieldOption[]> {
+	const part = partById('objects');
+	if (!ctx.project || !part?.mainFile) {
+		return [];
+	}
+	try {
+		const content = await ctx.fileService.readFile(joinPath(ctx.project.root, part.folder, part.mainFile));
+		const objects = asArray(asBag(JSON.parse(content.value.toString())).objects).map(asBag);
+		const shapes = ['I', 'U', 'L', 'T', 'rectangleHollow', 'circleHollow'];
+		return objects
+			.filter(o => ['beam', 'column', 'brace'].includes(str(o.kind)) && shapes.includes(str(asBag(o.profile).shape)))
+			.map(o => ({ value: str(o.id), label: `${str(o.id)} (${str(o.kind)}, ${str(asBag(o.profile).shape)})` }));
+	} catch {
+		return [];
+	}
+}
+
+/** Issue #286: the steel catalogue, searchable, with Assign to Type (action `type.section.set`). */
 registerLibraryPanel({
 	id: 'saengine.library.steelCatalogue',
 	title: localize('u6d.lib.steel.title', "Standard Rolled & Hollow Steel Sections"),
 	part: 'library',
 	icon: Codicon.library,
 	requiresProject: false,
-	help: localize('u6d.lib.steel.help', "Searchable catalogue of standard I, channel, tee, angle, RHS, CHS, bar and round steel sections with geometric properties."),
+	autoRun: true,
+	help: localize('u6d.lib.steel.help2', "Searchable catalogue of the code pack's steel sections (I/H, channels, equal and unequal angles, SHS, RHS, CHS) with properties computed from the nominal dimensions. Enter a section and Assign to Type to give a steel beam, column or brace type that section."),
 	fields: [
 		{
 			key: 'family',
 			label: localize('u6d.lib.steel.fam', "Family Filter"),
 			type: 'select',
 			defaultValue: 'all',
-			options: [
-				{ value: 'all', label: localize('u6d.lib.steel.all', "All Families") },
-				{ value: 'W', label: 'AISC W' },
-				{ value: 'UB', label: 'BS UB' },
-				{ value: 'UC', label: 'BS UC' },
-				{ value: 'IPE', label: 'EN IPE' },
-				{ value: 'HEA', label: 'EN HEA' },
-				{ value: 'HEB', label: 'EN HEB' },
-				{ value: 'RHS', label: 'RHS' },
-				{ value: 'CHS', label: 'CHS' },
-			],
+			options: [{ value: 'all', label: localize('u6d.lib.steel.all', "All Families") }],
 		},
+		{ key: 'search', label: localize('u6d.lib.steel.search', "Search"), type: 'text', defaultValue: '', placeholder: localize('u6d.lib.steel.searchHint', "e.g. IPE 3, HEB, 100x65") },
+		{ key: 'minMass', label: localize('u6d.lib.steel.minMass', "Mass from [kg/m]"), type: 'number', defaultValue: 0, min: 0 },
+		{ key: 'maxMass', label: localize('u6d.lib.steel.maxMass', "Mass up to [kg/m] (0: any)"), type: 'number', defaultValue: 0, min: 0 },
+		{ key: 'section', label: localize('u6d.lib.steel.section', "Section to assign"), type: 'text', defaultValue: '', placeholder: localize('u6d.lib.steel.sectionHint', "a designation from the table, e.g. IPE 300") },
+		{ key: 'targetType', label: localize('u6d.lib.steel.targetType', "Assign to type"), type: 'select', defaultValue: '', options: [] },
 	],
+	loadInitial: async ctx => {
+		const raw = asBag(await ctx.engineRequest('library/steelSections', {}));
+		const families = asArray(raw.families).map(f => str(f)).filter(f => !!f);
+		const types = await steelTypeOptions(ctx);
+		return {
+			options: {
+				family: [{ value: 'all', label: localize('u6d.lib.steel.all', "All Families") }, ...families.map(f => ({ value: f, label: f }))],
+				targetType: types,
+			},
+			values: types.length ? { targetType: types[0].value } : undefined,
+		};
+	},
+	secondaryActions: [{
+		id: 'assignSection',
+		label: localize('u6d.lib.steel.assign', "Assign to Type"),
+		icon: Codicon.check,
+		run: async (ctx, values) => {
+			const section = String(values.section || '').trim();
+			const type = String(values.targetType || '').trim();
+			if (!ctx.project || !section || !type) {
+				ctx.notificationService.info(localize('u6d.lib.steel.assignHint', "Open a project, enter the section to assign and pick the type."));
+				return;
+			}
+			const outcome = await ctx.actionsService.run([{ action: 'type.section.set', params: { id: type, section } }], { apply: true });
+			const first = outcome.results[0];
+			if (outcome.ok) {
+				ctx.notificationService.info(first?.message ?? localize('u6d.lib.steel.assigned', "Section assigned."));
+			} else {
+				ctx.notificationService.error(first ? [first.message, ...first.problems.map(p => p.reason)].filter(m => !!m).join('; ') : localize('u6d.lib.steel.assignFailed', "The section was not assigned."));
+			}
+		},
+	}, ...openObjectsAction(localize('u6d.lib.openObj', "Open Object Types"))],
 	run: async (ctx, values) => {
 		const raw = asBag(await ctx.engineRequest('library/steelSections', {}));
 		const all = asArray(raw.sections).map(asBag);
 		const fam = String(values.family || 'all');
-		const filtered = fam === 'all' ? all : all.filter(s => str(s.family).toUpperCase() === fam.toUpperCase() || str(s.name).toUpperCase().startsWith(fam.toUpperCase()));
+		const words = String(values.search || '').toUpperCase().replace(/×/g, 'X').split(/\s+/).filter(w => !!w);
+		const minMass = typeof values.minMass === 'number' ? values.minMass : 0;
+		const maxMass = typeof values.maxMass === 'number' && values.maxMass > 0 ? values.maxMass : Infinity;
+		const filtered = all.filter(s => {
+			const name = str(s.name).toUpperCase();
+			const mass = num(s.mass) ?? 0;
+			return (fam === 'all' || str(s.family) === fam) && words.every(w => name.includes(w)) && mass >= minMass && mass <= maxMass;
+		});
 		const rows: DataPanelRow[] = filtered.slice(0, 1000).map(s => ({
 			name: str(s.name),
 			family: str(s.family),
 			shape: str(s.shape),
+			h: num(s.h) ?? '–',
+			b: num(s.b) ?? '–',
 			mass: num(s.mass) ?? '–',
-			area: num(s.area) ?? '–',
-			ix: num(s.ix) ?? num(s.Ix) ?? '–',
-			iy: num(s.iy) ?? num(s.Iy) ?? '–',
-			sx: num(s.sx) ?? num(s.Zx) ?? '–',
+			area: num(s.A) ?? '–',
+			ix: num(s.Ix) ?? '–',
+			iy: num(s.Iy) ?? '–',
+			zx: num(s.Zx) ?? '–',
+			rMin: num(s.rMin) ?? '–',
 		}));
 		return {
 			metrics: [
@@ -390,14 +449,19 @@ registerLibraryPanel({
 					{ key: 'name', title: localize('u6d.lib.steel.colName', "Designation") },
 					{ key: 'family', title: localize('u6d.lib.steel.colFam', "Family") },
 					{ key: 'shape', title: localize('u6d.lib.steel.colShape', "Shape") },
+					{ key: 'h', title: localize('u6d.lib.steel.colH', "h [mm]"), type: 'number', align: 'right' },
+					{ key: 'b', title: localize('u6d.lib.steel.colB', "b [mm]"), type: 'number', align: 'right' },
 					{ key: 'mass', title: localize('u6d.lib.steel.colMass', "Mass [kg/m]"), type: 'number', align: 'right' },
 					{ key: 'area', title: localize('u6d.lib.steel.colArea', "Area [mm²]"), type: 'number', align: 'right' },
 					{ key: 'ix', title: localize('u6d.lib.steel.colIx', "Ix [mm⁴]"), type: 'number', align: 'right' },
 					{ key: 'iy', title: localize('u6d.lib.steel.colIy', "Iy [mm⁴]"), type: 'number', align: 'right' },
-					{ key: 'sx', title: localize('u6d.lib.steel.colSx', "Zx / Sx [mm³]"), type: 'number', align: 'right' },
+					{ key: 'zx', title: localize('u6d.lib.steel.colZx', "Zx [mm³]"), type: 'number', align: 'right' },
+					{ key: 'rMin', title: localize('u6d.lib.steel.colR', "r min [mm]"), type: 'number', align: 'right' },
 				],
 				rows,
 			}],
+			notes: asArray(raw.notes).map(n => str(n)).filter(n => !!n),
+			updatedValues: !values.section && rows.length === 1 ? { section: str(rows[0].name) } : undefined,
 		};
 	},
 });

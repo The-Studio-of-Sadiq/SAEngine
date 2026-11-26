@@ -61,12 +61,12 @@ A batch file is a list of steps (or `{"steps": [...]}`); `python/tests/data/acti
 - [Settings](#settings): `settings.analysis`, `settings.code_pack`, `settings.site`, `settings.use`
 - [Soil](#soil): `soil.allowable_bearing.set`, `soil.borehole.add`, `soil.layer.add`, `soil.spt.add`
 - [Grid and storeys](#grid-and-storeys): `grid.line.add`, `grid.line.delete`, `grid.line.move`, `grid.set`, `storey.add`, `storey.delete`, `storey.height`, `storey.typical`, `storeys.set`
-- [Materials and object types](#materials-and-object-types): `material.concrete.add`, `material.concrete.set`, `material.steel.add`, `material.steel.set`, `type.beam.add`, `type.beam.set`, `type.column.add`, `type.column.set`, `type.footing.add`, `type.footing.set`, `type.slab.add`, `type.slab.set`, `type.wall.add`, `type.wall.set`
+- [Materials and object types](#materials-and-object-types): `material.concrete.add`, `material.concrete.set`, `material.steel.add`, `material.steel.set`, `type.beam.add`, `type.beam.set`, `type.column.add`, `type.column.set`, `type.footing.add`, `type.footing.set`, `type.section.set`, `type.slab.add`, `type.slab.set`, `type.wall.add`, `type.wall.set`
 - [Members](#members): `beams.place`, `columns.place`, `member.delete`, `member.set`, `members.copy_to_storeys`, `slabs.place`, `walls.place`
 - [Drafting](#drafting): `drafting.add`, `drafting.delete`, `drafting.list`, `drafting.migrate`
 - [Loads](#loads): `load.area.set`, `load.line.add`, `load.point.add`, `load.wall.add`
 - [Foundations](#foundations): `footing.set`, `foundations.generate`
-- [Run and export](#run-and-export): `design.reinforcement.apply`, `export.archive`, `export.boq`, `export.drawings`, `export.ifc`, `export.report`, `run.all`, `run.step`
+- [Run and export](#run-and-export): `design.reinforcement.apply`, `design.steel.apply`, `design.steel.size`, `export.archive`, `export.boq`, `export.drawings`, `export.ifc`, `export.report`, `run.all`, `run.step`
 
 ## Query
 
@@ -719,6 +719,21 @@ Kind: **edit**. Writes: no. Parts: `objects`.
 {"action": "type.footing.set", "params": {"id": "X", "length": 1500, "footingWidth": 1500, "thickness": 450}}
 ```
 
+### `type.section.set`
+
+Give a steel beam, column or brace type a section of the steel catalogue (the section library's Assign to Type); keeps an RHS lying on its side so.
+
+Kind: **edit**. Writes: no. Parts: `objects`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | required | The steel beam, column or brace type to change. |
+| `section` | string | required | A section of the steel catalogue, e.g. IPE 300, HEB 200. |
+
+```json
+{"action": "type.section.set", "params": {"id": "B1", "section": "IPE 300"}}
+```
+
 ### `type.slab.add`
 
 Add a slab object type (its section and material) to 04 Objects.
@@ -1142,6 +1157,41 @@ Kind: **run**. Writes: yes. Parts: `objects`, `bim`, `floorPlan`.
 
 ```json
 {"action": "design.reinforcement.apply", "params": {"types": "all"}}
+```
+
+### `design.steel.apply`
+
+Apply a Size Steel Members proposal: the proposed catalogue sections into the steel types (all, or those given); members sized on their own move to new types.
+
+Kind: **edit**. Writes: no. Parts: `objects`, `bim`, `floorPlan`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `proposal` | object | required | The proposal of Size Steel Members (design/steelSizing, design.steel.size). |
+| `groups` | "all" or list of string | "all" | The type ids (and new types) to apply, or "all". |
+
+```json
+{"action": "design.steel.apply", "params": {"proposal": {"types": []}, "groups": "all"}}
+```
+
+### `design.steel.size`
+
+Size Steel Members: the lightest catalogue section per steel type passing every check, analysis and design iterated; needs the analysis results. Proposes only, unless apply is true.
+
+Kind: **run**. Writes: yes. Parts: `objects`, `bim`, `floorPlan`.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maxIterations` | integer | 5 | Analyses at most. |
+| `sameSection` | boolean | true | One section per object type; false: each member its own. |
+| `candidates` | list of string or null | null | Sections or families every type may take (default: its own). |
+| `minDepth` | number or null | null | [mm] |
+| `maxDepth` | number or null | null | [mm] |
+| `types` | list of string or null | null | The types to size; default all. |
+| `apply` | boolean | false | Apply the proposal (default: only propose it). |
+
+```json
+{"action": "design.steel.size", "params": {"maxIterations": 5}}
 ```
 
 ### `export.archive`

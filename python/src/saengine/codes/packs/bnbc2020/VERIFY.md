@@ -251,3 +251,15 @@ Read by `saengine.mep.fabrication` (MEP LOD 400: hanger and support spacing, han
 | L11F8 | fireMains.spacing | 5 m | Part 4 Sec 4.2.3.14 (part 1 PDF p. 330), horizontal standpipes | Check |
 | L11F9 | fireMains.loadFactor / extraMass | 5 x water-filled pipe + 110 kg | Part 4 Sec 4.2.3.14 | Check |
 | L11F10 | sprinklerHangers.loadFactor / extraMass | 5 x water-filled pipe + 110 kg | Part 4 Sec 4.2.10.6 (part 1 PDF p. 332) | Check (not yet used: sprinkler branch pipes are not routed in 07 MEP) |
+
+## Steel section tables (`steelSections`; issue #286)
+
+Read by `saengine.library.steel_sections` (the section library, the design mode and Size Steel Members). Only nominal dimensions are entered; the properties are computed from them. No AISC Shapes Database data: its licence (commercial developer licence, single-user non-commercial licence) does not clearly allow redistribution in an AGPL app.
+
+| # | Path | Value | Source | Sure? |
+|---|---|---|---|---|
+| S286-1 | rolled.HEM | HEM 100 to HEM 1000 (24 sizes): h, b, tw, tf, r | EN 10365 | Check (computed masses within 0.1 % of the published ones) |
+| S286-2 | rolled.UPE | UPE 80 to UPE 400 (14 sizes) | EN 10365 | Check (masses within 0.1 %) |
+| S286-3 | rolled.UPN | UPN 80 to UPN 400 (16 sizes), mean flange thickness | EN 10365 / DIN 1026-1 | Check (taken with parallel flanges and no toe radius: about 2 % heavier than published) |
+| S286-4 | unequalAngles | L 30x20x3 to L 200x150x15 (45 sizes), root radius r1 | EN 10056-1 | Uncertain (root radii recalled from the standard; masses within 0.2 % of the published ones) |
+| S286-5 | hollow | SHS 350, 400; RHS 140x80, 180x100, 250x100, 300x100, 300x150, 400x200; CHS 33.7, 42.4, 355.6, 406.4, 457 | EN 10219-2 | Check (sizes of the standard's range; walls by the table's b/t and d/t limits) |
