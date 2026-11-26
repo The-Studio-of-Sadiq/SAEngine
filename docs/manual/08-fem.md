@@ -3,11 +3,15 @@
 Part 8 is the analysis model and its results, and the design of the members. It is what ETABS
 calls the *analysis* and *concrete frame design*: SAEngine derives a finite-element model from
 the building model, analyses it with **OpenSeesPy**, combines the results with the load
-combinations of Project Settings and checks every member to ACI 318-19 clauses and factors (BNBC 2020
-Part 6 Chapter 6 is based on an earlier ACI 318) or AISC 360-22.
+combinations of Project Settings and checks every member to the code pack's design clauses
+(with BNBC 2020: Part 6 Chapter 6 for concrete, Chapter 10 for steel).
 
 File: `08 FEM/model.osmodel`, with the results in `08 FEM/model.results/`. Open it with
-**8 FEM**. The editor is the **FEM Model Viewport**.
+**8 FEM** in the sidebar. Its sub-windows are **Model and Analysis** (the 3D view of the
+analysis model and its results), **Analysis Charts**, **Pushover** and **Design
+Reinforcement** (the design proposal). The ribbon of the 3D view has the tabs **Analyze**,
+**Results**, **Loads & Combinations**, **Seismic**, **Wind**, **Mesh**, **Define** and
+**Diaphragms & Links**.
 
 ![The analysis model of the sample: deflected shape under dead load](images/fem-model.png)
 
@@ -18,10 +22,10 @@ Types** and **Materials**, plus the soil report (when the site class comes from 
 has equipment, openings or shafts) and 9 Substructure (with soil-spring supports). You do not
 edit it by hand: change the sources and derive again.
 
-- **Derive from Building Model** (empty model) or **Derive Again from Building Model** (shown when
-  a source changed). Run All derives automatically when needed.
-- When a source changes, the toolbar shows an **Out of date** pill: *Changed since the analysis
-  model was derived: Object Types. Click to derive it again.*
+- **Derive from Building Model** (empty model) or **Analyze › Solver › Derive Model** (when a
+  source changed). Run All derives automatically when needed.
+- When a source changes, the sidebar shows *stale* and Properties says *Derived: Out of date ·
+  Changed since: Object Types*.
 - After deriving: *Derived 36 nodes and 63 elements; base shear 276.5 kN, seismic weight
   3071.7 kN.*
 
@@ -35,7 +39,9 @@ What the derivation does:
   each beam cut into members of the mesh size; a rigid diaphragm ties each floor. Before 0.0.45
   each edge got a uniform load of the same total, which understated the beams' midspan moments
   by up to 25 % and their end moments by up to 20 %.
-- Steel members with simple connections are pinned at their ends.
+- Steel members with simple connections are pinned at their ends. The engineer's own **end
+  releases** and **point springs** (see [Part 6](06-bim.md#end-releases-and-point-springs)) are
+  modelled the same way, as zero-length links.
 - Wind and earthquake are applied as BNBC equivalent static storey forces; the response
   spectrum cases are added when *Response spectrum* is on. Each needs only its own site value
   (Z for earthquake, V for wind): a missing one is reported and its cases stay empty. Since
@@ -96,8 +102,7 @@ Viscous dampers are still planned.
 ## Load cases
 
 SAEngine creates the cases below. You can add **load patterns** of your own (construction,
-equipment, special loads) with **Load Patterns...** (Project Settings > Loads ribbon, or the
-analysis model's Loads & Combinations ribbon). Each has an id (its case code, e.g. *EQP*), a name, a
+equipment, special loads) with **Load Patterns...** (Project Settings › Loads ribbon, or **Loads & Combinations › Load Patterns...** here). Each has an id (its case code, e.g. *EQP*), a name, a
 type (Dead, Superimposed dead, Live, Roof live, Wind, Seismic or Other) and a self-weight
 multiplier. Member and point loads (Floor Plan > Loads) and an area load's *Other load* can go to
 any pattern. Each pattern becomes its own case in the analysis model, after the cases below. Its
@@ -126,7 +131,7 @@ results.
 With *Earthquake design forces: Response spectrum* (the default), the design scales the
 response-spectrum forces to 85 % of the static base shear (BNBC 2.5.9.4), adds the 100 % + 30 %
 orthogonal effects, accidental torsion (amplified by Ax where the plan is torsionally irregular)
-and the vertical component, and checks the storey drift. The Properties panel shows this under
+and the vertical component, and checks the storey drift. Properties shows this under
 **Seismic Design (Response Spectrum)**, e.g. *EX scaled × 1.99 to 85 % of the static base shear*,
 the Seismic Design Category, and *Largest drift 0.20 % (allowed 2.00 %)*.
 
@@ -142,52 +147,58 @@ offices). The design report has a section for each. The methods and limits are t
 
 ## Running the analysis
 
-- **Run Analysis** (toolbar ▷) runs every case; **Run Selected Cases...** (in **...**) only some.
-  While it runs the button becomes **Stop Analysis**.
-- The log is in the output channel *SAEngine Analysis* (**Show Log** in **...**). It ends with
-  *Analysis complete: 11 case(s). Results are in ...*.
+- **Run All** (the title bar, or **Analyze › Solver › Run All**, F5) derives, runs and designs
+  everything. **Analyze › Solver › Run** runs every case of the model; **Selected Cases** only
+  some. While it runs the button becomes **Stop Analysis**.
+- The log is in the output panel *SAEngine Analysis* (**Analyze › Mesh & View › Analysis Log**).
+  It ends with *Analysis complete: 11 case(s). Results are in ...*.
 - Only one run per model at a time: *The analysis of this model is already running.*
 - If the model changed after the run, the status line says *The model changed after this
   analysis ran.* with a **Run Analysis** link.
 
 ## Viewing results
 
-Two pickers in the toolbar choose **the result** (a case, a combination, *Modal*, *RX*/*RY*) and
-**what to show of it**:
+On the **Results** tab, two pickers choose **the result** (**Result**: a load case, a
+combination, *Modal*, *RX*/*RY*) and **what to show of it** (**Show**):
 
 | For | Choices |
 | --- | --- |
-| Cases and combinations | Model Only, Deflected Shape, Support Reactions, Axial Force N, Shear Force Vy, Shear Force Vz, Torsion T, Moment My, Moment Mz; with shells: Shell Moment M11, M22, M12, membrane forces N11, N22, N12, transverse shear Q13, Q23 |
-| Design | **Design Utilisation**, **Joint Checks** |
+| Cases and combinations | Model Only, Deflected Shape, Support Reactions, Axial Force N, Shear Force V2, Shear Force V3, Torsion T, Moment M2, Moment M3; with shells: Shell Moment M11, M22, Shell Twisting Moment M12, Shell Membrane Force N11, N22, Shell Membrane Shear N12, Shell Transverse Shear Q13, Q23 |
+| Design | **Design Utilisation**, **Joint Checks**, **Slab Steel Required** (bottom and top, X and Y), **Slab Long-Term Deflection**, **Slab Crack Width** |
 | Modal | Mode Shape, with a Mode picker (*Mode 1 (T = 0.72 s)*) and **Animate the Mode Shape** |
 | Response spectrum | Peak Displacements (response spectrum results have no sign) |
 
-**Draw Smaller** / **Draw Larger** (− and +) scale the diagrams. The status line gives the
-extreme value (*Largest displacement 2.17 mm at node 190*, *Total reaction: Fx..., Fy..., Fz...*);
-select a node or member for its values in the Properties panel. Units on screen: mm, kN, kN·m,
-kN/m, MPa.
+The **Scale** slider sizes the diagrams (*×1 · drawn ×1525*); **Labels** writes the values on
+them. A legend gives the extreme values (*max 135.4 kN·m in C2, min −145.9 kN·m in B2*) and the
+status line the largest (*Largest Moment M3: −145.9 kN·m in B2. Select an element for its
+values.*). Select a node or member for its values in Properties. Units on screen: mm, kN, kN·m,
+kN/m, MPa (or the project's US units).
 
-![Moment My under 1.2D + 1.6L + 0.5Lr](images/fem-moment.png)
+![Moment M3 under 1.2D + 1.2SD + 1.6L + 0.5Lr + 1.2F](images/fem-moment.png)
 
-**Result Tables** (toolbar) opens tables of the results by case (first 500 rows on screen);
-**Export Result Tables...** (in **...**) writes all rows to CSV.
+**Results › Charts & Tables** opens the result tables by case and the charts (storey forces,
+drifts, mode shapes); the tables export to CSV. The other groups of the tab (**3D Inspect**,
+**Display**, **Contours**, **Animation**, **Probing**, **Sets**) hold more views and
+calculators.
 
 ## Design checks (Design Utilisation)
 
-Choose **Design Utilisation** after a run. SAEngine checks every member against every
+Choose **Results › Show › Design Utilisation** after a run. SAEngine checks every member against every
 combination (a few minutes on the sample, much longer on a large building: the checks run
 again each time you choose this view after a change) and colours the members: **below 0.9** green,
 **0.9 to 1.0** amber, **above 1.0** red.
 
-![Design utilisation of the sample before the bars were designed](images/fem-design.png)
+![Design utilisation of the sample: beam-column joints as squares, the legend at the bottom left](images/fem-design.png)
 
-The Properties panel (nothing selected) shows **Design Checks**: the code, the number that pass
-and fail, the largest utilisation, and lists:
+Properties (nothing selected) shows **Design Checks**: the code, the members, joints,
+diaphragms and building checks that pass and fail, the largest utilisation, and lists:
 
 - **Steel short**: members whose bars give too little steel (fixed by Design Reinforcement);
 - **Too small**: sections that no practical bars can make work (fixed by a bigger section);
 - **Other checks fail**: checks bars cannot fix;
-- **No bars yet**, **Second-order analysis required**, **Walls**, **Steel members**, **Stairs**.
+- **No bars yet**, **Second-order analysis required**, **Walls**, **Steel members**, **Stairs**,
+  **Diaphragms and Deep Members**, the **Column Load Takedown** (each column line's load from
+  the analysis), and the **Seismic Design (Response Spectrum)** summary.
 
 Select a member for its checks: *Passes* or *Fails*, each check with its utilisation, values and
 governing combination, and a **Required Steel** section (*required 1,257 mm², provided
@@ -198,7 +209,7 @@ governing combination, and a **Required Steel** section (*required 1,257 mm², p
 | --- | --- |
 | RC beams (rectangular) | Sagging and hogging flexure, shear φ(Vc + Vs); torsion (BNBC 6.4.4: threshold, section limit, closed stirrups, Al and its detailing); deflection (BNBC 6.2.5, Ie, Table 6.6.2 limits). Not checked: weak-axis bending, axial force in beams. |
 | RC columns (rectangular, circular) | Axial force with biaxial bending (interaction surface); slenderness by moment magnification or P-Delta (*k lu / r*, *Moment magnifier*); shear with the axial force's effect on Vc and the tie spacing limits. |
-| Slabs | Shells: per strip and layer (Wood-Armer), one-way shear. Loads to beams (since 0.0.45): BNBC's coefficient methods (two-way Sec 6.5.8, one-way Sec 6.1.4.3), minimum thickness and steel. |
+| Slabs | Shells: per strip and layer (Wood-Armer), one-way shear, and the cracked long-term deflection and crack widths (below). Loads to beams: BNBC's coefficient methods (two-way Sec 6.5.8, one-way Sec 6.1.4.3), minimum thickness and steel. |
 | Structural walls | Piers, boundary elements, coupling beams. |
 | Stairs | By hand methods (span/thickness). |
 | Steel beams, columns, braces | BNBC Part 6 Chapter 10 / AISC 360-22, with simple connections. |
@@ -209,7 +220,8 @@ Elements of other kinds show *This element is not designed*.
 
 ## Design Reinforcement: the design proposal
 
-**Design Reinforcement** (FEM toolbar, Project menu, or the Command Palette) proposes bars for
+**Design Reinforcement** (the sub-window under 8 FEM, **Analyze › Analysis Model › Design
+Reinforcement**, the button in Run All's notification, or the command search) proposes bars for
 every object type from the steel its members require under the combinations of the last run,
 and applies them to 04 Objects in one undoable edit.
 
@@ -222,9 +234,11 @@ and applies them to 04 Objects in one undoable edit.
   12Ø16, ties Ø10 @ 75 (3 × 4 legs)*), *governed by C1 · 8 members*, members that are
   *Over-designed with these bars*, and notes. Steel types get the lightest section of the same
   family that passes. Foundations get their bars too.
-- Tick or untick rows (**Include All Changes**, **Include None**), then **Apply Proposal (n
-  Types)**. SAEngine saves the files and checks the members again: *Proposal applied — 3 pass,
-  15 fail → 18 pass, 0 fail*. **Undo Apply** reverts it.
+- Tick or untick rows (**Design › Design Reinforcement › Include All Changes**, **Include
+  None**), then **Apply Proposal (n Types)**. SAEngine saves the files and checks the members
+  again: *Proposal applied — 0 members pass, 0 fail; 182 members not checked for want of bars →
+  182 members pass, 0 fail*. **Undo Apply** reverts it; **Propose Again** proposes from the new
+  bars.
 
 Detailing rules: beams use one diameter per face, at most two sizes and two rows, stirrups
 Ø8/10/12 with 2 or 4 legs; columns equal bars round the section with ties per ACI 25.7.2; slabs
@@ -243,7 +257,9 @@ cannot be included, and the row says why and what to try, for example:
   500 x 700 mm (+100 mm) with about ρ = 0.025; the analysis must be run again*;
 - beam: *... try 300 x 600 mm (depth +100 mm); the analysis must be run again, the stiffness
   changes*;
-- slab: *try 175 mm (+25 mm)*; foundation: *a thicker foundation*;
+- slab: *S150: 1 of its 2 slabs are thinner than the least thickness of Table 8.3.1.2 (up to
+  151 mm needed, 150 mm given): try 175 mm, or check their deflection by calculation*;
+  foundation: *a thicker foundation*;
 - column at the joints of a special moment frame: *Section too small: joint shear at
   C7@18000; try 450 x 450 mm (+50 mm) for the joint shear; the analysis must be run again*.
   The joint shear comes from 1.25 fy of the proposed beam bars and only a larger joint (or a
@@ -253,21 +269,38 @@ cannot be included, and the row says why and what to try, for example:
 
 To fix it:
 
-1. Open **04 Objects** (**Open Object Types** in the proposal) and enlarge the section of that
+1. Open **04 Objects** (**Design › Design Reinforcement › Open Object Types**) and enlarge the section of that
    type, or create a bigger type and assign it to the members concerned on the floor plan.
-2. If you changed the floor plan, **Rebuild from Floor Plan** in 6 BIM.
-3. **Run All** (it derives the model again and reruns the analysis, because the stiffness
-   changed).
-4. **Design Reinforcement** again, and apply.
+2. **Run All** (it rebuilds the building model when the floor plan changed, derives the model
+   again and reruns the analysis, because the stiffness changed).
+3. **Design Reinforcement** again, and apply.
 
 Run All's summary counts these as *, 2 section(s) too small*.
+
+## Slab deflection and crack widths *(after Alpha 3)*
+
+For slabs analysed as shells, the design works out the **cracked long-term deflection** and the
+**crack widths** of each design strip bay, from the analysis's D + SD and L + Lr shell forces and
+displacements and the slab's own bars:
+
+- the effective inertia Ie by the code pack's method (ACI-style Branson/Bischoff with λ = ξ/(1 +
+  50ρ′); EN 1992 7.4.3 ζ interpolation with Ec,eff; IS 456 Annex C; GB 50010 B = Bs/θ);
+- crack widths at mid-span, at the supports and per shell (EN 1992 7.3.4 wk, IS 456 Annex F, GB
+  ψ method; where the code gives no crack width, the bar spacing rule).
+
+The inputs (the sustained share ψ, the load duration in months, whether partitions are attached,
+the creep coefficient φ and the exposure) are in **Design › Slab Checks › Cracked Deflection**
+and **Crack Widths** of the Design Reinforcement window. **Results › Show › Slab Long-Term
+Deflection** and **Slab Crack Width** draw them as contours; the slab's panel in Properties sums
+them up, and the design report has a *Slab deflection and cracking* table. A pack without a
+method shows *not provided by this code*.
 
 ## Strut-and-tie models of D-regions
 
 Deep beams, transfer girders, corbels and pile caps are checked with their own strut-and-tie
 models. For any other D-region (a dapped end, a corbel with several loads, a frame corner, a wall
-or beam with an opening) open **Strut-and-Tie Models** (the button under *Diaphragms and Deep
-Members* in the results, or the Command Palette):
+or beam with an opening) open **Strut-and-Tie Models...** (under *Diaphragms and Deep Members* in
+Properties, **Design › Detailing › Strut-and-Tie**, or the command search):
 
 1. **New Model from Template** (deep beam, dapped end, corbel, frame corner) or **New Model**.
 2. Draw in the region's plane, x along the member and y up, in mm: **Add Node** (click the
@@ -284,7 +317,7 @@ The models are saved in `08 FEM/strut-and-tie.json` and printed in the design re
 
 ## CFD wind tunnel (OpenFOAM, optional)
 
-**CFD Wind Tunnel** (Project menu or Command Palette) computes the building's wind by a steady
+**CFD Wind Tunnel** (**Analyze › Advanced**, or the command search) computes the building's wind by a steady
 CFD simulation with **your own OpenFOAM**: SAEngine neither installs nor downloads it. On Windows
 it runs in WSL: install WSL with Ubuntu (`wsl --install -d Ubuntu-24.04`), then OpenFOAM in
 Ubuntu (the page shows the steps). **Find OpenFOAM** looks for it; Settings > SAEngine > CFD Wind
@@ -312,7 +345,7 @@ the report say so with the code pack's requirement.
 
 | Command (category SAEngine) | Does |
 | --- | --- |
-| Run All | Analysis, design and outputs ([Getting started](00-getting-started.md#run-all)) |
+| Run All | Analysis, design and outputs ([Getting started](00-getting-started.md#run-all)); F5 |
 | Run Analysis | Runs every case of the open model |
 | Run Selected Analysis Cases... | Runs the cases you pick |
 | Show Analysis Log | The *SAEngine Analysis* output |
@@ -330,7 +363,8 @@ springs `model-fixed.osmodel` and `ssi-compare.json`.
 ## Not confirmed / limitations
 
 - Beam deflection is checked from the analysis's deflections with Ie at midspan on the
-  rectangle (no flange); slab deflection by the minimum thickness of Tables 6.6.1 and 6.6.3.
+  rectangle (no flange). Slabs with *Loads to beams* are checked by the minimum thickness of
+  Tables 6.6.1 and 6.6.3; the cracked deflection above needs shell slabs.
 - Beam torsion framed at both ends is designed as compatibility torsion (at most φTcr); the
   moments this releases are not redistributed to the adjoining members.
 - *Section too small* suggestions are information only; there is no button that enlarges a

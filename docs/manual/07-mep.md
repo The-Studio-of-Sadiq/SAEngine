@@ -5,26 +5,31 @@ floors (water tanks, chillers, generators...), sleeves and openings through beam
 vertical shafts, and the plumbing, HVAC and electrical design a structural engineer needs (water
 demand and tank sizes, RC tank design, plant weights, duct and tray openings).
 
-File: `07 MEP/mep.json`. Open it with **7 MEP**.
+File: `07 MEP/mep.json`. Open it with **7 MEP** in the sidebar, or one of its sub-windows.
 
 ![The MEP coordination plan of the sample](images/mep.png)
 
 ## Layout
 
-- **Discipline tabs:** **Coordination**, **Plumbing**, **HVAC**, **Electrical**.
-- **Storey picker** and **views:** **Plan**, **Data**, **Results**.
-- The **Plan** draws the storey from the building model (grid, slabs with openings, beams,
-  columns, walls) with the MEP items. Click to select; drag equipment, risers, tanks, plant and
-  shafts to move them. **Delete** removes the selected item, **Esc** deselects.
+- **Sub-windows** (sidebar, under 7 MEP): **Coordination**, **Plumbing**, **HVAC**,
+  **Electrical**, **Fire**, **Systems**, **Data** and **Results**. Each has its own ribbon with
+  only its discipline's tools; the first group of its main tab (**MEP**) holds the add and delete
+  buttons.
+- **Ribbon › Home** of each: the **Story** picker.
+- The plan draws the storey from the building model (grid, slabs with openings, beams, columns,
+  walls) with the MEP items. Click to select; drag equipment, risers, tanks, plant and shafts to
+  move them. **Delete** removes the selected item, **Esc** deselects.
 - Plan positions are in **m**, sizes in **mm**, weights in **kN**.
 - The checks are computed by the backend about a second after each edit. Results are not stored
-  in the file.
+  in the file. The status line sums them up (*5 equipment · 1 opening not fully checked ·
+  Plumbing: 2 checks fail*) with a link to the results.
 
 ## Coordination
 
-Toolbar: **Add Equipment** (presets: *Overhead water tank, Chiller, Air handling unit, Generator,
-Transformer, Lift machine room, Pump*), **Add Sleeve through the Selected Beam, Slab or Wall**,
-**Add Shaft**, **Import MEP IFC Model**, **Suggest Sleeves from Clashes**, **Delete**.
+**Coordination › MEP:** **Add Equipment** (presets: *Overhead water tank, Chiller, Air handling
+unit, Generator, Transformer, Lift machine room, Pump*), **Add Sleeve through the Selected Beam,
+Slab or Wall**, **Add Shaft**, **Delete**. **Coordination › Clashes:** **Import MEP IFC**,
+**Suggest Sleeves**, **Run Clash Tests**, **Check Again**.
 
 - **Equipment:** operating weight and empty weight (kN), plinth height, length/width/height (mm),
   position X/Y (m), rotation. Replace the preset values with the supplier's data.
@@ -47,7 +52,7 @@ has an F case).
 
 ## Plumbing (BNBC 2020 Part 8)
 
-Toolbar: **Add Riser or Stack** (cold water riser, hot water riser, soil, waste, soil and waste,
+**Plumbing › MEP:** **Add Riser or Stack** (cold water riser, hot water riser, soil, waste, soil and waste,
 vent stack, rainwater leader, pumping main), **Add Tank** (overhead tank, underground reservoir,
 septic tank, soak well, rainwater tank), **Add Roof Drain**, **Size Tanks**, **Add Sleeves for
 Risers**.
@@ -73,7 +78,7 @@ demand, diversity, meter checks and pipe sizes.
 
 ## HVAC
 
-Toolbar: **Add Plant** (chiller, cooling tower, AHU, FCU, VRF and split outdoor units, pump,
+**HVAC › MEP:** **Add Plant** (chiller, cooling tower, AHU, FCU, VRF and split outdoor units, pump,
 exhaust fan, fresh air unit), **Draw Duct** (supply, return, exhaust, fresh air, kitchen exhaust,
 smoke extract; riser ducts in shafts), **Propose Plant**, **Add Duct Openings**, **Calculate
 Loads**.
@@ -111,7 +116,7 @@ glazing U-value, window-to-wall ratio (WWR), and SHGC against the code pack's li
 
 ## Electrical
 
-Toolbar: **Add Equipment** (transformer, HT switchgear, LT panel, generator, fuel tank, UPS,
+**Electrical › MEP:** **Add Equipment** (transformer, HT switchgear, LT panel, generator, fuel tank, UPS,
 battery bank, PFI capacitor bank, distribution board, solar PV array), **Add Riser** (busbar
 trunking, cable tray, cable ladder, conduit bank), **Draw Tray**, **Propose Equipment**, **Add
 Openings**.
@@ -160,7 +165,7 @@ Each MEP element supports explicit `connectors` (domain, shape, size, flow direc
 classification); when omitted, SAEngine derives them from run endpoints, equipment footprints and
 terminals, snap-connecting coinciding points, branch tees and riser taps (`saengine.mep.systems`).
 
-- **Views:** switch to **Systems** in the MEP editor toolbar (or **7 MEP › Systems** in the
+- **Views:** open **7 MEP › Systems** in the
   project navigator) to open the **System Browser** tree (*Systems → Classification → System →
   Elements*), filter by classification, inspect system totals (airflow l/s, water flow l/s,
   fixture units, electrical load kW, critical path length m) and connectivity warnings (open

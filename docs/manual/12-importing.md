@@ -14,11 +14,12 @@ See also [docs/import.md](../import.md) for the full list of what each importer 
 
 ## In the app
 
-1. **Import from ETABS, STAAD or SAP2000...** (start page, File menu, or ≡ menu).
+1. **Import from ETABS, STAAD or SAP2000...** (Start page, or **≡ › File**).
 2. Pick the file, then **Choose Where to Put the Imported Project** (it starts in the folder of
    the last import) and **Name the Imported Project** (default: the file's name without its
    extension, *Office* for `Office.e2k`).
-3. SAEngine writes the project and opens the **Import Report**.
+3. SAEngine writes the project and shows the **Import Report** in the window you are in, with
+   **Open Project** to open the new project.
 
 ![The import report](images/import-report.png)
 

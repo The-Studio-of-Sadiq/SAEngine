@@ -17,8 +17,12 @@ import re
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent
+# The brand typeface (Saira, OFL-1.1) bundled with the report templates, and the logo.
+FONTS = REPO / "python" / "src" / "saengine" / "report" / "templates" / "fonts"
+LOGO = "../../workbench/resources/brand/saengine-lockup.svg"
 
-VERSION = "0.0.42"
+VERSION = "0.0.52"
 
 CHAPTERS = [
     "README.md",
@@ -232,14 +236,17 @@ PREAMBLE = r"""
 #set page(paper: "a4", margin: (x: 2cm, top: 2.2cm, bottom: 2.2cm),
   header: context { if counter(page).get().first() > 2 [#set text(8pt, fill: luma(110)); SAEngine User Manual #h(1fr) version VERSION] },
   footer: context { if counter(page).get().first() > 1 [#set text(8pt, fill: luma(110)); #h(1fr) #counter(page).display() #h(1fr)] })
+#let brand-ink = rgb("#0A1F3D")
+#let brand-blue = rgb("#1A5FB4")
+#let brand-font = ("Saira", "Segoe UI")
 #set text(font: ("Segoe UI", "Libertinus Serif", "New Computer Modern"), size: 9.5pt, lang: "en")
 #set par(justify: false, leading: 0.6em, spacing: 0.9em)
 #set heading(numbering: none)
-#show heading.where(level: 2): it => block(above: 1.4em, below: 0.7em, text(13pt, weight: "bold", fill: rgb("#0b5cad"), it.body))
-#show heading.where(level: 3): it => block(above: 1.2em, below: 0.6em, text(11pt, weight: "bold", it.body))
-#show heading.where(level: 4): it => block(above: 1em, below: 0.5em, text(10pt, weight: "bold", it.body))
+#show heading.where(level: 2): it => block(above: 1.4em, below: 0.7em, text(font: brand-font, 13pt, weight: "semibold", fill: brand-blue, it.body))
+#show heading.where(level: 3): it => block(above: 1.2em, below: 0.6em, text(font: brand-font, 11pt, weight: "semibold", fill: brand-ink, it.body))
+#show heading.where(level: 4): it => block(above: 1em, below: 0.5em, text(font: brand-font, 10pt, weight: "semibold", fill: brand-ink, it.body))
 #show raw: set text(font: ("Cascadia Mono", "Consolas", "DejaVu Sans Mono"), size: 8.5pt)
-#show link: set text(fill: rgb("#0b5cad"))
+#show link: set text(fill: brand-blue)
 #set table(stroke: 0.5pt + luma(190), inset: 5pt, fill: (_, y) => if y == 0 { luma(235) })
 #show table: set text(8.5pt)
 #show figure.caption: set text(8.5pt, fill: luma(80))
@@ -247,7 +254,7 @@ PREAMBLE = r"""
 
 #show heading.where(level: 1): it => {
   pagebreak(weak: true)
-  block(below: 1em, text(20pt, weight: "bold", it.body))
+  block(below: 1em, text(font: brand-font, 20pt, weight: "semibold", fill: brand-ink, it.body))
 }
 #show outline.entry.where(level: 1): it => { v(0.6em, weak: true); strong(it) }
 #let chapter(body) = heading(level: 1, body)
@@ -255,16 +262,18 @@ PREAMBLE = r"""
   heading(level: 1, body)
   intro
 }
-#let note(body) = block(fill: rgb("#eef4fb"), stroke: (left: 3pt + rgb("#0b5cad")), inset: 9pt, width: 100%, body)
+#let note(body) = block(fill: rgb("#eef4fb"), stroke: (left: 3pt + brand-blue), inset: 9pt, width: 100%, body)
 #let missing(name) = block(stroke: 1pt + red, inset: 8pt)[Missing image: #name]
 
 #page(header: none, footer: none)[
-  #v(25%)
-  #text(30pt, weight: "bold")[SAEngine User Manual]
+  #v(18%)
+  #image("LOGO", width: 55%)
+  #v(2.5em)
+  #text(font: brand-font, 30pt, weight: "semibold", fill: brand-ink)[User Manual]
   #v(0.5em)
-  #text(14pt)[Structural analysis and design to BNBC 2020]
+  #text(14pt)[Structural analysis and design]
   #v(2em)
-  #text(11pt)[Version VERSION (Pre Alpha 5)]
+  #text(11pt)[Version VERSION (Alpha 3) and later builds]
   #v(1fr)
   #text(9pt, fill: luma(90))[SAEngine is free software under the GNU Affero General Public License v3.0. This manual describes the program as it is in this version; check every result independently before using it for construction. All projects, boreholes and models in it are synthetic.]
 ]
@@ -272,7 +281,7 @@ PREAMBLE = r"""
 #page(header: none)[
   #outline(title: [Contents], depth: 2, indent: 1.5em)
 ]
-""".replace("VERSION", VERSION)
+""".replace("VERSION", VERSION).replace("LOGO", LOGO)
 
 
 def build() -> str:
@@ -302,11 +311,12 @@ def main() -> None:
     source = build()
     if args.typ:
         args.typ.write_text(source, encoding="utf-8")
-    # Typst reads the images relative to the project root, which must contain the source.
+    # Typst reads the images relative to the source; the root (the repository) must contain them
+    # and the logo.
     typ = HERE / ".manual.typ"
     typ.write_text(source, encoding="utf-8")
     try:
-        typst.compile(str(typ), output=str(args.out), root=str(HERE))
+        typst.compile(str(typ), output=str(args.out), root=str(REPO), font_paths=[str(FONTS)])
     finally:
         typ.unlink(missing_ok=True)
     print(f"wrote {args.out} ({args.out.stat().st_size / 1e6:.1f} MB)")

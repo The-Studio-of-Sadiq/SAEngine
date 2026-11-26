@@ -1,34 +1,36 @@
 # Reference: commands, command line and files
 
-## Command Palette
+## Command search
 
-Press **Ctrl+Shift+P** (or click the search box in the title bar) and type part of a command.
-SAEngine commands are in the category **SAEngine**; floor-plan commands in **Floor Plan**.
+Press **Ctrl+Shift+P** (or click *Search or run a command* in the title bar) and type part of a
+command. SAEngine commands are in the category **SAEngine**; floor-plan commands in **Floor
+Plan**. Every ribbon button is a command too.
 
 | Command | Where else |
 | --- | --- |
-| Show Start Window | |
-| New Project... | start page, File, ≡ (from the grid, a template or empty) |
-| Open Project... | File menu |
-| Open Sample Project... | start page |
-| Import from ETABS, STAAD or SAP2000... | start page, File, ≡ |
+| New Project... | Start page, ≡ › File, Home › Project › New |
+| Open Project... | Start page, ≡ › File, Home › Project › Open |
+| Open Sample Project... | Start page |
+| Import from ETABS, STAAD or SAP2000... | Start page, ≡ › File |
 | Show Import Report | |
-| Project Overview, Project Settings, Exports | ≡ |
-| Versions, Save Version... | ≡, sidebar |
-| Export Project..., Open Project Archive... | File, ≡ |
-| Open Folder in File Explorer | ≡ |
-| Run All | title bar |
-| Run Analysis, Run Selected Analysis Cases..., Show Analysis Log | FEM toolbar |
-| Design Reinforcement | FEM toolbar, Project menu |
-| Print Design Report | File, Exports page |
-| Export Bill of Quantities as CSV... | BOQ, Exports page |
-| Open DXF in CAD... | File |
-| Add Borehole to the Soil Report, Import Boreholes from CSV, Excel, AGS4 or DIGGS..., Save Borehole Template... | Soil Report toolbar |
-| Size Footings, Import Footings from the Building Model into the Substructure | Substructure toolbar |
-| Suggest Sleeves from the MEP Clashes | MEP toolbar |
-| Floor Plan: Toggle Command Line, Select All on Story, Select by Type..., Copy Selection to Stories..., Mirror Selection..., Delete Selection, Members Table | floor plan |
+| Project Overview | sidebar, Home › Project › Overview |
+| Versions, Save Version... | sidebar (clock icon), Home › Workspace › Collaborate, ≡ › File |
+| Export Project..., Open Project Archive... | ≡ › File, Exports › Output |
+| Run All | title bar, F5, FEM › Analyze › Solver |
+| Run Analysis, Run Selected Analysis Cases..., Show Analysis Log | FEM › Analyze › Solver, Mesh & View |
+| Design Reinforcement | 8 FEM › Design Reinforcement, FEM › Analyze › Analysis Model |
+| End Releases..., Point Spring... | FEM › Analyze › Assign |
+| Load Patterns... | Settings, Floor Plan and FEM › Loads ribbons |
+| Print Design Report, Export Design Report to Word, Configure Design Report... | ≡ › File, Exports page |
+| Export Bill of Quantities as CSV... | BOQ › Quantities › Export, Exports page |
+| Open DXF in CAD... | ≡ › File |
+| Add Borehole to the Soil Report, Import Boreholes from CSV, Excel, AGS4 or DIGGS..., Save Borehole Template... | Soil Report › Investigation › Boreholes |
+| Size Footings, Import Footings from the Building Model into the Substructure | Substructure › Shallow & Raft › Sizing |
+| Suggest Sleeves from the MEP Clashes | MEP › Coordination › Clashes |
+| Copy Selection to Stories..., Grid Systems..., Select All on Story, Select by Type..., Mirror Selection..., Delete Selection | Floor Plan › Structure › Edit |
+| Start Live Co-Editing | Home › Workspace › Collaborate › Live Co-Editing |
 | Check Python Runtime | |
-| Toggle Developer Mode | Help |
+| User Manual, Report a Bug..., Send Feedback..., Toggle Developer Mode | ≡ › Help |
 
 ## The `saengine` command line
 

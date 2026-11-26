@@ -16,21 +16,27 @@ File: `01 Soil Report/soil-report.json`. Open it with **1 Soil Report** in the s
 ## Layout
 
 - **Left:** the borehole list. *Report* at the top (the whole report), then each borehole with
-  its depth and number of layers (or its site class once the results are computed). A warning
-  icon marks a borehole with errors. Up/Down arrows move through the list.
-- **Middle:** four views, **Log**, **Data**, **Results** and **Map**.
-- **Right:** the Properties panel.
-- **Toolbar:** **Add Borehole**, **Import CSV, Excel, AGS4, DIGGS...**, **Save Template...**, **Show All
-  Boreholes Side by Side** (Log view, two or more boreholes), **Delete**; under **...**:
-  **Duplicate Borehole**, **Export AGS4/DIGGS...** and **Compute Results Again**.
-- **Status line:** e.g. *3 boreholes · site class SD · qa 160 kPa at B 2 m, Df 1.5 m*.
+  its depth, number of layers and site class. A warning icon marks a borehole with errors.
+  Up/Down arrows move through the list.
+- **Middle:** the view chosen in **Investigation › View**: **Log**, **Results**, **Strata**
+  (a table of all boreholes) or **Map**.
+- **Right:** Properties: the selected borehole (depths, position, records and its results) or
+  the report.
+- **Ribbon:** **Investigation** holds the views and the **Boreholes** group (**Add Borehole**,
+  **Import**, **Template**, **Edit Borehole**, **Duplicate**, **Delete**, **Exclude Bearing**)
+  and **Views › All Boreholes**. The other tabs (**Lab Tests**, **Bearing & Settlement**,
+  **Seismic & Liquefaction**, **Earth Pressure & Chemistry**, **Site & GIS**, **Profile &
+  CPT**, **Report**, **Geotechnical Design**) open input panels for the geotechnical
+  calculations, filled from the boreholes.
+- **Status line:** e.g. *3 boreholes · site class SD · qa 160 kPa at B 2 m, Df 1.5 m* with links
+  to the **Results** and to the problems found (*1 problem(s)*).
 
-An empty report shows *No boreholes yet* with **Add Borehole**, **Import CSV, Excel, AGS4, DIGGS...** and
-**Save a template to fill in**.
+An empty report shows *No boreholes yet* with **Add Borehole**, **Import CSV, Excel, AGS4,
+DIGGS...** and **Save a template to fill in**.
 
 ## Report properties
 
-Select **Report** in the list. The Properties panel shows:
+Select **Report** in the list. Properties shows:
 
 - **Report:** Title, Consultant, Report number, Date, Ground level (m).
 - **Design** (the basis of the computed results):
@@ -47,28 +53,30 @@ Select **Report** in the list. The Properties panel shows:
 
 Empty values use the defaults.
 
-## Entering a borehole log sheet (Data view)
+## Entering a borehole log sheet
 
-![The Data view: the log sheet of a borehole](images/soil-data.png)
+![Edit Borehole, step 3: Samples and SPT](images/soil-data.png)
 
-1. Click **Add Borehole**. The new borehole gets the next ID, 10 m to the right of the last one,
-   copies its water table, is 10 m deep and starts with one clay layer from 0 to 10 m.
-2. Fill in the **header strip**: ID, Ground level (m), Water table (m, depth below ground),
-   Termination depth (m), X and Y (m, in the project's coordinates), or Latitude/Longitude (°),
-   or BTM easting/northing (m); Date drilled, Method. When latitude/longitude or BTM are given,
-   X and Y are worked out from them and become read-only.
-3. Fill in the **Strata** grid, one row per layer from the top: *Top* and *Bottom* (m), *Soil
-   type* (Clay, Silt, Sand, Gravel, Organic, Fill, Rock), *USCS*, *Description*, and as far as
-   known: unit weights γ, γsat (kN/m³), strength cu, c′ (kPa), φ′ (°), E (MPa), index values
-   FC, PI, LL (%), and consolidation Cc, Cr, e0, OCR. The column groups *Unit weight*,
-   *Strength*, *Index* and *Consolidation* start folded; click a group heading to unfold it.
-4. Fill in the **Samples and SPT** grid, one row per test depth: *From* / *To* (m; To defaults to
-   From + 0.45 m), sample *No.* and *Type*, the SPT blow counts *Seat*, *N1*, *N2* (N is worked
-   out as N1 + N2 and shown greyed unless you type N), *Ref.* for refusal (`R`, or e.g.
-   `50/100`), recovery and the rod energy ratio *ER* if measured, then the index and strength
-   results of the sample (w, γ, LL, PL, FC, cu, c′, φ′, Cc, e0; PI is computed). SAEngine shows
-   the corrected **N60** and **(N1)60** in the last columns.
-5. For a row with a sample, the **Lab tests** panel below takes the raw test data:
+**Add Borehole** (or **Edit Borehole** for an existing one) opens the log sheet in three steps,
+**Details**, **Strata** and **SPT and lab**. **Next** and **Back** move between them; **Create
+Borehole** (or **Save**) writes it. Changes are kept as you type.
+
+1. **Details:** ID, Date drilled, Method; Termination depth (m), Water table (m, depth below
+   ground), Ground level (m); the position as X and Y (m, on the project grid), or
+   Latitude/Longitude (°), or BTM easting/northing (m). When latitude/longitude or BTM are
+   given, X and Y are worked out from them.
+2. **Strata**, one row per layer from the top: *Top* and *Bottom* (m), *Soil type* (Clay, Silt,
+   Sand, Gravel, Organic, Fill, Rock), *USCS*, *Description*, and as far as known: unit weights
+   γ, γsat (kN/m³), strength cu, c′ (kPa), φ′ (°), E (MPa), index values FC, PI, LL (%), and
+   consolidation Cc, Cr, e0, OCR. The column groups *Unit weight*, *Strength*, *Index* and
+   *Consolidation* start folded; click a group heading to unfold it.
+3. **Samples and SPT**, one row per test depth: *From* / *To* (m; To defaults to From + 0.45 m),
+   sample *No.* and *Type*, the SPT blow counts *Seat*, *N1*, *N2* (N is worked out as N1 + N2
+   unless you type N), *Ref.* for refusal (`R`, or e.g. `50/100`), recovery and the rod energy
+   ratio *ER* if measured, then the index and strength results of the sample (w, γ, LL, PL, FC,
+   cu, c′, φ′, Cc, e0; PI is computed). The stratum's description and USCS fill in from the
+   depth, and SAEngine shows the corrected **N60** and **(N1)60** in the last columns.
+   Select a row with a sample to enter its **lab tests** below the grid:
    - **Grain size:** sieve size (mm) and % passing; draws the curve, and **Use** buttons take
      the fines content, D10/D30/D60, Cu and Cc from it.
    - **Consolidation:** load steps σ′v (kPa) and void ratio e; gives Cc, Cr, e0 and the
@@ -76,20 +84,21 @@ Empty values use the defaults.
    - **Triaxial:** UU, CU or CD specimens (σ3, σ1−σ3, u); gives cu, or c′ and φ′.
    - **Direct shear:** σn and τ; gives c′ and φ′ by least squares.
 
-The grids work like a spreadsheet: **Ctrl+V pastes a block copied from Excel**, Delete clears,
-Ctrl+Z undoes. A compact log next to the sheet updates as you type, and results recompute
-about a second after each change.
+The grids work like a spreadsheet: **Ctrl+V pastes a block copied from Excel** (a block longer
+than the sheet asks *Paste 13 rows × 8 columns from row 1? It adds 13 row(s).*), Delete clears,
+Ctrl+Z undoes.
 
-SAEngine checks the sheet as you type and lists problems, for example *BH-1: a gap between 4 m
-and 4.5 m.*, *layers overlap*, *an SPT at 31.5 m is below the termination depth*, *two SPT
-records at 6 m*, or *N 20 is entered, but N1 + N2 = 18; N 20 is used. Delete it to use N1 + N2.*
-A silt without PI or cu gets the hint *is it plastic? Give PI or cu*.
+SAEngine checks the sheet and lists problems under the status line's *problem(s)* link, for
+example *BH-1: a gap between 4 m and 4.5 m.*, *layers overlap*, *an SPT at 31.5 m is below the
+termination depth*, *two SPT records at 6 m*, or *No borehole reaches 30 m (the deepest ends at
+20 m): BNBC 2020 Table 6.2.13 classifies the site by the top 30 m, so the site class is
+provisional.* A silt without PI or cu gets the hint *is it plastic? Give PI or cu*.
 
 ## Importing boreholes from CSV or Excel
 
-**Save Template...** writes `boreholes-template.xlsx` (or a .csv) next to the soil report: a
+**Investigation › Boreholes › Template** (*Save Borehole Template...*) writes `boreholes-template.xlsx` (or a .csv) next to the soil report: a
 sheet *Soil data* with an example borehole and a *Read me* sheet. Fill it in and import it with
-**Import CSV, Excel, AGS4, DIGGS...**.
+**Investigation › Boreholes › Import** (*Import CSV, Excel, AGS4, DIGGS...*).
 
 - Accepted files: **.csv / .txt** and **.xlsx / .xlsm**. (The file dialog also lists .xls, but
   old .xls files are refused: save them as .xlsx first.)
@@ -115,14 +124,15 @@ format):
 - Every group, heading or element with a value that is not read is listed in the import's
   notes (**Show Notes**).
 
-**Export AGS4/DIGGS...** (in the toolbar's more actions) writes the boreholes as AGS4 (`.ags`)
+**Lab Tests › Export AGS4** (*Export Boreholes as AGS4...*) and the DIGGS export write the boreholes as AGS4 (`.ags`)
 or DIGGS (`.xml`); what the format cannot hold is listed in its notes.
 
 ## The Log view
 
 Draws the borehole log: depth, strata hatching by soil type, descriptions, the water table ▽,
-and SPT N against depth with the corrected N60 points. **Show All Boreholes Side by Side**
-draws all logs on the project datum (elevations); click one to open it.
+and SPT N against depth with the corrected N60 points. **Investigation › Views › All
+Boreholes** draws all logs on the project datum (elevations), with a table of the boreholes;
+click one to open its log. **3D Strata** draws them in 3D.
 
 ## Results
 
@@ -173,8 +183,8 @@ stored in the report file**. Sections:
 
 ![The Map view with the boreholes of the sample](images/soil-map.png)
 
-The **Map** view shows the site on a street map (OpenStreetMap tiles by default; see the
-`saengine.map.*` settings). Offline, the boreholes are drawn on the project grid instead.
+The **Map** view (**Investigation › View › Map**) shows the site on a street map
+(OpenStreetMap tiles by default; see the `saengine.map.*` settings). Offline, the boreholes are drawn on the project grid instead.
 
 - **Site:** type the latitude/longitude of the project point (decimal, e.g. `23.8103, 90.4125`,
   or degrees-minutes-seconds), and the **Grid bearing** (°) between the project's X axis and
@@ -185,6 +195,9 @@ The **Map** view shows the site on a street map (OpenStreetMap tiles by default;
 - **BNBC location:** when the nearest BNBC town's seismic zone or wind speed differ from those
   Project Settings use, a banner names them with **Apply to Project Settings**, which writes them
   into the site of Project Settings (save the settings to keep it).
+- **Plot:** **Draw Plot** on the map, or type a rectangle (**Frontage**, **Depth**, the side the
+  road is on) and **Set Rectangle**; give the **Setbacks** (front, rear, each side). The plot and
+  its buildable envelope are drawn on the floor plan too.
 - **GIS:** **Export GeoJSON...** and **Export GeoPackage...** write layers *site*,
   *site_boundary*, *boreholes* (with depth, water table, N̄ and site class) and *building* (the
   outline from 6 BIM) in WGS 84, by default into `11 Exports`. **Import from GIS...** reads
@@ -226,16 +239,16 @@ basis) when the plot has a planning entry.
 
 ## Commands
 
-| Command (category SAEngine) | Does |
-| --- | --- |
-| Add Borehole to the Soil Report | Adds a borehole |
-| Import Boreholes from CSV, Excel, AGS4 or DIGGS... | Imports a file |
-| Save Borehole Template... | Writes the template |
+| Command (category SAEngine) | Ribbon | Does |
+| --- | --- | --- |
+| Add Borehole to the Soil Report | Investigation › Boreholes › Add Borehole | Adds a borehole |
+| Import Boreholes from CSV, Excel, AGS4 or DIGGS... | Investigation › Boreholes › Import | Imports a file |
+| Save Borehole Template... | Investigation › Boreholes › Template | Writes the template |
 
 ## Not confirmed / limitations
 
 - Old Excel **.xls** files are offered by the file dialog but refused by the importer.
-- Some options exist only in the JSON file (open it with *Reopen Editor With... → Text Editor*):
+- Some options exist only in the JSON file (open it as text with *Reopen Editor With... → Text Editor* from the command search):
   the SPT correction factors CB, CS and rod length, the pile type used for Part 1 pile
   parameters, the widths and depths of the bearing table, and sample permeability and
   chemistry.
