@@ -446,38 +446,19 @@ def place_by_grid(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]
     require_bim(ctx)
     plan = ctx.raw("floorPlan") or {}
     grids = plan.get("grids") or {}
-    x_grids = (
-        grids.get("x") or []
-        if isinstance(grids, dict)
-        else [g for g in grids if isinstance(g, dict) and g.get("axis") == "X"]
-    )
-    y_grids = (
-        grids.get("y") or []
-        if isinstance(grids, dict)
-        else [g for g in grids if isinstance(g, dict) and g.get("axis") == "Y"]
-    )
     gx_label = values["gridX"].strip()
     gy_label = values["gridY"].strip()
-    gx_pos = next(
-        (
-            float(g.get("position", 0.0))
-            for g in x_grids
-            if isinstance(g, dict) and str(g.get("label", g.get("name", ""))) == gx_label
-        ),
-        None,
-    )
-    gy_pos = next(
-        (
-            float(g.get("position", 0.0))
-            for g in y_grids
-            if isinstance(g, dict) and str(g.get("label", g.get("name", ""))) == gy_label
-        ),
-        None,
-    )
-    if gx_pos is None or gy_pos is None:
-        raise FeatureInputError(
-            f"Grid intersection ({gx_label}, {gy_label}) not found in 05 Floor Plan/floor-plan.json."
+    from saengine.library.grid_geometry import GridError, GridGeometry
+
+    try:
+        gx_pos, gy_pos = GridGeometry(grids if isinstance(grids, dict) else {}).intersection(
+            gx_label, gy_label
         )
+    except GridError as exc:
+        raise FeatureInputError(
+            f"Grid intersection ({gx_label}, {gy_label}) not found in 05 Floor Plan/floor-plan.json "
+            f"({exc})."
+        ) from exc
     world_x_mm = gx_pos + float(values["offsetX"]) * 1000.0
     world_y_mm = gy_pos + float(values["offsetY"]) * 1000.0
     point = {

@@ -20328,6 +20328,80 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'FrameModifiers',
 			type: 'object',
 		},
+		FreeGridLine: {
+			additionalProperties: false,
+			description: 'A single angled grid line: through two points, or from a point at an angle.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				x1: {
+					description: 'First point [mm]; its bubble is here.',
+					title: 'Start X',
+					type: 'number',
+				},
+				y1: {
+					description: 'First point [mm].',
+					title: 'Start Y',
+					type: 'number',
+				},
+				x2: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Second point [mm].',
+					title: 'End X',
+				},
+				y2: {
+					anyOf: [
+						{
+							description: '[mm]',
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Second point [mm].',
+					title: 'End Y',
+				},
+				angle: {
+					anyOf: [
+						{
+							type: 'number',
+						},
+						{
+							type: 'null',
+						},
+					],
+					default: null,
+					description: 'Instead of an end point: the line\'s direction, anticlockwise from X [°].',
+					title: 'Angle',
+				},
+				length: {
+					default: 20000,
+					description: 'Drawn length with an angle [mm].',
+					exclusiveMinimum: 0,
+					title: 'Length',
+					type: 'number',
+				},
+			},
+			required: ['label', 'x1', 'y1'],
+			title: 'FreeGridLine',
+			type: 'object',
+		},
 		GridLine: {
 			additionalProperties: false,
 			description: 'One grid line (IfcGridAxis): X lines are vertical in plan, Y lines horizontal.',
@@ -20351,10 +20425,10 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 		},
 		GridPoint: {
 			additionalProperties: false,
-			description: 'A grid intersection, optionally offset; follows the grid lines when they move.',
+			description: 'A grid intersection, optionally offset; follows the grid lines when they move.\n\n``x`` and ``y`` name the two lines that cross: an X and a Y line of one orthogonal system,\na ray and a ring of a radial one, or any two lines of different directions. The offsets are\nalong the plan\'s X and Y axes.',
 			properties: {
 				x: {
-					description: 'X grid line label, e.g. A.',
+					description: 'First grid line label, e.g. A (an X line, a ray).',
 					maxLength: 8,
 					minLength: 1,
 					pattern: '^[A-Za-z0-9.\'-]+$',
@@ -20362,7 +20436,7 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 					type: 'string',
 				},
 				y: {
-					description: 'Y grid line label, e.g. 1.',
+					description: 'Second grid line label, e.g. 1 (a Y line, a ring).',
 					maxLength: 8,
 					minLength: 1,
 					pattern: '^[A-Za-z0-9.\'-]+$',
@@ -20386,6 +20460,91 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			title: 'GridPoint',
 			type: 'object',
 		},
+		GridSystem: {
+			additionalProperties: false,
+			description: 'A grid system beyond the main orthogonal one (IfcGrid with its own placement).\n\n``orthogonal``: X and Y lines like the main grid, in the system\'s own axes, turned by\n``angle`` about the origin. ``radial``: rays at angles and rings at radii about the origin\n(the centre), the rays measured from ``angle``. ``lines``: single angled lines, each\nthrough two points of the plan or from a point at an angle.',
+			properties: {
+				id: {
+					maxLength: 64,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9._-]+$',
+					title: 'ID',
+					type: 'string',
+				},
+				name: {
+					default: '',
+					description: 'A name for the system, e.g. \'Wing B\'.',
+					title: 'Name',
+					type: 'string',
+				},
+				kind: {
+					enum: ['orthogonal', 'radial', 'lines'],
+					title: 'System type',
+					type: 'string',
+				},
+				originX: {
+					default: 0,
+					description: 'Origin, or a radial centre [mm].',
+					title: 'Origin X',
+					type: 'number',
+				},
+				originY: {
+					default: 0,
+					description: 'Origin, or a radial centre [mm].',
+					title: 'Origin Y',
+					type: 'number',
+				},
+				angle: {
+					default: 0.0,
+					description: 'Rotation of the system\'s axes, anticlockwise from X [°].',
+					title: 'Angle',
+					type: 'number',
+				},
+				x: {
+					description: 'Orthogonal: local x lines.',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'X grid lines',
+					type: 'array',
+				},
+				y: {
+					description: 'Orthogonal: local y lines.',
+					items: {
+						$ref: '#/$defs/GridLine',
+					},
+					title: 'Y grid lines',
+					type: 'array',
+				},
+				rays: {
+					description: 'Radial: the rays.',
+					items: {
+						$ref: '#/$defs/RadialRay',
+					},
+					title: 'Rays',
+					type: 'array',
+				},
+				rings: {
+					description: 'Radial: the rings.',
+					items: {
+						$ref: '#/$defs/RadialRing',
+					},
+					title: 'Rings',
+					type: 'array',
+				},
+				lines: {
+					description: 'Lines: the lines.',
+					items: {
+						$ref: '#/$defs/FreeGridLine',
+					},
+					title: 'Lines',
+					type: 'array',
+				},
+			},
+			required: ['id', 'kind'],
+			title: 'GridSystem',
+			type: 'object',
+		},
 		Grids: {
 			additionalProperties: false,
 			properties: {
@@ -20403,6 +20562,14 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 						$ref: '#/$defs/GridLine',
 					},
 					title: 'Y grid lines',
+					type: 'array',
+				},
+				systems: {
+					description: 'More grid systems: rotated orthogonal, radial or single angled lines. Labels are unique across every system, so a grid point names any two lines that cross.',
+					items: {
+						$ref: '#/$defs/GridSystem',
+					},
+					title: 'Grid systems',
 					type: 'array',
 				},
 			},
@@ -20777,6 +20944,49 @@ export const FLOOR_PLAN_SCHEMA: IJSONSchema = {
 			},
 			required: ['id', 'type', 'base', 'top', 'start', 'end'],
 			title: 'PlacedWall',
+			type: 'object',
+		},
+		RadialRay: {
+			additionalProperties: false,
+			description: 'A straight grid line of a radial system, from the centre out at an angle.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				angle: {
+					description: 'Angle from the system\'s 0° direction, anticlockwise [°].',
+					title: 'Angle',
+					type: 'number',
+				},
+			},
+			required: ['label', 'angle'],
+			title: 'RadialRay',
+			type: 'object',
+		},
+		RadialRing: {
+			additionalProperties: false,
+			description: 'A circular grid line of a radial system.',
+			properties: {
+				label: {
+					maxLength: 8,
+					minLength: 1,
+					pattern: '^[A-Za-z0-9.\'-]+$',
+					title: 'Label',
+					type: 'string',
+				},
+				radius: {
+					description: 'Radius about the centre [mm].',
+					exclusiveMinimum: 0,
+					title: 'Radius',
+					type: 'number',
+				},
+			},
+			required: ['label', 'radius'],
+			title: 'RadialRing',
 			type: 'object',
 		},
 		ShellModifiers: {
@@ -21171,6 +21381,7 @@ export const DEFAULT_FLOOR_PLAN: object = {
 				position: 5000.0,
 			},
 		],
+		systems: [],
 	},
 	stories: [
 		{

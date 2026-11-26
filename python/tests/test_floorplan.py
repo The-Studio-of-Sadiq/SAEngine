@@ -78,7 +78,7 @@ def test_members_on_the_grid() -> None:
         ({"columns": [column(), column()]}, "duplicate member ids: C-A1"),
         (
             {"grids": {"x": [{"label": "A", "position": 0}], "y": [{"label": "A", "position": 0}]}},
-            "unique across both axes: A",
+            "unique across all grid systems: A",
         ),
         (
             {

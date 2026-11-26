@@ -103,6 +103,9 @@ def building_of(bim: Any, objects: Any, plan: Any = None, substructure: Any = No
     if plan is not None:
         b.grids_x = [Grid(g.label, g.position) for g in plan.grids.x]
         b.grids_y = [Grid(g.label, g.position) for g in plan.grids.y]
+        from saengine.library.grid_geometry import GridGeometry
+
+        b.grids_other = [a for a in GridGeometry(plan.grids).axes if a.system]
     b.levels = [Level(s.id, s.name, s.elevation) for s in bim.stories]
     holes: dict[str, list[list[tuple]]] = {}
     for o in bim.additions.slabOpenings:
@@ -524,12 +527,27 @@ NEAR_GRID = 1000.0
 
 
 def grid_position(
-    x: float, y: float, grids_x: list[Grid], grids_y: list[Grid], tolerance: float = 50.0
+    x: float,
+    y: float,
+    grids_x: list[Grid],
+    grids_y: list[Grid],
+    tolerance: float = 50.0,
+    others: list[Any] | None = None,
 ) -> str | None:
-    """The grid intersection at plan ``(x, y)`` ("A1"), or None off the grids."""
+    """The grid intersection at plan ``(x, y)`` ("A1"), or None off the grids; with ``others``
+    (the other grid systems' lines) also their crossings ("A'1'")."""
     gx = next((g for g in grids_x if abs(g.position - x) <= tolerance), None)
     gy = next((g for g in grids_y if abs(g.position - y) <= tolerance), None)
-    return f"{gx.label}{gy.label}" if gx is not None and gy is not None else None
+    if gx is not None and gy is not None:
+        return f"{gx.label}{gy.label}"
+    if others:
+        from saengine.library.grid_geometry import GridGeometry
+
+        main = GridGeometry({"x": grids_x, "y": grids_y}).axes
+        found = GridGeometry.of_axes([*main, *others]).find(x, y, tolerance)
+        if found:
+            return f"{found[0]}{found[1]}"
+    return None
 
 
 def column_lines(
@@ -537,6 +555,7 @@ def column_lines(
     objects: Any,
     grids_x: list[Grid] | None = None,
     grids_y: list[Grid] | None = None,
+    others: list[Any] | None = None,
 ) -> list[ColumnLine]:
     """Column elements of the detailing model stacked on plan positions, marked by their grid
     intersection ("A1": the stack runs every storey, so not the member id of its lowest one),
@@ -549,11 +568,11 @@ def column_lines(
         if section is None:
             continue
         x, y = float(pos[0]), float(pos[1])
-        mark = grid_position(x, y, grids_x or [], grids_y or [])
+        mark = grid_position(x, y, grids_x or [], grids_y or [], others=others)
         if mark is None:
             # Off the grids: the member id alone ("C1") reads as grid C1; say which it is near.
             member = str(e.get("member") or e["id"])
-            near = grid_position(x, y, grids_x or [], grids_y or [], NEAR_GRID)
+            near = grid_position(x, y, grids_x or [], grids_y or [], NEAR_GRID, others)
             mark = f"{member} (near {near})" if near else member
         line = stacks.setdefault(key, ColumnLine(mark, []))
         line.members.append(str(e["id"]))
@@ -1327,7 +1346,9 @@ def fill_from_detailing(
     levels = {lv.id: lv for lv in data.building.levels}
     elements = detailing.get("elements") or []
     columns = [e for e in elements if e.get("kind") == "column"]
-    data.columns = column_lines(columns, objects, data.building.grids_x, data.building.grids_y)
+    data.columns = column_lines(
+        columns, objects, data.building.grids_x, data.building.grids_y, data.building.grids_other
+    )
     by_id = {str(e["id"]): e for e in columns}
     beams = []
     for e in (e for e in elements if e.get("kind") == "beam"):

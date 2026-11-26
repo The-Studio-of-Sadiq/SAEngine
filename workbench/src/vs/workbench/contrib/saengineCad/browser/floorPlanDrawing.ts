@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { centroid } from '../../../../platform/saengine/common/geometry.js';
 import { sizeText } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { GridGeometry, isCircle, segment } from '../../../services/saengineProject/common/gridGeometry.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import type { IDraftShape } from './floorPlanDrafting.js';
 
@@ -64,7 +65,6 @@ const BEAM_LINETYPE_SCALE = 100;
 // every field is checked where it is used and bad members are reported, not thrown.
 type Json = { readonly [key: string]: unknown };
 
-interface IGridPoint { readonly x: string; readonly y: string; readonly dx?: number; readonly dy?: number }
 
 
 /** Characters a member id may have (`saengine.library.materials.Id`). */
@@ -382,6 +382,7 @@ interface ISupport {
 export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: string, underlay?: IPlotUnderlay, options?: IFloorPlanOptions): IFloorPlan {
 	const model = isObject(layout) ? layout : {};
 	const { x: xLines, y: yLines } = gridsOf(model);
+	const geometry = GridGeometry.ofPlan(model);
 	const elevation = new Map(storiesOf(model).map(s => [s.id, s.elevation]));
 	const level = elevation.get(storyId);
 	const types = new Map(list(isObject(objects) ? objects.objects : undefined).filter(o => typeof o.id === 'string').map(o => [o.id as string, o]));
@@ -423,6 +424,24 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 			bubble(label, [x0 - BUBBLE_RADIUS, y]);
 			bubble(label, [x1 + BUBBLE_RADIUS, y]);
 		}
+		// The other grid systems (rotated, radial, angled lines), at their own angle: a bubble past
+		// each end along the line (a ray's only at its outer end), a ring's outside it between the rays.
+		for (const axis of geometry.axes.filter(a => a.system)) {
+			if (isCircle(axis)) {
+				entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.grid, center: axis.origin, radius: axis.radius, linetypeScale: GRID_LINETYPE_SCALE });
+				const u = axis.bubbleAngle * Math.PI / 180;
+				const d = axis.radius + BUBBLE_RADIUS;
+				bubble(axis.label, [axis.origin[0] + d * Math.cos(u), axis.origin[1] + d * Math.sin(u)]);
+				continue;
+			}
+			const [start, end] = segment(axis);
+			const [dx, dy] = axis.direction;
+			entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start, end, linetypeScale: GRID_LINETYPE_SCALE });
+			bubble(axis.label, [end[0] + dx * BUBBLE_RADIUS, end[1] + dy * BUBBLE_RADIUS]);
+			if (axis.role !== 'ray') {
+				bubble(axis.label, [start[0] - dx * BUBBLE_RADIUS, start[1] - dy * BUBBLE_RADIUS]);
+			}
+		}
 	}
 	if (level === undefined) {
 		return { drawing: { layers: LAYERS, entities }, drafts, members, problems, warnings };
@@ -430,11 +449,10 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 
 	// ── members ──
 	const resolve = (value: unknown): CadPoint | undefined => {
-		const p = isObject(value) ? value as unknown as IGridPoint : undefined;
-		const x = p && xLines.get(p.x);
-		const y = p && yLines.get(p.y);
-		return x === undefined || y === undefined ? undefined : [x + (num(p!.dx) ?? 0), y + (num(p!.dy) ?? 0)];
+		return geometry.point(value);
 	};
+	/** A column or footing turns with the grid system of its first line (0 on the main grid). */
+	const turn = (value: unknown): number => isObject(value) && typeof value.x === 'string' ? geometry.orientation(value.x) : 0;
 	const point = (member: Json, value: unknown): CadPoint | undefined => {
 		const at = resolve(value);
 		if (!at) {
@@ -587,7 +605,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 			shape('columns', column, { kind: 'circle', center: at, radius: outline.radius });
 			corner = [at[0] + outline.radius, at[1] + outline.radius];
 		} else {
-			const points = translate(outline.points, at, num(column.rotation) ?? 0);
+			const points = translate(outline.points, at, (num(column.rotation) ?? 0) + turn(column.at));
 			entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.columns, points, closed: true });
 			shape('columns', column, { kind: 'polygon', points });
 			corner = [Math.max(...points.map(p => p[0])), Math.max(...points.map(p => p[1]))];
@@ -608,7 +626,7 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		if (!at || !length || !width) {
 			continue;
 		}
-		const points = translate(rectangle(length, width), at, num(footing.rotation) ?? 0);
+		const points = translate(rectangle(length, width), at, (num(footing.rotation) ?? 0) + turn(footing.at));
 		entities.push({ kind: 'polyline', layer: FLOOR_PLAN_LAYERS.footings, points, closed: true });
 		shape('footings', footing, { kind: 'polygon', points });
 		text(at, labelOf(footing));

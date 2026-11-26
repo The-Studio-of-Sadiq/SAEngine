@@ -141,6 +141,11 @@ def labels(plan: dict[str, Any], axis: str) -> list[str]:
 def point(plan: dict[str, Any], ref: PointRef, field: str = "points") -> dict[str, Any]:
     """A grid point of the floor plan from "A-1", "A/1" or {x, y, dx, dy}."""
     xs, ys = labels(plan, "x"), labels(plan, "y")
+    from saengine.library.grid_geometry import GridError, GridGeometry
+
+    geometry = GridGeometry(plan.get("grids") or {})
+    others = [a.label for a in geometry.axes if a.system]
+    xs, ys = xs + others, ys + others
     if not xs or not ys:
         refuse("The floor plan needs grid lines on both axes first (grid.set).", field, ref)
     if isinstance(ref, GridPointIn):
@@ -175,6 +180,10 @@ def point(plan: dict[str, Any], ref: PointRef, field: str = "points") -> dict[st
         refuse(f"There is no X grid line '{x}' (X lines {', '.join(xs)}).", field, ref)
     if y not in ys:
         refuse(f"There is no Y grid line '{y}' (Y lines {', '.join(ys)}).", field, ref)
+    try:
+        geometry.intersection(str(x), str(y))
+    except GridError as exc:
+        refuse(f"'{x}-{y}' is not a grid point: {exc}.", field, ref)
     return {"x": x, "y": y, "dx": dx, "dy": dy}
 
 
@@ -186,9 +195,9 @@ def all_points(plan: dict[str, Any]) -> list[dict[str, Any]]:
 
 def where(plan: dict[str, Any], p: dict[str, Any]) -> tuple[float, float]:
     """The plan position [mm] of a grid point."""
-    xs = {g["label"]: float(g["position"]) for g in grid_lines(plan, "x")}
-    ys = {g["label"]: float(g["position"]) for g in grid_lines(plan, "y")}
-    return xs[p["x"]] + float(p.get("dx") or 0), ys[p["y"]] + float(p.get("dy") or 0)
+    from saengine.library.grid_geometry import GridGeometry
+
+    return GridGeometry(plan.get("grids") or {}).point(p)
 
 
 def key(p: Any) -> str:

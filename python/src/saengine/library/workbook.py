@@ -544,6 +544,7 @@ def import_workbook(
             diff[sheet.name] = sheet_diff
             target = new_docs[sheet.file]
             if sheet.fixed and sheet.location == ("grids",):
+                systems = (target.get("grids") or {}).get("systems")
                 target["grids"] = {
                     axis.lower(): [
                         {k: v for k, v in line.items() if k != "axis"}
@@ -552,6 +553,8 @@ def import_workbook(
                     ]
                     for axis in ("X", "Y")
                 }
+                if systems:
+                    target["grids"]["systems"] = systems
             else:
                 target[sheet.location[0]] = merged
     finally:

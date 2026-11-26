@@ -618,6 +618,7 @@ def steel_plan(
         rc = Building(
             grids_x=building.grids_x,
             grids_y=building.grids_y,
+            grids_other=building.grids_other,
             levels=building.levels,
             columns=[c for c in building.columns if c.id not in steel_ids],
             beams=[b for b in building.beams if b.id not in steel_ids],

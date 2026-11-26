@@ -411,6 +411,7 @@ for (const [order, tool, title, shortLabel, icon] of [
 ] as readonly [number, FloorPlanTool, ReturnType<typeof localize2>, string, ThemeIcon][]) {
 	registerPlanCommand(`saengine.floorPlan.tool.${tool}`, title, shortLabel, icon, RibbonMenus.Plan, '2_Edit', order, 'small', e => e.selectTool(tool));
 }
+registerPlanCommand('saengine.floorPlan.gridSystems', localize2('plan.rib.gridSystemsTitle', "Grid Systems..."), localize('plan.rib.gridSystems', "Grid Systems..."), Codicon.compass, RibbonMenus.Plan, '2_Edit', 5, 'large', e => e.openGridSystems());
 registerPlanCommand('saengine.floorPlan.typicalFloors', localize2('plan.rib.typicalTitle', "Configure Typical Floors"), localize('plan.rib.typical', "Typical Floors"), Codicon.layers, RibbonMenus.Plan, '2_Edit', 4, 'large', e => e.openTypicalFloors());
 
 const FloorPlanConvertSubmenu = MenuId.for('saengine.ribbon.plan.convert');

@@ -22,6 +22,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { describeGridChanges } from '../../../services/saengineProject/common/gridChanges.js';
 import { gridLabel, IGridLine, nextGridLabel } from '../../../services/saengineProject/common/gridLabels.js';
+import { GridGeometry } from '../../../services/saengineProject/common/gridGeometry.js';
+import { gridLabels, newGridSystem, nextSystemLine } from '../../../services/saengineProject/common/gridSystems.js';
 import { newFloorPlan } from '../../../services/saengineProject/common/partSources.js';
 import { FLOOR_PLAN_SCHEMA, TEMPLATES } from '../../../services/saengineProject/common/projectLibraries.generated.js';
 import { ISaengineProjectService, PROJECT_PARTS } from '../../../services/saengineProject/common/saengineProject.js';
@@ -144,8 +146,8 @@ export class GridsEditor extends JsonDocumentEditor {
 			// FD-19: a story is not similar to itself nor to the base (it has no plan of members).
 			references: (path, owner) => path === 'stories.similarTo' ? this.similarCandidates(owner)
 				: path === 'podiumTop' ? this.stories.map(s => s.id)
-				: path === 'towers.boundary.x' ? this.grids.x.map(g => g.label)
-					: path === 'towers.boundary.y' ? this.grids.y.map(g => g.label)
+				: path === 'towers.boundary.x' ? [...this.grids.x.map(g => g.label), ...this.systemLabels()]
+					: path === 'towers.boundary.y' ? [...this.grids.y.map(g => g.label), ...this.systemLabels()]
 						: undefined,
 			validate: (path, value) => this.validate(path, value),
 			changed: (path, structural) => {
@@ -330,6 +332,11 @@ export class GridsEditor extends JsonDocumentEditor {
 		return { x: lines(grids.x), y: lines(grids.y) };
 	}
 
+	/** The labels of the other grid systems' lines (a grid point may name any two that cross). */
+	private systemLabels(): string[] {
+		return GridGeometry.ofPlan(this.document).axes.filter(a => a.system).map(a => a.label);
+	}
+
 	private get stories(): IStory[] {
 		const stories = this.document?.stories;
 		return (Array.isArray(stories) ? stories.filter(isObject) : []) as unknown as IStory[];
@@ -397,8 +404,15 @@ export class GridsEditor extends JsonDocumentEditor {
 
 	/** The next grid line or story, continuing the sequence and spacing of the last two. */
 	private newItem(path: string, list: readonly JsonValue[]): JsonObject | undefined {
+		if (path === 'grids.systems') {
+			return newGridSystem(this.document?.grids, { kind: 'orthogonal', angle: 30 }) as JsonObject;
+		}
+		const systemList = /^grids\.systems\.(x|y|rays|rings|lines)$/.exec(path);
+		if (systemList) {
+			return nextSystemLine(this.document?.grids, systemList[1] as 'x' | 'y' | 'rays' | 'rings' | 'lines', list.filter(isObject)) as JsonObject;
+		}
 		if (path === 'grids.x' || path === 'grids.y') {
-			const used = new Set([...this.grids.x, ...this.grids.y].map(g => g.label));
+			const used = gridLabels(this.document?.grids);
 			const line = nextGridLine(list.filter(isObject) as unknown as IGridLine[], path === 'grids.x' ? 'x' : 'y', used);
 			return { ...line };
 		}
@@ -443,12 +457,17 @@ export class GridsEditor extends JsonDocumentEditor {
 		});
 	}
 
-	/** Unique grid labels (across both axes) and story ids, checked as they are typed. */
+	/** Unique grid labels (across every grid system) and story ids, checked as they are typed. */
 	private validate(path: string, value: string): string | undefined {
-		const grid = /^grids\.(x|y)\.(\d+)\.label$/.exec(path);
-		if (grid) {
-			const own = this.grids[grid[1] as 'x' | 'y'][Number(grid[2])];
-			if ([...this.grids.x, ...this.grids.y].some(g => g !== own && g.label === value)) {
+		const label = /^grids\.(?:(x|y)|systems\.(\d+)\.(x|y|rays|rings|lines))\.(\d+)\.label$/.exec(path);
+		if (label) {
+			const grids = isObject(this.document?.grids) ? this.document.grids : {};
+			const systems = (Array.isArray(grids.systems) ? grids.systems : []).filter(isObject);
+			const lists = [grids.x, grids.y, ...systems.flatMap(sys => [sys.x, sys.y, sys.rays, sys.rings, sys.lines])];
+			const entries = lists.flatMap(list => Array.isArray(list) ? list.filter(isObject) : []);
+			const ownList = label[1] ? grids[label[1]] : systems[Number(label[2])]?.[label[3]];
+			const own = Array.isArray(ownList) ? ownList[Number(label[4])] : undefined;
+			if (entries.some(g => g !== own && g.label === value)) {
 				return localize('building.duplicateLabel', "Grid line {0} already exists.", value);
 			}
 		}
@@ -547,6 +566,15 @@ export class GridsEditor extends JsonDocumentEditor {
 		};
 		item(localize('building.xSpacing', "X spacing (mm)"), spacings(this.grids.x));
 		item(localize('building.ySpacing', "Y spacing (mm)"), spacings(this.grids.y));
+		const systems = isObject(this.document.grids) && Array.isArray(this.document.grids.systems) ? this.document.grids.systems.filter(isObject) : [];
+		if (systems.length) {
+			const kinds: Record<string, string> = {
+				orthogonal: localize('building.systemOrthogonal', "orthogonal"),
+				radial: localize('building.systemRadial', "radial"),
+				lines: localize('building.systemLines', "angled lines"),
+			};
+			item(localize('building.gridSystems', "Other grid systems"), systems.map(s => `${s.name || s.id}: ${kinds[String(s.kind)] ?? s.kind}${s.kind !== 'lines' ? ` ${Number(s.angle) || 0}°` : ''}`).join(', '));
+		}
 		item(localize('building.storyHeights', "Story heights (mm)"), heights);
 		const row = append(box, $('.sa-props-row.grids-members'));
 		append(row, $('span.name', undefined, localize('building.members', "Placed members")));

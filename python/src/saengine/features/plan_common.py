@@ -28,12 +28,16 @@ def plan_data(ctx: FeatureContext) -> dict[str, Any]:
 
 
 def point_xy(plan: dict[str, Any], point: dict[str, Any]) -> tuple[float, float]:
-    """Resolve a grid point, including its millimetre offsets, to plan coordinates."""
-    x = next((line["position"] for line in plan["grids"]["x"] if line["label"] == point["x"]), None)
-    y = next((line["position"] for line in plan["grids"]["y"] if line["label"] == point["y"]), None)
-    if x is None or y is None:
-        raise FeatureInputError(f"Grid point {point.get('x')}-{point.get('y')} is not defined.")
-    return float(x) + float(point.get("dx", 0)), float(y) + float(point.get("dy", 0))
+    """Resolve a grid point, including its millimetre offsets, to plan coordinates (on any grid
+    system: see :mod:`saengine.library.grid_geometry`)."""
+    from saengine.library.grid_geometry import GridError, GridGeometry
+
+    try:
+        return GridGeometry(plan.get("grids")).point(point)
+    except GridError as exc:
+        raise FeatureInputError(
+            f"Grid point {point.get('x')}-{point.get('y')} is not defined ({exc})."
+        ) from exc
 
 
 def parse_point(value: str) -> dict[str, Any]:

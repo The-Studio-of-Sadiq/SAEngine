@@ -6,6 +6,7 @@
 import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { GridGeometry } from '../../../services/saengineProject/common/gridGeometry.js';
 import { gridsOf, MemberGroup } from './floorPlanDrawing.js';
 import { anchor, copyId, distanceToSegment, insidePolygon, members, nextId, notRotatableMessage, resolvePoint } from './floorPlanEdits.js';
 import { IMemberRef, insideRect, IRect } from './floorPlanSelection.js';
@@ -546,13 +547,12 @@ const DISPLACEMENT = new RegExp(String.raw`^@?\s*(?<dx>${NUMBER})\s*[,;\s]\s*(?<
 
 /** A grid point named by its line labels, "A-1" (or "A/1"), as a point. */
 function gridPointNamed(layout: unknown, name: string): CadPoint | undefined {
-	const grids = gridsOf(layout);
+	const geometry = GridGeometry.ofPlan(layout);
 	for (let i = 1; i < name.length - 1; i++) {
 		if (name[i] === '-' || name[i] === '/') {
-			const x = grids.x.get(name.slice(0, i));
-			const y = grids.y.get(name.slice(i + 1));
-			if (x !== undefined && y !== undefined) {
-				return [x, y];
+			const at = geometry.tryIntersection(name.slice(0, i), name.slice(i + 1));
+			if (at) {
+				return at;
 			}
 		}
 	}

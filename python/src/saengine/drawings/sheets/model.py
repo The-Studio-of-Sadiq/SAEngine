@@ -176,6 +176,9 @@ class PileGridPlan:
 class Building:
     grids_x: list[Grid] = field(default_factory=list)  # lines at x = position (labels A, B..)
     grids_y: list[Grid] = field(default_factory=list)  # lines at y = position (labels 1, 2..)
+    #: The grid lines of the other grid systems (rotated, radial, angled; GridAxis of
+    #: saengine.library.grid_geometry), drawn at their own angle.
+    grids_other: list[Any] = field(default_factory=list)
     levels: list[Level] = field(default_factory=list)
     columns: list[PlanColumn] = field(default_factory=list)
     beams: list[PlanBeam] = field(default_factory=list)
