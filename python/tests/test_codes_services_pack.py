@@ -90,16 +90,59 @@ def test_fire_flows_have_one_home():
     assert [F.duration("lightI", h) for h in (51.0, 51.5, 102.5)] == [30, 38, 45]
 
 
+def _subsequence(old, new) -> bool:
+    """Every item of ``old`` in ``new``, in the same order (new items may come between)."""
+    rest = iter(new)
+    return all(any(x == y for y in rest) for x in old)
+
+
+#: Issue #286 added families (HEM, UPE, UPN, LU and more hollow sizes) after the move: the old
+#: names keep their values, the family lists only gain new families.
+_GROWN = {"FAMILIES", "SHAPE_FAMILIES", "NOTES", "SECTIONS"}
+
+
+def _kept_section(old: dict, new: dict, where: str) -> list[str]:
+    """An old section is kept as it was, but for an I-shape's J: since issue #286 it takes the
+    root fillets (El Darwish and Johnston), never less than the old plates' sum."""
+    if old.get("shape") == "I" and "J" in old:
+        if not new["J"] >= old["J"] * (1 - 1e-12):
+            return [f"{where}: J {new['J']} < {old['J']}"]
+        new = {**new, "J": old["J"]}
+    return same(old, new, where)
+
+
 def test_steel_sections_equal_the_old_module():
-    assert _differences("saengine.library.steel_sections", "steel_sections") == []
+    from saengine.library import steel_sections as S
+
+    old = frozen("steel_sections")
+    kept = {k: v for k, v in old.items() if k not in _GROWN}
+    assert [
+        d
+        for name, value in kept.items()
+        if "(" not in name
+        for d in same(value, plain(getattr(S, name)), name)
+    ] == []
+    assert _subsequence(old["FAMILIES"], S.FAMILIES)
+    for shape, families in old["SHAPE_FAMILIES"].items():
+        assert _subsequence(families, S.SHAPE_FAMILIES[shape]), shape
 
 
 def test_steel_section_table_and_its_json_equal_the_old_ones():
     from saengine.library import steel_sections as S
 
     old = frozen("steel_sections")
-    assert same(old["section_table()"], plain(list(S.section_table()))) == []
-    assert same(old["table_json()"], plain(S.table_json())) == []
+    table = {s["name"]: s for s in plain(list(S.section_table()))}
+    old_table = old["section_table()"]
+    assert _subsequence([s["name"] for s in old_table], list(table))
+    assert [d for s in old_table for d in _kept_section(s, table[s["name"]], s["name"])] == []
+    old_json, new_json = old["table_json()"], plain(S.table_json())
+    assert list(old_json) == list(new_json)
+    assert _subsequence(old_json["families"], new_json["families"])
+    rows = {s["name"]: s for s in new_json["sections"]}
+    assert [
+        d for s in old_json["sections"] for d in _kept_section(s, rows[s["name"]], s["name"])
+    ] == []
+    assert new_json["notes"][0] == old_json["notes"][0]
 
 
 def test_steel_sections_follow_the_pack_in_force(tmp_path):
