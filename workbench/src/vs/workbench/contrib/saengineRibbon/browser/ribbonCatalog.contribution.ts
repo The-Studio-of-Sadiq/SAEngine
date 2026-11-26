@@ -35,6 +35,8 @@ interface IFeatureRunResult {
 	readonly tables?: readonly { readonly title: string; readonly columns: readonly { readonly key: string; readonly title: string }[]; readonly rows: readonly DataPanelRow[] }[];
 	readonly notes?: readonly string[];
 	readonly problems?: readonly string[];
+	/** Files the feature wrote (an absolute path each), such as a strip view (#285). */
+	readonly outputFiles?: readonly { readonly label: string; readonly path: string }[];
 }
 
 /** "loadKpa" -> "Load Kpa": a summary key as a label. */
@@ -65,6 +67,7 @@ function toPanelResult(raw: IFeatureRunResult): IDataPanelResult {
 		tables,
 		notes: raw.notes,
 		problems: raw.problems,
+		outputFiles: raw.outputFiles,
 	};
 }
 

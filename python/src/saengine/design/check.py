@@ -3772,6 +3772,75 @@ def _tendon_designs(
     return designs
 
 
+def tendon_designs(
+    building: BuildingModel,
+    types: dict[str, Any],
+    mats: dict[str, Any],
+    settings: ProjectSettings | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """#285: every tendon group of the building designed on its own strip, as the design run
+    does (:func:`_tendon_designs`), without the analysis: rows of ``slab``, ``tendon``,
+    ``direction``, ``design`` (:class:`saengine.design.prestress.TendonDesign`), ``h``, ``fc``,
+    ``fy`` and ``level`` [mm]; and the notes. Call it under the project's code pack."""
+    rows: list[dict[str, Any]] = []
+    notes: list[str] = []
+    hosts = {t.host for t in building.additions.slabTendons}
+    if not hosts:
+        return rows, notes
+    stories = [float(s.elevation) for s in building.stories]
+    top_level = max(stories) if stories else math.inf
+    for element in building.elements:
+        if element.id not in hosts:
+            continue
+        if isinstance(element, SlabElement):
+            outline = [(float(x), float(y)) for x, y in element.boundary]
+            axes, level = slab.plan_axes(), float(element.elevation)
+        elif isinstance(element, AreaElement):
+            outline = [(float(p[0]), float(p[1])) for p in element.outline]
+            axes = slab.outline_axes(element.outline)
+            level = sum(float(p[2]) for p in element.outline) / len(element.outline)
+        else:
+            continue
+        object_type = types.get(element.type)
+        if not isinstance(object_type, Slab):
+            notes.append(f"{element.id}: tendons not designed (its type is not a slab)")
+            continue
+        concrete = mats.get(object_type.material)
+        if concrete is None or concrete.category != Category.CONCRETE or not concrete.concrete:
+            notes.append(f"{element.id}: tendons not designed (not a concrete slab)")
+            continue
+        if object_type.reinforcement is None or axes is None:
+            notes.append(
+                f"{element.id}: tendons not designed ("
+                + ("no reinforcement" if axes is not None else "not a horizontal slab")
+                + ")"
+            )
+            continue
+        bars = mats.get(object_type.reinforcement.material)
+        if bars is None or bars.steel is None:
+            notes.append(f"{element.id}: tendons not designed (unknown reinforcement material)")
+            continue
+        fc, fy = float(concrete.concrete.fc), float(bars.steel.fy)
+        tendons = [t for t in building.additions.slabTendons if t.host == element.id]
+        for tendon, direction, design in _tendon_designs(
+            element.id, tendons, element, object_type, concrete, fc, fy, settings, outline,
+            axes, level >= top_level - 1.0, notes,
+        ):  # fmt: skip
+            rows.append(
+                {
+                    "slab": element.id,
+                    "tendon": tendon,
+                    "direction": direction,
+                    "design": design,
+                    "h": float(object_type.thickness),
+                    "fc": fc,
+                    "fy": fy,
+                    "level": level,
+                }
+            )
+    return rows, notes
+
+
 def _precompression(
     designs: list[tuple[Any, str, Any]], h: float, outline: list[tuple[float, float]], axes: Any
 ) -> tuple[float, float] | None:

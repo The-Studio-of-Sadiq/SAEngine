@@ -29521,6 +29521,36 @@
   },
   {
    "tab": "design",
+   "group": "Post-Tensioning",
+   "buttons": [
+    {
+     "label": "Tendon Layout",
+     "size": "large",
+     "description": "Reviews the tendon groups: profile, drape and the balanced load of each span.",
+     "inspiredBy": "ADAPT-PT"
+    },
+    {
+     "label": "PT Losses",
+     "size": "large",
+     "description": "Works out friction, anchor set, elastic shortening and long-term losses.",
+     "inspiredBy": "ADAPT-PT"
+    },
+    {
+     "label": "PT Stresses",
+     "size": "small",
+     "description": "Checks the concrete stresses at transfer and service against the code limits.",
+     "inspiredBy": "SAFE"
+    },
+    {
+     "label": "PT Ultimate",
+     "size": "small",
+     "description": "Checks the flexural strength with fps and the hyperstatic moments.",
+     "inspiredBy": "SAFE"
+    }
+   ]
+  },
+  {
+   "tab": "design",
    "group": "Foundation Design",
    "buttons": [
     {

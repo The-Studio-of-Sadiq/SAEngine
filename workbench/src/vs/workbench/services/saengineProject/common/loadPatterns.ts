@@ -36,7 +36,7 @@ export const PATTERN_ID = /^[A-Za-z][A-Za-z0-9_]{0,15}$/;
 
 const RESERVED = new Set([
 	'D', 'SD', 'L', 'Lr', 'WX', 'WY', 'EX', 'EY', 'F', 'H', 'T', 'ST', 'CS', 'R', 'FaX', 'FaY', 'S',
-	'EXP', 'EXN', 'EYP', 'EYN', 'WTX', 'WTY', 'WI', 'WXN', 'WYN', 'EZ', 'E', 'RX', 'RY', 'AX', 'AY', 'W', 'Fa', 'MODAL',
+	'EXP', 'EXN', 'EYP', 'EYN', 'WTX', 'WTY', 'WI', 'WXN', 'WYN', 'EZ', 'E', 'RX', 'RY', 'AX', 'AY', 'W', 'Fa', 'MODAL', 'PT',
 ].map(c => c.toLowerCase()));
 const RESERVED_FAMILIES = /^(LP\d+|TO\d+|C\d.*|W[XY]N?\d+)$/i;
 
