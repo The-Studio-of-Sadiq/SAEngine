@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { disposeObject, Floats, ModelIndex } from './geometry.js';
 import { LabelLayer } from './labels.js';
+import { cornerValues, memberName } from './contourMath.js';
 import { FemResultDisplay, FemResultElement, FemResultQuantity, FemResultShell, FemResultView, FemValueQuantity, FemVisibleElements, FORCE_COMPONENTS, formatUtilisation, outerFaces, SHELL_COMPONENTS, SOLID_COMPONENTS, utilisationBand } from './model.js';
 
 export interface ResultColors {
@@ -376,6 +377,46 @@ export class ResultOverlay {
 		let biggest: { value: number; element: FemResultElement; k: number } | undefined;
 		let bases = new Float64Array(33);
 		let tips = new Float64Array(33);
+		// A member meshed into pieces (`B1`, `B1#2`, ...) is one diagram: its outline closes to the
+		// axis only at the member's own ends, and where two pieces meet their tips are joined (a
+		// step where a load or a support acts there), as ETABS draws a member, not each piece.
+		const pieceEnds = new Map<string, number>();
+		const endKey = (element: FemResultElement, end: 0 | 1) => {
+			const node = this.index.elements.get(element.id)?.nodes[end];
+			return node === undefined ? undefined : `${memberName(element.name)}\u0000${node}`;
+		};
+		for (const element of results.elements) {
+			if (element.forces?.length) {
+				for (const end of [0, 1] as const) {
+					const key = endKey(element, end);
+					if (key !== undefined) {
+						pieceEnds.set(key, (pieceEnds.get(key) ?? 0) + 1);
+					}
+				}
+			}
+		}
+		const joints = new Map<string, { at: Float64Array; value: number }>();
+		const memberEnd = (element: FemResultElement, end: 0 | 1, k: number, value: number, color: THREE.Color) => {
+			const key = endKey(element, end);
+			if (key === undefined || (pieceEnds.get(key) ?? 0) < 2) {
+				segmentEnd(bases, k, color);
+				segmentEnd(tips, k, color);
+				return;
+			}
+			const tip = tips.slice(k * 3, k * 3 + 3);
+			const other = joints.get(key);
+			if (!other) {
+				joints.set(key, { at: tip, value });
+				return;
+			}
+			if (Math.hypot(tip[0] - other.at[0], tip[1] - other.at[1], tip[2] - other.at[2]) > 1e-9) {
+				const c = other.value >= 0 ? positive : negative;
+				outline.pushFrom(other.at, 0, 3);
+				outlineColors.push3(c.r, c.g, c.b);
+				outline.pushFrom(tip, 0, 3);
+				outlineColors.push3(color.r, color.g, color.b);
+			}
+		};
 		for (const element of results.elements) {
 			const forces = element.forces;
 			if (!forces?.length) {
@@ -429,12 +470,10 @@ export class ResultOverlay {
 					segmentEnd(tips, k + 1, c1);
 				}
 			}
-			const first = forces[0][component] >= 0 ? positive : negative;
-			segmentEnd(bases, 0, first);
-			segmentEnd(tips, 0, first);
-			const last = forces[count - 1][component] >= 0 ? positive : negative;
-			segmentEnd(bases, count - 1, last);
-			segmentEnd(tips, count - 1, last);
+			const v0 = forces[0][component];
+			memberEnd(element, 0, 0, v0, v0 >= 0 ? positive : negative);
+			const vn = forces[count - 1][component];
+			memberEnd(element, 1, count - 1, vn, vn >= 0 ? positive : negative);
 			for (let k = 0; k < count; k++) {
 				const value = forces[k][component];
 				if (!biggest || Math.abs(value) > Math.abs(biggest.value)) {
@@ -650,8 +689,13 @@ export class ResultOverlay {
 		if (!shells.length) {
 			return;
 		}
+		// Smoothed: a value per corner (the mean over the member's shells at the node), so the
+		// colours blend across each shell. The scale and the label stay the shells' own values (the
+		// legend's, and what the design uses): the means never reach past them.
+		const smooth = this.display.smoothContours ? cornerValues(shells, values) : undefined;
 		const low = least(values);
 		const high = largest(values);
+		const at = (value: number) => contourColor(high > low ? (value - low) / (high - low) : 0.5);
 		const positions = new Floats();
 		const colors = new Floats();
 		const outline = new Floats();
@@ -661,11 +705,22 @@ export class ResultOverlay {
 			if (!points) {
 				return;
 			}
-			const [r, g, b] = contourColor(high > low ? (values[index] - low) / (high - low) : 0.5);
-			const before = positions.length;
 			ResultOverlay.polygon(points, positions, outline);
-			for (let i = before; i < positions.length; i += 3) {
-				colors.push3(r, g, b);
+			const corners = smooth?.[index];
+			if (corners) {
+				// The fan's corners, as ResultOverlay.polygon emits them: 0, k, k + 1.
+				for (let k = 1; k + 1 < corners.length; k++) {
+					for (const c of [0, k, k + 1]) {
+						colors.push3(...at(corners[c]));
+					}
+				}
+			} else {
+				const [r, g, b] = at(values[index]);
+				for (let k = 1; k + 1 < shell.nodes.length; k++) {
+					colors.push3(r, g, b);
+					colors.push3(r, g, b);
+					colors.push3(r, g, b);
+				}
 			}
 			if (!biggest || Math.abs(values[index]) > Math.abs(biggest.value)) {
 				biggest = { value: values[index], at: ResultOverlay.centre(points) };
@@ -687,7 +742,9 @@ export class ResultOverlay {
 
 	/**
 	 * A solid stress (`index` in {@link FemResultSolid.stress}) as a contour on the solids' outer
-	 * faces: each face coloured by its tetrahedron's (constant) value.
+	 * faces: each face coloured by its tetrahedron's (constant) value or, smoothed, each corner by
+	 * the mean of the tetrahedra of its solid at that node. The scale and the label stay the
+	 * tetrahedra's own values.
 	 */
 	private drawStress(index: number): void {
 		const solids = (this.results.solids ?? []).filter(s => s.stress);
@@ -695,8 +752,10 @@ export class ResultOverlay {
 			return;
 		}
 		const values = solids.map(s => s.stress![index]);
+		const smooth = this.display.smoothContours ? cornerValues(solids, values) : undefined;
 		const low = least(values);
 		const high = largest(values);
+		const at = (value: number) => contourColor(high > low ? (value - low) / (high - low) : 0.5);
 		const positions = new Floats();
 		const colors = new Floats();
 		let biggest: Extreme | undefined;
@@ -706,11 +765,11 @@ export class ResultOverlay {
 				continue;
 			}
 			const value = values[face.owner];
-			const [r, g, b] = contourColor(high > low ? (value - low) / (high - low) : 0.5);
 			positions.pushFrom(points, 0, 9);
-			colors.push3(r, g, b);
-			colors.push3(r, g, b);
-			colors.push3(r, g, b);
+			const owner = solids[face.owner].nodes;
+			for (const node of face.nodes) {
+				colors.push3(...at(smooth ? smooth[face.owner][owner.indexOf(node)] : value));
+			}
 			if (!biggest || Math.abs(value) > Math.abs(biggest.value)) {
 				biggest = { value, at: ResultOverlay.centre(points) };
 			}

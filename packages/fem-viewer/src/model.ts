@@ -153,6 +153,12 @@ export interface FemResultDisplay {
 	/** `show: 'shellValues'`: what the values are, for the label of the largest. */
 	readonly shellValueQuantity?: FemValueQuantity;
 	/**
+	 * Shell contours (section forces and `shellValues`) smoothed: each corner takes the mean of
+	 * the shells of its member that share the node, and the colours blend across each shell.
+	 * Off: one colour per shell (the value the design checks use).
+	 */
+	readonly smoothContours?: boolean;
+	/**
 	 * Force diagrams: label every member's largest and least value (a member is the analysis
 	 * elements of one name before `#`: `B1`, `B1#2`, ...), not only the largest of the model.
 	 */

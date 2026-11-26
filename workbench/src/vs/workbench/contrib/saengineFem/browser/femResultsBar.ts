@@ -500,9 +500,12 @@ export class FemResultsBar extends Disposable {
 	private readonly timeRow: RibbonInlineRowControl;
 	private readonly scaleSlider: RibbonSliderModel;
 	private readonly labelsToggle: RibbonToggleModel;
+	private readonly smoothToggle: RibbonToggleModel;
 	private lastGroupState = '';
 	/** Force diagrams: every member's largest and least value labelled. */
 	private memberLabels = false;
+	/** Shell contours blended across the shells (nodal means), not one colour per shell. */
+	private smoothContours = false;
 	private playing = false;
 	private playToken = 0;
 	private readonly watch = this._register(new DisposableStore());
@@ -714,6 +717,18 @@ export class FemResultsBar extends Disposable {
 			this.memberLabels = checked;
 			this.render();
 		}));
+		this.smoothToggle = this._register(new RibbonToggleModel({
+			id: 'saengine.fem.smoothContours',
+			label: localize('femResults.smoothShort', "Smooth"),
+			icon: Codicon.colorMode,
+			tooltip: localize('femResults.smoothContours', "Smooth the Contour: Average the Values at Shared Nodes (Off: One Value per Shell or Solid Element, as the Design Uses)"),
+			checked: this.smoothContours,
+			size: 'small',
+		}));
+		this._register(this.smoothToggle.onDidToggle(checked => {
+			this.smoothContours = checked;
+			this.render();
+		}));
 
 		this._register(frame.addTabGroup({
 			id: 'saengine.fem.resultsGroup',
@@ -732,7 +747,7 @@ export class FemResultsBar extends Disposable {
 			label: localize('femResults.groupScale', "Scale"),
 			collapsePriority: 110,
 			icon: Codicon.settings,
-			controls: [this.scaleSlider, this.labelsToggle, this.timeRow],
+			controls: [this.scaleSlider, this.labelsToggle, this.smoothToggle, this.timeRow],
 			isVisible: () => this.isScaleGroupVisible(),
 		}));
 
@@ -746,7 +761,12 @@ export class FemResultsBar extends Disposable {
 		}
 		const frames = framesOf(entry);
 		const scalable = this.show !== 'none' && !isDesignShow(this.show) && SOLID_COMPONENTS[this.show] === undefined && !SHELL_COMPONENTS.includes(this.show);
-		return scalable || frames.length > 0 || COMPONENTS.includes(this.show);
+		return scalable || frames.length > 0 || COMPONENTS.includes(this.show) || this.isShellContour();
+	}
+
+	/** Whether the show is a contour that can be smoothed: a shell section force, a design value per shell, or a solid stress. */
+	private isShellContour(): boolean {
+		return SHELL_COMPONENTS.includes(this.show) || isShellValueShow(this.show) || SOLID_COMPONENTS[this.show] !== undefined;
 	}
 
 	/** Counts the result lists read: changes when a new run's results arrive. */
@@ -1232,6 +1252,7 @@ export class FemResultsBar extends Disposable {
 		this.timeRow.setVisible(frames.length > 0);
 		this.scaleSlider.setVisible(scalable);
 		this.labelsToggle.setVisible(diagram);
+		this.smoothToggle.setVisible(!!entry && this.isShellContour());
 
 		if (entry) {
 			const grouped = resultOptions(this.list.results);
@@ -1293,6 +1314,7 @@ export class FemResultsBar extends Disposable {
 				: undefined);
 			this.scaleSlider.setValue(Math.log2(this.scale), false);
 			this.labelsToggle.setChecked(diagram && this.memberLabels, false);
+			this.smoothToggle.setChecked(this.smoothContours, false);
 		}
 		const groupState = `${this.hasResults}|${this.isScaleGroupVisible()}`;
 		if (groupState !== this.lastGroupState) {
@@ -1310,6 +1332,7 @@ export class FemResultsBar extends Disposable {
 				scale: this.scale,
 				animate: this.animate,
 				memberLabels: this.memberLabels,
+				smoothContours: this.smoothContours,
 				format: this.format,
 				utilisation: show === 'hinges' ? hingeColouring(view) : !this.design ? undefined
 					: show === 'utilisation' ? designUtilisation(this.design)
