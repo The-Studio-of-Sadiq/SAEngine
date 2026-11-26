@@ -45,3 +45,28 @@ def test_end_displacements_and_rotations_follow_hermite() -> None:
     shape = element_displacements(beam(), u_i, u_j, np.zeros(3))
     x = np.linspace(0, L, STATIONS)
     assert shape[:, 2] == pytest.approx(-theta * x)
+
+
+def test_simply_supported_beam_peaks_at_wl2_over_8() -> None:
+    # Pinned ends: each support carries half the load, no end moments; the moment diagram is a
+    # parabola (sampled at every station, drawn as a curve) with wL²/8 at midspan.
+    load = np.array([0.0, 0.0, W])
+    end_i = np.array([0, 0, -W * L / 2, 0, 0, 0])
+    end_j = np.array([0, 0, -W * L / 2, 0, 0, 0])
+    forces = element_section_forces(beam(), np.concatenate([end_i, end_j]), load)
+    x = np.linspace(0, L, STATIONS)
+    assert forces[:, 4] == pytest.approx(W * x * (L - x) / 2)
+    assert forces[STATIONS // 2][4] == pytest.approx(W * L**2 / 8)
+
+
+def test_cantilever_tip_load_follows_hermite_curve() -> None:
+    # Fixed at i, a tip load P (down) at j: w(x) = P x² (3L - x) / 6EI, the cubic the Hermite
+    # functions of the end displacements and rotations give exactly.
+    p = -1000.0
+    tip = p * L**3 / (3 * EI)
+    slope = p * L**2 / (2 * EI)  # dw/dx at the tip; θy = -dw/dx
+    u_j = np.array([0, 0, tip, 0, -slope, 0])
+    shape = element_displacements(beam(), np.zeros(6), u_j, np.zeros(3))
+    x = np.linspace(0, L, STATIONS)
+    assert shape[:, 2] == pytest.approx(p * x**2 * (3 * L - x) / (6 * EI))
+    assert shape[-1][2] == pytest.approx(tip)
