@@ -380,7 +380,9 @@ def test_design_run_and_ribbon_features(tmp_path) -> None:
     assert "Deflection: after attachment of nonstructural elements (FE slab, cracked)" in names
     # The ribbon's features from the saved report.
     out = tmp_path / "08 FEM" / "model.results" / "design-report.json"
-    out.write_text(json.dumps(report), encoding="utf-8")
+    # As the design run keeps it (pipeline.design_mode): the report under "result".
+    kept = {"stamp": "s", "computed": "2026-01-01T00:00:00+00:00", "result": report}
+    out.write_text(json.dumps(kept), encoding="utf-8")
     shown = features.run("design.crackedDeflection", str(tmp_path), {"sustained": 0.5})
     assert shown["tables"][0]["rows"], shown
     cracks = features.run("design.crackWidths", str(tmp_path), {})

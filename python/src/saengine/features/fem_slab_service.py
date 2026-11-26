@@ -43,6 +43,8 @@ def _slabs(ctx: FeatureContext) -> list[tuple[str, slab_service.SlabServiceData]
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise FeatureInputError(f"The design report could not be read: {error}") from error
+    # The design run keeps the report as {stamp, computed, result} (pipeline.design_mode).
+    report = report.get("result", report) if isinstance(report, dict) else {}
     found = []
     for element in report.get("elements", []):
         raw = (element.get("service") or {}).get("data")
@@ -114,12 +116,12 @@ def cracked_deflection(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
                         "slab": slab_id,
                         "strip": span["strip"],
                         "spanM": span["span"] / 1e3,
-                        "immediateMm": span["immediate"],
-                        "longTermMm": span["longTerm"],
-                        "totalMm": span["total"],
-                        "afterMm": span["after"],
+                        "immediateMm": round(span["immediate"], 1),
+                        "longTermMm": round(span["longTerm"], 1),
+                        "totalMm": round(span["total"], 1),
+                        "afterMm": round(span["after"], 1),
                         "check": worst["name"].split(" (FE")[0],
-                        "limitMm": worst["limit"],
+                        "limitMm": round(worst["limit"], 1),
                         "ok": all(c["ok"] for c in span["checks"]),
                     }
                 )
@@ -134,7 +136,7 @@ def cracked_deflection(ctx: FeatureContext, values: dict[str, Any]) -> dict[str,
             "method": slab_service.METHOD_NAMES[method],
             "strips": len(rows),
             "failing": sum(1 for r in rows if not r["ok"]),
-            "largestMm": max((r["totalMm"] for r in rows), default=0.0),
+            "largestDeflection": f"{max((r['totalMm'] for r in rows), default=0.0):.1f} mm",
         },
         tables=[
             table(
@@ -199,14 +201,15 @@ def crack_widths(ctx: FeatureContext, values: dict[str, Any]) -> dict[str, Any]:
             evaluated = slab_service.evaluate(data, inputs, deflection=False)
             method = evaluated.crack_method
             notes += evaluated.notes
+            digits = 0 if method == "barSpacing" else 2  # spacing [mm] or width [mm]
             rows += [
                 {
                     "slab": slab_id,
                     "strip": c["strip"],
                     "at": f"{c['at']} ({c['face']} bars)",
-                    "momentKnm": c["moment"],
-                    "value": c["value"],
-                    "limit": c["limit"],
+                    "momentKnm": round(c["moment"], 1),
+                    "value": round(c["value"], digits),
+                    "limit": round(c["limit"], digits),
                     "exposure": c["exposure"],
                     "ok": c["ok"],
                 }

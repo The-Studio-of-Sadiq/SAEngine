@@ -784,7 +784,13 @@ def evaluate(data: SlabServiceData, inputs: Inputs, deflection: bool = True) -> 
         stations: list[tuple[str, bool, tuple[float, float]]] = []
         if not span.cantilever:
             stations.append(("mid-span", False, span.mid))
-        stations += [("support", True, m) for m in span.ends]
+        # Two ends: the one at the strip's start (lower x or y) first (collect's order).
+        axis = span.direction.lower()
+        sides = (f"support at lower {axis}", f"support at higher {axis}")
+        stations += [
+            (sides[i] if len(span.ends) == 2 else "support", True, m)
+            for i, m in enumerate(span.ends)
+        ]
         for at, hogging, m in stations:
             moment = m[0] + share * m[1]
             try:
