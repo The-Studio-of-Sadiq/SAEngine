@@ -199,6 +199,7 @@ export type RibbonScope =
 	| 'fem.design'
 	| 'fem.model'
 	| 'fem.pushover'
+	| 'fem.results'
 	| 'fem.stm'
 	| 'foundations'
 	| 'materials'
@@ -494,7 +495,7 @@ export const CATALOG_TAB_SCOPES: Readonly<Record<string, RibbonScope>> = {
 	femWind: 'fem.model',
 	femMesh: 'fem.model',
 	femModel: 'fem.model',
-	results: 'fem.charts',
+	results: 'fem.results',
 	femServiceability: 'fem.charts',
 	femCharts: 'fem.charts',
 	femTables: 'fem.charts',

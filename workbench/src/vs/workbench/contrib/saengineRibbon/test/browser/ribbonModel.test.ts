@@ -298,10 +298,10 @@ suite('SAEngine - ribbon model', () => {
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.data'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke', 'mepFireAlarmZoning', 'mepFireExtinguishers', 'mepFireDampers']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.fire.results'), ['home', 'mepFire', 'mepFireSystems', 'mepSprinkler', 'mepSmoke', 'mepFireAlarmZoning', 'mepFireExtinguishers', 'mepFireDampers']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.mep, '', 'mep.systems'), ['home', 'mepSystems', 'mepBrowser', 'mepFabrication', 'mepCommissioning', 'mepSystemsZoning', 'mepSystemsBalancing', 'mepSystemsMaintenance']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.model'), ['home', 'analyze', 'results', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femModel, '', 'fem.pushover'), ['home', 'femNonlinear', 'femHinges', 'femCapacity', 'femPushoverTarget', 'femPushoverPattern', 'femPushoverPerformance', 'femPushoverMechanism']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femResults, '', 'fem.charts'), ['home', 'results', 'femServiceability', 'femCharts', 'femTables', 'femDynamics', 'femChartsEnvelopes', 'femChartsTimeSeries']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femCfdWind, '', 'fem.model'), ['home', 'analyze', 'results', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femDesignProposal, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode', 'femDesignOptimisation', 'femDesignConnections', 'femDesignFire', 'femDesignSeismicDetailing']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.femStrutAndTie, '', 'fem.design'), ['home', 'design', 'femDetailing', 'femCode', 'femDesignOptimisation', 'femDesignConnections', 'femDesignFire', 'femDesignSeismicDetailing']);
 
@@ -350,11 +350,11 @@ suite('SAEngine - ribbon model', () => {
 
 		// Data panels show the contextual tabs of their owning part.
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.mep.electrical.boards', 'mep'), resolveDataPanelSubView('saengine.mep.electrical.boards')), ['home', 'mepElectrical', 'mepPowerSystems', 'mepLighting', 'mepContainment', 'mepLowVoltage', 'mepElectricalCableSizing', 'mepElectricalEarthing']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.analyze.runDerive', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.drawings.scopeBoxes', 'exports')), ['home', 'documents', 'documentsDrawings', 'documentsSheets', 'docMarkup', 'documentsDrawingViewTemplates', 'documentsDrawingAnnotation', 'documentsDrawingTitleBlocks']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.bim.exportIfcOptions', 'exports')), ['home', 'output', 'exportsExchange', 'exportsFabrication', 'exportsArchive', 'exportsPublish', 'exportsBatchExport', 'exportsDataMapping', 'exportsSecure']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.studies.annualEnergy', 'mep')), ['home', 'studies', 'studiesDesign', 'studiesEnvironment', 'studiesSite', 'studiesVerification', 'studiesRisk', 'studiesOptimisation']);
-		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
+		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.manage.verificationManual', 'fem'), 'fem.model'), ['home', 'analyze', 'results', 'femLoads', 'femSeismic', 'femWind', 'femMesh', 'femModel', 'femModelDiaphragms']);
 		assert.deepStrictEqual(visibleIds(SAENGINE_EDITOR_IDS.dataPanel, resolveDataPanelPart('saengine.u6e.bim.rebarCages', 'bim3d')), ['home', 'bim3d', 'bimStudies', 'bimView', 'bimNavigation', 'bim3dAppearance', 'bim3dAnnotations', 'bim3dInterference']);
 	});
 
@@ -456,6 +456,8 @@ suite('SAEngine - ribbon model', () => {
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.floorPlan, tabsFor(SAENGINE_EDITOR_IDS.floorPlan), empty), 'home');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), empty), 'analyze');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.overview, tabsFor(SAENGINE_EDITOR_IDS.overview), empty), 'home');
+		// Analysis Charts opens on its Charts tab; the Results tab's own controls are the 3D view's.
+		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femResults, tabsFor(SAENGINE_EDITOR_IDS.femResults, 'fem.charts'), empty, 'fem.charts'), 'femCharts');
 
 		const remembered = new Map<string, RibbonTabId>([
 			[SAENGINE_EDITOR_IDS.femModel, 'results'],
@@ -463,7 +465,7 @@ suite('SAEngine - ribbon model', () => {
 			[SAENGINE_EDITOR_IDS.soil, 'home'],
 			[SAENGINE_EDITOR_IDS.overview, 'project'],
 		]);
-		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), remembered), 'analyze');
+		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.femModel, tabsFor(SAENGINE_EDITOR_IDS.femModel, 'fem.model'), remembered), 'results');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.floorPlan, tabsFor(SAENGINE_EDITOR_IDS.floorPlan), remembered), 'draft');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.soil, tabsFor(SAENGINE_EDITOR_IDS.soil), remembered), 'home');
 		assert.strictEqual(resolveActiveTabForEditor(SAENGINE_EDITOR_IDS.overview, tabsFor(SAENGINE_EDITOR_IDS.overview), remembered), 'project');

@@ -954,7 +954,7 @@
   "femWind": "fem.model",
   "femMesh": "fem.model",
   "femModel": "fem.model",
-  "results": "fem.charts",
+  "results": "fem.results",
   "femServiceability": "fem.charts",
   "femCharts": "fem.charts",
   "femTables": "fem.charts",
