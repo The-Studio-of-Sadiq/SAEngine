@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from saengine.verification.cases import (
+    advanced,
     analysis,
     beta,
     correctness,
@@ -34,6 +35,7 @@ from saengine.verification.cases.common import Case
 
 CASES: list[Case] = [
     *analysis.CASES,
+    *advanced.CASES,
     *parity.CASES,
     *thermal.CASES,
     *ssi.CASES,

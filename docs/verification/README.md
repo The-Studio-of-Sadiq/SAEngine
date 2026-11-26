@@ -5,7 +5,7 @@ result with an independent reference: a closed-form solution, a published benchm
 calculation written out step by step in the case. Each compared quantity passes when SAEngine's
 value is within a stated relative tolerance of the reference.
 
-The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/parity.py` (the analysis model's conventions of version 0.0.44), `cases/depth.py` (the depth tests of issue #298) and
+The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/advanced.py` (the advanced analyses of #290), `cases/parity.py` (the analysis model's conventions of version 0.0.44), `cases/depth.py` (the depth tests of issue #298) and
 `cases/design.py`, the runner is `run.py`, and the PDF template is `templates/verification.typ`.
 
 ## Running it
@@ -90,6 +90,12 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | A8 | Simply supported square plate under uniform load (shells): central deflection and moment | Timoshenko & Woinowsky-Krieger, α = 0.00406, β = 0.0479 (ν = 0.3) |
 | A9 | Solid cantilever block (tetrahedra) under its self-weight: tip deflection at the default mesh, the finest allowed (100 mm) and 50 mm | Timoshenko beam (bending + shear) |
 | A10 | Construction sequence: shortening of a three-storey column built storey by storey under its self-weight, and the same load applied at once | Statics of a column built in stages, linear elastic (staged: (j - 1/2 + j(n - j)) Wh/EA; at once: (j(n + 1/2) - j(j + 1)/2) Wh/EA) |
+| AX1 | Linear buckling: pin-ended column (one member) and fixed-base sway portal, Pcr and the column's K | Euler π²EI/L² (Timoshenko & Gere, 2nd ed., Art. 2.1-2.2); sway alignment chart, AISC 360-16 Commentary Eq C-A-7-2 with G_B = 0 |
+| AX2 | Cable under its own weight, level and inclined chords: H, sag, end tensions; the closed form and 40 OpenSees cable elements | Irvine, Cable Structures (1981), Ch 1, elastic catenary run forwards from a chosen H |
+| AX3 | Four lead-rubber isolators: keff and βeff at 150 mm, design displacement, effective period and damping by the equivalent linear iteration | Naeim & Kelly (1999) Ch 4 bilinear keff, βeff; BNBC 2020 Part 6 Eqs 6.2.62-6.2.63 (p. 661), Table 6.2.24 (p. 662), Eqs 6.2.34-6.2.35 (p. 615) |
+| AX4 | Viscous damper brace in one storey, linear and α = 0.5: added damping ratio | ζ = C cos²θ/(2mω) (Chopra, 5th ed., Sec 2.2, 3.8); λ C ω^α δ^(1+α) energy per cycle (Christopoulos & Filiatrault 2006, Ch 5) |
+| AX5 | Moving loads: mid-span influence ordinate, HL-93 truck × 1.33 + lane at mid-span of a 20 m span, absolute maximum moment, support moment influence of two spans | Influence lines and Barré's theorem (Hibbeler, 10th ed., Ch 6); AASHTO LRFD 9th ed. Art 3.6.1.2, 3.6.2.1; M_B = −a(L² − a²)/(4L²) |
+| AX6 | Time history of a column with two masses under a two-sine record: peak displacement of both levels | Modal superposition (Chopra, 5th ed., Ch 12-13), cantilever flexibility coefficients, each mode by Newmark average acceleration |
 | AP1 | Seismic weight W of a two-storey bay lumped at the story levels: W per level, the weight to the base and the lateral mass | BNBC 2020 Part 6 Sec 2.5.7.3 (p. 628), hand sum of the dead, superimposed and 25 % live loads |
 | AP2 | Eccentric static earthquake case EXP: the torsion it adds to EX at each floor | BNBC 2020 Part 6 Sec 2.5.7.6.2, Eq. 6.2.43 (p. 630): M = 0.05 L F |
 | AP3 | Beam with rigid end zones (factor 0.5) between held joints under 10 kN/m: moment and shear at the column face | Fixed-ended flexible length: w Lf²/12 − w Lf x/2 + w x²/2 |
@@ -126,7 +132,7 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 
 ## Results at the time of writing
 
-110 of the 112 cases pass (0.0.52 with the depth tests of issue #298, 27 Nov 2026); A9 and DG10 fail on the known issues below.
+116 of the 118 cases pass (beta after 0.0.52, 27 Nov 2026, with the advanced analysis cases AX1-AX6 of #290 and the depth tests AG1-DG10 of #298); A9 and DG10 fail on the known issues below.
 Every case added since 0.0.45 passes. The table lists the largest deviation in each case (AH1
 compares no ratios: it passes when its checks hold):
 
@@ -183,6 +189,9 @@ compares no ratios: it passes when its checks hold):
 | AN3 | 1.0000 | 0.5 % | DH1 | 1.0203 | 3 % |
 | DX1 | 1.0000 | 0.5 % | DH2 | 1.0000 | 0.5 % |
 | DX2 | 1.0000 | 0.1 % | AH1 | pass | - |
+| AX1 | 1.0075 | 1 % | AX2 | 1.0005 | 0.5-1 % |
+| AX3 | 1.0000 | 0.1-0.5 % | AX4 | 1.0000 | 0.1 % |
+| AX5 | 0.9977 | 0.1-0.5 % | AX6 | 1.0000 | 1 % |
 | AG1 | 0.9997 | 1 % | DG6 | 1.0016 | 0.5 % |
 | AG2 | 1.0000 | 1 % | AG7 | 1.0020 | 1 % |
 | AG3 | 1.0000 | 1 % | AG8 | 1.0000 | 1 % |
@@ -202,6 +211,16 @@ compares no ratios: it passes when its checks hold):
   round up to the same 6850 mm, and Ø16 is consistent; the rest of DG10 passes.
 
 ## Other observations recorded by the cases
+
+- **AX1 (fixed).** The linear buckling analysis took one cubic element per analysis piece, and
+  the derived model does not subdivide frame members. A pin-ended column drawn as one member
+  buckled at 12 EI/L² instead of π² EI/L², 21.6 % high (unconservative); a sway portal was
+  barely affected (0.7 %). `fem/buckling.py` now splits every frame element in two inside the
+  buckling model (`SUBDIVISIONS`), which leaves the pin-ended column 0.75 % above Euler and
+  drops the interior nodes from the mode shapes.
+- **AX3.** The isolators are checked through the code's equivalent linear iteration. Their
+  nonlinear time history (Bouc-Wen bearings in the fibre model) needs the full nonlinear
+  history model and has no case yet.
 
 - **A2.** Two pinned supports leave a straight member free to spin about its own axis, and
   the solver rejects that mechanism. The case holds the twist at the supports, as fork
