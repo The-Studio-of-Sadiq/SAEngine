@@ -5,7 +5,7 @@ result with an independent reference: a closed-form solution, a published benchm
 calculation written out step by step in the case. Each compared quantity passes when SAEngine's
 value is within a stated relative tolerance of the reference.
 
-The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/parity.py` (the analysis model's conventions of version 0.0.44) and
+The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/parity.py` (the analysis model's conventions of version 0.0.44), `cases/depth.py` (the depth tests of issue #298) and
 `cases/design.py`, the runner is `run.py`, and the PDF template is `templates/verification.typ`.
 
 ## Running it
@@ -113,10 +113,20 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | DN2 | Beam torsion: φTth, At/s, Al and the section limit | BNBC 2020 Part 6 Sec 6.4.4, Eqs. 6.6.59, 6.6.61-6.6.63 |
 | DN3 | Deflection: Icr, Mcr, Ie and the immediate deflection of a simple span | BNBC 2020 Part 6 Eqs. 6.6.1-6.6.3; 5 w l⁴/384 Ec Ie |
 | AN3 | Wind torsional case WTX of a three-storey bay: total torsion and no net force | BNBC 2020 Part 6 Figure 6.2.9 (p. 574): Mt = F · 0.15 B per level |
+| AG1 | P-Delta: 4 m cantilever column, P = 2500 kN preload and H = 20 kN: tip sway, amplification, base moment | Beam-column: δ = H (tan uL − uL)/(P u), M = H L + P δ (Timoshenko & Gere) |
+| AG2 | Uniform three-storey shear building, the case's own spectrum: periods, modal mass ratios, CQC roof displacement and base shear | ωn = 2√(k/m) sin((2n−1)π/(2(2N+1))) (Chopra; Clough & Penzien); Der Kiureghian's CQC |
+| AG3 | Rigid diaphragm over four cantilever columns of unequal stiffness, eccentric load: twist, translation at the centre of rigidity, displacements, stiff column's shear | Centre of rigidity and storey torsion by hand (3EI/h³, GJ/h) |
+| AG4 | Two-storey cantilever wall of shells: pier P, V2 and M3 at the base and at level 1 (`design.wall_forces`) | Statics of the free body above each cut |
+| DG5 | Strong column / weak beam ΣMnc ≥ 1.2 ΣMnb and the beam's capacity shear Ve at one joint (`design.ductile_joints`), ratio and 1.25 fy from the code pack | BNBC 2020 Part 6 Sec 8.3.5.2, 8.3.8.1(a); strain compatibility by hand |
+| DG6 | Cantilever retaining wall: Rankine thrust, FS overturning and sliding, base pressures, stem moment, shear and φMn (`substructure.retaining_walls`) | Textbook procedure (Das; Bowles), friction and 1.6H from the code pack |
+| AG7 | The A3 portal in the floor plan, exported to e2k and read back: identical sway and base moment, both against slope-deflection | Slope-deflection; the original model's results |
+| AG8 | Support settlement case ST (`fem.settlement`) on a fixed-ended beam: end moment and shear | 6EIΔ/L², 12EIΔ/L³ with the columns' axial shortening |
+| AG9 | Semi-rigid diaphragm: 16 × 4 m slab of shells spanning in its plane between two walls: midspan deflection and moment | Plane-stress elasticity (Timoshenko & Goodier, Art. 22); statics |
+| DG10 | One-bay bill of quantities (concrete, formwork, bars by size) and beam B1's bar schedule (links, cutting lengths, hook tails, mass) | Hand take-off by the estimating rules; BNBC 2020 8.1.2 and BS 8666:2005 |
 
 ## Results at the time of writing
 
-101 of the 102 cases pass (0.0.52, Alpha 3, 25 Nov 2026); A9 fails on the known issue below.
+110 of the 112 cases pass (0.0.52 with the depth tests of issue #298, 27 Nov 2026); A9 and DG10 fail on the known issues below.
 Every case added since 0.0.45 passes. The table lists the largest deviation in each case (AH1
 compares no ratios: it passes when its checks hold):
 
@@ -173,6 +183,11 @@ compares no ratios: it passes when its checks hold):
 | AN3 | 1.0000 | 0.5 % | DH1 | 1.0203 | 3 % |
 | DX1 | 1.0000 | 0.5 % | DH2 | 1.0000 | 0.5 % |
 | DX2 | 1.0000 | 0.1 % | AH1 | pass | - |
+| AG1 | 0.9997 | 1 % | DG6 | 1.0016 | 0.5 % |
+| AG2 | 1.0000 | 1 % | AG7 | 1.0020 | 1 % |
+| AG3 | 1.0000 | 1 % | AG8 | 1.0000 | 1 % |
+| AG4 | 1.0003 | 0.1 % | AG9 | 0.9964 | 2 % |
+| DG5 | 0.9999 | 0.5 % | DG10 | 0.9583 (fail) | 0.0001 % |
 
 ## Known issues (failing cases)
 
@@ -180,6 +195,11 @@ compares no ratios: it passes when its checks hold):
   At the default mesh and at 100 mm (the smallest mesh size Project Settings accept) the tip
   deflection is about 8 % low (ratios 0.925 and 0.928). Only a 50 mm mesh, below the
   settings' minimum, comes within 5 % (0.972).
+- **DG10, hook tails of Ø20 and larger bars (#386).** The detailing sizes a beam bar's 90°
+  hook with the code's bend (6 db, r = 60 mm for Ø20: A = 320 mm), but the bar schedule bends
+  it on BS 8666's larger minimum radius (70 mm). As bent, the hook's straight tail is
+  A - r - d = 230 mm, short of the 12 db = 240 mm of the standard hook. The cutting lengths
+  round up to the same 6850 mm, and Ø16 is consistent; the rest of DG10 passes.
 
 ## Other observations recorded by the cases
 
