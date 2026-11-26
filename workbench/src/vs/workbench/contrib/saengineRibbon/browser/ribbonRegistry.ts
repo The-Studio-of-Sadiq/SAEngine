@@ -388,6 +388,8 @@ const FEM_MODEL_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.model')]);
 const FEM_PUSHOVER_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.pushover')]);
 const FEM_CHARTS_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.charts')]);
 const FEM_DESIGN_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.design')]);
+/** The Results tab: the 3D view's result picker, Show and Scale (femResultsBar.ts), and the charts' window keeps it too. */
+const FEM_RESULTS_TABS_WHEN = allOf([FEM_WHEN, subViewWhen('fem.model', 'fem.charts')]);
 export const FOUNDATIONS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.substructure], 'foundations');
 export const BOQ_WHEN = editorWhen([SAENGINE_EDITOR_IDS.boq, SAENGINE_EDITOR_IDS.rates], 'boq');
 export const EXPORTS_WHEN = editorWhen([SAENGINE_EDITOR_IDS.exports], 'output');
@@ -667,7 +669,7 @@ const BASE_TABS: readonly IRibbonTabDescriptor[] = [
 		label: localize('ribbon.tab.results', "Results"),
 		menuId: RibbonMenus.Results,
 		contextual: true,
-		when: FEM_CHARTS_TABS_WHEN,
+		when: FEM_RESULTS_TABS_WHEN,
 	},
 	{
 		id: 'design',
@@ -963,6 +965,7 @@ export function scopeWhen(scope: RibbonScope): ContextKeyExpression {
 		case 'fem.charts': return FEM_CHARTS_TABS_WHEN;
 		case 'fem.pushover': return FEM_PUSHOVER_TABS_WHEN;
 		case 'fem.design': return FEM_DESIGN_TABS_WHEN;
+		case 'fem.results': return FEM_RESULTS_TABS_WHEN;
 		case 'fem.cfd': return allOf([FEM_WHEN, subViewWhen('fem.cfd')]);
 		case 'fem.stm': return allOf([FEM_WHEN, subViewWhen('fem.stm')]);
 		case 'foundations': return FOUNDATIONS_WHEN;
@@ -1107,8 +1110,8 @@ export function resolveActiveTabForEditor(
 	if (editorKey === SAENGINE_EDITOR_IDS.floorPlan) {
 		return 'home';
 	}
-	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'results')) {
-		return 'results';
+	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'femCharts')) {
+		return 'femCharts';
 	}
 	if (subView === 'fem.design' && visibleTabs.some(t => t.id === 'design')) {
 		return 'design';
@@ -1128,8 +1131,8 @@ export function resolveEditorToolbarTargetTab(
 	if (editorKey === SAENGINE_EDITOR_IDS.floorPlan) {
 		return 'home';
 	}
-	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'results')) {
-		return 'results';
+	if (subView === 'fem.charts' && visibleTabs.some(t => t.id === 'femCharts')) {
+		return 'femCharts';
 	}
 	if (subView === 'fem.design' && visibleTabs.some(t => t.id === 'design')) {
 		return 'design';
