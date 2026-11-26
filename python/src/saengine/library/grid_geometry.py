@@ -70,6 +70,11 @@ class GridAxis:
 
 
 def _unit(angle: float) -> Point:
+    """The unit vector at ``angle`` [°], exact at multiples of 90° (so the main grid's points
+    are its positions exactly, not 3e-13 off)."""
+    quarter = angle / 90
+    if quarter == round(quarter):
+        return ((1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0))[round(quarter) % 4]
     a = math.radians(angle)
     return (math.cos(a), math.sin(a))
 

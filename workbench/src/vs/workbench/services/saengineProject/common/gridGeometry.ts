@@ -49,7 +49,15 @@ const isObject = (value: unknown): value is Json => typeof value === 'object' &&
 const list = (value: unknown): Json[] => Array.isArray(value) ? value.filter(isObject) : [];
 const num = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 const pair = (value: unknown): Point | undefined => Array.isArray(value) && num(value[0]) !== undefined && num(value[1]) !== undefined ? [value[0] as number, value[1] as number] : undefined;
-const unit = (degrees: number): Point => [Math.cos(degrees * Math.PI / 180), Math.sin(degrees * Math.PI / 180)];
+/** The unit vector at `degrees`, exact at multiples of 90° (the main grid's points are its positions exactly). */
+function unit(degrees: number): Point {
+	const quarter = degrees / 90;
+	if (Number.isInteger(quarter)) {
+		const [x, y] = ([[1, 0], [0, 1], [-1, 0], [0, -1]] as const)[((quarter % 4) + 4) % 4];
+		return [x, y];
+	}
+	return [Math.cos(degrees * Math.PI / 180), Math.sin(degrees * Math.PI / 180)];
+}
 
 function span(values: readonly number[]): Point {
 	return values.length ? [Math.min(...values) - GRID_OVERRUN, Math.max(...values) + GRID_OVERRUN] : [-GRID_OVERRUN, GRID_OVERRUN];
