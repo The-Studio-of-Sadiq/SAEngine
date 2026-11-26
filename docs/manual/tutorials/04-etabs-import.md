@@ -31,12 +31,13 @@ ETABS results for the comparison. With your own model, export it from ETABS with
 
 ## 1. Import the file
 
-1. On the start page (or the ≡ menu) choose **Import from ETABS, STAAD or SAP2000...**.
+1. On the Start page (or **≡ › File**) choose **Import from ETABS, STAAD or SAP2000...**.
 2. Pick `tutorial-frame.e2k`.
-3. **Choose Where to Put the Imported Project**: for example `Documents\SAEngine Projects`.
+3. **Choose Where to Put the Imported Project**: your projects folder.
 4. **Name the Imported Project**: *Tutorial Frame*.
 
-SAEngine writes the project, opens it, and shows the **Import Report** beside it:
+SAEngine writes the project and shows the **Import Report**. Click **Open Project** on it to
+work on the new project.
 
 ![The import report of the tutorial frame](../images/t4-import-report.png)
 
@@ -44,17 +45,16 @@ Read it section by section:
 
 | Section | What it says here | What to do |
 | --- | --- | --- |
-| Imported | 4 stories, 27 columns, 36 beams, 12 slabs, 3 sections, 2 materials, 2 loads, 2 load combinations, 6 grid lines, 9 supports | Check the counts against ETABS (9 columns × 3 storeys, 12 beams × 3, 4 slabs × 3). |
+| Imported | 3 stories, 27 columns, 36 beams, 12 slabs, 3 sections, 2 materials, 2 area loads, 4 load cases, 25 load combinations, 9 supports, 6 grid lines; 2 combinations from the file | Check the counts against ETABS (9 columns × 3 storeys, 12 beams × 3, 4 slabs × 3). |
 | Loads | *Carried over: D 708 kN, L 480 kN, Lr 120 kN.* | These are the area loads; nothing was lost. |
-| Approximated | *beam bars left to SAEngine's design (e2k gives covers only)* | Expected: SAEngine designs the beam bars. |
-| Warnings | *The file has no property modifiers (gross sections): SAEngine analyses the lateral cases on cracked concrete sections (BNBC 2020 Part 6 Sec 6.3.10.4.1; ...)* and *Wind and earthquake loads are SAEngine's own from the BNBC settings: check the site, occupancy and structural system in 02 Project Settings.* | Note the first for the period comparison; the second is step 2. |
+| Approximated | *beam bars left to SAEngine's design (e2k gives covers only)*; *area loads not in the file: SAEngine's defaults kept (Stairs)*; *combinations with F (fluid) 0* | Expected: SAEngine designs the beam bars. |
+| Warnings | *The file has no property modifiers (gross sections): SAEngine analyses the lateral cases on cracked concrete sections*; *Load combinations: the 23 of BNBC 2020 Part 6 Sec 2.7.3.1 on SAEngine's wind and earthquake cases, then the file's 2*; *Wind and earthquake loads are SAEngine's own from the code pack settings* | Note the first for the period comparison; the last is step 2. |
 
 The same import from the command line:
 
 ```bash
 saengine import tutorial-frame.e2k "D:\Projects" --name "Tutorial Frame"
 ```
-
 
 ## 2. Check what was imported
 
@@ -63,22 +63,32 @@ saengine import tutorial-frame.e2k "D:\Projects" --name "Tutorial Frame"
    earthquake are computed by SAEngine from these settings, not taken from the file. The **Area
    Loads** show *Floors (imported)* (live 2.0, finish 2.2) and *Roof (imported)* (live 1.0, finish
    1.5): the file's SDL became the floor finish. The **Load Combinations** are the file's U1 and
-   U2 only. Click **Reset Combinations to BNBC 2020...** if you want the full BNBC set including
-   wind (the earthquake combinations of the response-spectrum design are added automatically).
+   U2 *(from the file)* after the 23 BNBC 2020 combinations the importer added. **Generate from
+   BNBC 2020** in Load Combinations resets them to the code's set.
 2. **03 Materials:** C28 (f′c 28 MPa) and B420 (fy 420 MPa) with the file's E and unit weight.
 3. **04 Objects:** C400x400 with its 12 Ø16 bars, B300x500 without bars, S150.
 4. **05 Floor Plan:** the grids A–C, 1–3 and the members on each storey. **6 BIM** has been built.
 
 ## 3. Run All
 
-Click **Run All**. On a typical PC this takes several minutes. When it finishes:
+Click **Run All**. On a typical PC this takes about a minute. The members are checked, but the
+beam and slab types have no bars (the file gives covers only), so open **8 FEM › Design
+Reinforcement**:
 
-*Done: 0 pass, 27 fail; steel short in 27 element(s) · model derived · BOQ updated · report
-written*
+*Design checks now: 0 members pass, 27 fail; 3 diaphragms, 3 fail; 48 members not checked for
+want of bars.*
 
-All members fail because the beams have no bars and the columns' 12 Ø16 are not enough for the
-BNBC seismic design: *steel short*, not *section too small*. Open **8 FEM**, choose **Design
-Reinforcement**, and **Apply Proposal** as in [Tutorial 1](01-sample-project.md#3-let-saengine-propose-the-bars).
+- B300x500 and S150 get bars (*Apply Proposal (2 Types)*).
+- **C400x400** is marked **section too small**: its 12 Ø16 are not the problem; the beam-column
+  joints of a special moment frame fail joint shear with these beams. The proposal offers the bars
+  its strength needs anyway (*Tick to apply the bars its strength needs anyway; its joints still
+  fail joint shear*).
+
+Click **Apply Proposal**: *0 members pass, 27 fail ... → 48 members pass, 27 fail; 27 joints, 10
+fail*. The 27 columns still fail *Detailing: Confinement Ash* (Sec 8.3.5.4), and 4 joints joint
+shear and 6 strong column / weak beam. An ETABS model of a special moment frame with 400 mm
+columns would need bigger columns in SAEngine too: compare the systems in 2 Project Settings ›
+Seismic before you compare designs. **Run All** again after any change.
 
 ## 4. Compare
 
@@ -99,21 +109,23 @@ where they overlap. Check how your ETABS model treats these overlaps before comp
 **Against ETABS.** Fill in the ETABS column from ETABS's own tables (Display → Show Tables →
 *Base Reactions*, *Modal Participating Mass Ratios*, *Story Drifts*):
 
-| Quantity | SAEngine 0.0.42 | ETABS | Difference |
+| Quantity | SAEngine 0.0.52 | ETABS | Difference |
 | --- | --- | --- | --- |
 | ΣFz Dead | 2298.0 kN | | |
 | ΣFz SDL | 708.0 kN | | |
 | ΣFz Live | 480.0 kN | | |
 | ΣFz Roof live | 120.0 kN | | |
 | Seismic weight | 3071.7 kN | | |
-| Period, mode 1 (X) | 0.720 s | | |
-| Period, mode 2 (Y) | 0.686 s | | |
-| Mode 1 mass participation | 83.7 % | | |
-| Static base shear EX = EY | 276.5 kN | | |
-| Largest design storey drift X | 0.94 % (allowed 2.00 %) | | |
+| Period, mode 1 (X) | 0.646 s | | |
+| Period, mode 2 (Y) | 0.609 s | | |
+| Mode 1 mass participation | 84.6 % | | |
+| Static base shear EX = EY | 172.8 kN | | |
+| Largest design storey drift X (response spectrum) | 0.572 % (allowed 2.00 %) | | |
 
-The SAEngine values above are those of the tutorial file in SAEngine 0.0.42; yours should be the
-same.
+The SAEngine values above are those of the tutorial file in a build after 0.0.52 (report sections
+3.2, 4.1, 4.2 and the response-spectrum drift table); yours should be the same. The base shear
+uses the approximate period Ta = 0.357 s (Table 6.2.20); the response spectrum results are scaled
+to 85 % of it.
 
 **Why results can differ** (check these before suspecting an error):
 
@@ -121,14 +133,15 @@ same.
   and *Skipped* sections (point and frame loads are not carried over) and at the unit weight of
   the materials.
 - **Periods** depend on the stiffness: SAEngine uses cracked sections for the lateral cases (BNBC
-  6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, slabs 0.25 Ig) and ignores end offsets and rigid
-  zones. Compare with ETABS using the same property modifiers. They also depend on the mass
+  6.3.10.4.1: columns 0.70 Ig, beams 0.35 Ig, slabs 0.25 Ig) and rigid end zones (factor 0.5). Compare with ETABS using the same property modifiers. They also depend on the mass
   source: compare SAEngine's seismic weight (shown when the model is derived: *Derived ...
   nodes and ... elements; base shear ... kN, seismic weight ... kN*) with the ETABS mass first.
 - **Seismic and wind forces** are SAEngine's own from Project Settings, not ETABS's auto loads:
   compare them only when the site, occupancy, system and the code parameters are the same.
-- **Member forces** at the ends of members differ where ETABS has end releases, insertion points
-  or end offsets: SAEngine ignores them (*Approximated* in the import report).
+- **Member forces** at the ends of members differ where ETABS has insertion points or end offsets
+  that SAEngine approximates, and where ETABS has releases the importer only reports (one end
+  only, concrete members, axial, shear and torsion: *Approximated* in the import report). Such
+  releases can be set by hand in 6 BIM › Additions.
 - **Designs** differ because SAEngine designs to BNBC 2020 Part 6 Chapter 6 with its own seismic
   detailing rules (Sec 8.3), and proposes bars for each object type.
 

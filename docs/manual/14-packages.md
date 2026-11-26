@@ -4,7 +4,7 @@ Packages add to SAEngine without changing the program. There are three kinds:
 
 | Kind | What it gives | Where it is used |
 | --- | --- | --- |
-| Design code | a code as data: locations and hazards, loads, combinations, coefficients, materials, factors, detailing limits, MEP tables, each with its clauses | 02 Project Settings › Design code |
+| Design code | a code as data: locations and hazards, loads, combinations, coefficients, materials, factors, detailing limits, MEP tables, each with its clauses | 02 Project Settings › Code & Packs › Design code |
 | Structure template | presets of the parametric shapes (trusses, arches, domes, vaults, cable nets), and new shape kinds made by the package's own code | the modeller's Generate panel |
 | Building template | a building specification, or a whole project to start from | New Project... › Start from |
 
@@ -14,7 +14,9 @@ are in [docs/packages.md](../packages.md).
 
 ## The Packages page
 
-Open it from **≡ › Packages...** (or the Command Palette: *SAEngine: Packages...*). Its tabs:
+Open it from **Project Settings › Code & Packs › Code Pack › Installed Packages**, from **Get more
+building templates...** in the New Project wizard, or with the command search (*SAEngine:
+Packages...*). Its tabs:
 
 - **Installed**: every package on this computer, grouped *Built-in*, *Your Packs* (for every
   project) and *This Project* (design codes kept in `02 Project Settings/code-packs`, which travel
@@ -53,7 +55,7 @@ runs with your permissions. Changing any `.py` file of the package withdraws the
   structure template...* shows the presets of every structure template installed, grouped by
   package. A preset fills the form; change the values, check the preview and **Insert**. A coded
   template shows its own form; it makes geometry only when its package is trusted.
-- **New Project...** (start page, File menu, ≡): the row *Start from* on its first page lists the
+- **New Project...** (Start page, ≡ › File, Home › Project › New): the row *Start from* on its first page lists the
   building specifications installed (they fill the grid and storeys; the wizard starts with the
   built-in *Dhaka 6-storey residential*, and the name you typed is kept when you switch) and the
   full building templates installed. A full template opens as a whole new project in the folder

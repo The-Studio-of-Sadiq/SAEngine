@@ -4,7 +4,9 @@ Part 11 is what the project hands over: the design report, the structural drawin
 model as IFC, the floor plans as DXF, the bill of quantities as CSV, and the project archive.
 Everything is written to the `11 Exports` folder.
 
-Open it with **11 Exports** in the sidebar (or *SAEngine: Exports*).
+Open it with **11 Exports** in the sidebar. The ribbon's **Output** tab repeats every export
+(**Output › Exports › More**), and **Exchange**, **Fabrication**, **Archive & Validation**,
+**Publish** and the other tabs hold the further formats and checks.
 
 ![The Exports page](images/exports.png)
 
@@ -22,11 +24,12 @@ Open it with **11 Exports** in the sidebar (or *SAEngine: Exports*).
 
 A row that cannot be made yet says what is missing (*Build the building model (6 BIM) first.*,
 *Measure the bill of quantities (10 BOQ) first.*). Each file has **Open**, **Reveal in File
-Explorer** and, for DXF, **Open in LibreCAD**. The toolbar has **Open Exports Folder**.
+Explorer** and, for DXF, **Open in LibreCAD**. **Output › Exports › Exports Folder** opens the
+folder.
 
 ## The design report
 
-**Print Design Report** (Exports page, File menu, or Command Palette) typesets the report as a
+**Print Design Report** (Exports page, **≡ › File**, or the command search) typesets the report as a
 PDF with Typst and opens it: *Design report written (48 pages).* Warnings are listed in the
 report's *Limitations* section. It needs the analysis results (*There are no analysis results:
 run the analysis first.*). Run All rewrites it every time.
@@ -54,11 +57,11 @@ note), a letterhead (organisation, address lines, logo) and the members printed 
 member ids, only failing members, and which elements the appendix prints). The PDF and the Word
 file are drawn from the same document, so they always hold the same content.
 
-**Configure Design Report...** (File menu or Command Palette) lists the templates. Two are built in:
+**Configure Design Report...** (File menu or command search) lists the templates. Two are built in:
 *default* (every section in full) and *summary* (no appendix, the member tables cut to the
 failing members and the governing one). Choosing a built-in one, or **New Template...**, writes an
 editable copy to `11 Exports/report-templates/<id>.json` and opens it in its form; the form's
-toolbar prints the PDF or exports Word with it, and **Print This Template for the Project** makes
+buttons print the PDF or export Word with it, and **Print This Template for the Project** makes
 it the one Print Design Report, Export Word Report and Run All use (Project Settings → Design
 report → Template). A template file can be copied to another project as it is.
 

@@ -6,13 +6,21 @@ reinforcement. Every member on the floor plan refers to one object type. **To ch
 a member, change its object type here** (or assign another type to the member on the floor
 plan).
 
-File: `04 Objects/objects.json`. Open it with **4 Objects** (also **Open Object Types** in the
-floor plan and the design proposal).
+File: `04 Objects/objects.json`. Open it with **4 Objects** (also **Edit in Object Types** in
+Properties of a member, and **Open Object Types** in the design proposal).
 
 ![The Object Types editor with a column type](images/objects.png)
 
-The editor works like the [Materials](03-materials.md) editor: a list grouped by kind on the
-left, a form on the right, **+** (**Add Object Type**, by kind), **Duplicate** and **Delete**.
+The window works like the [Materials](03-materials.md) window: a list grouped by kind on the
+left and a form beside it. **Object Types › Objects › New Object Type** adds a type (by kind);
+**Duplicate** and **Delete** work as for materials. **Object Types › Assignment › Assign to
+Selection** gives the selected members a type, and **Purge Unused** removes the types no member
+uses.
+
+The **Sections** tab opens the **Section Designer** (draw a general section, place bars, and get
+its properties, P-M-M interaction surface and moment-curvature; **Save as Type** keeps it) and
+the steel catalogues. **Modifiers & Checks**, **Rebar**, **Walls & Slabs** and **Bolts & Welds**
+hold the type-level calculators.
 
 ## Kinds
 

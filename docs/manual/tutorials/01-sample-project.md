@@ -1,10 +1,10 @@
 # Tutorial 1: The sample project — Run All, the design proposal, drawings
 
 You will open the sample project, run the analysis and design of the whole building with one
-click, let SAEngine propose the reinforcement, size the missing footings, resolve the problems
-the drawings report, and produce the drawing set.
+click, let SAEngine propose the reinforcement, size the missing footings, read the problems the
+drawings report, and produce the drawing set.
 
-Time: about an hour, much of it waiting for Run All.
+Time: about 30 minutes.
 
 The *Sample Frame* is a small synthetic RC building: grids A–C (0, 6, 13 m) and 1–2 (0, 5 m),
 storeys at 3.2, 6.4 and 10.0 m, seven columns, five beams, a wall, two slabs, a stair, a steel
@@ -12,155 +12,139 @@ brace, MEP equipment and tanks, three boreholes and one footing.
 
 ## 1. Open the sample
 
-1. On the start page click **Open Sample Project...**.
-2. Choose a folder for your copy (default `Documents\SAEngine Projects`). SAEngine copies the
-   sample there and opens it. Your changes go to the copy; the original stays untouched.
+1. On the Start page click **Open Sample Project...**.
+2. Choose a folder for your copy. SAEngine copies the sample there and opens it. Your changes go
+   to the copy; the original stays untouched.
 
-The **Overview** shows every part. Most are *done*; 8 FEM is *not derived* and the Overview's
-**Next** line says *Next: 8 FEM — derive the analysis model*.
-
-![The Overview of the sample](../images/overview.png)
+The **Overview** shows every part, and the stage bar on its Home ribbon shows where the project
+stands. 8 FEM is *not derived*, so Analysis and Design are *not started*.
 
 Take a minute to click through the parts: the boreholes in 1 Soil Report, the grids and members
-in 5 Floor Plan (pick *Level 1 (+3200)* in the storey picker), the column type *C400x600* in
-4 Objects with its bars.
+in 5 Floor Plan › Plan (pick *Level 1 (+3200)* in **Home › View › Story**), and the column type
+*C400x600* in 4 Objects with its bars. Click a column on the plan: Properties shows it, and the
+**Tables** panel below highlights its row.
 
 ## 2. Run All
 
-Click **Run All** in the title bar. The left of the status bar shows the steps (*Running 2 of
-9: analysis*, *Running 4 of 9: design checks*, ...). Click it if you want to cancel. On a typical
-PC the sample takes three to five minutes.
+Click **Run All** in the title bar. The status bar shows the steps (*Run All 3/11: analysis*);
+**Tables › Progress** lists them. When it finishes (a few minutes the first time), a notification
+sums up:
 
-When it finishes, a notification sums up:
+*Run All done: design 4 pass, 14 fail · foundations 1 of 1 fail, 6 columns or walls without a
+foundation · MEP 5 fail*
 
-*Done: 3 pass, 15 fail; steel short in 16 element(s) · foundations 0 pass, 1 fail · MEP: failing
-openings 0, open clashes 0 · plumbing: failing checks 1, ... · model derived · BOQ updated ·
-report written*
+Failing checks are results, not errors: Run All went through every step. The stage bar now shows
+*Analysis* done and *Design* failing.
 
-The sidebar now says *8 FEM — 15 fail* and *9 Substructure — 1 fail*. Fifteen members fail
-because their bars give too little steel (*steel short*): the sample's object types carry
-deliberately light bars.
+Open **8 FEM**. On the **Results** tab choose **Result** *1.2D + 1.2SD + 1.6L + 0.5Lr + 1.2F*
+and **Show** *Moment M3*: the beams' bending moments, with the extremes in the legend.
 
-Open **8 FEM**. The viewport shows the analysis model; pick a combination and a result in the two
-pickers, e.g. **1.2D + 1.6L + 0.5Lr** and **Moment My**.
+![Moment M3 under 1.2D + 1.2SD + 1.6L + 0.5Lr + 1.2F](../images/fem-moment.png)
 
-![Moment My under 1.2D + 1.6L + 0.5Lr](../images/fem-moment.png)
+Now choose **Show** *Design Utilisation*. The members are coloured by utilisation (green below
+0.9, amber to 1.0, red above), the beam-column joints are drawn as squares, and Properties lists
+the checks: *Members 4 pass, 14 fail*, *Steel short 15 (B2, B4, B5, C1, C2, C3, ...)*, *Other
+checks fail F1*, and the seismic design summary (*EX scaled × 1.84 to 85 % of the static base
+shear*, *Largest drift 0.20 % (allowed 2.00 %)*). Click a member for each of its checks.
 
-Choose **Design Utilisation** in the second picker. After about a minute the members are
-coloured green (below 0.9), amber (0.9 to 1.0) or red (above 1.0), and the Properties panel lists
-the result: *3 members pass, 15 fail · largest utilisation 3.78 in C1*, *Steel short: 16 (B2, B4,
-C1, ...)*, *Other checks fail: F1*. Click a red member to see its checks and its **Required
-Steel**.
-
-![Design utilisation before the bars are designed](../images/fem-design.png)
+![Design utilisation of the sample](../images/fem-design.png)
 
 ## 3. Let SAEngine propose the bars
 
-1. Click **Design Reinforcement** in the FEM toolbar. SAEngine proposes bars for every object
-   type from the steel its most demanding member requires (*Keep Shared Types*).
-2. Read the proposal. For example *C400x600 — 10Ø20, ties Ø10 @ 150 → 12Ø16, ties Ø10 @ 75 (3 ×
-   4 legs); governed by C1 · 8 members*. The brace type *BR-SHS* gets a lighter section of the
-   same family (*SHS 150x150x8 → SHS 120x120x3*), and footing F1 gets new bars but also the note
-   that bearing fails: *bars do not help; a larger foundation (or another type) is the remedy*.
+1. Open **8 FEM › Design Reinforcement** in the sidebar (or **Analyze › Analysis Model › Design
+   Reinforcement**). SAEngine proposes bars for every object type from the steel its members
+   require, for example *C400x600: 10Ø20, ties Ø10 @ 150 → 12Ø16, ties Ø10 @ 75 (3 × 4 legs),
+   governed by C1 · 8 members*. Each row says which member governs it and which members are
+   over-designed with these bars.
 
    ![The design proposal](../images/design-proposal.png)
 
-3. Click **Apply Proposal (7 Types)**. SAEngine writes the bars into 4 Objects and checks again:
-   *Proposal applied — 3 pass, 15 fail → 18 pass, 0 fail*. (**Undo Apply** would revert it.)
+2. Read the notes above the rows. Here: *S150: 1 of its 2 slabs are thinner than the least
+   thickness of Table 8.3.1.2 (up to 151 mm needed, 150 mm given): try 175 mm, or check their
+   deflection by calculation; bars do not cure it.* Keep it in mind for step 6.
+3. Click **Apply Proposal (6 Types)**. SAEngine writes the bars to 04 Objects and checks the
+   members again.
 
    ![The proposal applied](../images/design-applied.png)
 
-The analysis model is now **out of date**: the brace section changed, so its stiffness did.
-You will run everything again after the foundations.
+The bars changed the object types, so the analysis is out of date (the stage bar says so).
 
 ## 4. Size the footings
 
-Footing F1 fails in bearing (*Bearing (service) 374 kPa against qa 150 kPa*) and five columns
-have no foundation.
+Only column C1 has a footing (F1). Open **9 Substructure**.
 
-1. Open **9 Substructure**. The plan shows F1 in red and the columns C2 to C6 without footings.
-2. Click **Size Footings**. SAEngine proposes footings for the five columns, drawn dashed
-   (*Proposed sizes for 5 foundations*). Click **Accept**.
-3. Click F1 to select it, click **Size Footings** again, and **Accept** the new size.
-4. Save (**Ctrl+S**): the checks run on the saved file. The **Results** view shows *6
-   foundations checked, 0 fail*.
+1. Click **Shallow & Raft › Sizing › Size Footings** with nothing selected. SAEngine sizes a
+   footing under every column without one, from its reactions and the soil report's bearing
+   pressure at its position, and proposes bars: *Proposed sizes for 5 foundations (dashed)*, for
+   example *C2: Isolated footing 2.4 × 2.4 × 0.3 m, bottom bars 16@325*. The wall W1 gets none:
+   *Size Footings sizes the columns' footings only; give the walls a strip footing, a raft or a
+   pile cap.*
 
-![The foundation checks after sizing](../images/substructure-results.png)
+   ![The proposed footings](../images/substructure-proposal.png)
+
+2. Click **Accept**.
+3. Open the **Results** view (**Shallow & Raft › View › Results**): every foundation with its
+   governing check and utilisation, then the stability of the whole building (sliding and
+   overturning).
+
+   ![The foundation checks after sizing](../images/substructure-results.png)
+
+F1, the footing the sample came with, still fails (*Exterior footing depth*, 1.33): it is too
+thin. Select it on the **Plan** and raise its **Thickness** in Properties.
 
 ## 5. Run All again, then the drawings
 
 1. Click **Run All** again. It derives the model again (the objects changed), reruns the analysis
-   and the checks: *Done: 18 pass, 0 fail · foundations 6 pass, 0 fail · ...*.
-2. Open **11 Exports**. Check the **Title block and sheets** (firm, engineer, checked by, ...;
-   **Edit in Project Settings** to change them) and leave the sheet size at **A1**.
-3. Click **Generate Drawings**. After a few seconds the sheet list shows eleven sheets, S-101
-   *General notes* to S-111 *Bar bending schedule (2 of 2)*.
+   and the checks: *Run All done in 0:59: design 17 pass, 1 fail · joints 1 fail · foundations 1
+   of 6 fail, 1 column or wall without a foundation · MEP 5 fail*.
+2. Open **11 Exports**. Check **Title block and sheets** (client, firm, engineer, checked by, ...;
+   **Edit in Project Settings** changes them) and leave the sheet size at **A1**.
+3. Click **Generate Drawings**. After a few seconds the sheet list shows the set: *22 sheets, A1,
+   current; 7 problems to resolve before issue*, from S-101 *General notes* to the MEP sheets.
 
-The drawings report **5 problems to resolve before issue**, for example:
+   ![The drawing set on the Exports page](../images/drawings.png)
 
-- *C1: Column bars into foundation, C1: 328.53 mm needed, 251 mm provided, BNBC 2020 Part 6 Sec
-  8.3.11.2(a), (b); 8.2.6: not met.* The footings the sizing assistant chose for bearing and
-  shear are too thin to develop the column bars.
-- *S2: Top X bars Ø10 hooked into the edge support W1: 205.3 mm needed, 180 mm provided.* The
-  200 mm wall is too thin to anchor the slab's top bars.
+## 6. Read the drawing problems
 
-Until they are resolved, the general notes sheet is marked **NOT FOR CONSTRUCTION**.
+The problems are listed under the sheets. Until they are resolved, the general notes sheet is
+marked **NOT FOR CONSTRUCTION**. Here they are:
 
-## 6. Resolve the drawing problems
+- *C2: Column bars into foundation, C2: 328.53 mm needed, 193 mm provided, BNBC 2020 Part 6 Sec
+  8.3.11.2(a), (b); 8.2.6: not met* (and the same for C3 to C6). The footings the sizing chose
+  for bearing and shear are too thin to develop the column bars. Make them thicker (about 450
+  mm) in 9 Substructure.
+- *Design checks: 1 of 18 members fail (S2)*: the slab of step 3's note. Make S150 175 mm thick
+  in 4 Objects, or give S2 its own thicker type.
+- *Design checks: 1 beam-column joint(s) fail*: select it in 8 FEM (Show *Joint Checks*) for the
+  check that governs.
+- *Bar congestion, joint C2 at L1: B5 top bars Ø20 past the column bars Ø16: 1.3 mm clear, 25 mm
+  needed*: the bars crossing at the joint do not fit. Smaller bars, or a wider column, fix it.
 
-Design is iterative: each fix changes the loads or the bars a little, so check again after each
-round. This is the sequence that resolves the sample's problems.
-
-**Round 1: thicker footings and wall.**
-
-1. In **9 Substructure**, click each of F1, F3, F5 and F6 and set **Thickness (mm)** to **450**
-   in the Properties panel (press Enter). Save.
-2. In **4 Objects**, select the wall type **W200** and set **Thickness** to **250**. Save.
-3. **Run All**. Because a drawing set exists and is now out of date, Run All regenerates it at
-   the end: *Done: 16 pass, 2 fail; steel short in 8 element(s) · foundations 2 pass, 4 fail ·
-   ... · 11 drawing sheets drawn*.
-
-The stiffer wall attracts more force (two members are now steel short) and the thicker footings
-need more bars: in 9 Substructure → **Results** the governing check of F1, F3, F5 and F6 is now
-*Min. reinforcement X (bottom)*.
-
-**Round 2: bars again.**
-
-4. **Design Reinforcement** → **Apply Proposal**: *16 pass, 2 fail → 18 pass, 0 fail*. The
-   proposal also gives the footings heavier bars (*F3: bottom X Ø12 @ 200 → bottom X Ø20 @ 375*).
-5. On the Exports page click **Regenerate Drawings**. One problem is left: *S2: Top X bars Ø16
-   hooked into the edge support W1: 328.5 mm needed, 230 mm provided.* The proposal chose Ø16
-   top bars, which a 250 mm wall cannot anchor. 9 Substructure shows F1 at 1.05 in bearing.
-
-**Round 3: engineering judgement.**
-
-6. In **4 Objects** select **S150** and change the top X bars from Ø16 @ 275 to **Ø10 @ 100**
-   (about the same steel area, a much shorter anchorage). Save.
-7. In **9 Substructure** select **F1** and set **Length** and **Width** to **2300**. Save.
-8. **Regenerate Drawings**: *11 sheets, A1, current* — no problems left.
-9. **Run All** once more so that the report and the bill of quantities match the final design.
-
-![The drawing set on the Exports page](../images/drawings.png)
+Design is iterative: each fix changes the loads or the bars a little. The loop is always the
+same: **change the sections or foundations → Run All → Design Reinforcement → Apply → Run All →
+Regenerate Drawings**, until the list is empty and the set says *current* with no problems.
 
 ## 7. Look at the outputs
 
-- **Preview** a sheet (e.g. S-106 *Beam elevations*); **Open in LibreCAD** opens its DXF;
-  **Open PDF Set** the whole set; **Bar Bending Schedule (CSV)** the schedule.
+- Click the **Preview** icon of a sheet (e.g. S-103 *Framing plan - Level 1*). The sheet opens in
+  its own window with the **Documents** ribbon (**Zoom In**, **Zoom Out**, **Fit Sheet**, **Open
+  in LibreCAD**). **Open PDF Set** opens the whole set, **Bar Bending Schedule (CSV)** the
+  schedule.
 
-  ![Sheet S-106 in the preview](../images/drawing-preview.png)
+  ![Sheet S-103 in the preview](../images/drawing-preview.png)
 
-- **Open Report** (or *Design report* on the Exports page) opens `11 Exports/report.pdf`, the
-  printed calculations.
-- **10 BOQ** shows the quantities measured after the last run.
+- **Open Report** (in Run All's notification, or *Design report* on the Exports page) opens
+  `11 Exports/report.pdf`, the printed calculations.
+- **10 BOQ** shows the quantities measured by the last run.
 
-Finally, save a version: **Save Version...** in the ≡ menu, message *Designed bars and
-footings*.
+Finally, save a version: **Home › Workspace › Collaborate › Save Version**, message *Designed
+bars and footings*.
 
 ## What you learned
 
 - Run All runs the whole chain; failing checks are results, not errors.
 - *Steel short* is fixed by **Design Reinforcement**; a failing foundation by **Size Footings** or
-  a bigger foundation; *section too small* by a bigger section (Tutorial 2).
-- After a change to the object types, run the analysis again.
-- The drawings check the detailing (anchorage, development lengths) and say what to fix before
+  a bigger foundation; *section too small* or a too-thin slab by a bigger section.
+- After a change to the object types, Run All again.
+- The drawings check the detailing (anchorage, bar congestion) and say what to fix before
   issue.

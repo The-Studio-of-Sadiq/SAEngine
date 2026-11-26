@@ -5,15 +5,18 @@ The bill of quantities is measured from the building model, the object types and
 formwork, structural steel, earthwork, masonry, MEP items, and the cement, sand, stone chips and
 water of the concrete and mortar mixes. **It contains quantities only, no rates or costs.**
 
-File: `10 BOQ/boq.json`. Open it with **10 BOQ**. The editor is **Bill of Quantities**.
+File: `10 BOQ/boq.json`. Open it with **10 BOQ**. The window is **Bill of Quantities**; its
+ribbon's **Quantities › Measure** group has **Measure / Update**, **BOQ Summary**, **Rebar
+Schedule** and **Estimating Rules**, and **Quantities › Export** has **Export Excel** and
+**Export CSV**.
 
 ![The bill of quantities of the sample](images/boq.png)
 
 ## Measuring
 
 - An empty bill shows **Measure from Building Model**. Afterwards the bill is kept; when a source
-  changes it shows an **Out of date** pill (*Changed since the bill was measured: Building Model.
-  Click to measure it again.*) and **Update from Building Model** becomes the main button.
+  changes the sidebar shows *stale*, the window says *Changed since the bill was measured:
+  Building Model*, and **Quantities › Measure › Measure / Update** measures it again.
 - Run All measures the bill when it is out of date.
 - The bill is never edited by hand: it is measured again on request and saved automatically.
 
@@ -33,7 +36,7 @@ Columns **Code**, **Description**, **Quantity**, **Unit**, in groups with totals
 | Materials: Cement, Sand, Stone Chips and Water (MT) | cement (kg) and **50 kg bags**, sand (fine aggregate, **cft**), stone chips (coarse aggregate, **cft**), water (l) |
 
 Click a row (or Enter / Space) to expand its **breakdown by element** (Element, Story, Detail,
-Quantity); the Properties panel shows the group, material, bar diameter, element count, the
+Quantity); Properties shows the group, material, bar diameter, element count, the
 quantity by storey and which sources are up to date. Right-click: **Show Breakdown**, **Copy
 Quantity**, **Copy Row**, **Export CSV...**.
 
@@ -70,9 +73,9 @@ choose another file): one row per item followed by one row per element of its br
 the columns `Row, Code, Group, Description, Element, Story, Detail, Item Quantity, Element
 Quantity, Unit`. Open it in Excel to add rates.
 
-## Office tools (alpha 9)
+## Rates, costing and carbon
 
-**SAEngine: Office Tools** (command palette) opens one editor with a tab per tool:
+**SAEngine: Office Tools** (command search) opens one editor with a tab per tool:
 
 - **4D Programme**: *Generate from the Model* makes the activities from the building model and
   this bill (substructure first, then per level and tower: columns and walls, the floor, brick

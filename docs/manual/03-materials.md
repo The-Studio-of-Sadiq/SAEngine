@@ -9,16 +9,21 @@ File: `03 Materials/materials.json`. Open it with **3 Materials**.
 
 ![The Materials editor](images/materials.png)
 
-## Using the editor
+## Using the window
 
 - **Left:** the materials grouped by category. Up/Down arrows move through them; right-click
   for **Duplicate** and **Delete**.
-- **Right:** the form of the selected material, with units, dropdowns and per-field
-  validation. Only valid values are written to the file; each change can be undone with Ctrl+Z.
-- **Toolbar:** **+** (**Add Material**, by category), **Duplicate** (creates *name (copy)* with a
-  new ID), **Delete** (asks *Delete 'name'?*; Ctrl+Z restores it).
+- **Right of the list:** the form of the selected material, with units, dropdowns and checks per
+  field. Only valid values are written to the file; each change can be undone with Ctrl+Z.
+- **Ribbon › Materials:** **Add Material** (by category), **Duplicate** (creates *name (copy)*
+  with a new ID), **Delete** (asks *Delete 'name'?*; Ctrl+Z restores it), **Materials Summary**,
+  **Concrete & Mix Calc**, and **Import JSON...** / **Export JSON...** to share materials between
+  projects. The **Concrete**, **Masonry**, **Compliance**, **Steel Properties** and **Test Data**
+  tabs hold calculators (trial mixes, exposure classes, cube and cylinder acceptance, ...).
 - The status line counts the materials and the problems to fix, with a **Show** link to the
   first problem.
+- The code pack sets the least f′c and the greatest fy it allows; a value outside them is
+  refused with the clause.
 
 ## Fields
 

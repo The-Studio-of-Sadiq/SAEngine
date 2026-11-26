@@ -4,36 +4,45 @@ Part 9 is where foundations are placed and designed: isolated, combined and stri
 pile caps with piles, rafts, and tie beams. The loads are the support reactions of the analysis
 (8 FEM); the soil capacity comes from the soil report (Part 1) or from Project Settings.
 
-File: `09 Substructure/substructure.json`. Open it with **9 Substructure** (or **Place Footings
-in 9 Substructure** on the floor plan).
+File: `09 Substructure/substructure.json`. Open it with **9 Substructure** (or **Structure ›
+Place › Place Footings in 9 Substructure** on the floor plan).
 
 ![The foundation plan of the sample after sizing](images/substructure.png)
 
 ## Layout
 
-- **Views:** **Plan**, **Data**, **Results**.
+- **Views:** **Plan**, **Data**, **Results** (**Shallow & Raft › View**; the status line's
+  **Results** link opens the results too).
 - **Plan** (*Base level*): the grid, the columns, the boreholes and the foundations, coloured by
   utilisation (**below 0.9**, **0.9 to 1.0**, **above 1.0**). Click a column or a foundation to
   select it, **Shift+click** to add to the selection; **Delete** removes the selection; **Esc**
   discards a proposal or clears the selection.
 - **Data:** tables of foundations (ID, type, columns, sizes, founding level, piles, utilisation),
   pile types and tie beams. Sizes in mm, levels and positions in m.
-- **Properties panel:** the selected foundation, or (nothing selected) the counts, *Columns
+- **Properties:** the selected foundation, or (nothing selected) the counts, *Columns
   without one*, and the **Design** options.
 - **Status line:** e.g. *6 foundations · 0 fail · max pressure 150 kPa (qa 150)*.
 
-Toolbar (the labels follow the selection):
+The ribbon's **Shallow & Raft** tab holds the main tools; the **Piles** tab the pile caps and
+pile types:
 
-| Button | Does |
+| Ribbon | Does |
 | --- | --- |
-| **Add Footing under the Selected Columns** | an isolated footing; with several columns selected **Add Combined Footing under the n Selected Columns**; with nothing selected **Add Footings under the Columns without a Foundation** |
-| **Add Pile Cap under the Selected Columns** | a pile cap (needs a pile type) |
-| **Add Raft under the Selected Columns** | a raft round the columns |
-| **Add Tie Beam between the Two Selected Foundations** | a tie beam |
-| **Size Footings** | proposes sizes (below) |
-| **Import Footings from the Building Model** | takes over footings drawn in an older building model |
-| **Delete** | |
-| ... | **Add Strip Footing along the Selected Columns**, **Add Pile Type**, **Select Columns without a Foundation**, **Check the Foundations Again** |
+| **Shallow & Raft › Shallow Foundations › Add Footing** | an isolated footing under the selected column; with several columns selected a combined footing; with nothing selected footings under every column without a foundation |
+| **Add Raft** | a raft round the selected columns; with foundations selected it asks *Replace n foundations with a raft?* |
+| **Strip Footing** | a strip footing along the selected columns or wall |
+| **Add Tie Beam** | a tie beam between the two selected foundations |
+| **Uncovered Columns** | selects the columns and walls without a foundation |
+| **Shallow & Raft › Sizing › Size Footings** | proposes sizes and bars (below) |
+| **Import Footings** | takes over footings drawn in an older building model |
+| **Check Again** | checks the foundations again |
+| **Piles › Piles & Caps › Add Pile Cap**, **Add Pile Type** | a pile cap under the selected columns (needs a pile type), and a new pile type |
+| **Detailing & Report › Actions** | **Save & Check**, **Delete Selected** |
+
+Properties tells what the buttons will act on (*12 foundations: Size Footings, Add Raft and
+Delete act on all of them. Select exactly two to tie them.*). The other tabs (**Pile Analysis**,
+**Retaining & Excavation**, **Slabs & Machine**, **Rebar Detailing**, **Loads**) open the
+geotechnical and foundation calculators.
 
 ## Foundation properties
 
@@ -198,7 +207,7 @@ notes and the method.
 
 ## Slopes
 
-The **Slopes** section of the data view checks slopes on 2D sections (alpha 9 L8). **Add Slope**
+The **Slopes** section of the **Data** view (**Shallow & Raft › View › Data**) checks slopes on 2D sections. **Add Slope**
 starts a drawn 2 : 1 slope 10 m high; with no foundations yet, the empty page offers **Check a
 Slope of the Site**.
 

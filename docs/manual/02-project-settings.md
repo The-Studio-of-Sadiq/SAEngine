@@ -1,22 +1,32 @@
 # Part 2: Project Settings
 
-Project Settings hold the codes, occupancy, site, loads, load combinations and analysis options
-of the project. BNBC 2020 governs; every code value can be overridden. The floor plan, the
-building model and the analysis read these settings.
+Project Settings hold the design code, occupancy, site, loads, load patterns, load
+combinations and analysis options of the project. The design code is a **code pack**: BNBC 2020
+by default, every value of which can be overridden. The floor plan, the building model and the
+analysis read these settings. This chapter uses BNBC 2020; other packs show their own fields and
+tables.
 
 File: `02 Project Settings/project-settings.json`. Open it with **2 Project Settings** in the
-sidebar or *SAEngine: Project Settings*.
+sidebar, or one of its sub-windows (*Code, Occupancy, Construction, Site*; *Loads, Load Patterns
+and Crane Runways*; *Seismic*; *Wind*; *Combinations and Analysis Model*; *Foundation*;
+*Drawings and Detailing*; *Design Report*; *Code Values*).
 
-![Project Settings with the Code Values panel](images/settings.png)
+![Project Settings: the sections, the form, and the code pack's tables in Properties](images/settings.png)
 
 ## Layout
 
-- **Toolbar:** the **Project type** (Building / Special Structure). Changing it asks *Make this
-  project a ...?*; the old Part 5 folder is kept but no longer used. **Reset Combinations to
-  BNBC 2020...** replaces the combinations (with confirmation; undoable).
-- **Left:** the sections. **Middle:** the form of the section. **Right:** the **Code Values**
-  panel: the values SAEngine takes from the BNBC tables for your site, occupancy and system.
-  Values you override are marked *; hover a value for its source.
+- **Left of the window:** the sections (**Project**, **Occupancy**, **Construction**, **Site**,
+  **Seismic**, **Wind**, **Area Loads**, **Load Patterns**, **Load Combinations**, **Crane
+  Runways**, **Bridges and Special Structures**, **Analysis Model**, **Foundation**,
+  **Drawings**, **Detailing**, **Design Report**, **IFC Export**, **Units**, **Code Values**).
+  **Middle:** the form of the section.
+- **Properties** (right): the design code pack and buttons for its tables (*Locations*, *Zone
+  coefficients*, *Area loads*, *Combinations*, *Concrete*, ...). Click one to read the table.
+- **Ribbon:** **Code & Packs › View** has the **Project type** (Building / Special Structure;
+  changing it asks *Make this project a ...?* and keeps the old Part 5 folder) and the **Design
+  code**. The other tabs follow the section: **Loads**, **Seismic & Wind**, **Foundation**,
+  **Drawings & Report**, **Overrides** and the shared **Checks**, **Units** and **Audit**.
+- Values you override are marked; hover a value for its source and clause.
 
 ## Sections and fields
 
@@ -24,17 +34,18 @@ sidebar or *SAEngine: Project Settings*.
 Name, Project number, Client, Structural engineer, Address. They appear in the report and in
 the drawing title block.
 
-### Codes
-| Field | Choices |
-| --- | --- |
-| Loads and general | BNBC 2020 (fixed) |
-| Concrete | **BNBC 2020 Part 6 Chapter 6** (default) or ACI 318-19 |
-| Steel | **BNBC 2020 Part 6 Chapter 10** (default) or AISC 360-22 |
-| Design method | Strength design (LRFD), fixed |
+### Design code
+The code pack is chosen in **Code & Packs › View › Design code** (and in the New Project
+wizard). BNBC 2020 is built in; the Packages page installs the others. The pack sets the loads,
+combinations, design clauses, least f′c and greatest fy, and the clause text the report cites.
+With BNBC 2020 the concrete design follows BNBC 2020 Part 6 Chapter 6 (based on ACI 318) and the
+steel design Part 6 Chapter 10 (based on AISC 360), in strength design.
 
-The design checks use ACI 318-19 clauses and factors. BNBC 2020 Part 6 Chapter 6 is based on an
-earlier ACI 318 and gives the same or less strict values (for example one-way shear
-Vc = 0.17λ√f'c bw d, Eq 6.6.49, without the size factor).
+### Construction
+**Construction type** (fire resistance, Types I-A to II-E), the **Concrete aggregate**
+(siliceous, carbonate, lightweight, brick chips), **Crossing beam bars at joints** (*Auto*: the
+deeper beam, then the longer span keeps its bottom bars low; or *X beams main*, *Y beams main*,
+*Same layer (flagged)*) and the **Fire separation distance**.
 
 ### Occupancy
 - **Building use:** Residential (default), Office, Educational, Health care, Assembly, Retail,
@@ -43,22 +54,9 @@ Vc = 0.17λ√f'c bw d, Eq 6.6.49, without the size factor).
   factors and the allowable storey drift.
 
 ### Site
-- **Location:** one of ten BNBC towns, which give the seismic zone and the basic wind speed, or
-  *Custom (enter Z and V)*:
-
-| Town | Zone | Z | V (m/s) |
-| --- | --- | --- | --- |
-| Dhaka | 2 | 0.20 | 65.7 |
-| Chattogram | 3 | 0.28 | 80.0 |
-| Cox's Bazar | 3 | 0.28 | 80.0 |
-| Khulna | 1 | 0.12 | 73.3 |
-| Rajshahi | 1 | 0.12 | 49.2 |
-| Sylhet | 4 | 0.36 | 61.1 |
-| Barishal | 1 | 0.12 | 78.7 |
-| Rangpur | 3 | 0.28 | 65.3 |
-| Mymensingh | 4 | 0.36 | 67.4 |
-| Cumilla | 2 | 0.20 | 61.4 |
-
+- **Location:** one of the code pack's towns (for BNBC 2020 the district towns, e.g. *Dhaka
+  (zone 2, 65.7 m/s)*, *Chattogram (zone 3, 80 m/s)*, *Sylhet (zone 4, 61.1 m/s)*), which give
+  the seismic zone and the basic wind speed, or *Custom (enter Z and V)*.
 - **Site class source:** *From the soil report* (default; the softest class of the
   boreholes, see [Part 1](01-soil-report.md)) or *Entered*.
 - **Site class:** SA to SE (default SD), used when entered or when there is no soil report.
@@ -108,10 +106,33 @@ BNBC 2020 minimum of 2.0 kN/m² for residential*).
 > load (`areaLoad` in `floor-plan.json`, written by the importers when a model's slabs have
 > different loads); there is no field for it in the editor in this version.
 
+### Load Patterns
+The project's own load cases, beside the built-in D (dead, with the self-weight), SD
+(superimposed dead), L (live) and Lr (roof live): equipment, construction or special loads.
+**Add Load Pattern** gives each an **Id** (its case code, e.g. *EQP*), a **Name**, a **Type**
+(Dead, Superimposed dead, Live, Roof live, Wind, Seismic or Other) and a **Self-weight
+multiplier**. Open it from this section, or **Loads › Patterns › Load Patterns...** on the
+Settings, Floor Plan and FEM ribbons. *(after Alpha 3)*
+
+![Project Settings › Load Patterns](images/load-patterns.png)
+
+- Member and point loads (Floor Plan › Loads) and an area load's *Other load* can go to any
+  pattern. Each pattern becomes its own case in the analysis.
+- The type sets how a pattern combines: generated combinations give it the factor of its type
+  (Dead takes D's, Live takes L's, and so on); an **Other** pattern gets only the factors you enter
+  under **Factors on the Load Patterns** in Load Combinations.
+- The self-weight multiplier adds load, not mass; the type sets the seismic weight share.
+- Deleting a pattern that still has loads is refused. Renaming an id follows into the
+  combinations and the area loads. Case codes the program forms itself (D, L, EX, ...) are
+  refused as ids.
+
 ### Load Combinations
-Each combination has a name and the factors of the cases **D, L, Lr, WX, WY, EX, EY, T, F**
-(D also applies to SD; F follows D when left empty). New projects get the BNBC 2020
-strength combinations (Part 6, 2.7.3), expanded to ±X and ±Y for wind and earthquake:
+Each combination has a name and the factors of the cases **D, L, Lr, Wx, Wy, Ex, Ey, T, ST, CS,
+F, H, FaX, FaY, S** (D also applies to SD; F follows D when left empty; hover a heading for its
+meaning). **Factors on the Load Patterns** below adds a column per load pattern. **Generate
+from BNBC 2020** replaces the combinations with the pack's set (with confirmation; undoable). New
+projects get the BNBC 2020 strength combinations (Part 6, 2.7.3), expanded to ±X and ±Y for
+wind and earthquake:
 
 - 1.4D
 - 1.2D + 1.6L + 0.5Lr
@@ -160,6 +181,12 @@ combinations used for foundation bearing are built in by 9 Substructure.
 **Allowable bearing override qa** (kPa; empty: from the soil report), **Soil unit weight γ**
 (18 kN/m³) and **Ground level** (0 mm).
 
+### Units
+**Unit system** SI or US customary, and for US customary the unit of each quantity (lengths and
+levels in ft or in, member sizes in in or ft, forces in kip or lbf, stresses in ksi or psi, area
+loads in psf or ksf, moments, line loads, unit weights, volumes, speeds). Only the display and the
+inputs change.
+
 ### Drawings
 Firm, Engineer, Drawn by, Checked by, Approved by, Project number, status (default *FOR
 REVIEW*), revisions, **Sheet size** (A1, A2, A3; default A1), scales (plans 1:100, slab plans
@@ -167,9 +194,16 @@ REVIEW*), revisions, **Sheet size** (A1, A2, A3; default A1), scales (plans 1:10
 bars** (on) and **BOQ reinforcement** (*Measured by the BOQ's rules* or *From the bar bending
 schedule*).
 
-## Code Values panel
+## Code Values
 
-Seismic zone, Z (Table 6.2.14), basic wind speed V (Table 6.2.8), seismic and wind importance
+**Code Values** lists every value of the code pack by table (factors, concrete, detailing,
+serviceability, combinations, seismic, wind, foundations, fire, planning and more). Each shows
+the pack's value in grey, its clause where the pack gives one, and a field for the project's
+own value. Leave the field empty and the pack's value applies. Every run uses the overrides, and
+the design report lists them. Values marked *generic default* are not given by the code pack
+(SAEngine practice; hover the mark for its source).
+
+The values that matter most for a building: seismic zone, Z (Table 6.2.14), basic wind speed V (Table 6.2.8), seismic and wind importance
 factors (Tables 6.2.17 and 6.2.9), R, Ω0, Cd (Table 6.2.19), the site class (Table 6.2.13, *from
 1 Soil Report* when used) and the wind exposure.
 
@@ -182,9 +216,7 @@ factors (Tables 6.2.17 and 6.2.9), R, Ω0, Cd (Table 6.2.19), the site class (Ta
 
 ## Not confirmed
 
-- The section names are shown as rendered in the app (*Project, Codes, Occupancy, Site,
-  Seismic, Wind, Area Loads, Load Combinations, Analysis Model, Foundation, Drawings*); some field
-  labels inside the advanced analysis options were read from the schema and may be worded
-  slightly differently on screen.
+- Some field labels inside the advanced analysis options were read from the schema and may be
+  worded slightly differently on screen.
 - Per-slab area loads (*Floors* applies "unless the floor plan says otherwise") can only be set by
-  the importers or in the JSON file; the floor plan editor shows no field for them.
+  the importers or in the JSON file; the floor plan shows no field for them.
