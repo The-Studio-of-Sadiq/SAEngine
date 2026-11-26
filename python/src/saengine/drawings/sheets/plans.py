@@ -92,6 +92,12 @@ def _level_points(building: Building, level: Level) -> list[Point]:
     pts: list[Point] = []
     pts += [(g.position, y.position) for g in building.grids_x for y in building.grids_y[:1]]
     pts += [(x.position, g.position) for g in building.grids_y for x in building.grids_x[:1]]
+    for a in building.grids_other:
+        if a.circle:
+            pts += [(a.origin[0] - a.radius, a.origin[1] - a.radius)]
+            pts += [(a.origin[0] + a.radius, a.origin[1] + a.radius)]
+        else:
+            pts += list(a.segment())
     for c in building.columns:
         if c.bottom < z + EPS and c.top > z - EPS:
             pts += c.outline()
@@ -131,6 +137,7 @@ def grids(view: View, building: Building, bbox: tuple[float, float, float, float
             view.circle(c, r, "S-GRID-BUBBLE")
             view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
             view.text(g.label, c, TEXT_LARGE, "MC", "S-GRID-BUBBLE")
+    other_grids(view, building)
     xs = sorted({g.position for g in building.grids_x})
     ys = sorted({g.position for g in building.grids_y})
     if len(xs) > 1:
@@ -146,6 +153,29 @@ def grids(view: View, building: Building, bbox: tuple[float, float, float, float
             view.dim((x0, ys[0]), (x0, ys[-1]), DIM_2, angle=90)
             dims += 1
     return dims
+
+
+def other_grids(view: View, building: Building) -> None:
+    """The lines of the other grid systems at their own angle: straight lines with a bubble
+    past each end along the line, rings with one bubble outside, between the rays."""
+    r = view.real(BUBBLE)
+    for a in building.grids_other:
+        if a.circle:
+            view.circle(a.origin, a.radius, "S-GRID")
+            u = math.radians(a.bubble_angle)
+            d = a.radius + r
+            centres = [(a.origin[0] + d * math.cos(u), a.origin[1] + d * math.sin(u))]
+        else:
+            start, end = a.segment()
+            view.line(start, end, "S-GRID")
+            dx, dy = a.direction
+            centres = [(end[0] + r * dx, end[1] + r * dy)]
+            if a.role != "ray":  # a ray's start is the centre, where the rays meet
+                centres.append((start[0] - r * dx, start[1] - r * dy))
+        for c in centres:
+            view.circle(c, r, "S-GRID-BUBBLE")
+            view.reserve([(c[0] - r, c[1] - r), (c[0] + r, c[1] + r)])
+            view.text(a.label, c, TEXT_LARGE, "MC", "S-GRID-BUBBLE")
 
 
 def elevation_grids(view: View, lines: Iterable[tuple[str, float]], z0: float, z1: float) -> None:

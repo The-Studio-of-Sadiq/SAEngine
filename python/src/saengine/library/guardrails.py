@@ -305,26 +305,26 @@ LIST_KEYS = {"materials": "materials", "objects": "objects"}
 # ── member sizes against their spans (floor plan + object types) ──
 
 
-def _grid_positions(plan: dict[str, Any]) -> dict[str, dict[str, float]]:
-    grids = plan.get("grids") or {}
-    out: dict[str, dict[str, float]] = {}
-    for axis in ("x", "y"):
-        out[axis] = {
-            str(g.get("label")): float(g["position"])
-            for g in grids.get(axis) or []
-            if isinstance(g, dict) and isinstance(g.get("position"), int | float)
-        }
-    return out
+def _grid_positions(plan: dict[str, Any]) -> Any:
+    """The plan's grid geometry (every grid system), or None when the grids are unreadable."""
+    from saengine.library.grid_geometry import GridGeometry
+
+    try:
+        return GridGeometry(plan.get("grids") or {})
+    except (TypeError, ValueError, KeyError):
+        return None
 
 
-def _where(grids: dict[str, dict[str, float]], ref: Any) -> tuple[float, float] | None:
+def _where(grids: Any, ref: Any) -> tuple[float, float] | None:
     """Where a floor plan point ``{x, y, dx, dy}`` is [mm]; None when its lines are missing."""
-    if not isinstance(ref, dict):
+    from saengine.library.grid_geometry import GridError
+
+    if grids is None or not isinstance(ref, dict):
         return None
-    x, y = grids["x"].get(str(ref.get("x"))), grids["y"].get(str(ref.get("y")))
-    if x is None or y is None:
+    try:
+        return grids.point(ref)
+    except (GridError, TypeError, ValueError):
         return None
-    return x + float(ref.get("dx") or 0), y + float(ref.get("dy") or 0)
 
 
 def _types(objects: Any) -> dict[str, dict[str, Any]]:

@@ -1924,6 +1924,11 @@ def export_e2k(
             plan = FloorPlan.model_validate_json(plan_text)
             grids = [("X", g.label, g.position) for g in plan.grids.x]
             grids += [("Y", g.label, g.position) for g in plan.grids.y]
+            if plan.grids.systems:
+                notes.append(
+                    "Only the main X/Y grid lines are exported; the members on the other grid "
+                    "systems (rotated, radial, angled) are placed by their coordinates."
+                )
         except ValidationError:
             report_note = "The floor plan has errors: no grid lines exported."
             notes.append(report_note)

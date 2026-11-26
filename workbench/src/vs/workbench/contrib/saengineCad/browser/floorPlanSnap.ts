@@ -7,6 +7,7 @@ import type { CadEntitySpec, CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { parseList } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { GridGeometry, isCircle, segment as axisSegment } from '../../../services/saengineProject/common/gridGeometry.js';
 import { gridsOf } from './floorPlanDrawing.js';
 import { resolvePoint } from './floorPlanEdits.js';
 
@@ -134,11 +135,10 @@ function columnPoints(layout: unknown, story: string): { readonly id: string; re
 export function snapLinear(layout: unknown, story: string, point: CadPoint, tolerance: number, from?: CadPoint, extra: readonly ISnapSegment[] = []): ISnap {
 	const segments = [...snapSegments(layout, story), ...extra];
 	const grids = gridsOf(layout);
+	const geometry = GridGeometry.ofPlan(layout);
 	const candidates: ISnap[] = [];
-	for (const [, x] of grids.x) {
-		for (const [, y] of grids.y) {
-			candidates.push({ kind: 'node', point: [x, y], exact: false });
-		}
+	for (const { at: node } of geometry.intersections()) {
+		candidates.push({ kind: 'node', point: node, exact: false });
 	}
 	for (const column of columnPoints(layout, story)) {
 		candidates.push({ kind: 'endpoint', point: column.point, on: column.id, exact: true });
@@ -150,6 +150,11 @@ export function snapLinear(layout: unknown, story: string, point: CadPoint, tole
 		const reach = Math.max(x1 - x0, y1 - y0, 1) * 10; // grid lines reach well past the grid
 		xs.forEach(x => gridLines.push({ id: '', start: [x, y0 - reach], end: [x, y1 + reach] }));
 		ys.forEach(y => gridLines.push({ id: '', start: [x0 - reach, y], end: [x1 + reach, y] }));
+	}
+	// The straight lines of the other grid systems (rings are snapped to at their intersections).
+	for (const axis of geometry.axes.filter(a => a.system && !isCircle(a))) {
+		const [start, end] = axisSegment(axis);
+		gridLines.push({ id: '', start, end });
 	}
 	segments.forEach((segment, i) => {
 		candidates.push({ kind: 'endpoint', point: segment.start, on: segment.id, exact: true });
@@ -275,8 +280,7 @@ export function unsupportedBeams(layout: unknown, story: string, ids?: ReadonlyS
 export function nearMisses(layout: unknown, story: string, reach = 50): string[] {
 	const segments = snapSegments(layout, story);
 	const columns = columnPoints(layout, story);
-	const grids = gridsOf(layout);
-	const nodes: CadPoint[] = [...grids.x.values()].flatMap(x => [...grids.y.values()].map(y => [x, y] as CadPoint));
+	const nodes: CadPoint[] = GridGeometry.ofPlan(layout).intersections().map(i => i.at);
 	const problems: string[] = [];
 	const model = isObject(layout) ? layout : {};
 	for (const beam of list(model.beams).filter(b => b.story === story)) {

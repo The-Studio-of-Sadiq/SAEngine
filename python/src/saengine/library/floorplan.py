@@ -14,6 +14,7 @@ Units are fixed SI: positions, elevations and offsets in mm, rotations in degree
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -47,6 +48,105 @@ class GridLine(_Model):
     position: Mm = Field(description="Distance from the origin along the axis [mm].")
 
 
+class RadialRay(_Model):
+    """A straight grid line of a radial system, from the centre out at an angle."""
+
+    label: Label
+    angle: float = Field(description="Angle from the system's 0° direction, anticlockwise [°].")
+
+
+class RadialRing(_Model):
+    """A circular grid line of a radial system."""
+
+    label: Label
+    radius: Mm = Field(gt=0, description="Radius about the centre [mm].")
+
+
+class FreeGridLine(_Model):
+    """A single angled grid line: through two points, or from a point at an angle."""
+
+    label: Label
+    x1: Mm = Field(title="Start X", description="First point [mm]; its bubble is here.")
+    y1: Mm = Field(title="Start Y", description="First point [mm].")
+    x2: Mm | None = Field(default=None, title="End X", description="Second point [mm].")
+    y2: Mm | None = Field(default=None, title="End Y", description="Second point [mm].")
+    angle: float | None = Field(
+        default=None,
+        description="Instead of an end point: the line's direction, anticlockwise from X [°].",
+    )
+    length: Mm = Field(default=20000, gt=0, description="Drawn length with an angle [mm].")
+
+    def end(self) -> tuple[float, float]:
+        """The second point: given, or ``length`` along ``angle``."""
+        if self.x2 is not None and self.y2 is not None:
+            return self.x2, self.y2
+        a = math.radians(self.angle or 0.0)
+        return self.x1 + self.length * math.cos(a), self.y1 + self.length * math.sin(a)
+
+    @model_validator(mode="after")
+    def _ends(self) -> FreeGridLine:
+        has_end = self.x2 is not None and self.y2 is not None
+        if (self.x2 is None) != (self.y2 is None):
+            raise ValueError(f"grid line {self.label}: give both End X and End Y")
+        if has_end == (self.angle is not None):
+            raise ValueError(f"grid line {self.label}: give an end point or an angle (one of them)")
+        if has_end and (self.x1, self.y1) == (self.x2, self.y2):
+            raise ValueError(f"grid line {self.label}: its two points are the same")
+        return self
+
+
+class GridSystem(_Model):
+    """A grid system beyond the main orthogonal one (IfcGrid with its own placement).
+
+    ``orthogonal``: X and Y lines like the main grid, in the system's own axes, turned by
+    ``angle`` about the origin. ``radial``: rays at angles and rings at radii about the origin
+    (the centre), the rays measured from ``angle``. ``lines``: single angled lines, each
+    through two points of the plan or from a point at an angle.
+    """
+
+    id: Id
+    name: str = Field(default="", description="A name for the system, e.g. 'Wing B'.")
+    kind: Literal["orthogonal", "radial", "lines"] = Field(title="System type")
+    originX: Mm = Field(default=0, title="Origin X", description="Origin, or a radial centre [mm].")
+    originY: Mm = Field(default=0, title="Origin Y", description="Origin, or a radial centre [mm].")
+    angle: float = Field(
+        default=0.0, description="Rotation of the system's axes, anticlockwise from X [°]."
+    )
+    x: list[GridLine] = Field(
+        default_factory=list, title="X grid lines", description="Orthogonal: local x lines."
+    )
+    y: list[GridLine] = Field(
+        default_factory=list, title="Y grid lines", description="Orthogonal: local y lines."
+    )
+    rays: list[RadialRay] = Field(default_factory=list, description="Radial: the rays.")
+    rings: list[RadialRing] = Field(default_factory=list, description="Radial: the rings.")
+    lines: list[FreeGridLine] = Field(default_factory=list, description="Lines: the lines.")
+
+    def labels(self) -> list[str]:
+        groups = (self.x, self.y, self.rays, self.rings, self.lines)
+        return [g.label for group in groups for g in group]
+
+    @model_validator(mode="after")
+    def _kind(self) -> GridSystem:
+        used = {
+            "orthogonal": ("x", "y"),
+            "radial": ("rays", "rings"),
+            "lines": ("lines",),
+        }[self.kind]
+        for name in ("x", "y", "rays", "rings", "lines"):
+            if name not in used and getattr(self, name):
+                raise ValueError(f"grid system {self.id}: a {self.kind} system has no {name}")
+        for axis, lines in (("X", self.x), ("Y", self.y)):
+            positions = [g.position for g in lines]
+            if len(set(positions)) != len(positions):
+                raise ValueError(f"grid system {self.id}: two {axis} lines at the same position")
+        if len({round(r.angle % 360, 9) for r in self.rays}) != len(self.rays):
+            raise ValueError(f"grid system {self.id}: two rays at the same angle")
+        if len({r.radius for r in self.rings}) != len(self.rings):
+            raise ValueError(f"grid system {self.id}: two rings with the same radius")
+        return self
+
+
 class Grids(_Model):
     x: list[GridLine] = Field(
         default_factory=list,
@@ -58,19 +158,34 @@ class Grids(_Model):
         title="Y grid lines",
         description="Lines at y = position, labelled 1, 2, 3, ...",
     )
+    systems: list[GridSystem] = Field(
+        default_factory=list,
+        title="Grid systems",
+        description="More grid systems: rotated orthogonal, radial or single angled lines. "
+        "Labels are unique across every system, so a grid point names any two lines that cross.",
+    )
+
+    def labels(self) -> list[str]:
+        """Every grid line label, of the main grid and the other systems."""
+        return [g.label for g in self.x + self.y] + [
+            label for system in self.systems for label in system.labels()
+        ]
 
     @model_validator(mode="after")
     def _distinct(self) -> Grids:
-        labels = [g.label for g in self.x + self.y]
+        labels = self.labels()
         duplicates = sorted({label for label in labels if labels.count(label) > 1})
         if duplicates:
             raise ValueError(
-                f"grid labels must be unique across both axes: {', '.join(duplicates)}"
+                f"grid labels must be unique across all grid systems: {', '.join(duplicates)}"
             )
         for axis, lines in (("X", self.x), ("Y", self.y)):
             positions = [g.position for g in lines]
             if len(set(positions)) != len(positions):
                 raise ValueError(f"two {axis} grid lines are at the same position")
+        ids = [s.id for s in self.systems]
+        if len(set(ids)) != len(ids):
+            raise ValueError("grid system ids must be unique")
         return self
 
 
@@ -90,10 +205,15 @@ class Story(_Model):
 
 
 class GridPoint(_Model):
-    """A grid intersection, optionally offset; follows the grid lines when they move."""
+    """A grid intersection, optionally offset; follows the grid lines when they move.
 
-    x: Label = Field(description="X grid line label, e.g. A.")
-    y: Label = Field(description="Y grid line label, e.g. 1.")
+    ``x`` and ``y`` name the two lines that cross: an X and a Y line of one orthogonal system,
+    a ray and a ring of a radial one, or any two lines of different directions. The offsets are
+    along the plan's X and Y axes.
+    """
+
+    x: Label = Field(description="First grid line label, e.g. A (an X line, a ray).")
+    y: Label = Field(description="Second grid line label, e.g. 1 (a Y line, a ring).")
     dx: Mm = Field(default=0, title="Offset X")
     dy: Mm = Field(default=0, title="Offset Y")
 
@@ -396,15 +516,16 @@ class FloorPlan(_Model):
                     f"{master.similarTo}; make it similar to {master.similarTo}"
                 )
 
-        x_labels = {g.label for g in self.grids.x}
-        y_labels = {g.label for g in self.grids.y}
+        from saengine.library.grid_geometry import GridError, GridGeometry
+
+        geometry = GridGeometry(self.grids)
         elevation = {s.id: s.elevation for s in self.stories}
 
         def point(member: _Placed, p: GridPoint) -> None:
-            if p.x not in x_labels:
-                raise ValueError(f"{member.id}: no X grid line '{p.x}'")
-            if p.y not in y_labels:
-                raise ValueError(f"{member.id}: no Y grid line '{p.y}'")
+            try:
+                geometry.intersection(p.x, p.y)
+            except GridError as exc:
+                raise ValueError(f"{member.id}: {exc}") from None
 
         def story(member: _Placed, story_id: str) -> None:
             if story_id not in elevation:
@@ -419,10 +540,10 @@ class FloorPlan(_Model):
             raise ValueError("tower ids must be unique")
         for tower in self.towers:
             for corner in tower.boundary:
-                if corner.x not in x_labels:
-                    raise ValueError(f"tower {tower.id}: no X grid line '{corner.x}'")
-                if corner.y not in y_labels:
-                    raise ValueError(f"tower {tower.id}: no Y grid line '{corner.y}'")
+                try:
+                    geometry.intersection(corner.x, corner.y)
+                except GridError as exc:
+                    raise ValueError(f"tower {tower.id}: {exc}") from None
 
         for underlay in self.underlays:
             if underlay.story not in elevation:

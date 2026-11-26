@@ -104,7 +104,11 @@ def grid_set(view: ProjectView, p: GridSetParams) -> ActionResult:
             refuse(f"The {name.upper()} spacings must be positive [mm].", name, value)
     x = _lines("x", p.x, p.origin[0])
     y = _lines("y", p.y, p.origin[1])
-    new_x, new_y = {g["label"] for g in x}, {g["label"] for g in y}
+    from saengine.library.grid_geometry import GridGeometry
+
+    systems = (plan.get("grids") or {}).get("systems") or []
+    others = {a.label for a in GridGeometry({"systems": systems}).axes}
+    new_x, new_y = {g["label"] for g in x} | others, {g["label"] for g in y} | others
     stranded = [
         m["id"]
         for g in P.GROUPS
@@ -122,7 +126,7 @@ def grid_set(view: ProjectView, p: GridSetParams) -> ActionResult:
             "x",
             None,
         )
-    plan["grids"] = {"x": x, "y": y}
+    plan["grids"] = {"x": x, "y": y, **({"systems": systems} if systems else {})}
     view.put(FLOOR_PLAN, plan)
     return ActionResult(
         message=f"Grid set: X {', '.join(g['label'] for g in x)}; Y "

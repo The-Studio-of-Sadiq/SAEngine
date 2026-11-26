@@ -822,12 +822,17 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
     Elements generated earlier are replaced; the building model's own additions (and elements
     without a ``source``, from before additions existed) are kept from ``previous``.
     """
-    x = {g.label: g.position for g in plan.grids.x}
-    y = {g.label: g.position for g in plan.grids.y}
+    from saengine.library.grid_geometry import GridGeometry
+
+    grid = GridGeometry(plan.grids)
     level = {s.id: s.elevation for s in plan.stories}
 
     def at(p: GridPoint) -> list[float]:
-        return [x[p.x] + p.dx, y[p.y] + p.dy]
+        return list(grid.point(p))
+
+    def turned(p: GridPoint, rotation: float) -> float:
+        """A member's own rotation plus its grid system's (a column on a 30° grid turns 30°)."""
+        return rotation + grid.orientation(p.x) if grid.orientation(p.x) else rotation
 
     elements: list[ColumnElement | BeamElement | WallElement | SlabElement | FootingElement] = []
     for c in plan.columns:
@@ -839,7 +844,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 position=at(c.at),
                 bottom=level[c.base],
                 top=level[c.top],
-                rotation=c.rotation,
+                rotation=turned(c.at, c.rotation),
                 modifiers=c.modifiers,
                 designOverwrites=c.designOverwrites,
             )
@@ -891,7 +896,7 @@ def generate(plan: FloorPlan, stamp: str, previous: BuildingModel | None = None)
                 source=f.id,
                 position=at(f.at),
                 elevation=level[f.story],
-                rotation=f.rotation,
+                rotation=turned(f.at, f.rotation),
             )
         )
     own = [e for e in (previous.elements if previous else []) if e.source is None]

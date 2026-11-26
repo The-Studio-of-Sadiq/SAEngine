@@ -27,6 +27,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { newGridSystem } from '../../../services/saengineProject/common/gridSystems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -3523,6 +3524,74 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 			this.fitPending = true;
 			this.write(newFloorPlan(legacy));
 		}
+	}
+
+	/**
+	 * Grid Systems: adds a rotated orthogonal grid, a radial grid or a single angled line (by two
+	 * points, or a point and an angle) to the floor plan, then opens Grids & Stories, where every
+	 * system's lines are edited. One flow: the type, then its numbers, then the plan draws it.
+	 */
+	async openGridSystems(): Promise<void> {
+		type Kind = 'orthogonal' | 'radial' | 'twoPoints' | 'pointAngle' | 'edit';
+		const items: (IQuickPickItem & { kind: Kind })[] = [
+			{ kind: 'orthogonal', label: localize('gridSys.orthogonal', "Rotated Orthogonal Grid"), detail: localize('gridSys.orthogonalDetail', "X and Y lines at an angle about an origin (a skewed wing of the building).") },
+			{ kind: 'radial', label: localize('gridSys.radial', "Radial Grid"), detail: localize('gridSys.radialDetail', "Rays at angles and rings at radii about a centre (a curved or circular plan).") },
+			{ kind: 'twoPoints', label: localize('gridSys.twoPoints', "Angled Grid Line by Two Points"), detail: localize('gridSys.twoPointsDetail', "One grid line through two points of the plan.") },
+			{ kind: 'pointAngle', label: localize('gridSys.pointAngle', "Angled Grid Line by Point and Angle"), detail: localize('gridSys.pointAngleDetail', "One grid line from a point at an angle.") },
+			{ kind: 'edit', label: localize('gridSys.edit', "Edit Grid Systems..."), detail: localize('gridSys.editDetail', "Open Grids & Stories: every grid system, its type, origin, angle and lines.") },
+		];
+		const picked = await this.quickInputService.pick(items, { placeHolder: localize('gridSys.placeholder', "Add a grid system to the floor plan") });
+		if (!picked) {
+			return;
+		}
+		if (picked.kind === 'edit') {
+			this.openGrids();
+			return;
+		}
+		const numbers = async (prompt: string, value: string, count?: number): Promise<number[] | undefined> => {
+			const text = await this.quickInputService.input({
+				prompt,
+				value,
+				validateInput: async v => {
+					const parts = v.split(',').map(p => Number(p.trim()));
+					return parts.some(p => !Number.isFinite(p)) || (count !== undefined && parts.length !== count) || !v.trim()
+						? (count === 2 ? localize('gridSys.twoNumbers', "Enter two numbers separated by a comma.") : localize('gridSys.numbers', "Enter numbers separated by commas."))
+						: undefined;
+				},
+			});
+			return text === undefined ? undefined : text.split(',').map(p => Number(p.trim()));
+		};
+		const origin = await numbers(picked.kind === 'radial' ? localize('gridSys.centre', "Centre X, Y (mm)") : picked.kind === 'orthogonal' ? localize('gridSys.origin', "Origin X, Y (mm): where the first X and Y lines cross") : localize('gridSys.start', "First point X, Y (mm)"), '0, 0', 2);
+		if (!origin) {
+			return;
+		}
+		const layout = parse(this.planModel) as Record<string, unknown>;
+		const grids = (typeof layout.grids === 'object' && layout.grids !== null ? layout.grids : {}) as Record<string, unknown>;
+		let system: Record<string, unknown> | undefined;
+		const [originX, originY] = origin;
+		if (picked.kind === 'orthogonal') {
+			const angle = await numbers(localize('gridSys.angle', "Angle of the system's X axis (°, anticlockwise from X)"), '30', 1);
+			const xs = angle && await numbers(localize('gridSys.xSpacings', "X bay spacings (mm)"), '6000, 6000');
+			const ys = xs && await numbers(localize('gridSys.ySpacings', "Y bay spacings (mm)"), '5000, 5000');
+			system = angle && xs && ys ? newGridSystem(grids, { kind: 'orthogonal', originX, originY, angle: angle[0], xSpacings: xs, ySpacings: ys }) : undefined;
+		} else if (picked.kind === 'radial') {
+			const rays = await numbers(localize('gridSys.rays', "Ray angles (°, anticlockwise from X)"), '0, 30, 60, 90');
+			const rings = rays && await numbers(localize('gridSys.rings', "Ring radii (mm)"), '6000, 12000');
+			system = rays && rings ? newGridSystem(grids, { kind: 'radial', originX, originY, rayAngles: rays, ringRadii: rings.filter(r => r > 0) }) : undefined;
+		} else if (picked.kind === 'twoPoints') {
+			const end = await numbers(localize('gridSys.end', "Second point X, Y (mm)"), `${originX + 10000}, ${originY + 10000}`, 2);
+			system = end && (end[0] !== originX || end[1] !== originY) ? newGridSystem(grids, { kind: 'lines', originX, originY, x2: end[0], y2: end[1] }) : undefined;
+		} else {
+			const angle = await numbers(localize('gridSys.lineAngle', "Direction of the line (°, anticlockwise from X)"), '45', 1);
+			system = angle ? newGridSystem(grids, { kind: 'lines', originX, originY, lineAngle: angle[0] }) : undefined;
+		}
+		if (!system) {
+			return;
+		}
+		const systems = Array.isArray(grids.systems) ? grids.systems : [];
+		this.write({ ...layout, grids: { ...grids, systems: [...systems, system] } });
+		this.setNotice(localize('gridSys.added', "Grid system {0} added; edit its lines in Grids & Stories.", String(system.id)));
+		this.openGrids();
 	}
 
 	/**

@@ -390,11 +390,12 @@ def _members(plan: Any, types: dict[str, dict[str, Any]]) -> list[tuple[str, str
     from shapely import affinity
     from shapely.geometry import LineString, Polygon
 
-    xs = {g.label: g.position for g in plan.grids.x}
-    ys = {g.label: g.position for g in plan.grids.y}
+    from saengine.library.grid_geometry import GridGeometry
+
+    grid = GridGeometry(plan.grids)
 
     def at(p: Any) -> Point:
-        return xs[p.x] + p.dx, ys[p.y] + p.dy
+        return grid.point(p)
 
     out: list[tuple[str, str, str, Any]] = []
     for column in plan.columns:
@@ -405,7 +406,11 @@ def _members(plan: Any, types: dict[str, dict[str, Any]]) -> list[tuple[str, str
 
             shape = ShapelyPoint(x, y)
         else:
-            shape = affinity.translate(affinity.rotate(outline, column.rotation, (0, 0)), x, y)
+            shape = affinity.translate(
+                affinity.rotate(outline, column.rotation + grid.orientation(column.at.x), (0, 0)),
+                x,
+                y,
+            )
         out.append(("column", column.id, column.top, shape))
     for group, members in (("wall", plan.walls), ("beam", plan.beams)):
         for member in members:

@@ -388,6 +388,32 @@ def build_exchange(project: str | Path, *, rebar: bool = True) -> dict[str, Any]
                         "end": [_r(v) for v in end],
                     }
                 )
+        # The other grid systems: straight lines at their own angle (Revit line grids); rings
+        # (arc grids) are left to the plan.
+        from saengine.library.grid_geometry import GridGeometry
+
+        rings = 0
+        for a in GridGeometry(plan_json.get("grids") or {}).axes:
+            if not a.system:
+                continue
+            if a.circle:
+                rings += 1
+                continue
+            start, end = a.segment()
+            grids.append(
+                {
+                    "id": f"{a.system}:{a.label}",
+                    "name": a.label,
+                    "axis": None,
+                    "position": None,
+                    "start": [_r(v) for v in start],
+                    "end": [_r(v) for v in end],
+                }
+            )
+        if rings:
+            notes.append(
+                f"{rings} radial grid ring(s) not exported (Revit arc grids): kept in the plan."
+            )
     levels = [
         {"id": s.id, "name": s.name, "elevation": _r(s.elevation)}
         for s in sorted(building.stories, key=lambda s: s.elevation)
@@ -749,6 +775,29 @@ def preview_import(project: str | Path, path: str | Path) -> dict[str, Any]:
             continue
         seen_grids.add(match)
         old = grids[match]
+        if old.get("axis") is None:
+            # A line of another grid system: moved in Revit, it is edited in the plan's Grid
+            # Systems (a slanted line has no single position to move).
+            moved = any(
+                abs(float(a) - float(b)) > TOLERANCE
+                for key in ("start", "end")
+                for a, b in zip(old.get(key) or [], g.get(key) or [], strict=False)
+            )
+            if moved:
+                add(
+                    {
+                        "action": "modify",
+                        "target": "grid",
+                        "kind": "grid",
+                        "ref": match,
+                        "revitId": g.get("revitId"),
+                        "title": f"Grid line {old['name']} moved",
+                        "applicable": False,
+                        "reason": "lines of the other grid systems are edited in Grid Systems "
+                        "(05 Floor Plan)",
+                    }
+                )
+            continue
         if axis is None:
             add(
                 {

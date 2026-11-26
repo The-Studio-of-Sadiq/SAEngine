@@ -7,6 +7,7 @@ import type { CadPoint } from '@saengine/cad-editor';
 import { localize } from '../../../../nls.js';
 import { polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { formatPoint, storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
+import { GridGeometry } from '../../../services/saengineProject/common/gridGeometry.js';
 import { distanceToSegment, gridsOf, ID_CHARS, IMemberShape, insidePolygon, MemberGroup, planLabel } from './floorPlanDrawing.js';
 
 /*
@@ -78,18 +79,18 @@ function gridPoint(node: Pick<IGridNode, 'x' | 'y'>): Json {
 	return { x: node.x, y: node.y };
 }
 
-/** The grid intersection within `tolerance` of `point`, if any (the nearest one). */
+/**
+ * The grid intersection within `tolerance` of `point`, if any (the nearest one), on any grid
+ * system: the main grid's X and Y lines, a rotated system's, a ray and a ring, an angled line.
+ */
 export function snapToGrid(layout: unknown, point: CadPoint, tolerance: number): IGridNode | undefined {
-	const grids = gridsOf(layout);
 	let best: IGridNode | undefined;
 	let bestDistance = tolerance;
-	for (const [x, px] of grids.x) {
-		for (const [y, py] of grids.y) {
-			const distance = Math.hypot(point[0] - px, point[1] - py);
-			if (distance <= bestDistance) {
-				best = { x, y, point: [px, py] };
-				bestDistance = distance;
-			}
+	for (const { first, second, at } of GridGeometry.ofPlan(layout).intersections()) {
+		const distance = Math.hypot(point[0] - at[0], point[1] - at[1]);
+		if (distance <= bestDistance) {
+			best = { x: first, y: second, point: at };
+			bestDistance = distance;
 		}
 	}
 	return best;
@@ -308,10 +309,7 @@ export function resolvePoint(layout: unknown, value: unknown): CadPoint | undefi
 	if (!isObject(value)) {
 		return undefined;
 	}
-	const grids = gridsOf(layout);
-	const x = grids.x.get(value.x as string);
-	const y = grids.y.get(value.y as string);
-	return x === undefined || y === undefined ? undefined : [x + (Number(value.dx) || 0), y + (Number(value.dy) || 0)];
+	return GridGeometry.ofPlan(layout).point(value);
 }
 
 /** The point a member is moved by: a column's or footing's location, a line's start, a slab's first corner. */
