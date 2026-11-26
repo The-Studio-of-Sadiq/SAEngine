@@ -29504,6 +29504,18 @@
      "size": "small",
      "description": "Verify bar spacing and stress for crack width control.",
      "inspiredBy": ""
+    },
+    {
+     "label": "Cracked Deflection",
+     "size": "small",
+     "description": "Long-term cracked deflection of the FE slabs per design strip, against the code's span limits.",
+     "inspiredBy": "SAFE"
+    },
+    {
+     "label": "Crack Widths",
+     "size": "small",
+     "description": "Crack widths of the FE slabs at mid-span and supports per design strip, against the exposure's limit.",
+     "inspiredBy": "SAFE"
     }
    ]
   },

@@ -129,7 +129,7 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 | Floor vibration | ? | ? | ? | ? | ? | Built, untested | python/src/saengine/fem/floor_vibration.py | 8 | AISC DG11 example |
 | Floor response spectra | ? | ? | ? | – | ? | Built, untested | python/src/saengine/fem/floor_spectra.py | 8 | Code formula by hand |
 | Wind comfort (top-floor acceleration) | ? | – | ? | – | ? | Built, untested | python/src/saengine/fem/wind_comfort.py | 8 | Hand calculation |
-| Cracked nonlinear slab analysis | ? | – | – | ✓ | ✓ | Missing (planned as `fem.crackedSlabDeflection`) | workbench/src/vs/workbench/contrib/saengineFem/browser/femPlannedFeatures.ts | 8 | Published long-term slab deflection |
+| Cracked nonlinear slab analysis | ? | – | – | ✓ | ✓ | Missing. The long-term cracked deflection of FE slabs scales the linear analysis per design strip (#302); there is no nonlinear reanalysis with cracked shells | python/src/saengine/design/slab_service.py | 8 | Published long-term slab deflection |
 | CFD wind | – | – | – | – | ✓ | Built, untested (optional OpenFOAM) | python/src/saengine/fem/cfd_wind/ | 8 | CAARC standard tall building |
 
 ### 4. Reinforced concrete design
@@ -155,8 +155,8 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 | Two-way coefficient method | – | – | – | – | ? | Verified (DN1) | python/src/saengine/verification/cases/correctness.py | 8 | Code table values |
 | Punching shear (moment transfer, studs, openings) | ✓ | – | add-on | ✓ | ✓ | Verified (D5, DX1) | python/src/saengine/verification/cases/design.py, python/src/saengine/verification/cases/beta.py; python/tests/test_design_punching.py | 8 | Textbook |
 | Beam deflection (Ie, long term) | ? | – | ? | ✓ | ✓ | Verified (DN3) | python/src/saengine/verification/cases/correctness.py; python/tests/test_design_deflection.py | 8 | Branson by hand |
-| Long-term cracked FE slab deflection | ? | – | – | ✓ | ✓ | Missing (planned) | workbench/src/vs/workbench/contrib/saengineFem/browser/femPlannedFeatures.ts | 8 | Published flat-plate long-term deflection |
-| Crack width | – | – | – | ? | ✓ | Partial. Built and checked for a tank wall (DK2); crack widths of FE slabs are planned | python/src/saengine/design/crack_control.py; python/src/saengine/verification/cases/tanks.py | 8 | EN 1992 crack-width example |
+| Long-term cracked FE slab deflection | ? | – | – | ✓ | ✓ | Built, untested (#302; known-answer hand cases only): per design strip, Ie from the bars provided and the code pack's long-term method | python/src/saengine/design/slab_service.py; python/tests/test_slab_service.py | 8 | Published flat-plate long-term deflection |
+| Crack width | – | – | – | ? | ✓ | Partial. Checked for a tank wall (DK2); FE slabs per design strip and shell by the code pack's method (#302), checked by hand cases only; beams and walls not yet | python/src/saengine/design/crack_control.py; python/src/saengine/verification/cases/tanks.py; python/src/saengine/design/slab_service.py; python/tests/test_slab_service.py | 8 | EN 1992 crack-width example |
 | Required reinforcement output | ✓ | ✓ | ✓ | ✓ | ✓ | Verified (DR1–DR5) | python/src/saengine/verification/cases/design_mode.py; python/src/saengine/design/required.py | 8 | Hand calculation |
 | Proposed bar layout | add-on | – | add-on | ✓ | ✓ | Verified (bars proposed in DR1, DR4) | python/src/saengine/design/proposal.py, python/src/saengine/design/bars.py | 8 | Hand bar selection |
 | Stairs | – | – | ? | – | ? | Verified (flight by hand) | python/tests/test_design_stairs.py; python/src/saengine/design/stairs.py | 8 | Textbook stair |
@@ -280,16 +280,15 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 | Status | Rows |
 |---|---|
 | Verified | 76 |
-| Built, untested | 92 |
+| Built, untested | 93 |
 | Partial | 14 |
-| Missing | 8 |
+| Missing | 7 |
 
-The 8 Missing rows are:
+The 7 Missing rows are:
 - non-orthogonal grids
 - user point springs
 - Ritz vectors
 - cracked nonlinear slab analysis
-- long-term cracked FE slab deflection
 - moment end-plate connections
 - SAFE .f2k exchange
 - Robot exchange
@@ -297,7 +296,7 @@ The 8 Missing rows are:
 **The 15 most important gaps for a practising RC building engineer in Bangladesh, in order:**
 1. ~~**Non-orthogonal grids are missing.**~~ Built in #300 (rotated, radial and angled grid systems); the New Project wizard still makes orthogonal grids only.
 2. **Load cases cannot be defined by the user.** The case set is fixed, member loads are limited to D/SD/L/Lr, and joint loads are restricted.
-3. **Long-term cracked deflection of FE slabs is missing.** Flat plates are common, and SAFE does this.
+3. **Long-term cracked deflection of FE slabs is built but unverified (#302).** It is checked by hand cases only; it needs a published flat-plate benchmark. SAFE does this.
 4. **P-Delta is unverified** against a closed-form amplification.
 5. **Response spectrum and modal checks cover only single-mass models.** There is no multi-storey CQC or modal-mass benchmark, and Ritz vectors are missing.
 6. **Rigid and semi-rigid diaphragms are unverified.** This includes the torsional response.
@@ -309,7 +308,7 @@ The 8 Missing rows are:
 12. **SAFE .f2k exchange is missing.**
 13. **Retaining and basement wall design is unverified.** Only the earth-pressure coefficients are tested.
 14. **Drawings and schedules are not checked against a hand-detailed sheet.** The only check is the bar bending schedule unit tests.
-15. **Crack widths of FE slabs are planned.** Water-tank walls are covered by DK2.
+15. **Crack widths of FE slabs are built but unverified (#302).** They are checked by hand cases only; water-tank walls are covered by DK2.
 
 **The 10 cheapest high-value verifications to do first:**
 1. **P-Delta:** cantilever column under axial and lateral load, against the closed-form amplification.

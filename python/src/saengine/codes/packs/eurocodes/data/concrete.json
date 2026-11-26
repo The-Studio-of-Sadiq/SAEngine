@@ -4,6 +4,12 @@
     "SAEngine practice for the sizes, spacings and member proportions the design proposes (bar sizes of EN 10080 / BS 4449 in common use); EN 1992-1-1 values are in concreteMethods"
   ],
   "source": "SAEngine practice for the sizes, spacings and member proportions the design proposes (bar sizes of EN 10080 / BS 4449 in common use); EN 1992-1-1 values are in concreteMethods",
+  "slabService": {
+    "beta": [1.0, 0.5],
+    "creepCoefficient": 2.5,
+    "limitTotal": 250,
+    "limitAfter": 500
+  },
   "prestress": {
     "note": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
   },
@@ -73,6 +79,7 @@
     "walls": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
     "torsion": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
     "prestress": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
-    "deflection": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)"
+    "deflection": "SAEngine practice: the value of the pack this one extends, kept where the Eurocodes give no value or the pack does not enter one yet (see VERIFY.md)",
+    "slabService": "EN 1992-1-1 7.4.3(3) Eq 7.18, 7.19 (ζ = 1 - β (σsr/σs)², β 1.0 short-term, 0.5 sustained), 7.4.3(5) Eq 7.20 (Ec,eff = Ecm / (1 + φ)), 7.4.1(4) (l/250 quasi-permanent) and 7.4.1(5) (l/500 after construction); φ = 2.5: SAEngine practice for indoor slabs loaded at 28 days (Figure 3.1, RH 50 %, h0 150-300 mm, C25-C35)"
   }
 }

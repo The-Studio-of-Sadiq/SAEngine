@@ -1431,6 +1431,7 @@ def _design_run(
         collect["slabs"] if collect is not None else None,
         settings,
         plain,
+        service,
     )
     # Integrator glue: stairs (saengine.design.stairs: hand methods, not in the analysis model)
     # and structural walls (saengine.design.wall_design: wall_forces' piers, walls' checks).
@@ -3008,6 +3009,7 @@ def _design_slabs(
     collect: list[dict[str, Any]] | None = None,
     settings: ProjectSettings | None = None,
     plain: _Plain | None = None,
+    service: dict[str, Any] | None = None,
 ) -> set[str]:
     """Checks the slabs of the building model (see :mod:`saengine.design.slab`), adding them to
     ``checked`` or ``skipped`` (and what they were checked from to ``collect``, see
@@ -3339,6 +3341,13 @@ def _design_slabs(
             slab_entry, object_type, elements_by_id.get(slab_id), outline, axes, level,
             top_level, concrete, settings, notes,
         )  # fmt: skip
+        # #302: cracked long-term deflection and crack widths (saengine.design.slab_service).
+        if not designs and context.ribs is None:
+            _slab_service(
+                slab_entry, slab_id, own, coords, project, service, settings, context,
+                reinforcement, object_type.thickness, fc, fy, es,
+                slenderness_design.concrete_modulus(concrete), level >= top_level - 1.0, notes,
+            )  # fmt: skip
         checked.append(slab_entry)
         notes += [f"{slab_id}: {note}" for note in context.notes]
     if plain is not None and start is not None:
@@ -3346,6 +3355,128 @@ def _design_slabs(
     return ({"shells"} if shells_seen else set()) | (
         {"coefficients"} if coefficient_seen else set()
     )
+
+
+def _slab_service(
+    entry: dict[str, Any],
+    slab_id: str,
+    own: list[dict[str, Any]],
+    coords: dict[int, np.ndarray],
+    project: dict[str, Any],
+    service: dict[str, Any] | None,
+    settings: ProjectSettings | None,
+    context: slab.SlabContext,
+    reinforcement: Any,
+    h: float,
+    fc: float,
+    fy: float,
+    es: float,
+    ec: float,
+    roof: bool,
+    notes: list[str],
+) -> None:
+    """#302: the slab's cracked long-term deflection and crack widths
+    (:mod:`saengine.design.slab_service`) from the gravity cases' shell forces and
+    displacements: the governing rows added to its checks, the rest kept in ``entry["service"]``
+    (the inputs, what was collected and the results) for the panels and the report."""
+    from saengine.design import slab_service
+
+    service = service or {}
+    shell_forces = service.get("shellForces") or {}
+    moved = service.get("displacements") or {}
+    if "D" not in shell_forces or "D" not in moved or not context.strips:
+        return
+    mode = getattr(getattr(settings, "analysis", None), "deflection", "sensitive") or "sensitive"
+    inputs = slab_service.Inputs(
+        sustained=float(getattr(getattr(settings, "analysis", None), "sustainedLive", 0.25)),
+        sensitive=mode == "sensitive",
+    )
+    dead_cases = [c for c in ("D", "SD") if c in shell_forces]
+    live_cases = [c for c in ("L", "Lr") if c in shell_forces]
+    sections = {s["id"]: s for s in project.get("sections", [])}
+    stiffness: dict[float, int] = {}
+    shells: list[slab.ShellPoint] = []
+    for e in own:
+        points = [coords[n] for n in e["nodes"]]
+
+        def rows_of(cases: list[str], shell: int = e["id"]) -> np.ndarray | None:
+            found = [
+                np.asarray(shell_forces[c][shell], dtype=float)
+                for c in cases
+                if shell_forces[c].get(shell) is not None
+            ]
+            return sum(found[1:], found[0].copy()) if found else None
+
+        dead, live = rows_of(dead_cases), rows_of(live_cases)
+        if dead is None:
+            continue
+        if live is None or live.shape != dead.shape:
+            live = np.zeros_like(dead)
+        rows = [dead, live]
+        shell_axes = slab.shell_axes(points)
+        shells.append(
+            slab.ShellPoint(
+                id=e["id"],
+                name=e.get("name") or str(e["id"]),
+                points=slab.integration_points(points, len(rows[0])),
+                forces=[slab.slab_forces(r, shell_axes, context.axes) for r in rows],
+                areas=slab.integration_areas(points, len(rows[0])),
+            )
+        )
+        sec = sections.get(e.get("section_id"), {})
+        if sec.get("E") and sec.get("h"):
+            # The analysis's plate bending stiffness per metre width [N·mm²].
+            ei = float(sec["E"]) / 1e6 * float(sec.get("Ep_mod", 1.0)) * 1000.0
+            ei *= (float(sec["h"]) * 1e3) ** 3 / 12.0
+            stiffness[ei] = stiffness.get(ei, 0) + 1
+    if not shells or not stiffness:
+        return
+
+    def summed(cases: list[str]) -> dict[int, np.ndarray]:
+        out: dict[int, np.ndarray] = {}
+        for c in cases:
+            for node, row in (moved.get(c) or {}).items():
+                out[node] = out.get(node, np.zeros(6)) + np.asarray(row, dtype=float)[:6]
+        return out
+
+    try:
+        data = slab_service.collect(
+            slab_id,
+            context,
+            shells,
+            {e["id"]: e["nodes"] for e in own},
+            coords,
+            {
+                "D": summed([c for c in ("D", "SD") if c in moved]),
+                "L": summed([c for c in ("L", "Lr") if c in moved]),
+            },
+            h,
+            fc,
+            fy,
+            es,
+            ec,
+            max(stiffness, key=lambda k: stiffness[k]),
+            slab.layers_of(reinforcement, float(h)),
+            roof,
+        )
+        result = slab_service.evaluate(data, inputs, deflection=mode != "off")
+    except (ValueError, ZeroDivisionError, DesignError) as error:
+        notes.append(f"{slab_id}: cracked deflection and crack widths not computed: {error}")
+        return
+    entry["checks"] = entry["checks"] + result.checks
+    if any(not c["ok"] for c in result.checks):
+        entry["ok"] = False
+    entry["utilisation"] = max([entry["utilisation"], *(c["utilisation"] for c in result.checks)])
+    entry["service"] = {
+        "inputs": {
+            "sustained": inputs.sustained,
+            "months": inputs.months,
+            "sensitive": inputs.sensitive,
+        },
+        "data": data.to_dict(),
+        **result.to_json(),
+    }
+    notes += result.notes
 
 
 def _coefficient_slab(
@@ -3987,6 +4118,9 @@ def _demands(
             },
             # B9: the wind cases' displacements, for the members' wind deflection limits.
             "windDisplacements": {c: displacements[c] for c in WIND_CASES if c in displacements},
+            # #302: the shells' forces of the gravity cases, for the cracked long-term
+            # deflection and crack widths of the slabs (saengine.design.slab_service).
+            "shellForces": {c: shell_case[c] for c in SERVICE_CASES if c in shell_case},
         }
 
     # Each combination of all the elements of one shape at once: the same sums element by
