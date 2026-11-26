@@ -53,3 +53,19 @@ test('member of a shell is its name before #', async () => {
 		await cleanup();
 	}
 });
+
+test('tetrahedra of one solid share their node means', async () => {
+	const { mod, cleanup } = await load();
+	try {
+		// Two tetrahedra of solid P1 sharing the face 2-3-4; node 1 and node 5 are each in one.
+		const solids = [
+			{ name: 'P1', nodes: [1, 2, 3, 4] },
+			{ name: 'P1#2', nodes: [2, 3, 4, 5] },
+		];
+		const corners = mod.cornerValues(solids, [10, 30]);
+		assert.deepEqual(corners[0], [10, 20, 20, 20]);
+		assert.deepEqual(corners[1], [20, 20, 20, 30]);
+	} finally {
+		await cleanup();
+	}
+});

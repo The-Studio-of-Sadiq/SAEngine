@@ -742,7 +742,9 @@ export class ResultOverlay {
 
 	/**
 	 * A solid stress (`index` in {@link FemResultSolid.stress}) as a contour on the solids' outer
-	 * faces: each face coloured by its tetrahedron's (constant) value.
+	 * faces: each face coloured by its tetrahedron's (constant) value or, smoothed, each corner by
+	 * the mean of the tetrahedra of its solid at that node. The scale and the label stay the
+	 * tetrahedra's own values.
 	 */
 	private drawStress(index: number): void {
 		const solids = (this.results.solids ?? []).filter(s => s.stress);
@@ -750,8 +752,10 @@ export class ResultOverlay {
 			return;
 		}
 		const values = solids.map(s => s.stress![index]);
+		const smooth = this.display.smoothContours ? cornerValues(solids, values) : undefined;
 		const low = least(values);
 		const high = largest(values);
+		const at = (value: number) => contourColor(high > low ? (value - low) / (high - low) : 0.5);
 		const positions = new Floats();
 		const colors = new Floats();
 		let biggest: Extreme | undefined;
@@ -761,11 +765,11 @@ export class ResultOverlay {
 				continue;
 			}
 			const value = values[face.owner];
-			const [r, g, b] = contourColor(high > low ? (value - low) / (high - low) : 0.5);
 			positions.pushFrom(points, 0, 9);
-			colors.push3(r, g, b);
-			colors.push3(r, g, b);
-			colors.push3(r, g, b);
+			const owner = solids[face.owner].nodes;
+			for (const node of face.nodes) {
+				colors.push3(...at(smooth ? smooth[face.owner][owner.indexOf(node)] : value));
+			}
 			if (!biggest || Math.abs(value) > Math.abs(biggest.value)) {
 				biggest = { value, at: ResultOverlay.centre(points) };
 			}

@@ -721,7 +721,7 @@ export class FemResultsBar extends Disposable {
 			id: 'saengine.fem.smoothContours',
 			label: localize('femResults.smoothShort', "Smooth"),
 			icon: Codicon.colorMode,
-			tooltip: localize('femResults.smoothContours', "Smooth the Shell Contour: Average the Values at Shared Nodes (Off: One Value per Shell, as the Design Uses)"),
+			tooltip: localize('femResults.smoothContours', "Smooth the Contour: Average the Values at Shared Nodes (Off: One Value per Shell or Solid Element, as the Design Uses)"),
 			checked: this.smoothContours,
 			size: 'small',
 		}));
@@ -764,9 +764,9 @@ export class FemResultsBar extends Disposable {
 		return scalable || frames.length > 0 || COMPONENTS.includes(this.show) || this.isShellContour();
 	}
 
-	/** Whether the show is a shell contour (section force or a design value per shell), which can be smoothed. */
+	/** Whether the show is a contour that can be smoothed: a shell section force, a design value per shell, or a solid stress. */
 	private isShellContour(): boolean {
-		return SHELL_COMPONENTS.includes(this.show) || isShellValueShow(this.show);
+		return SHELL_COMPONENTS.includes(this.show) || isShellValueShow(this.show) || SOLID_COMPONENTS[this.show] !== undefined;
 	}
 
 	/** Counts the result lists read: changes when a new run's results arrive. */
