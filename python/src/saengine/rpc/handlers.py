@@ -2552,6 +2552,15 @@ def design_required(
     return required(out_dir, project_path, options)
 
 
+def steel_sizing(project_root: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Size Steel Members (issue #286, ``saengine.design.steel_sizing.size_project``): the
+    lightest catalogue section per group, analysis and design iterated; nothing is written."""
+    from saengine.design.steel_sizing import size_project
+    from saengine.pipeline.design_mode import _plain
+
+    return _plain(size_project(project_root, options))
+
+
 def design_proposal(
     out_dir: str, project_path: str, options: dict[str, Any] | None = None
 ) -> dict[str, Any]:

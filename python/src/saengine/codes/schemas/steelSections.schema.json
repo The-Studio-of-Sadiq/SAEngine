@@ -73,8 +73,26 @@
               "type": "number"
             }
           ],
-          "description": "[mm]",
+          "description": "[mm]; the longer leg of an unequal angle.",
           "title": "Leg"
+        },
+        "leg2": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The shorter leg of an unequal angle [mm]; none: equal legs.",
+          "title": "Leg2"
         },
         "t": {
           "anyOf": [
@@ -516,6 +534,18 @@
     },
     "angles": {
       "$ref": "#/$defs/AngleFamily"
+    },
+    "unequalAngles": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AngleFamily"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Unequal angles (family LU), ``leg`` and ``leg2`` each."
     },
     "hollow": {
       "$ref": "#/$defs/HollowFamilies"

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './analyzeSteps.contribution.js';
+import './steelSizing.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../base/common/resources.js';

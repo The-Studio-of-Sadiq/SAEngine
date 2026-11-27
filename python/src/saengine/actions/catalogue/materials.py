@@ -412,3 +412,43 @@ for _kind in TYPE_KINDS:
         kind="edit",
         example={"id": "X", **_EXAMPLES[_kind]},
     )(_type_set(_kind))
+
+
+# ── catalogue steel sections (issue #286) ──
+
+
+class SectionParams(Params):
+    id: str = Field(description="The steel beam, column or brace type to change.")
+    section: str = Field(description="A section of the steel catalogue, e.g. IPE 300, HEB 200.")
+
+
+@action(
+    "type.section.set",
+    summary="Give a steel beam, column or brace type a section of the steel catalogue (the "
+    "section library's Assign to Type); keeps an RHS lying on its side so.",
+    params=SectionParams,
+    parts=("objects",),
+    kind="edit",
+    example={"id": "B1", "section": "IPE 300"},
+)
+def type_section_set(view: ProjectView, p: SectionParams) -> ActionResult:
+    from saengine.library import steel_sections
+
+    lib = _objects(view)
+    entry = _find(lib["objects"], p.id, "object type")
+    if entry.get("kind") not in ("beam", "column", "brace"):
+        refuse(
+            f"{p.id} is a {entry.get('kind')} type: only beams, columns and braces take a "
+            "catalogue section.",
+            "id",
+            p.id,
+        )
+    found = steel_sections.find(p.section)
+    if found is None:
+        refuse(f"No section '{p.section}' in the steel catalogue.", "section", p.section)
+    before = entry.get("profile") or {}
+    if before:
+        found = steel_sections.oriented(found, before)
+    entry["profile"] = found.profile()
+    view.put(OBJECTS, lib)
+    return ActionResult(message=f"{p.id}: {found.name} ({found.mass:.1f} kg/m).")

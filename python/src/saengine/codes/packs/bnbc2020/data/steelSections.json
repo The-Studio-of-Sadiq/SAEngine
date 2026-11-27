@@ -1,9 +1,9 @@
 {
   "$schema": "../../../schemas/steelSections.schema.json",
   "$sources": [
-    "EN 10365 (IPE, HEA, HEB)",
+    "EN 10365 (IPE, HEA, HEB, HEM, UPE, UPN)",
     "IS 808 (ISMB, ISMC, equal angles)",
-    "EN 10056 (equal angles)",
+    "EN 10056 (equal and unequal angles)",
     "EN 10219 (SHS, RHS, CHS)"
   ],
   "source": "Standard published nominal dimensions of the rolled and hollow steel sections the Bangladesh market stocks and fabricators build with; the properties (A, I, S, Z, r, J, Cw) are computed from them by SAEngine, nothing is copied from a proprietary section database. Confirm the mill's catalogue before ordering.",
@@ -12,9 +12,13 @@
     "IPE",
     "HEA",
     "HEB",
+    "HEM",
     "ISMB",
     "ISMC",
+    "UPE",
+    "UPN",
     "L",
+    "LU",
     "SHS",
     "RHS",
     "CHS"
@@ -24,13 +28,17 @@
       "IPE",
       "HEA",
       "HEB",
+      "HEM",
       "ISMB"
     ],
     "U": [
-      "ISMC"
+      "ISMC",
+      "UPE",
+      "UPN"
     ],
     "L": [
-      "L"
+      "L",
+      "LU"
     ],
     "rectangleHollow": [
       "SHS",
@@ -678,6 +686,456 @@
           "r": 15
         }
       ]
+    },
+    "HEM": {
+      "source": "EN 10365 nominal dimensions (European parallel-flange sections)",
+      "shape": "I",
+      "sections": [
+        {
+          "designation": 100,
+          "h": 120,
+          "b": 106,
+          "tw": 12,
+          "tf": 20,
+          "r": 12
+        },
+        {
+          "designation": 120,
+          "h": 140,
+          "b": 126,
+          "tw": 12.5,
+          "tf": 21,
+          "r": 12
+        },
+        {
+          "designation": 140,
+          "h": 160,
+          "b": 146,
+          "tw": 13,
+          "tf": 22,
+          "r": 12
+        },
+        {
+          "designation": 160,
+          "h": 180,
+          "b": 166,
+          "tw": 14,
+          "tf": 23,
+          "r": 15
+        },
+        {
+          "designation": 180,
+          "h": 200,
+          "b": 186,
+          "tw": 14.5,
+          "tf": 24,
+          "r": 15
+        },
+        {
+          "designation": 200,
+          "h": 220,
+          "b": 206,
+          "tw": 15,
+          "tf": 25,
+          "r": 18
+        },
+        {
+          "designation": 220,
+          "h": 240,
+          "b": 226,
+          "tw": 15.5,
+          "tf": 26,
+          "r": 18
+        },
+        {
+          "designation": 240,
+          "h": 270,
+          "b": 248,
+          "tw": 18,
+          "tf": 32,
+          "r": 21
+        },
+        {
+          "designation": 260,
+          "h": 290,
+          "b": 268,
+          "tw": 18,
+          "tf": 32.5,
+          "r": 24
+        },
+        {
+          "designation": 280,
+          "h": 310,
+          "b": 288,
+          "tw": 18.5,
+          "tf": 33,
+          "r": 24
+        },
+        {
+          "designation": 300,
+          "h": 340,
+          "b": 310,
+          "tw": 21,
+          "tf": 39,
+          "r": 27
+        },
+        {
+          "designation": 320,
+          "h": 359,
+          "b": 309,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 340,
+          "h": 377,
+          "b": 309,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 360,
+          "h": 395,
+          "b": 308,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 400,
+          "h": 432,
+          "b": 307,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 450,
+          "h": 478,
+          "b": 307,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 500,
+          "h": 524,
+          "b": 306,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 550,
+          "h": 572,
+          "b": 306,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 600,
+          "h": 620,
+          "b": 305,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 650,
+          "h": 668,
+          "b": 305,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 700,
+          "h": 716,
+          "b": 304,
+          "tw": 21,
+          "tf": 40,
+          "r": 27
+        },
+        {
+          "designation": 800,
+          "h": 814,
+          "b": 303,
+          "tw": 21,
+          "tf": 40,
+          "r": 30
+        },
+        {
+          "designation": 900,
+          "h": 910,
+          "b": 302,
+          "tw": 21,
+          "tf": 40,
+          "r": 30
+        },
+        {
+          "designation": 1000,
+          "h": 1008,
+          "b": 302,
+          "tw": 21,
+          "tf": 40,
+          "r": 30
+        }
+      ]
+    },
+    "UPE": {
+      "source": "EN 10365 nominal dimensions (European parallel-flange channels, UPE)",
+      "shape": "U",
+      "sections": [
+        {
+          "designation": 80,
+          "h": 80,
+          "b": 50,
+          "tw": 4,
+          "tf": 7,
+          "r": 10
+        },
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 55,
+          "tw": 4.5,
+          "tf": 7.5,
+          "r": 10
+        },
+        {
+          "designation": 120,
+          "h": 120,
+          "b": 60,
+          "tw": 5,
+          "tf": 8,
+          "r": 12
+        },
+        {
+          "designation": 140,
+          "h": 140,
+          "b": 65,
+          "tw": 5,
+          "tf": 9,
+          "r": 12
+        },
+        {
+          "designation": 160,
+          "h": 160,
+          "b": 70,
+          "tw": 5.5,
+          "tf": 9.5,
+          "r": 12
+        },
+        {
+          "designation": 180,
+          "h": 180,
+          "b": 75,
+          "tw": 5.5,
+          "tf": 10.5,
+          "r": 12
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 80,
+          "tw": 6,
+          "tf": 11,
+          "r": 13
+        },
+        {
+          "designation": 220,
+          "h": 220,
+          "b": 85,
+          "tw": 6.5,
+          "tf": 12,
+          "r": 13
+        },
+        {
+          "designation": 240,
+          "h": 240,
+          "b": 90,
+          "tw": 7,
+          "tf": 12.5,
+          "r": 15
+        },
+        {
+          "designation": 270,
+          "h": 270,
+          "b": 95,
+          "tw": 7.5,
+          "tf": 13.5,
+          "r": 15
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 100,
+          "tw": 9.5,
+          "tf": 15,
+          "r": 15
+        },
+        {
+          "designation": 330,
+          "h": 330,
+          "b": 105,
+          "tw": 11,
+          "tf": 16,
+          "r": 18
+        },
+        {
+          "designation": 360,
+          "h": 360,
+          "b": 110,
+          "tw": 12,
+          "tf": 17,
+          "r": 18
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 115,
+          "tw": 13.5,
+          "tf": 18,
+          "r": 18
+        }
+      ]
+    },
+    "UPN": {
+      "source": "EN 10365 nominal dimensions (European taper-flange channels, UPN, DIN 1026-1): tapered flanges taken parallel at the mean thickness",
+      "shape": "U",
+      "sections": [
+        {
+          "designation": 80,
+          "h": 80,
+          "b": 45,
+          "tw": 6,
+          "tf": 8,
+          "r": 8
+        },
+        {
+          "designation": 100,
+          "h": 100,
+          "b": 50,
+          "tw": 6,
+          "tf": 8.5,
+          "r": 8.5
+        },
+        {
+          "designation": 120,
+          "h": 120,
+          "b": 55,
+          "tw": 7,
+          "tf": 9,
+          "r": 9
+        },
+        {
+          "designation": 140,
+          "h": 140,
+          "b": 60,
+          "tw": 7,
+          "tf": 10,
+          "r": 10
+        },
+        {
+          "designation": 160,
+          "h": 160,
+          "b": 65,
+          "tw": 7.5,
+          "tf": 10.5,
+          "r": 10.5
+        },
+        {
+          "designation": 180,
+          "h": 180,
+          "b": 70,
+          "tw": 8,
+          "tf": 11,
+          "r": 11
+        },
+        {
+          "designation": 200,
+          "h": 200,
+          "b": 75,
+          "tw": 8.5,
+          "tf": 11.5,
+          "r": 11.5
+        },
+        {
+          "designation": 220,
+          "h": 220,
+          "b": 80,
+          "tw": 9,
+          "tf": 12.5,
+          "r": 12.5
+        },
+        {
+          "designation": 240,
+          "h": 240,
+          "b": 85,
+          "tw": 9.5,
+          "tf": 13,
+          "r": 13
+        },
+        {
+          "designation": 260,
+          "h": 260,
+          "b": 90,
+          "tw": 10,
+          "tf": 14,
+          "r": 14
+        },
+        {
+          "designation": 280,
+          "h": 280,
+          "b": 95,
+          "tw": 10,
+          "tf": 15,
+          "r": 15
+        },
+        {
+          "designation": 300,
+          "h": 300,
+          "b": 100,
+          "tw": 10,
+          "tf": 16,
+          "r": 16
+        },
+        {
+          "designation": 320,
+          "h": 320,
+          "b": 100,
+          "tw": 14,
+          "tf": 17.5,
+          "r": 17.5
+        },
+        {
+          "designation": 350,
+          "h": 350,
+          "b": 100,
+          "tw": 14,
+          "tf": 16,
+          "r": 16
+        },
+        {
+          "designation": 380,
+          "h": 380,
+          "b": 102,
+          "tw": 13.5,
+          "tf": 16,
+          "r": 16
+        },
+        {
+          "designation": 400,
+          "h": 400,
+          "b": 110,
+          "tw": 14,
+          "tf": 18,
+          "r": 18
+        }
+      ]
     }
   },
   "angles": {
@@ -828,7 +1286,9 @@
       180,
       200,
       250,
-      300
+      300,
+      350,
+      400
     ],
     "rhs": [
       {
@@ -856,12 +1316,20 @@
         "b": 80
       },
       {
+        "h": 140,
+        "b": 80
+      },
+      {
         "h": 150,
         "b": 100
       },
       {
         "h": 160,
         "b": 80
+      },
+      {
+        "h": 180,
+        "b": 100
       },
       {
         "h": 200,
@@ -873,14 +1341,32 @@
       },
       {
         "h": 250,
+        "b": 100
+      },
+      {
+        "h": 250,
+        "b": 150
+      },
+      {
+        "h": 300,
+        "b": 100
+      },
+      {
+        "h": 300,
         "b": 150
       },
       {
         "h": 300,
         "b": 200
+      },
+      {
+        "h": 400,
+        "b": 200
       }
     ],
     "chs": [
+      33.7,
+      42.4,
       48.3,
       60.3,
       76.1,
@@ -890,7 +1376,10 @@
       168.3,
       219.1,
       273.0,
-      323.9
+      323.9,
+      355.6,
+      406.4,
+      457.0
     ],
     "boxWalls": {
       "walls": [
@@ -922,7 +1411,8 @@
   },
   "notes": [
     "Properties computed from the nominal dimensions (EN 10365, IS 808, EN 10056, EN 10219); confirm against the mill's catalogue.",
-    "ISMB and ISMC tapered flanges taken parallel at the mean thickness."
+    "ISMB, ISMC and UPN tapered flanges taken parallel at the mean thickness.",
+    "No AISC Shapes Database data: its licence does not clearly allow redistribution in an open-source app."
   ],
   "sources": {
     "density": "mass density of structural steel, 7850 kg/m³",
@@ -936,6 +1426,286 @@
     "RHS": "EN 10219",
     "CHS": "EN 10219",
     "boxWalls": "SAEngine: the walls rolled for a box whose smaller side is b, b/t from 8 to 40",
-    "chsWalls": "SAEngine: the walls rolled for a tube of diameter d, d/t from 10 to 50"
+    "chsWalls": "SAEngine: the walls rolled for a tube of diameter d, d/t from 10 to 50",
+    "HEM": "EN 10365 nominal dimensions (European parallel-flange sections)",
+    "UPE": "EN 10365 nominal dimensions (European parallel-flange channels, UPE)",
+    "UPN": "EN 10365 nominal dimensions (European taper-flange channels, UPN, DIN 1026-1): tapered flanges taken parallel at the mean thickness",
+    "LU": "EN 10056-1 (root radii to verify)"
+  },
+  "unequalAngles": {
+    "source": "EN 10056-1 common unequal angle sizes (L 30x20x3 to L 200x150x15); root radii as recalled from the standard, to verify (VERIFY.md); toe radius half the root radius",
+    "toeRadiusShare": 0.5,
+    "sections": [
+      {
+        "leg": 30,
+        "leg2": 20,
+        "t": 3,
+        "r1": 4
+      },
+      {
+        "leg": 30,
+        "leg2": 20,
+        "t": 4,
+        "r1": 4
+      },
+      {
+        "leg": 40,
+        "leg2": 20,
+        "t": 4,
+        "r1": 4
+      },
+      {
+        "leg": 40,
+        "leg2": 25,
+        "t": 4,
+        "r1": 4
+      },
+      {
+        "leg": 45,
+        "leg2": 30,
+        "t": 4,
+        "r1": 4.5
+      },
+      {
+        "leg": 50,
+        "leg2": 30,
+        "t": 5,
+        "r1": 5
+      },
+      {
+        "leg": 60,
+        "leg2": 30,
+        "t": 5,
+        "r1": 5
+      },
+      {
+        "leg": 60,
+        "leg2": 40,
+        "t": 5,
+        "r1": 6
+      },
+      {
+        "leg": 60,
+        "leg2": 40,
+        "t": 6,
+        "r1": 6
+      },
+      {
+        "leg": 65,
+        "leg2": 50,
+        "t": 5,
+        "r1": 6
+      },
+      {
+        "leg": 70,
+        "leg2": 50,
+        "t": 6,
+        "r1": 7
+      },
+      {
+        "leg": 75,
+        "leg2": 50,
+        "t": 6,
+        "r1": 7
+      },
+      {
+        "leg": 75,
+        "leg2": 50,
+        "t": 8,
+        "r1": 7
+      },
+      {
+        "leg": 80,
+        "leg2": 40,
+        "t": 6,
+        "r1": 7
+      },
+      {
+        "leg": 80,
+        "leg2": 40,
+        "t": 8,
+        "r1": 7
+      },
+      {
+        "leg": 80,
+        "leg2": 60,
+        "t": 7,
+        "r1": 8
+      },
+      {
+        "leg": 100,
+        "leg2": 50,
+        "t": 6,
+        "r1": 8
+      },
+      {
+        "leg": 100,
+        "leg2": 50,
+        "t": 8,
+        "r1": 8
+      },
+      {
+        "leg": 100,
+        "leg2": 65,
+        "t": 7,
+        "r1": 10
+      },
+      {
+        "leg": 100,
+        "leg2": 65,
+        "t": 8,
+        "r1": 10
+      },
+      {
+        "leg": 100,
+        "leg2": 65,
+        "t": 10,
+        "r1": 10
+      },
+      {
+        "leg": 100,
+        "leg2": 75,
+        "t": 8,
+        "r1": 10
+      },
+      {
+        "leg": 100,
+        "leg2": 75,
+        "t": 10,
+        "r1": 10
+      },
+      {
+        "leg": 100,
+        "leg2": 75,
+        "t": 12,
+        "r1": 10
+      },
+      {
+        "leg": 120,
+        "leg2": 80,
+        "t": 8,
+        "r1": 11
+      },
+      {
+        "leg": 120,
+        "leg2": 80,
+        "t": 10,
+        "r1": 11
+      },
+      {
+        "leg": 120,
+        "leg2": 80,
+        "t": 12,
+        "r1": 11
+      },
+      {
+        "leg": 125,
+        "leg2": 75,
+        "t": 8,
+        "r1": 11
+      },
+      {
+        "leg": 125,
+        "leg2": 75,
+        "t": 10,
+        "r1": 11
+      },
+      {
+        "leg": 125,
+        "leg2": 75,
+        "t": 12,
+        "r1": 11
+      },
+      {
+        "leg": 135,
+        "leg2": 65,
+        "t": 8,
+        "r1": 11
+      },
+      {
+        "leg": 135,
+        "leg2": 65,
+        "t": 10,
+        "r1": 11
+      },
+      {
+        "leg": 150,
+        "leg2": 75,
+        "t": 10,
+        "r1": 11
+      },
+      {
+        "leg": 150,
+        "leg2": 75,
+        "t": 12,
+        "r1": 11
+      },
+      {
+        "leg": 150,
+        "leg2": 75,
+        "t": 15,
+        "r1": 11
+      },
+      {
+        "leg": 150,
+        "leg2": 90,
+        "t": 10,
+        "r1": 12
+      },
+      {
+        "leg": 150,
+        "leg2": 90,
+        "t": 12,
+        "r1": 12
+      },
+      {
+        "leg": 150,
+        "leg2": 90,
+        "t": 15,
+        "r1": 12
+      },
+      {
+        "leg": 150,
+        "leg2": 100,
+        "t": 10,
+        "r1": 12
+      },
+      {
+        "leg": 150,
+        "leg2": 100,
+        "t": 12,
+        "r1": 12
+      },
+      {
+        "leg": 200,
+        "leg2": 100,
+        "t": 10,
+        "r1": 15
+      },
+      {
+        "leg": 200,
+        "leg2": 100,
+        "t": 12,
+        "r1": 15
+      },
+      {
+        "leg": 200,
+        "leg2": 100,
+        "t": 15,
+        "r1": 15
+      },
+      {
+        "leg": 200,
+        "leg2": 150,
+        "t": 12,
+        "r1": 15
+      },
+      {
+        "leg": 200,
+        "leg2": 150,
+        "t": 15,
+        "r1": 15
+      }
+    ]
   }
 }

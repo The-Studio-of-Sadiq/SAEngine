@@ -17,10 +17,12 @@ Assumptions (stated in the design notes):
 - Hollow sections use the design wall thickness of Sec 10.2.3.12: 0.93 t for electric-
   resistance-welded (ERW) HSS (the default: cold-formed ERW tubes are what the market sells),
   the nominal t for submerged-arc-welded (SAW) HSS.
-- St. Venant J of open shapes: Σ b t³ / 3 over the plates (flange widths, web clear of the
-  flanges); of closed tubes: Bredt's 4 A0² t / p on the wall centreline. Cw: I-shapes
-  tf bf³ ho² / 24, channels the thin-walled formula with the shear centre at e0 from the web,
-  tees and angles 0 (their warping stiffness is negligible).
+- St. Venant J of open shapes: I-shapes with their root fillets (El Darwish and Johnston,
+  :func:`saengine.library.steel_sections.fillet_torsion_constant`; Σ b t³ / 3 over the plates
+  when the profile has no fillet radius), channels, tees and angles Σ b t³ / 3 over the plates
+  (flange widths, web clear of the flanges); of closed tubes: Bredt's 4 A0² t / p on the wall
+  centreline. Cw: I-shapes tf bf³ ho² / 24, channels the thin-walled formula with the shear
+  centre at e0 from the web, tees and angles 0 (their warping stiffness is negligible).
 
 Axes follow the profile: x along its width (horizontal), y along its depth (vertical), so ``ix``
 is the major-axis inertia of an I-shape. Units: mm, mm², mm⁴, mm⁶.
@@ -142,7 +144,7 @@ def i_shape(
         sy=p["Sy"],
         zx=p["Zx"],
         zy=p["Zy"],
-        j=(2 * bf * tf**3 + (d - 2 * tf) * tw**3) / 3,
+        j=tables.fillet_torsion_constant(d, bf, tw, tf, r),
         cw=tf * bf**3 * ho**2 / 24,
         dims={"d": d, "bf": bf, "tf": tf, "tw": tw, "h": d - 2 * tf - 2 * r, "r": r, "ho": ho},
         sx_top=p["Sx_top"],

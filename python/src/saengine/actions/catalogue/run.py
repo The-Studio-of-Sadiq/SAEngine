@@ -225,6 +225,138 @@ def design_reinforcement_apply(view: ProjectView, p: ReinforceParams) -> ActionR
     )
 
 
+# ── steel sizing (issue #286) ──
+
+
+def _apply_sizing(
+    view: ProjectView, proposal: dict[str, Any], groups: Literal["all"] | list[str]
+) -> ActionResult:
+    """A Size Steel Members proposal applied to 04 Objects (and, for members sized on their own,
+    the BIM model and floor plan): every group with a section, or those in ``groups``."""
+    import copy
+    import json
+
+    from saengine.actions.view import json_text
+    from saengine.rpc.handlers import design_apply_proposal
+
+    proposal = copy.deepcopy(proposal)
+    types = list(proposal.get("types") or [])
+    if not types:
+        refuse("The proposal sizes no steel types: run Size Steel Members first.", "proposal")
+    if groups != "all":
+        wanted = set(groups)
+        known = {e.get("type") for e in types} | {
+            n.get("type") for n in proposal.get("newTypes") or []
+        }
+        unknown = sorted(wanted - known)
+        if unknown:
+            refuse(f"Not in the proposal: {', '.join(unknown)}.", "groups", unknown)
+        for e in types:
+            e["apply"] = e.get("type") in wanted
+        for n in proposal.get("newTypes") or []:
+            n["apply"] = n.get("type") in wanted
+    objects = view.read(OBJECTS)
+    bim = view.read(BIM, None)
+    plan = view.read(FLOOR_PLAN, None)
+    try:
+        applied = design_apply_proposal(
+            json_text(objects),
+            json_text(bim) if bim is not None else None,
+            proposal,
+            json_text(plan) if plan is not None else None,
+        )
+    except ValueError as error:
+        refuse(f"The sections could not be applied: {error}")
+        raise
+    view.put(OBJECTS, json.loads(applied["objectsText"]))
+    if applied.get("bimText") and bim is not None:
+        view.put(BIM, json.loads(applied["bimText"]))
+    if applied.get("floorPlanText") and plan is not None:
+        view.put(FLOOR_PLAN, json.loads(applied["floorPlanText"]))
+    changes = applied.get("changes") or []
+    changed = sorted({str(c.get("id")) for c in changes if "objects" in str(c.get("file"))})
+    return ActionResult(
+        message=f"Sections applied to {len(changed)} types"
+        + (f": {', '.join(changed)}" if changed else "")
+        + ". Run the analysis and design again (Run All) to check them.",
+        created=[
+            str(n.get("type"))
+            for n in proposal.get("newTypes") or []
+            if n.get("apply") is not False and n.get("type") in {c.get("id") for c in changes}
+        ],
+        warnings=[str(w) for w in proposal.get("warnings") or []],
+        data={"changes": changes},
+    )
+
+
+class SteelApplyParams(Params):
+    proposal: dict[str, Any] = Field(
+        description="The proposal of Size Steel Members (design/steelSizing, design.steel.size)."
+    )
+    groups: Literal["all"] | list[str] = Field(
+        default="all", description='The type ids (and new types) to apply, or "all".'
+    )
+
+
+@action(
+    "design.steel.apply",
+    summary="Apply a Size Steel Members proposal: the proposed catalogue sections into the "
+    "steel types (all, or those given); members sized on their own move to new types.",
+    params=SteelApplyParams,
+    parts=("objects", "bim", "floorPlan"),
+    kind="edit",
+    example={"proposal": {"types": []}, "groups": "all"},
+)
+def design_steel_apply(view: ProjectView, p: SteelApplyParams) -> ActionResult:
+    return _apply_sizing(view, p.proposal, p.groups)
+
+
+class SteelSizeParams(Params):
+    maxIterations: int = Field(default=5, ge=1, le=20, description="Analyses at most.")
+    sameSection: bool = Field(
+        default=True, description="One section per object type; false: each member its own."
+    )
+    candidates: list[str] | None = Field(
+        default=None, description="Sections or families every type may take (default: its own)."
+    )
+    minDepth: float | None = Field(default=None, description="[mm]")
+    maxDepth: float | None = Field(default=None, description="[mm]")
+    types: list[str] | None = Field(default=None, description="The types to size; default all.")
+    apply: bool = Field(default=False, description="Apply the proposal (default: only propose it).")
+
+
+@action(
+    "design.steel.size",
+    summary="Size Steel Members: the lightest catalogue section per steel type passing every "
+    "check, analysis and design iterated; needs the analysis results. Proposes only, unless "
+    "apply is true.",
+    params=SteelSizeParams,
+    parts=("objects", "bim", "floorPlan"),
+    kind="run",
+    example={"maxIterations": 5},
+)
+def design_steel_size(view: ProjectView, p: SteelSizeParams) -> ActionResult:
+    from saengine.codes import context as code_context
+    from saengine.design.steel_sizing import size_project
+
+    project = _project(view)
+    options = p.model_dump(exclude={"apply"}, exclude_none=True)
+    with code_context.project(project.root):
+        found = size_project(project.root, options)
+    if "error" in found:
+        refuse(str(found["error"]))
+    if p.apply:
+        return _apply_sizing(view, found, "all")
+    rows = found.get("groups") or []
+    return ActionResult(
+        message=f"{'Converged' if found.get('converged') else 'Not converged'} in "
+        f"{found.get('iterations')} iteration(s): "
+        + "; ".join(f"{r['group']} {r['currentSection']} → {r['proposedSection']}" for r in rows),
+        warnings=[str(w) for w in found.get("warnings") or []],
+        data={"proposal": found},
+    )
+
+
 # ── exports ──
 
 

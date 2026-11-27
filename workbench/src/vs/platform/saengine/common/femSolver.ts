@@ -771,7 +771,7 @@ export type U6dEngineMethod =
 	| 'hazard/offers' | 'hazard/lookup'
 	| 'settings/hazardSummary' | 'settings/towns'
 	| 'library/check' | 'library/materialSummary' | 'library/objectSections'
-	| 'library/designedSections' | 'library/sheetPiles' | 'library/archTypes' | 'library/validateAll'
+	| 'library/designedSections' | 'design/steelSizing' | 'library/sheetPiles' | 'library/archTypes' | 'library/validateAll'
 	| 'substructure/report' | 'substructure/design' | 'substructure/size'
 	| 'substructure/pileCapacity' | 'substructure/pileLateral' | 'substructure/pileSettlement'
 	| 'substructure/downdrag' | 'substructure/loadTests' | 'substructure/pileDetailing'

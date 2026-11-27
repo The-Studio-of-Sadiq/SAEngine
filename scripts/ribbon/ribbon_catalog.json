@@ -2884,6 +2884,13 @@
    "group": "Steel Sections",
    "buttons": [
     {
+     "label": "Steel Section Table",
+     "size": "large",
+     "description": "Searches the steel section tables and assigns a section to a member type.",
+     "inspiredBy": "Tekla Structural Designer",
+     "command": "saengine.library.steelCatalogue"
+    },
+    {
      "label": "I-Section",
      "size": "small",
      "description": "Defines a rolled or welded I-section.",
@@ -15099,6 +15106,13 @@
    "tab": "femDesignOptimisation",
    "group": "Sizing",
    "buttons": [
+    {
+     "label": "Size Steel Members",
+     "size": "large",
+     "description": "Proposes the lightest catalogue section per steel type, analysis and design iterated; apply all or selected.",
+     "inspiredBy": "Tekla Structural Designer",
+     "command": "saengine.fem.sizeSteelMembers"
+    },
     {
      "label": "Target Ratio",
      "size": "large",

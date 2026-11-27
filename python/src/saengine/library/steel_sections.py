@@ -21,7 +21,9 @@ ry, J, Cw, the mass per metre (7850 kg/m³), and for angles the principal Iu, Iv
 A, I, S and Z are exact for the plates plus the fillets and corner roundings (each a
 spandrel, a square less a quarter circle, with its own centroid and inertia; only the plastic
 moduli take the spandrels as lumped areas, an error far below 0.1 %). J uses the thin-walled
-formulas (I, channel, tee, angle: Σ b t³/3 without the fillets, slightly conservative;
+formulas (I: with the root fillets by El Darwish and Johnston, :func:`fillet_torsion_constant`,
+within 3 % of finite elements; channel, tee, angle: Σ b t³/3 without the fillets, slightly
+conservative;
 hollow: Bredt on the mid-line), Cw the usual closed forms (I: Iy h0²/4; channel, tee and angle:
 the AISC Design Guide 9 forms; hollow sections: 0). Tees (not in the table) are built for
 custom profiles. This is the one place A, I, S and Z of steel shapes are computed:
@@ -292,6 +294,26 @@ def _section(
 # ───────────────────────────────────────── shapes ─────────────────────────────────────────
 
 
+def fillet_torsion_constant(h: float, b: float, tw: float, tf: float, r: float) -> float:
+    """J of a rolled I-shape with its root fillets, El Darwish and Johnston (1965), as
+    the AISC Design Guide 9 gives it: two flanges b tf³ (1/3 - 0.21 tf/b (1 - tf⁴/(12 b⁴))),
+    the web (h - 2 tf) tw³ / 3 and at each of the two flange-web junctions α D⁴, with
+    α = (tw/tf)(0.15 + 0.10 r/tf) and D the diameter of the circle inscribed in the junction,
+    ((tf + r)² + tw (r + tw/4)) / (2 r + tf). Never below the thin-walled Σ b t³/3 (no fillet:
+    r = 0). Issue #286 cross-check of rolled W shapes: median +1 % against the published J,
+    the thinnest flanges (tf below about 6 mm) up to +8 %; the thin-walled sum was -5 % (to
+    -16 %)."""
+    thin = (2 * b * tf**3 + (h - 2 * tf) * tw**3) / 3
+    r = r or 0.0
+    if r <= 0 or tf <= 0:
+        return thin
+    flange = b * tf**3 * (1 / 3 - 0.21 * tf / b * (1 - tf**4 / (12 * b**4)))
+    web = (h - 2 * tf) * tw**3 / 3
+    d = ((tf + r) ** 2 + tw * (r + tw / 4)) / (2 * r + tf)
+    alpha = (tw / tf) * (0.15 + 0.10 * r / tf)
+    return max(thin, 2 * flange + web + 2 * alpha * d**4)
+
+
 def i_section(name: str, family: str, h: float, b: float, tw: float, tf: float, r: float):
     """Doubly symmetric I/H with root fillets."""
     xw0, xw1 = (b - tw) / 2, (b + tw) / 2
@@ -305,7 +327,7 @@ def i_section(name: str, family: str, h: float, b: float, tw: float, tf: float, 
         *_spandrel(xw0, tf, -1, 1, r),
     ]
     props = _combine(parts, b, h)
-    j = (2 * b * tf**3 + (h - 2 * tf) * tw**3) / 3
+    j = fillet_torsion_constant(h, b, tw, tf, r)
     cw = props.Iy * (h - tf) ** 2 / 4
     return _section(name, family, "I", (h, b, tw, tf, r, 0.0), props, j, cw)
 
@@ -320,6 +342,8 @@ def channel_section(name: str, family: str, h: float, b: float, tw: float, tf: f
         *_spandrel(tw, tf, 1, 1, r),
     ]
     props = _combine(parts, b, h)
+    # Σ b t³/3: the I-shape's fillet formula is for T junctions (fillets both sides of the web)
+    # and overestimates a channel's one-sided corners by about 20 % against finite elements.
     j = (2 * b * tf**3 + (h - 2 * tf) * tw**3) / 3
     bp, hp = b - tw / 2, h - tf
     cw = (tf * bp**3 * hp**2 / 12) * (3 * bp * tf + 2 * hp * tw) / (6 * bp * tf + hp * tw)
@@ -446,6 +470,22 @@ def _sections(t: Any) -> tuple[SteelSection, ...]:
         angle_section(f"L {a.leg}x{a.leg}x{_fmt(a.t)}", a.leg, a.leg, a.t, a.r1, a.r1 * share)
         for a in t.angles.sections
     ]
+    unequal = getattr(t, "unequalAngles", None)
+    if unequal is not None:  # family LU: the longer leg is the depth
+        out += [
+            replace(
+                angle_section(
+                    f"L {_fmt(a.leg)}x{_fmt(a.leg2 or a.leg)}x{_fmt(a.t)}",
+                    a.leg,
+                    a.leg2 or a.leg,
+                    a.t,
+                    a.r1,
+                    a.r1 * unequal.toeRadiusShare,
+                ),
+                family="LU",
+            )
+            for a in unequal.sections
+        ]
     hollow = t.hollow
     for size in hollow.shs:
         out += [
@@ -461,6 +501,8 @@ def _sections(t: Any) -> tuple[SteelSection, ...]:
     for d in hollow.chs:
         out += [chs_section(f"CHS {_fmt(d)}x{_fmt(w)}", d, w) for w in _walls(hollow.chsWalls, d)]
     order = {f: i for i, f in enumerate(t.families)}
+    # A pack that extends another lists its own families: the parent's others are left out.
+    out = [s for s in out if s.family in order]
     return tuple(sorted(out, key=lambda s: (order[s.family], s.mass, s.h)))
 
 

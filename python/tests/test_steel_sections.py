@@ -37,8 +37,24 @@ def test_ipe300_with_fillets():
     assert fe.area == pytest.approx(s.A, rel=0.003)
     assert fe.ixx == pytest.approx(s.Ix, rel=0.003)
     assert fe.iyy == pytest.approx(s.Iy, rel=0.003)
-    assert s.J < fe.j  # the thin-walled J leaves out the fillets: conservative
-    assert s.J > 0.7 * fe.j
+    # J with the root fillets (El Darwish and Johnston), against finite elements; the plates'
+    # Σ b t³/3 alone is about 22 % low.
+    assert s.J == pytest.approx(fe.j, rel=0.03)
+    assert (2 * 150 * 10.7**3 + (300 - 21.4) * 7.1**3) / 3 < 0.8 * fe.j
+
+
+def test_i_section_fillet_j_and_its_floor():
+    s = t.find("HEB 200")
+    plates = (2 * s.b * s.tf**3 + (s.h - 2 * s.tf) * s.tw**3) / 3
+    assert s.J > plates
+    assert t.fillet_torsion_constant(s.h, s.b, s.tw, s.tf, 0.0) == pytest.approx(plates)
+    assert t.fillet_torsion_constant(s.h, s.b, s.tw, s.tf, None) == pytest.approx(plates)
+    # the member design takes the same J (the profile's fillet radius)
+    from saengine.design.steel.properties import shape_properties
+
+    assert shape_properties(TypeAdapter(Profile).validate_python(s.profile())).j == pytest.approx(
+        s.J
+    )
 
 
 def test_shs_matches_hand_formulas_and_fe():

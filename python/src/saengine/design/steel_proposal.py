@@ -101,6 +101,12 @@ class SteelMemberDemand:
     #: The member checks' options (:class:`saengine.design.steel.SteelOptions`: the stability
     #: design method of the run), passed to a checker that takes ``options``.
     options: Any = None
+    #: Issue #286: the member's deflection rows under the analysis (``Deflection: ...`` of the
+    #: design report) and ``stiffness``, the major-axis I [mm⁴] of the section it was analysed
+    #: with: a candidate's deflection is taken as these scaled by stiffness / its own I (the
+    #: next analysis of Size Steel Members confirms it).
+    service: list[dict[str, Any]] = field(default_factory=list)
+    stiffness: float | None = None
 
 
 #: checker(forces, section, material, lengths, kind=...) -> [check dicts]; ``section`` is the
@@ -325,6 +331,29 @@ def _call(checker: MemberChecker, member: SteelMemberDemand, s: SteelSection, m:
     return checker(member.forces, s, m, member.lengths)
 
 
+def service_rows(member: SteelMemberDemand, s: SteelSection) -> list[dict[str, Any]]:
+    """The member's deflection rows for candidate ``s``: the analysed deflection scaled by the
+    analysed section's major-axis I over the candidate's (bending deflection, the member's own
+    stiffness; the frame's redistribution is left to the next analysis)."""
+    if not member.service or not member.stiffness or s.Ix <= 0:
+        return []
+    ratio = member.stiffness / s.Ix
+    rows = []
+    for c in member.service:
+        u = float(c["utilisation"]) * ratio
+        rows.append(
+            {
+                **c,
+                "demand": round(float(c["demand"]) * ratio, 2),
+                "utilisation": round(u, 3),
+                "ok": bool(u <= 1.0),
+                "note": (c.get("note") or "")
+                + f"; scaled from the analysed section by I ratio {ratio:.3f}",
+            }
+        )
+    return rows
+
+
 def utilisation_of(checks: Iterable[dict[str, Any]]) -> float:
     """The largest utilisation of the strength checks (``flag`` checks only report)."""
     return max((float(c["utilisation"]) for c in checks if not c.get("flag")), default=0.0)
@@ -352,7 +381,7 @@ def _trial(
     worst, governing = 0.0, None
     by_check: dict[str, float] = {}
     for member in members:
-        checks = _call(checker, member, s, material)
+        checks = [*_call(checker, member, s, material), *service_rows(member, s)]
         u = utilisation_of(checks)
         for c in checks:
             if not c.get("flag"):
@@ -405,10 +434,18 @@ def propose_type(
     family: str | None = None,
     checker: MemberChecker | None = None,
     limit: float = 1.0,
+    candidates: Sequence[SteelSection] | None = None,
+    min_depth: float | None = None,
+    max_depth: float | None = None,
 ) -> dict[str, Any]:
     """The proposal entry of one object type (the RC proposal's shape: ``{"type", "kind",
     "name", "current", "proposed", "status", "governingMember", "members", "utilisation",
-    "family", "tooSmall", "notes"}``)."""
+    "family", "tooSmall", "notes", "currentUtilisation", "proposedUtilisation",
+    "governingCheck"}``).
+
+    ``candidates``: the sections the type may take (issue #286, Size Steel Members), in place
+    of its family's; ``min_depth``/``max_depth`` [mm]: only sections whose depth (in the
+    profile's orientation) is within them."""
     real = checker is not None
     if checker is None:
         checker, real = default_checker()
@@ -445,6 +482,33 @@ def propose_type(
     if not members:
         entry["tooSmall"] = {"reason": "no analysed members of this type"}
         return entry
+    try:  # the type's own section under the same forces: the utilisation before
+        now = _trial(tbl.section_of_profile(profile), members, material, checker, limit, False)
+        entry["currentUtilisation"] = round(now.utilisation, 3)
+    except (TypeError, ValueError, KeyError):
+        entry["currentUtilisation"] = None
+    shape = profile.get("shape")
+    own = None if candidates is None else [c for c in candidates if c.shape == shape]
+    if own is not None:
+        fam = "candidates"
+        entry["family"] = fam
+        fams = (fam,)
+
+    def pool(fam_name: str) -> list[SteelSection]:
+        """The sections tried, lightest first, in the profile's orientation and depth limits."""
+        base = own if own is not None and fam_name == "candidates" else tbl.family(fam_name)
+        out = [tbl.oriented(s, profile) for s in sorted(base, key=lambda s: (s.mass, s.h))]
+        return [
+            s
+            for s in out
+            if (min_depth is None or s.h >= min_depth - 1e-9)
+            and (max_depth is None or s.h <= max_depth + 1e-9)
+        ]
+
+    if min_depth is not None or max_depth is not None:
+        lo = "" if min_depth is None else f"from {min_depth:g} "
+        hi = "" if max_depth is None else f"up to {max_depth:g} "
+        notes.append(f"depths {lo}{hi}mm only")
 
     # Braces and columns are never proposed with slender plates (X12 of the usability walk: a
     # brace at b/t about 40): the lightest section that passes only through the slender-element
@@ -453,8 +517,7 @@ def propose_type(
     skipped_slender: list[str] = []
 
     def first_passing(fam_name: str) -> _Trial | None:
-        for s in tbl.family(fam_name):
-            s = tbl.oriented(s, profile)
+        for s in pool(fam_name):
             if nonslender:
                 slender = slender_elements(s, material)
                 if slender:
@@ -467,7 +530,11 @@ def propose_type(
 
     pick = first_passing(fam)
     if pick is None:
-        largest = tbl.oriented(tbl.family(fam)[-1], profile)
+        tried = pool(fam)
+        if not tried:
+            entry["tooSmall"] = {"reason": f"no {fam} section within the depth limits"}
+            return entry
+        largest = tried[-1]
         t = _trial(largest, members, material, checker, limit, stop_early=False)
         suggestion = None
         for other in fams:
@@ -493,6 +560,8 @@ def propose_type(
     entry["proposed"] = _label(pick.section, pick.section.profile())
     entry["governingMember"] = pick.governing
     entry["utilisation"] = {k: round(v, 3) for k, v in pick.by_check.items()}
+    entry["proposedUtilisation"] = round(pick.utilisation, 3)
+    entry["governingCheck"] = max(pick.by_check, key=pick.by_check.get) if pick.by_check else None
     entry["status"] = (
         "unchanged" if current is not None and current.name == pick.section.name else "ok"
     )
@@ -510,13 +579,17 @@ def steel_design_proposal(
     checker: MemberChecker | None = None,
     limit: float = 1.0,
     checkers: dict[str, MemberChecker] | None = None,
+    limits: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The steel design proposal: ``{"mode": "steel", "types": [entry, ...], "skipped",
     "notes"}`` for the beam, column and brace types of 04 Objects (JSON dicts) whose material
     is in ``materials`` (the steel ones), with ``demands`` their members' forces by type id
     and ``families`` an optional family per type id (default: the type's own). ``checkers``:
-    a type's own member checker in place of ``checker`` (alpha 9 P8: composite types)."""
+    a type's own member checker in place of ``checker`` (alpha 9 P8: composite types).
+    ``limits``: per type id ``{"candidates": [section names], "minDepth", "maxDepth"}`` (mm),
+    the options of Size Steel Members (:mod:`saengine.design.steel_sizing`)."""
     families = families or {}
+    limits = limits or {}
     entries, skipped = [], []
     for t in object_types:
         if t.get("kind") not in ("beam", "column", "brace") or "profile" not in t:
@@ -528,6 +601,11 @@ def steel_design_proposal(
         if t["profile"].get("shape") not in tbl.SHAPE_FAMILIES:
             skipped.append({"type": t["id"], "reason": f"no table for {t['profile']['shape']}"})
             continue
+        own = limits.get(t["id"]) or {}
+        names = own.get("candidates")
+        pool = None
+        if names:
+            pool = [x for x in (tbl.find(n) for n in names) if x is not None]
         entries.append(
             propose_type(
                 t["id"],
@@ -539,6 +617,9 @@ def steel_design_proposal(
                 families.get(t["id"]),
                 (checkers or {}).get(t["id"], checker),
                 limit,
+                candidates=pool,
+                min_depth=own.get("minDepth"),
+                max_depth=own.get("maxDepth"),
             )
         )
     return {
