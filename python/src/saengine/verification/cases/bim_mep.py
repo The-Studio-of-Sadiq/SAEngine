@@ -434,23 +434,71 @@ def _entities(path: Path) -> collections.Counter[tuple[str, str]]:
     )
 
 
+def _rotated_mtext(path: Path) -> int:
+    import ezdxf
+
+    doc = ezdxf.readfile(str(path))
+    return sum(
+        1
+        for space in [*doc.layouts, *doc.blocks]
+        for text in space.query("MTEXT")
+        if text.dxf.hasattr("rotation")
+    )
+
+
 def dwg_case(folder: Path) -> Outcome:
     from saengine.library import dwg
     from saengine.pipeline import drawings
 
     reference = Reference(
         "The sheets' own DXF (SAEngine's master file), counted with ezdxf",
-        "entities per (layer, type) after DXF -> dxf2dwg -> DWG -> dwg2dxf -> DXF = before",
+        "entities per (layer, type) of the DXF handed to dxf2dwg = the sheet's; with LibreDWG, "
+        "after DXF -> dxf2dwg -> DWG -> dwg2dxf -> DXF = before",
     )
-    if dwg.find_writer() is None or dwg.find_converter() is None:
-        return Outcome(reference, [], ["Skipped: GNU LibreDWG (dxf2dwg, dwg2dxf) was not found."])
     root = write_project(folder / "project")
     answer = drawings.generate(root, use_design=False)
-    quantities: list[Quantity] = []
+    sheets = answer["sheets"]
+    count = len(sheets)
     notes: list[str] = []
-    written = mismatched = 0
-    before_total = after_total = 0
-    for sheet in answer["sheets"]:
+    # The part SAEngine does itself, with or without LibreDWG: the copy dwg_ready writes for
+    # dxf2dwg keeps every entity and leaves no MTEXT rotation (group code 50) for it to refuse.
+    ready_total = before_total = ready_mismatched = rotated_before = rotated_left = 0
+    for sheet in sheets:
+        dxf = Path(sheet["dxf"])
+        ready = folder / "ready" / f"{sheet['number']}.dxf"
+        ready.parent.mkdir(parents=True, exist_ok=True)
+        dwg.dwg_ready(dxf, ready)
+        before, after = _entities(dxf), _entities(ready)
+        before_total += sum(before.values())
+        ready_total += sum(after.values())
+        rotated_before += _rotated_mtext(dxf)
+        rotated_left += _rotated_mtext(ready)
+        for key in before.keys() | after.keys():
+            if before[key] != after[key]:
+                ready_mismatched += 1
+                notes.append(f"{sheet['number']} for dxf2dwg {key}: {before[key]} -> {after[key]}")
+    reference.steps = [
+        f"{count} sheets of the two-bay frame drawn (drawings.generate, no design results)",
+        (
+            f"{before_total} entities in their DXF (paper-space viewports left out), "
+            f"{rotated_before} of them rotated MTEXT"
+        ),
+    ]
+    quantities = [
+        Quantity("Entities kept in the copy for dxf2dwg", "", before_total, ready_total, EXACT),
+        Quantity("Layer and type groups changed for dxf2dwg", "", 0, ready_mismatched, EXACT),
+        Quantity("Rotated MTEXT left for dxf2dwg", "", 0, rotated_left, EXACT),
+    ]
+    notes.append(
+        "LibreDWG 0.14 rejected every sheet with a rotated MTEXT (DXF group code 50) until "
+        "write_dwg turned the rotations into text directions (#299); the paper-space viewport "
+        "comes back on layer 0 instead of VIEWPORTS, so viewports are not compared."
+    )
+    if dwg.find_writer() is None or dwg.find_converter() is None:
+        notes.append("The DWG round trip was skipped: GNU LibreDWG (dxf2dwg, dwg2dxf) not found.")
+        return Outcome(reference, quantities, notes)
+    written = mismatched = after_total = 0
+    for sheet in sheets:
         dxf = Path(sheet["dxf"])
         target = folder / "dwg" / f"{sheet['number']}.dwg"
         try:
@@ -461,27 +509,16 @@ def dwg_case(folder: Path) -> Outcome:
         written += 1
         with dwg.converted(target) as back:
             before, after = _entities(dxf), _entities(back.dxf)
-        before_total += sum(before.values())
         after_total += sum(after.values())
         for key in before.keys() | after.keys():
             if before[key] != after[key]:
                 mismatched += 1
                 notes.append(f"{sheet['number']} {key}: {before[key]} -> {after[key]}")
-    count = len(answer["sheets"])
-    reference.steps = [
-        f"{count} sheets of the two-bay frame drawn (drawings.generate, no design results)",
-        f"{before_total} entities in their DXF (paper-space viewports left out)",
-    ]
     quantities += [
         Quantity("Sheets written as DWG", "", count, written, EXACT),
         Quantity("Entities read back", "", before_total, after_total, EXACT),
         Quantity("Layer and type groups that differ", "", 0, mismatched, EXACT),
     ]
-    notes.append(
-        "LibreDWG 0.14 rejected every sheet with a rotated MTEXT (DXF group code 50) until "
-        "write_dwg turned the rotations into text directions (#299); the paper-space viewport "
-        "comes back on layer 0 instead of VIEWPORTS, so viewports are not compared."
-    )
     return Outcome(reference, quantities, notes)
 
 
@@ -782,7 +819,7 @@ CASES = [
         "design",
         "Every sheet of the two-bay frame's drawing set is written as DWG with LibreDWG's "
         "dxf2dwg, read back with dwg2dxf and its entities counted per layer and type against "
-        "the sheet's DXF. Skipped without LibreDWG.",
+        "the sheet's DXF; without LibreDWG only the copy SAEngine hands dxf2dwg is checked.",
         "The two-bay frame's drawings (no design results): plans, schedules, details.",
         dwg_case,
     ),
