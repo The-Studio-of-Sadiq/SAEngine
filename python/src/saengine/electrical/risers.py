@@ -18,7 +18,8 @@
   width across the beam (/sin of the crossing angle) and its height, plus 50 mm each side, to
   the next 50 mm (SAEngine practice). The proposed openings are 07 MEP openings, so the beam and
   slab opening checks of :mod:`saengine.mep.openings` run on them once they are added.
-- Tray fill: the cables' cross-section at most 40 % of the tray's (from memory, to be checked).
+- Tray fill: the cables' cross-section at most 40 % of the tray's (not from a standard, to be
+  checked: see the code pack's sources).
 """
 
 from __future__ import annotations

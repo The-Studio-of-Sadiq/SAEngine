@@ -183,11 +183,15 @@ def sprinkler_case(_: Path) -> Outcome:
     by_hand = 6.1 * 139
     return Outcome(
         Reference(
-            "NFPA 13 density/area and hose allowance (from memory, to be checked); BNBC 2020 "
-            "Part 4 Table 4.4.7 (p333)",
+            "NFPA 13 (2022) Tables 19.2.3.1.1 (density/area) and 19.2.3.1.2 (hose allowance), "
+            "checked against secondary sources quoting them (issue #299), not the printed "
+            "standard; BNBC 2020 Part 4 Table 4.4.7 (p333)",
             "Q = density x area + hose; the hydraulic calculation at least density x area",
             [
-                "ordinary hazard-I: 6.1 mm/min over 139 m² = 847.9 l/min",
+                (
+                    "ordinary hazard-I (NFPA ordinary group 1): 0.15 gpm/ft² x 40.75 = 6.1 mm/min "
+                    "over 1500 ft² = 139 m²: 847.9 l/min"
+                ),
                 "hose allowance 946 l/min: 1793.9 l/min",
                 (
                     "Table 4.4.7: 12.1 m² a head; 600 m² / 54 heads = 11.1 m² a head; 13 heads in "

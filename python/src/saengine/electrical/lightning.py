@@ -11,7 +11,7 @@ what they ask of the structure.
   each at least 300 mm above the highest point (Sec 1.3.33.6(a)); roof conductors round the
   roof's periphery and across it so that no part of the roof is more than 9 m from the nearest
   conductor (Sec 1.3.33.8(a)). With an IEC 62305 protection level, its mesh governs where it is
-  smaller (from memory, to be checked).
+  smaller (IEC 62305-3 Table 2, checked against a manufacturer's guide that reproduces it).
 - Down conductors (Sec 1.3.33.8(c)): one for a base area up to 100 m²; for a larger building one
   for the first 80 m² and one for every further 100 m² or part, or one for every 30 m of
   perimeter. SAEngine places them at columns on the perimeter that run without a break from
@@ -24,7 +24,8 @@ what they ask of the structure.
   clearance from a conductor to other metal: D = 0.3 R + H / (15 n) (Eq 8.1.1), else bonding.
 - Reinforcement as a down conductor (the default pack says nothing of it): IEC 62305-3, the bars
   made continuous (welded or clamped laps) with an overall resistance of at most 0.2 ohm from
-  the top to the ground level (from memory, to be checked).
+  the top to the ground level (IEC 62305-3 Sec 4.3; found only in an unofficial copy of a
+  national adoption, to be checked).
 """
 
 from __future__ import annotations

@@ -224,3 +224,26 @@ def test_installer_components(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         "energyplus": {"state": "elsewhere", "path": str(other)},
         "libredwg": {"state": "installed", "path": str(bundled)},
     }
+
+
+def test_rotated_mtext_is_written_as_a_text_direction(tmp_path: Path) -> None:
+    # LibreDWG 0.14's dxf2dwg refuses MTEXT group code 50 (rotation) and with it the whole
+    # sheet (#299); write_dwg hands it the same note with a direction vector instead.
+    import ezdxf
+
+    doc = ezdxf.new()
+    doc.modelspace().add_mtext("Section A-A", dxfattribs={"rotation": 90.0, "insert": (5, 5)})
+    doc.modelspace().add_mtext("plain", dxfattribs={"insert": (0, 0)})
+    source, ready = tmp_path / "in.dxf", tmp_path / "ready.dxf"
+    doc.saveas(source)
+    assert dwg.dwg_ready(source, ready) == 1
+    rotated, plain = ezdxf.readfile(ready).modelspace().query("MTEXT")
+    assert not rotated.dxf.hasattr("rotation")
+    assert tuple(rotated.dxf.text_direction) == pytest.approx((0.0, 1.0, 0.0), abs=1e-9)
+    assert rotated.get_rotation() == pytest.approx(90.0)
+    assert not plain.dxf.hasattr("text_direction")
+    # A file ezdxf cannot read is passed on as it is, for the converter to judge.
+    broken = tmp_path / "broken.dxf"
+    broken.write_text("not a dxf", encoding="utf-8")
+    assert dwg.dwg_ready(broken, tmp_path / "copy.dxf") == 0
+    assert (tmp_path / "copy.dxf").read_text(encoding="utf-8") == "not a dxf"

@@ -199,6 +199,15 @@ def openings_case(_: Path) -> Outcome:
             Quantity("Beam opening height", "mm", 200, first["height"], EXACT),
             Quantity("Beam opening centre", "mm", 250, first["position"]["elevation"], EXACT),
         ],
+        [
+            (
+                "The 40 % tray fill that sizes the trays is not from a standard (issue #299): no "
+                "standard found sets it for multicore power cables (NEC 392.22(A) gives areas per "
+                "tray width, and 40 % only for control cables in solid-bottom trays; the Cable "
+                "Tray Institute guideline says 40-50 %). It stays marked 'to be checked' in the "
+                "code pack; the case checks the openings, not the fill."
+            )
+        ],
     )
 
 
@@ -226,6 +235,13 @@ def lightning_case(_: Path) -> Outcome:
             Quantity("Down conductors", "", 4, len(lp["downConductors"]), EXACT),
             Quantity("Air terminals (at least)", "", 8, min(len(lp["airTerminals"]), 8), EXACT),
             Quantity("Clearance", "m", 0.3 * 10 + 28 / 60, lp["earth"]["clearance"], EXACT),
+        ],
+        [
+            (
+                "The IEC 62305-3 mesh sizes, rolling sphere radii and down-conductor spacings of "
+                "the code pack (Tables 2 and 4) were checked against ABB Furse's guide, which "
+                "reproduces them (issue #299); the BNBC risk index above does not use them."
+            )
         ],
     )
 

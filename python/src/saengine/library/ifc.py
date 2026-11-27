@@ -348,6 +348,10 @@ class _Writer:
         )
         entity.GlobalId = global_id(key)
         if self.is_ifc2x3:
+            # IFC2X3's stairs, ramps and roofs carry their kind in the required ShapeType
+            # (PredefinedType came in IFC4); left unset the file fails the schema (#299).
+            if target_class in ("IfcStair", "IfcRamp", "IfcRoof"):
+                entity.ShapeType = target_predefined or "NOTDEFINED"
             if target_class == "IfcElectricDistributionPoint":
                 entity.DistributionPointFunction = (
                     "SWITCHBOARD"

@@ -5,7 +5,7 @@ result with an independent reference: a closed-form solution, a published benchm
 calculation written out step by step in the case. Each compared quantity passes when SAEngine's
 value is within a stated relative tolerance of the reference.
 
-The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/advanced.py` (the advanced analyses of #290), `cases/parity.py` (the analysis model's conventions of version 0.0.44), `cases/depth.py` (the depth tests of issue #298) and
+The code is in `python/src/saengine/verification/`. The cases are in `cases/analysis.py`, `cases/advanced.py` (the advanced analyses of #290), `cases/parity.py` (the analysis model's conventions of version 0.0.44), `cases/depth.py` (the depth tests of issue #298), `cases/bim_mep.py` (the BIM and MEP depth tests of issue #299) and
 `cases/design.py`, the runner is `run.py`, and the PDF template is `templates/verification.typ`.
 
 ## Running it
@@ -129,10 +129,16 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 | AG8 | Support settlement case ST (`fem.settlement`) on a fixed-ended beam: end moment and shear | 6EIΔ/L², 12EIΔ/L³ with the columns' axial shortening |
 | AG9 | Semi-rigid diaphragm: 16 × 4 m slab of shells spanning in its plane between two walls: midspan deflection and moment | Plane-stress elasticity (Timoshenko & Goodier, Art. 22); statics |
 | DG10 | One-bay bill of quantities (concrete, formwork, bars by size) and beam B1's bar schedule (links, cutting lengths, hook tails, mass) | Hand take-off by the estimating rules; BNBC 2020 8.1.2 and BS 8666:2005 |
+| DI1 | IFC4 and IFC2X3 exports of a two-bay frame with a stair validated; a third-party IFC (buildingSMART Simple-Scene Building-Architecture, IFC2X3, CC BY 4.0) validated and adopted: walls, rooms, wall lengths and widths | `ifcopenshell.validate` with the EXPRESS rules; the sample's own IfcWall/IfcSpace counts and Qto_WallBaseQuantities |
+| DI2 | Every drawing sheet of the two-bay frame written as DWG (LibreDWG dxf2dwg) and read back (dwg2dxf): sheets written, entities, (layer, type) groups that differ | The sheets' own DXF counted with ezdxf; skipped without LibreDWG |
+| DI3 | Clash benchmark: a DN100 pipe through a 300 mm beam and a duct riser 50 mm off a beam, 100 mm clearance test; the clashes out to BCF 3.0 and into a fresh coordination | Hand placement: overlap 300 mm, gap 50 mm; topics, elements and viewpoints read back |
+| DI4 | Two-bay frame on six isolated footings: concrete, formwork and excavation by element group | Hand take-off by the BOQ's stated measurement rules |
+| DI5 | The bill split by phase: bay A-B existing with its slab demolished, bay B-C new | Hand split of the DI4 take-off |
+| DI6 | One room's cooling load (`hvac.fallback`) on the inputs of a published worked example: humidity ratios, glass conduction, lights, equipment, people | NPTEL / IIT Kharagpur, Refrigeration and Air Conditioning, Lesson 35, Q 10 |
 
 ## Results at the time of writing
 
-116 of the 118 cases pass (beta after 0.0.52, 27 Nov 2026, with the advanced analysis cases AX1-AX6 of #290 and the depth tests AG1-DG10 of #298); A9 and DG10 fail on the known issues below.
+122 of the 124 cases pass (beta after 0.0.52, 27 Nov 2026, with the advanced analysis cases AX1-AX6 of #290, the depth tests AG1-DG10 of #298 and the BIM and MEP depth tests DI1-DI6 of #299); A9 and DG10 fail on the known issues below. AH1 was skipped on that machine (EnergyPlus not installed); DI2 ran with LibreDWG 0.14.
 Every case added since 0.0.45 passes. The table lists the largest deviation in each case (AH1
 compares no ratios: it passes when its checks hold):
 
@@ -197,6 +203,14 @@ compares no ratios: it passes when its checks hold):
 | AG3 | 1.0000 | 1 % | AG8 | 1.0000 | 1 % |
 | AG4 | 1.0003 | 0.1 % | AG9 | 0.9964 | 2 % |
 | DG5 | 0.9999 | 0.5 % | DG10 | 0.9583 (fail) | 0.0001 % |
+| DI1 | 1.0000 | 0.5 % | DI2 | 1.0000 | 0.5 % |
+| DI3 | 1.0000 | 0.5-1 % | DI4 | 0.9999 | 0.5 % |
+| DI5 | 1.0001 | 0.5 % | DI6 | 1.0249 | 0.5-3 % |
+
+The MEP cases (DM1-DM3, AM1, DB1-DB5, DW1-DW3, AK1, DK1-DK3, DF1-DF4, DE1-DE4, DA1-DA3,
+DH1-DH2) were run again in this pack run for issue #299, after the "from memory" values were
+checked (next section): all pass with the ratios above; DF3 and DE3 are unchanged (1.0003, 1.0000)
+because no checked value changed.
 
 ## Known issues (failing cases)
 
@@ -211,6 +225,32 @@ compares no ratios: it passes when its checks hold):
   round up to the same 6850 mm, and Ø16 is consistent; the rest of DG10 passes.
 
 ## Other observations recorded by the cases
+
+- **DI1, DI2 (fixed, #299).** The IFC2X3 export left `IfcStair.ShapeType`, required in IFC2X3,
+  unset, so a project with a stair failed the schema; `library/ifc.py` now fills it (also for
+  ramps and roofs). LibreDWG 0.14's `dxf2dwg` refused 16 of 21 sheets of the sample project
+  ("Invalid DXF code 50 for MTEXT": the rotation of a rotated note), so DWG export failed for
+  every plan; `library/dwg.py` now hands it a copy with the rotations as text directions, and
+  every sheet comes back with the same entities per layer and type. Paper-space viewports come
+  back on layer 0 instead of `VIEWPORTS`, so DI2 does not compare them.
+- **DI1.** No openly licensed Revit- or ArchiCAD-exported IFC could be confirmed (the
+  buildingSMART repository dropped its old ones; KIT's AC20-FZK-Haus states no licence), so the
+  third-party sample is a SketchUp export (`verification/data/README.md`).
+- **DI6.** Only the components computed the same way are compared. On the whole room SAEngine's
+  estimate is 1.40 times the example's: the exposed floor is SAEngine's bare RC slab (U 4.2
+  against 1.2, with no input to change it), the roof and wall take the sol-air excess of fixed
+  mean irradiances against the example's ETDs, the west glass the peak 500 W/m² against 300, and
+  the infiltration standard density (1.204 kg/m³) against the outdoor air's 1.095. It is on the
+  safe side for sizing plant, not a design load.
+- **"From memory" values (#299).** Checked against public sources, not the printed standards
+  (which are not freely available): the NFPA 13 densities, design areas, hose allowances and the
+  1.2 √A rule agree with NFPA 13 (2022) as quoted by secondary sources, and the IEC 62305-3
+  mesh sizes, rolling spheres and down-conductor spacings with ABB Furse's guide, which
+  reproduces Tables 2 and 4. No value had to change; the code pack's sources now cite them. The
+  40 % cable tray fill for power cables could not be traced to any standard (NEC 392.22(A)
+  gives fill areas per tray width; 40 % is its limit for control cables in solid-bottom trays)
+  and stays marked "to be checked"; so does the 0.2 ohm of reinforcement as a down conductor
+  (found only in an unofficial copy).
 
 - **AX1 (fixed).** The linear buckling analysis took one cubic element per analysis piece, and
   the derived model does not subdivide frame members. A pin-ended column drawn as one member
