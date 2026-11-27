@@ -20,9 +20,6 @@ from saengine.verification.run import main, render_pdf, run_all, summary_table
 KNOWN_ISSUES = {
     # Linear tetrahedra at the meshes Project Settings allow: about 8 % stiff in bending.
     "A9": {"Tip deflection, default 500 mm mesh", "Tip deflection, 100 mm mesh (finest allowed)"},
-    # The detailing's 90° hook of Ø20+ bars on the code's bend, scheduled on BS 8666's larger
-    # radius: the bent tail is 230 mm, short of 12 db = 240 mm (GitHub issue #386).
-    "DG10": {"B1 bottom bar hook tail A - r - d (12 d)"},
 }
 
 

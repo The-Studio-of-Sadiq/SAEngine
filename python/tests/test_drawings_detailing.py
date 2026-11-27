@@ -698,12 +698,13 @@ def test_an_18_m_special_beam_is_spliced_into_stock_bars() -> None:
     )
     line = _element(model, "B1+B2+B3")
     # Faces 150 | 5850, 6150 | 11850, 12150 | 17850 (clear 5700, a third 1900); the bars end 50
-    # inside the end columns (s = -100 and 18100), with 90° hooks of leg 12 db + 3 db + db = 320.
+    # inside the end columns (s = -100 and 18100), with 90° hooks of leg 12 db + r + db = 330,
+    # r = 70 the radius the schedule bends on (BS 8666's 3.5 db over the code's 3 db; #386).
     # ld Ø20 (8.2.3.2, 20 mm and larger): 420 / (1.7 √24.1) × 20 = 1006.5; class B laps:
     # bottom 1.3 × 1006.5 = 1308.5 -> 1325, top (ψt 1.3, 530 mm of concrete below) 1701 -> 1725.
     # No laps within 2 h = 1200 of a face (8.3.4.2(b)).
     hook = standard_hook(20, 90).leg
-    assert hook == 320
+    assert hook == 330
     lap_b = up(lap_tension(20, 420, 24.1).value)
     lap_t = up(lap_tension(20, 420, 24.1, top=True).value)
     assert (lap_b, lap_t) == (1325, 1725)
