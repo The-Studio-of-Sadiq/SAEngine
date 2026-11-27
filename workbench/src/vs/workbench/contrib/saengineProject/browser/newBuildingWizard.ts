@@ -946,8 +946,12 @@ export class NewBuildingWizard extends EditorPane {
 			if (value === 'radial' && !this.form.innerRadius?.trim()) {
 				this.form.innerRadius = inFeet ? '20' : '6000';
 			}
-			if (value !== 'orthogonal' && !this.form.gridAngle?.trim()) {
-				this.form.gridAngle = value === 'rotated' ? '30' : '0';
+			// A rotated grid at 0° is the orthogonal one: start it at 30° (a radial grid's first
+			// ray may well be at 0°).
+			if (value === 'rotated' && !parseGridAngle(this.form.gridAngle)) {
+				this.form.gridAngle = '30';
+			} else if (value === 'radial' && !this.form.gridAngle?.trim()) {
+				this.form.gridAngle = '0';
 			}
 			this.templateCustom = true;
 			this.renderPage();
