@@ -99,7 +99,7 @@ WORKING = "working"
 
 #: Files never versioned besides the computed caches: operating-system, editor and Office
 #: droppings, the project's own archives, temporary files of interrupted saves.
-JUNK: tuple[str, ...] = (*JUNK_PATTERNS, "*.tmp", "*~", ".~lock.*#", "*.saengine-tmp")
+JUNK: tuple[str, ...] = (*JUNK_PATTERNS, "*.tmp", "*~", ".~lock.*#")
 
 # JUNK as .gitignore lines: git matches case-sensitively unless core.ignorecase is set, so the
 # usual spellings are listed (SAEngine itself matches JUNK case-insensitively).

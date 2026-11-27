@@ -140,7 +140,9 @@ _EDITOR_FOLDERS = frozenset(f.casefold() for f in EDITOR_SETTINGS_FOLDERS)
 _SHORT_NAME = re.compile(r"^(?P<base>[^~.]{1,6})~\d+(?:\.[^.]{0,3})?$")
 
 #: File names never archived: operating-system and editor droppings, and other archives.
-JUNK_PATTERNS: tuple[str, ...] = ("thumbs.db", "desktop.ini", ".ds_store", "~$*", "*.civil")
+JUNK_PATTERNS: tuple[str, ...] = (
+    "thumbs.db", "desktop.ini", ".ds_store", "~$*", "*.civil", "*.saengine-tmp"
+)  # fmt: skip
 
 #: The parts of a project: id -> (folder, main file). Mirrors ``PROJECT_PARTS`` and
 #: ``STRUCTURE_PART`` of the workbench's ``services/saengineProject/common/saengineProject.ts``.

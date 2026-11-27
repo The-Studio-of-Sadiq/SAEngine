@@ -19,6 +19,10 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine package ...  (the same as codepack; --kind for templates)
     saengine action list|describe <name>|run <name> --params JSON|batch <steps.json>
                     [--project DIR] [--dry-run]
+    saengine <noun> <verb> [--option VALUE ...] [--project DIR] [--dry-run] [--json]
+                    every shared editing action as a command (saengine.cli.verbs), e.g.
+                    saengine member add column, saengine load pattern add, saengine run all,
+                    saengine design apply, saengine undo
 
 Results go to stdout (text, or one JSON document with ``--json``), progress to stderr.
 
@@ -697,12 +701,22 @@ def _version_text() -> str:
             f"openseespy {version('openseespy')}, Python {sys.version.split()[0]})")  # fmt: skip
 
 
+def _epilog() -> str:
+    from saengine.cli.verbs import help_text
+
+    return (
+        help_text() + "\n\nExit codes: 0 ok, 1 checks fail, 2 usage, 3 error. See docs/cli.md and "
+        "docs/actions.md."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(
         prog="saengine",
         description="SAEngine without the app: check, analyse and design a project, export its "
         "drawings and models, archive it and keep its versions.",
-        epilog="Exit codes: 0 ok, 1 checks fail, 2 usage, 3 error. See docs/cli.md.",
+        epilog=_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=_version_text())
     common = _Parser(add_help=False)
@@ -861,8 +875,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
         except (AttributeError, ValueError):
             pass
-    parser = build_parser()
     words = list(sys.argv[1:] if argv is None else argv)
+    from saengine.cli import verbs
+
+    if verbs.handles(words):  # saengine <noun> <verb>: the shared editing actions
+        return verbs.run(words)
+    parser = build_parser()
     try:
         args = parser.parse_args(words)
     except ArgumentsError as error:

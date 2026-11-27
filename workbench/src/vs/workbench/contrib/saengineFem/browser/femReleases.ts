@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IActionStep } from '../../../services/saengineProject/common/saengineActions.js';
 import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyPropertyOnCommit } from '../../saengineProject/browser/editorFrame.js';
 
 /*
@@ -18,8 +19,10 @@ import { appendPropertyHeading, appendPropertyNote, appendPropertyRow, applyProp
  * for the member or joint picked in 3D. They are stored in the building model
  * (`06 BIM/bim.json`, `additions.endReleases` and `additions.pointSprings`: the BIM window's
  * Additions form edits the same lists) and applied when the analysis model is derived
- * (saengine.fem.derive). The functions here edit the building model's text; the panel calls
- * them and the editor writes the text back as one undoable edit.
+ * (saengine.fem.derive). The functions here read the building model's text; every change is
+ * one shared editing action (`release.set`, `spring.set`, issue #280), the same the terminal
+ * (`saengine release set`) and the assistant run, so the edit logic lives in the engine only.
+ * The editor runs the action and applies its answer as one undoable edit.
  */
 
 /** The actions at a member end, in its member axes 1-2-3 (saengine.library.bim.END_ACTIONS). */
@@ -52,24 +55,6 @@ function list(bim: Json, key: 'endReleases' | 'pointSprings'): Json[] {
 	return items.filter(isObject);
 }
 
-/** The next free id with `prefix` among the building model's elements and additions. */
-function nextId(bim: Json, prefix: string): string {
-	const additions = isObject(bim.additions) ? bim.additions : {};
-	const used = new Set([
-		...(Array.isArray(bim.elements) ? bim.elements : []),
-		...Object.values(additions).flatMap(items => Array.isArray(items) ? items : []),
-	].filter(isObject).map(item => String(item.id)));
-	let n = 1;
-	while (used.has(`${prefix}${n}`)) {
-		n++;
-	}
-	return `${prefix}${n}`;
-}
-
-function text(bim: Json): string {
-	return JSON.stringify(bim, undefined, '\t') + '\n';
-}
-
 /** A member's end releases: per end, each released action -> 0 (released) or its spring. */
 export interface IMemberReleases {
 	readonly id: string | undefined;
@@ -97,44 +82,6 @@ export function memberReleases(bimText: string | undefined, member: string): IMe
 	return { id: typeof found?.id === 'string' ? found.id : undefined, start: endOf(found?.start), end: endOf(found?.end) };
 }
 
-/**
- * The building model's text with one action of `member`'s `end` set: `undefined` fixed, 0
- * released, a value a spring [kN/m, kN·m/rad]. A member left with nothing released loses its
- * entry. Undefined when the text is not a building model.
- */
-export function withMemberRelease(bimText: string | undefined, member: string, end: MemberEnd, action: EndAction, value: number | undefined): string | undefined {
-	return withMemberReleases(bimText, member, { [end]: { [action]: value } });
-}
-
-/** {@link withMemberRelease} for several actions at once (`undefined` values fix them). */
-export function withMemberReleases(bimText: string | undefined, member: string, changes: { readonly [end in MemberEnd]?: { readonly [action in EndAction]?: number | undefined } }): string | undefined {
-	const bim = parse(bimText);
-	if (!bim) {
-		return undefined;
-	}
-	const items = list(bim, 'endReleases');
-	let release = items.find(r => r.member === member);
-	if (!release) {
-		release = { id: nextId(bim, 'ER'), member, start: {}, end: {} };
-		((bim.additions as Json).endReleases as unknown[]).push(release);
-	}
-	for (const end of ['start', 'end'] as const) {
-		const actions = isObject(release[end]) ? release[end] as Json : (release[end] = {}) as Json;
-		for (const [action, value] of Object.entries(changes[end] ?? {})) {
-			if (value === undefined) {
-				delete actions[action];
-			} else {
-				actions[action] = value;
-			}
-		}
-	}
-	if (!Object.keys(endOf(release.start)).length && !Object.keys(endOf(release.end)).length) {
-		const all = (bim.additions as Json).endReleases as unknown[];
-		all.splice(all.indexOf(release), 1);
-	}
-	return text(bim);
-}
-
 /** A joint's point spring: its springs [kN/m, kN·m/rad] and its support. */
 export interface IPointSpring {
 	readonly id: string | undefined;
@@ -159,33 +106,6 @@ export function pointSpring(bimText: string | undefined, at: readonly number[]):
 	}
 	const support = found?.support === 'pinned' || found?.support === 'fixed' ? found.support : 'none';
 	return { id: typeof found?.id === 'string' ? found.id : undefined, springs, support };
-}
-
-/**
- * The building model's text with the point spring at `at` [mm] changed: a spring (`undefined`
- * or 0: none) or the support. A joint left with no spring and no support loses its entry.
- */
-export function withPointSpring(bimText: string | undefined, at: readonly number[], key: SpringKey | 'support', value: number | SpringSupport | undefined): string | undefined {
-	const bim = parse(bimText);
-	if (!bim) {
-		return undefined;
-	}
-	const items = list(bim, 'pointSprings');
-	let spring = items.find(s => sameMm(s.at, at));
-	if (!spring) {
-		spring = { id: nextId(bim, 'PS'), at: at.map(v => Math.round(v)) };
-		((bim.additions as Json).pointSprings as unknown[]).push(spring);
-	}
-	if (value === undefined || value === 0 || value === 'none') {
-		delete spring[key];
-	} else {
-		spring[key] = value;
-	}
-	if (!SPRING_KEYS.some(k => typeof spring[k] === 'number' && spring[k] as number > 0) && (spring.support ?? 'none') === 'none') {
-		const all = (bim.additions as Json).pointSprings as unknown[];
-		all.splice(all.indexOf(spring), 1);
-	}
-	return text(bim);
 }
 
 /** A typed stiffness: '' -> undefined, else a number ≥ 0; NaN when it is not one. */
@@ -220,11 +140,11 @@ export interface IReleasePanelOptions {
 	readonly contextViewService: IContextViewService;
 	/** The building model's text (unsaved edits included), undefined when it is not open. */
 	readonly bimText: string | undefined;
-	/** Writes the building model's new text as one undoable edit. */
-	readonly write: (text: string) => void;
+	/** Runs a shared editing action on the building model (one undoable edit). */
+	readonly run: (step: IActionStep) => void;
 }
 
-function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IReleasePanelOptions, label: string, value: number | undefined, placeholder: string, apply: (value: number | undefined) => string | undefined): HTMLInputElement {
+function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IReleasePanelOptions, label: string, value: number | undefined, placeholder: string, step: (value: number | undefined) => IActionStep): HTMLInputElement {
 	const box = store.add(new InputBox(row, options.contextViewService, { inputBoxStyles: defaultInputBoxStyles, placeholder, ariaLabel: label }));
 	box.value = value === undefined ? '' : String(value);
 	store.add(applyPropertyOnCommit(box.inputElement, typed => {
@@ -234,10 +154,7 @@ function stiffnessInput(row: HTMLElement, store: DisposableStore, options: IRele
 			return;
 		}
 		box.hideMessage();
-		const next = apply(parsed);
-		if (next !== undefined) {
-			options.write(next);
-		}
+		options.run(step(parsed));
 	}));
 	return box.inputElement;
 }
@@ -271,7 +188,7 @@ export function renderEndReleases(panel: HTMLElement, member: string, store: Dis
 		for (const end of ['start', 'end'] as const) {
 			const label = localize('femReleases.cellAria', "{0} at the {1} of {2}", ACTION_LABELS[action], end === 'start' ? localize('femReleases.start', "start") : localize('femReleases.end', "end"), member);
 			const input = stiffnessInput(cells, store, options, label, releases[end][action], localize('femReleases.fixed', "fixed"),
-				value => withMemberRelease(options.bimText, member, end, action, value));
+				value => ({ action: 'release.set', params: { members: [member], [end]: { [action]: value ?? null } } }));
 			first ??= input;
 		}
 		appendPropertyRow(section, ACTION_LABELS[action], cells);
@@ -280,25 +197,14 @@ export function renderEndReleases(panel: HTMLElement, member: string, store: Dis
 	const pin = (end: MemberEnd, label: string) => {
 		const button = store.add(new Button(buttons, { ...defaultButtonStyles, secondary: true, title: localize('femReleases.pinTitle', "Release the moments M2 and M3 at this end") }));
 		button.label = label;
-		store.add(button.onDidClick(() => {
-			const next = withMemberReleases(options.bimText, member, { [end]: { M2: 0, M3: 0 } });
-			if (next !== undefined) {
-				options.write(next);
-			}
-		}));
+		store.add(button.onDidClick(() => options.run({ action: 'release.set', params: { members: [member], preset: end === 'start' ? 'pinnedStart' : 'pinnedEnd' } })));
 	};
 	pin('start', localize('femReleases.pinStart', "Pin Start"));
 	pin('end', localize('femReleases.pinEnd', "Pin End"));
 	if (releases.id) {
 		const clear = store.add(new Button(buttons, { ...defaultButtonStyles, secondary: true }));
 		clear.label = localize('femReleases.clear', "Fix Both Ends");
-		store.add(clear.onDidClick(() => {
-			const fixed = Object.fromEntries(END_ACTIONS.map(a => [a, undefined]));
-			const next = withMemberReleases(options.bimText, member, { start: fixed, end: fixed });
-			if (next !== undefined) {
-				options.write(next);
-			}
-		}));
+		store.add(clear.onDidClick(() => options.run({ action: 'release.set', params: { members: [member], preset: 'fixed' } })));
 	}
 	return { section, first };
 }
@@ -317,7 +223,7 @@ export function renderPointSpring(panel: HTMLElement, at: readonly number[], sto
 	for (const key of SPRING_KEYS) {
 		const cell = $('.fem-releases-single');
 		const input = stiffnessInput(cell, store, options, SPRING_LABELS[key], spring.springs[key], localize('femReleases.none', "none"),
-			value => withPointSpring(options.bimText, at, key, value));
+			value => ({ action: 'spring.set', params: { at: [...at], [key]: value ?? null } }));
 		first ??= input;
 		appendPropertyRow(section, SPRING_LABELS[key], cell);
 	}
@@ -329,12 +235,7 @@ export function renderPointSpring(panel: HTMLElement, at: readonly number[], sto
 	], supports.indexOf(spring.support), options.contextViewService, defaultSelectBoxStyles, { ariaLabel: localize('femReleases.supportAria', "Support at the joint") }));
 	const cell = $('.fem-releases-single');
 	select.render(cell);
-	store.add(select.onDidSelect(({ index }) => {
-		const next = withPointSpring(options.bimText, at, 'support', supports[index]);
-		if (next !== undefined) {
-			options.write(next);
-		}
-	}));
+	store.add(select.onDidSelect(({ index }) => options.run({ action: 'spring.set', params: { at: [...at], support: supports[index] } })));
 	appendPropertyRow(section, localize('femReleases.support', "Support"), cell);
 	return { section, first };
 }

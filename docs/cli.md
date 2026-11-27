@@ -349,6 +349,48 @@ Runs the verification pack (closed-form and published references, see
 its tolerance. With `--json` the pack's table goes to stderr (nowhere with `-q`) and stdout is
 the JSON document.
 
+## Model commands
+
+Every shared editing action is also a command of its own, made from the catalogue
+(`saengine.cli.verbs`): the action `load.pattern.add` is `saengine load pattern add`, and its
+parameters are options. A new action is a new command at once; the command runs the same code
+as the app's button and the assistant's tool.
+
+```console
+> saengine project create --name House --project House
+> saengine grid set --x 6000 6000 --y 5000 --project House
+> saengine grid system add --kind radial --rays "[{\"label\": \"R1\", \"angle\": 0}]" --rings "[{\"label\": \"K1\", \"radius\": 8000}]" --project House
+> saengine storeys set --count 3 --height 3000 --project House
+> saengine type column add --id C400 --width 400 --depth 400 --project House
+> saengine member add column --type C400 --project House
+> saengine load pattern add EQP --type Dead --name Equipment --project House
+> saengine load line add --beams B1 --value 3 --case EQP --project House
+> saengine run step analyse --project House
+> saengine release set --members B1 --preset pinned --project House
+> saengine run all --project House
+> saengine design apply --project House
+> saengine undo --project House
+```
+
+- `saengine <noun>` alone lists its verbs (`saengine load`, `saengine grid`); `--help` after a
+  verb lists its options with their units and defaults. `saengine --help` lists the nouns.
+- A value is read as JSON when it parses as JSON (numbers, `true`, lists, objects), else as
+  text; a list option takes several words (`--x 6000 6000`). `--params '<json>'` gives the
+  parameters as one object (the options override it). The first plain words go to the action's
+  only required parameter (`saengine load pattern add EQP`, `saengine run step analyse`).
+- Words in the engineer's terms: `member add column|beam|wall|slab|footing` (the `*.place`
+  actions and `footing.set`), `member list`, `member copy`, `design apply` (Design
+  Reinforcement), `undo`, `redo`, `history`.
+- `saengine design <project>` and `saengine export <project> --format ...` keep their meaning:
+  `design` and `export` are action commands only when the next word is one of their verbs
+  (`design apply`, `export ifc`).
+- Every command has `--project`, `--dry-run`, `--json` and `-q`; the output, exit codes and the
+  JSON document are those of `saengine action run` below.
+- **Undo.** Each written batch is recorded; `saengine undo` puts its part files back and
+  `saengine redo` writes them again (`saengine history` lists both). A file changed since (in
+  the app or an editor) is not overwritten unless `--force true`. Computed results are not
+  undone: run again.
+
 ## Shared editing actions
 
 `saengine action` runs the catalogue of typed, validated edits the app and its assistant use

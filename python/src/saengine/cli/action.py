@@ -114,7 +114,7 @@ def _usage(out: Any, command: str, message: str) -> int:
 
 
 def _run(args: argparse.Namespace, out: Any) -> int:
-    from saengine.actions import load_steps, run_actions
+    from saengine.actions import load_steps
 
     command = f"action {args.action}"
     if args.action == "run":
@@ -132,23 +132,40 @@ def _run(args: argparse.Namespace, out: Any) -> int:
         except ValueError as error:
             return _usage(out, command, f"{args.steps}: {error}")
     root = Path(args.project).expanduser().resolve()
-    total = len(steps)
+    return execute(out, command, root, steps, args.dry_run, args.keep_going)
 
-    result = run_actions(root, steps, write=not args.dry_run, stop_on_error=not args.keep_going)
+
+def execute(
+    out: Any,
+    command: str,
+    root: Path,
+    steps: list[dict[str, Any]],
+    dry_run: bool = False,
+    keep_going: bool = False,
+) -> int:
+    """Runs ``steps`` on the project at ``root`` and reports them (text or the JSON document):
+    the one way every action command of the terminal (``saengine action run|batch`` and
+    ``saengine <noun> <verb>``) runs actions."""
+    from saengine.actions import run_actions
+
+    total = len(steps)
+    result = run_actions(root, steps, write=not dry_run, stop_on_error=not keep_going)
     for index, r in enumerate(result.results):
         mark = "ok" if r.ok else "REFUSED"
         out.line(f"[{index + 1}/{total}] {r.action or '?'}: {mark}: {r.message}")
         for warning in r.warnings:
             out.line(f"    warning: {warning}")
+        if r.ok and r.data is not None and _kind(r.action) == "query":
+            out.line(json.dumps(r.data, indent=2, ensure_ascii=False, default=str))
         for p in r.problems:
             where = f"{p.part}: " if p.part else ""
             field = f"{p.field} = {json.dumps(p.value, ensure_ascii=False)}: " if p.field else ""
             out.line(f"    problem: {where}{field}{p.reason}")
     if result.ok:
         changed = sorted(result.changes)
-        if args.dry_run:
+        if dry_run:
             out.line(f"Dry run: {len(changed)} file(s) would change: {', '.join(changed) or '-'}")
-        else:
+        elif result.written:
             out.line(
                 f"Wrote {len(result.written)} file(s)."
                 + (f" Saved version: {result.version.get('message')}." if result.version else "")
@@ -161,10 +178,19 @@ def _run(args: argparse.Namespace, out: Any) -> int:
     body = result.model_dump(mode="json", exclude={"changes"})
     body["changed"] = sorted(result.changes)
     body["project"] = str(root)
-    body["dryRun"] = bool(args.dry_run)
+    body["dryRun"] = bool(dry_run)
     code = EXIT_OK if result.ok else EXIT_FAILED
     out.document(command, code, {"batch": body})
     return code
+
+
+def _kind(name: str) -> str:
+    from saengine.actions import UnknownAction, get
+
+    try:
+        return get(name).kind
+    except UnknownAction:
+        return ""
 
 
 VERBS = {"list": _list, "describe": _describe, "run": _run, "batch": _run}

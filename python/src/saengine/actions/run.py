@@ -81,8 +81,15 @@ def write_atomic(path: Path, text: str) -> None:
         raise
 
 
-def _write(view: ProjectView, texts: dict[str, str]) -> list[str]:
+#: What a batch wrote, for undo (:mod:`saengine.actions.journal`): path -> text before, after.
+Log = tuple[dict[str, str | None], dict[str, str]]
+
+
+def _write(view: ProjectView, texts: dict[str, str], log: Log | None = None) -> list[str]:
     for path, text in texts.items():
+        if log is not None:
+            log[0].setdefault(path, view.saved_text(path))
+            log[1][path] = text
         write_atomic(view.root / normal_path(path), text)
     return sorted(texts)
 
@@ -110,7 +117,9 @@ def current_should_stop() -> ShouldStop | None:
     return getattr(_STOP, "test", None)
 
 
-def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]) -> ActionResult:
+def _one(
+    view: ProjectView, name: str, raw: Any, write: bool, written: list[str], log: Log | None = None
+) -> ActionResult:
     """One step on ``view``: refused (``ok`` False) or done; its changes stay in the view."""
     try:
         info = get(name)
@@ -145,7 +154,7 @@ def _one(view: ProjectView, name: str, raw: Any, write: bool, written: list[str]
                     f"{', '.join(pending)}. Save them first (or run the batch with write).",
                     problems=[Problem(field="", value=pending, reason="unsaved changes")],
                 )
-            wrote = _write(view, view.change_texts())
+            wrote = _write(view, view.change_texts(), log)
             written += wrote
             view.reload()
     before = view.changes()
@@ -223,6 +232,7 @@ def run_actions(
     results: list[ActionResult] = []
     failed: int | None = None
     written: list[str] = []
+    log: Log = ({}, {})
     cancelled = False
 
     def stop() -> bool:
@@ -253,7 +263,7 @@ def run_actions(
                 outer = current_should_stop()
                 _STOP.test = stop
                 try:
-                    result = _one(view, step["action"], step.get("params"), write, written)
+                    result = _one(view, step["action"], step.get("params"), write, written, log)
                 finally:
                     _STOP.test = outer
                 if not result.ok:
@@ -265,6 +275,7 @@ def run_actions(
                 if stop_on_error or cancelled:
                     break
         if failed is not None:
+            _journal(root, steps, log)
             kept = sorted(set(written))
             if kept:
                 results[failed].warnings.append(
@@ -277,7 +288,8 @@ def run_actions(
         texts = view.change_texts()
         version = None
         if write and texts:
-            written += _write(view, texts)
+            written += _write(view, texts, log)
+        _journal(root, steps, log)
         if write and written:
             version = _save_version(root, [str(s.get("action")) for s in steps])
     return BatchResult(
@@ -287,6 +299,19 @@ def run_actions(
         written=sorted(set(written)),
         version=version,
     )
+
+
+def _journal(root: Path, steps: list[dict[str, Any]], log: Log) -> None:
+    """Records what the batch wrote for ``edit.undo`` (nothing when it wrote nothing)."""
+    if not log[1]:
+        return
+    from saengine.actions import journal
+
+    names = [str(s.get("action")) for s in steps if isinstance(s, dict)]
+    unique = list(dict.fromkeys(names))
+    label = ", ".join(unique[:6]) + (", ..." if len(unique) > 6 else "")
+    with contextlib.suppress(OSError):
+        journal.record(root, label, *log)
 
 
 def _save_version(root: Path, names: list[str]) -> dict[str, Any] | None:
