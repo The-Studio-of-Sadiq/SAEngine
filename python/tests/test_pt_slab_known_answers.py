@@ -261,3 +261,13 @@ def test_pack_without_prestress_says_not_provided(monkeypatch):
     with pytest.raises(ValueError):
         prestress.limits()
     assert "not covered by the code pack" in prestress.not_covered("post-tensioning")
+
+
+def test_strip_view_axis_labels_read_as_numbers():
+    """#285 walk: the force axis read "1.47e+03"; whole numbers from 100 up."""
+    from saengine.features.fem_design_pt import axis_label
+
+    assert axis_label(1470.4) == "1470"
+    assert axis_label(-120.0) == "-120"
+    assert axis_label(3.5) == "3.5"
+    assert axis_label(0.25) == "0.25"

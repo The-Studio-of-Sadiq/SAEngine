@@ -694,9 +694,15 @@ export class EngineDataPanelEditor extends EditorPane {
 		clearNode(container);
 		if (this.selectedRow) {
 			appendPropertyHeading(container, localize('dataPanel.selectedRow', "Selected Item"));
-			for (const [key, val] of Object.entries(this.selectedRow)) {
+			// Each value under its column's title (as the table heads it), in the table's order;
+			// a value without a column keeps its key.
+			const row = this.selectedRow;
+			const columns = this.currentTable()?.columns ?? [];
+			const titled = columns.filter(c => Object.prototype.hasOwnProperty.call(row, c.key)).map(c => [c.title, row[c.key]] as const);
+			const rest = Object.entries(row).filter(([key]) => !columns.some(c => c.key === key));
+			for (const [label, val] of [...titled, ...rest]) {
 				const tone = statusTone(val);
-				appendPropertyRow(container, key, formatCell(val), tone === 'fail');
+				appendPropertyRow(container, label, formatCell(val), tone === 'fail');
 			}
 		}
 		const notes = this.result?.notes ?? [];
