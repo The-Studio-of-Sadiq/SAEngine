@@ -2343,6 +2343,39 @@ def _design(data: dict[str, Any], ctx: Context) -> dict[str, Any]:
                 size=8,
             ),
         ]
+    pt = design.get("postTensioning") or {}
+    if pt.get("rows"):
+        out += [
+            h(2, "Post-tensioned slabs"),
+            p(
+                "Each tendon group designs its strip of slab as a continuous beam on the "
+                "profile's high points: the losses (friction and wobble, anchor set, elastic "
+                "shortening, creep, shrinkage and relaxation), the stresses at transfer and "
+                "service against the code's limits, and the flexural strength under the gravity "
+                "combinations plus the hyperstatic moment, with fps for bonded or unbonded "
+                "tendons. The ratios are the worst of each kind (value / limit); the "
+                "precompression is P/A of the effective force in MPa. The checks' clauses and "
+                "the losses are in the slabs' design notes, and the Post-Tensioning buttons of "
+                "8 FEM, Design show them along each strip."
+            ),
+            table(
+                [
+                    "Slab",
+                    "Group",
+                    "Transfer",
+                    "Service",
+                    "Strength",
+                    "Precompression",
+                    "Governing check",
+                    "Ratio",
+                    "Result",
+                ],
+                pt["rows"],
+                align="llrrrrlrc",
+                bad=pt.get("bad"),
+                size=8,
+            ),
+        ]
     if design.get("stability"):
         out += full(
             h(2, "Stability index Q per storey"),

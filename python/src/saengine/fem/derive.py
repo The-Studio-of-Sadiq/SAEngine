@@ -3617,6 +3617,18 @@ def _derive_fem(
                     + "Project Settings, Reset Combinations adds it)"
                 )
 
+    # ── the post-tensioning case PT (#285; saengine.fem.prestress_case) ──
+    if building.additions.slabTendons and options.slabs == "shells":
+        from saengine.design.check import tendon_designs
+        from saengine.fem.prestress_case import add_prestress_case
+
+        try:
+            pt_rows, _ = tendon_designs(building, types, mats, settings)
+            _, more = add_prestress_case(project, pt_rows)
+            b.notes.extend(more)
+        except (ValueError, ArithmeticError, np.linalg.LinAlgError) as error:
+            b.notes.append(f"PT: the case PT is not formed ({error})")
+
     # ── soil-structure interaction: the column bases on their foundations' springs ──
     ssi_json = None
     mode = column_supports or getattr(options, "supports", "fixed")

@@ -19564,6 +19564,54 @@
   "fields": []
  },
  {
+  "id": "design.ptLosses",
+  "title": "PT Losses",
+  "part": "fem",
+  "help": "Prestress losses of each tendon group: friction and wobble, anchor set, elastic shortening, creep, shrinkage and relaxation (or the long-term loss entered).",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "tendon",
+    "label": "Tendon group (empty: all)",
+    "type": "text",
+    "default": "",
+    "help": "Id of one tendon group, or a slab id for all of its groups; empty: every group."
+   }
+  ]
+ },
+ {
+  "id": "design.ptStresses",
+  "title": "PT Stresses",
+  "part": "fem",
+  "help": "Concrete stresses at transfer and service along each tendon group against the code pack's limits, the member class and the precompression.",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "tendon",
+    "label": "Tendon group (empty: all)",
+    "type": "text",
+    "default": "",
+    "help": "Id of one tendon group, or a slab id for all of its groups; empty: every group."
+   }
+  ]
+ },
+ {
+  "id": "design.ptUltimate",
+  "title": "PT Ultimate",
+  "part": "fem",
+  "help": "Flexural strength of each tendon group: the code pack's gravity combinations plus 1.0 times the hyperstatic moment against φMn with the bonded or unbonded fps.",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "tendon",
+    "label": "Tendon group (empty: all)",
+    "type": "text",
+    "default": "",
+    "help": "Id of one tendon group, or a slab id for all of its groups; empty: every group."
+   }
+  ]
+ },
+ {
   "id": "design.punchingCheck",
   "title": "Punching Check",
   "part": "fem",
@@ -19602,6 +19650,31 @@
   "help": "Assess column slenderness k·lu/r and second-order moment magnification checks.",
   "requiresProject": true,
   "fields": []
+ },
+ {
+  "id": "design.tendonLayout",
+  "title": "Tendon Layout",
+  "part": "fem",
+  "help": "The tendon groups of the building model: layout, strands, profile, drape and the balanced load w = 8 P a / L² of each span at the effective force.",
+  "requiresProject": true,
+  "fields": [
+   {
+    "key": "tendon",
+    "label": "Tendon group (empty: all)",
+    "type": "text",
+    "default": "",
+    "help": "Id of one tendon group, or a slab id for all of its groups; empty: every group."
+   },
+   {
+    "key": "balancedShare",
+    "label": "Target balanced share of the self-weight [%]",
+    "type": "number",
+    "default": 80,
+    "min": 0,
+    "max": 150,
+    "help": "The tendons needed to balance this share of the strip's self-weight per span."
+   }
+  ]
  },
  {
   "id": "design.torsionDesign",

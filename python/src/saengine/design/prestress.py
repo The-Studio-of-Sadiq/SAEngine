@@ -584,6 +584,46 @@ def balancing_loads(
     return distributed, nodal, couples
 
 
+@dataclass(frozen=True)
+class SpanBalance:
+    """The balanced load of one span of the strip (#285)."""
+
+    start: float  # mm, the support at its start
+    end: float  # mm, the support at its end
+    low: float  # mm, where its low point is
+    drape: float  # a [mm]: the chord between the support heights at the low point, less the low
+    load: float  # w = 8 P a / L² [N/mm along the strip], upward
+    mean: float  # the mean of P y'' along the span [N/mm] (unequal parabolas either side)
+
+    @property
+    def length(self) -> float:
+        return self.end - self.start
+
+
+def span_balance(points: list[tuple[float, float]], force: float) -> list[SpanBalance]:
+    """For each span between the strip's supports (:func:`supports`): the drape a and the load
+    balancing w = 8 P a / L² of a parabola over the span, and the mean upward load of the
+    profile's own parabolas (equal to w when the low point is in the middle)."""
+    pieces = segments(points)
+    heights = dict(points)
+    found = []
+    for x0, x1 in pairwise(supports(points)):
+        inside = [p for p in points if x0 <= p[0] <= x1]
+        low = min(inside, key=lambda p: p[1])
+        length = x1 - x0
+        chord = heights[x0] + (heights[x1] - heights[x0]) * (low[0] - x0) / length
+        drape = chord - low[1]
+        upward = sum(
+            force * p.curvature * p.length
+            for p in pieces
+            if p.x0 >= x0 - 1e-9 and p.x1 <= x1 + 1e-9
+        )
+        found.append(
+            SpanBalance(x0, x1, low[0], drape, 8 * force * drape / length**2, upward / length)
+        )
+    return found
+
+
 # ─────────────────────────────────────── strength ───────────────────────────────────────
 
 
@@ -709,6 +749,17 @@ class TendonDesign:
     losses: LongTermLosses | None = None
     member_class: str = ""
     anchorage: Anchorage | None = None
+    #: #285: along the strip at ``stations`` [mm]: the CGS ``heights`` [mm], the fibre
+    #: stresses [MPa, compression positive] ``transferTop``/``Bottom`` (P after the immediate
+    #: losses and the self-weight), ``serviceTop``/``Bottom`` (D + SD + L, effective P) and
+    #: ``sustainedTop``/``Bottom`` (D + SD), and the moments [N·mm] ``balanced`` (effective P)
+    #: and ``hyperstatic`` (M2).
+    diagrams: dict[str, np.ndarray] = field(default_factory=dict)
+    balance: list[SpanBalance] = field(default_factory=list)
+    #: The governing strength section: Mu and φMn [kN·m], fps [MPa], a, c, dp [mm], φ, the
+    #: combination and where (``at`` mm), M2 there [kN·m].
+    ultimate: dict[str, Any] = field(default_factory=dict)
+    loads: StripLoads | None = None  # the strip's loads it was designed for
 
 
 def member_class(ft: float, fc: float) -> str:
@@ -1071,8 +1122,25 @@ def tendon_design(
             ratio = abs(moment) / strength.phi_mn if strength.phi_mn > 0 else math.inf
             if worst is None or ratio > worst[0]:
                 worst = (ratio, float(moment), strength.phi_mn, combination.name, i, strength)
+    ultimate: dict[str, Any] = {}
     if worst is not None:
         ratio, demand, capacity, combination_name, i, strength = worst
+        ultimate = {
+            "mu": abs(demand) / 1e6,
+            "phiMn": capacity / 1e6,
+            "ratio": ratio,
+            "fps": strength.fps,
+            "a": strength.a,
+            "c": strength.c,
+            "phi": strength.phi,
+            "dp": float(h - heights[i] if demand >= 0 else heights[i]),
+            "sagging": demand >= 0,
+            "combination": f"{combination_name} + 1.0 M2",
+            "at": float(stations[i]),
+            "m2": float(m_hyp[i]) / 1e6,
+            "spanDepth": span_depth,
+            "fse": fse,
+        }
         checks.append(
             _check(
                 f"{name}: flexural strength",
@@ -1182,7 +1250,25 @@ def tendon_design(
                     f"applied{_cite('transferStrength')}",
                 )
             )
-    return TendonDesign(checks, precompression, forces, notes, losses, klass, anchorage)
+    transfer_top, transfer_bottom = faces(m_dead + m_bal_i, p_i)
+    sustained_top, sustained_bottom = faces(m_sustained + m_bal_e, p_e)
+    service_top, service_bottom = faces(total, p_e)
+    diagrams = {
+        "stations": stations,
+        "heights": heights,
+        "transferTop": transfer_top,
+        "transferBottom": transfer_bottom,
+        "serviceTop": service_top,
+        "serviceBottom": service_bottom,
+        "sustainedTop": sustained_top,
+        "sustainedBottom": sustained_bottom,
+        "balanced": m_bal_e,
+        "hyperstatic": m_hyp,
+    }
+    return TendonDesign(
+        checks, precompression, forces, notes, losses, klass, anchorage,
+        diagrams, span_balance(points, p_e), ultimate, loads,
+    )  # fmt: skip
 
 
 def pj_share(forces: TendonForces) -> float:

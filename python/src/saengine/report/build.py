@@ -3856,6 +3856,7 @@ def _design(
     strut_and_tie = stm_section(model_path.parent / "strut-and-tie.json", warnings)
     punching = _punching(report)
     slab_service = _slab_service(report)
+    post_tensioning = _post_tensioning(report)
     steel = _steel(report)
     skipped, not_designed, design_notes = _not_designed(report, building)
     # W4C-6 of usability walk 4: what the code pack does not cover is not "no reinforcement".
@@ -3892,6 +3893,7 @@ def _design(
         "strutAndTie": strut_and_tie,
         "punching": punching,
         "slabService": slab_service,
+        "postTensioning": post_tensioning,
         "steel": steel,
         "slenderness": slender_rows,
         "slendernessFails": slender_fails,
@@ -4213,6 +4215,49 @@ def _slab_service(report: dict[str, Any]) -> dict[str, Any]:
             )
             bad.append(not c.get("ok"))
     return {"rows": rows, "bad": bad, "methods": methods}
+
+
+def _post_tensioning(report: dict[str, Any]) -> dict[str, Any]:
+    """#285: the post-tensioned slabs' tendon groups (their "PT <group>: ..." checks of
+    saengine.design.prestress): per group the worst ratio at transfer, at service, of the
+    strength, the average precompression and the governing check."""
+    rows, bad = [], []
+    for element in report.get("elements", []):
+        if element.get("kind") != "slab":
+            continue
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for c in element.get("checks", []):
+            name = str(c.get("name", ""))
+            if name.startswith("PT ") and ": " in name:
+                groups.setdefault(name[3:].split(": ", 1)[0], []).append(c)
+        for group, checks in groups.items():
+
+            def worst(word: str, checks: list[dict[str, Any]] = checks) -> str:
+                found = [c for c in checks if word in str(c.get("name", ""))]
+                if not found:
+                    return "–"
+                return fmt(max(float(c.get("utilisation") or 0) for c in found), 2)
+
+            pre = next(
+                (c for c in checks if str(c["name"]).endswith("average precompression")), None
+            )
+            governing = max(checks, key=lambda c: float(c.get("utilisation") or 0))
+            ok = all(c.get("ok") for c in checks)
+            rows.append(
+                [
+                    str(element.get("id")),
+                    group,
+                    worst("transfer"),
+                    worst("service"),
+                    worst("flexural strength"),
+                    fmt(pre.get("capacity"), 2) if pre else "–",
+                    str(governing.get("name", "")).split(": ", 1)[-1],
+                    fmt(governing.get("utilisation"), 2),
+                    "OK" if ok else "FAIL",
+                ]
+            )
+            bad.append(not ok)
+    return {"rows": rows, "bad": bad}
 
 
 DETAILING = "Detailing: "

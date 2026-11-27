@@ -77,7 +77,7 @@ _RESERVED = frozenset(
         *BUILT_IN_IDS,
         *("WX", "WY", "EX", "EY", "F", "H", "T", "ST", "CS", "R", "FaX", "FaY", "S"),
         *("EXP", "EXN", "EYP", "EYN", "WTX", "WTY", "WI", "WXN", "WYN", "EZ", "E"),
-        *("RX", "RY", "AX", "AY", "W", "Fa", "MODAL"),
+        *("RX", "RY", "AX", "AY", "W", "Fa", "MODAL", "PT"),
     }
 )
 _RESERVED_LOWER = frozenset(c.lower() for c in _RESERVED)
