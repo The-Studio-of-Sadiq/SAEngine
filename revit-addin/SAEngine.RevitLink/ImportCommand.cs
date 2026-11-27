@@ -167,6 +167,71 @@ public sealed class ImportCommand : IExternalCommand
 
         foreach (var src in incoming)
         {
+            var grid = FindElement(doc, existing, src.Id, src.RevitId)
+                ?? existing.FirstOrDefault(g => string.Equals(g.Name, src.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (src.Arc is not null)
+            {
+                var arcSpec = GridHelper.ResolveArcMm(src);
+                if (arcSpec is null)
+                {
+                    summary.Warnings.Add($"Grid '{src.Name}' skipped: invalid arc geometry.");
+                    continue;
+                }
+
+                var center = new XYZ(
+                    UnitConverter.MmToFeet(arcSpec.Value.Center.X),
+                    UnitConverter.MmToFeet(arcSpec.Value.Center.Y),
+                    0.0
+                );
+                var radiusFeet = UnitConverter.MmToFeet(arcSpec.Value.Radius);
+                var startRad = UnitConverter.DegToRad(arcSpec.Value.StartAngleDeg);
+                var endRad = UnitConverter.DegToRad(arcSpec.Value.EndAngleDeg);
+
+                if (grid is null)
+                {
+                    var revitArc = Arc.Create(center, radiusFeet, startRad, endRad, XYZ.BasisX, XYZ.BasisY);
+                    grid = Grid.Create(doc, revitArc);
+                    if (!string.IsNullOrWhiteSpace(src.Name))
+                    {
+                        TryRename(grid, src.Name);
+                    }
+                    existing.Add(grid);
+                    summary.GridsCreated++;
+                }
+                else if (grid.Curve is Arc existingArc)
+                {
+                    var centerDelta = new XYZ(center.X - existingArc.Center.X, center.Y - existingArc.Center.Y, 0.0);
+                    var centerDiffMm = UnitConverter.FeetToMm(centerDelta.GetLength());
+                    var radiusDiffMm = Math.Abs(UnitConverter.FeetToMm(existingArc.Radius) - arcSpec.Value.Radius);
+                    if (radiusDiffMm > UnitConverter.PositionToleranceMm)
+                    {
+                        doc.Delete(grid.Id);
+                        existing.Remove(grid);
+                        var revitArc = Arc.Create(center, radiusFeet, startRad, endRad, XYZ.BasisX, XYZ.BasisY);
+                        grid = Grid.Create(doc, revitArc);
+                        if (!string.IsNullOrWhiteSpace(src.Name))
+                        {
+                            TryRename(grid, src.Name);
+                        }
+                        existing.Add(grid);
+                        summary.GridsUpdated++;
+                    }
+                    else if (centerDiffMm > UnitConverter.PositionToleranceMm)
+                    {
+                        ElementTransformUtils.MoveElement(doc, grid.Id, centerDelta);
+                        summary.GridsUpdated++;
+                    }
+                }
+                else
+                {
+                    summary.Warnings.Add($"Grid '{src.Name}' is a straight grid in Revit but an arc in the exchange file and was kept as-is.");
+                }
+
+                ParameterStorage.SetId(grid, src.Id);
+                continue;
+            }
+
             var pts = GridHelper.ResolveEndpointsMm(src, minX, maxX, minY, maxY);
             if (pts is null)
             {
@@ -176,9 +241,6 @@ public sealed class ImportCommand : IExternalCommand
 
             var p0 = new XYZ(UnitConverter.MmToFeet(pts.Value.Start.X), UnitConverter.MmToFeet(pts.Value.Start.Y), 0.0);
             var p1 = new XYZ(UnitConverter.MmToFeet(pts.Value.End.X), UnitConverter.MmToFeet(pts.Value.End.Y), 0.0);
-
-            var grid = FindElement(doc, existing, src.Id, src.RevitId)
-                ?? existing.FirstOrDefault(g => string.Equals(g.Name, src.Name, StringComparison.OrdinalIgnoreCase));
 
             if (grid is null)
             {
@@ -212,6 +274,10 @@ public sealed class ImportCommand : IExternalCommand
                     ElementTransformUtils.MoveElement(doc, grid.Id, delta);
                     summary.GridsUpdated++;
                 }
+            }
+            else
+            {
+                summary.Warnings.Add($"Grid '{src.Name}' is an arc grid in Revit but a straight line in the exchange file and was kept as-is.");
             }
 
             ParameterStorage.SetId(grid, src.Id);
@@ -893,7 +959,14 @@ public sealed class ImportCommand : IExternalCommand
 
         foreach (var g in grids)
         {
-            if (g.Start is { Count: >= 2 } && g.End is { Count: >= 2 })
+            if (g.Arc is { Center.Count: >= 2, Radius: > 0 })
+            {
+                xs.Add(g.Arc.Center[0] - g.Arc.Radius);
+                xs.Add(g.Arc.Center[0] + g.Arc.Radius);
+                ys.Add(g.Arc.Center[1] - g.Arc.Radius);
+                ys.Add(g.Arc.Center[1] + g.Arc.Radius);
+            }
+            else if (g.Start is { Count: >= 2 } && g.End is { Count: >= 2 })
             {
                 xs.Add(g.Start[0]);
                 xs.Add(g.End[0]);

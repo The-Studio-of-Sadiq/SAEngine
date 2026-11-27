@@ -83,25 +83,50 @@ public sealed class ExportCommand : IExternalCommand
         var exchangeGrids = new List<ExchangeGrid>();
         foreach (var g in grids)
         {
-            if (g.Curve is not Line line)
+            if (g.Curve is Line line)
             {
-                continue;
+                var p0 = line.GetEndPoint(0);
+                var p1 = line.GetEndPoint(1);
+                var start = new List<double> { UnitConverter.FeetToRoundedMm(p0.X), UnitConverter.FeetToRoundedMm(p0.Y) };
+                var end = new List<double> { UnitConverter.FeetToRoundedMm(p1.X), UnitConverter.FeetToRoundedMm(p1.Y) };
+                var (axis, pos) = GridHelper.ClassifyGrid(start, end);
+                exchangeGrids.Add(new ExchangeGrid
+                {
+                    Id = ParameterStorage.GetId(g),
+                    Name = g.Name,
+                    Axis = axis,
+                    Position = axis is not null ? pos : null,
+                    Start = start,
+                    End = end,
+                    RevitId = g.UniqueId,
+                });
             }
-            var p0 = line.GetEndPoint(0);
-            var p1 = line.GetEndPoint(1);
-            var start = new List<double> { UnitConverter.FeetToRoundedMm(p0.X), UnitConverter.FeetToRoundedMm(p0.Y) };
-            var end = new List<double> { UnitConverter.FeetToRoundedMm(p1.X), UnitConverter.FeetToRoundedMm(p1.Y) };
-            var (axis, pos) = GridHelper.ClassifyGrid(start, end);
-            exchangeGrids.Add(new ExchangeGrid
+            else if (g.Curve is Arc arc && arc.Radius > 1e-6)
             {
-                Id = ParameterStorage.GetId(g),
-                Name = g.Name,
-                Axis = axis,
-                Position = axis is not null ? pos : null,
-                Start = start,
-                End = end,
-                RevitId = g.UniqueId,
-            });
+                var c = arc.Center;
+                var p0 = arc.GetEndPoint(0);
+                var p1 = arc.GetEndPoint(1);
+                var sweepDeg = UnitConverter.RadToDeg(arc.Length / arc.Radius);
+                var (exchangeArc, start, end) = GridHelper.BuildExchangeArcMm(
+                    (UnitConverter.FeetToMm(c.X), UnitConverter.FeetToMm(c.Y)),
+                    UnitConverter.FeetToMm(arc.Radius),
+                    (UnitConverter.FeetToMm(p0.X), UnitConverter.FeetToMm(p0.Y)),
+                    (UnitConverter.FeetToMm(p1.X), UnitConverter.FeetToMm(p1.Y)),
+                    sweepDeg,
+                    arc.Normal.Z < 0
+                );
+                exchangeGrids.Add(new ExchangeGrid
+                {
+                    Id = ParameterStorage.GetId(g),
+                    Name = g.Name,
+                    Axis = null,
+                    Position = null,
+                    Start = start,
+                    End = end,
+                    Arc = exchangeArc,
+                    RevitId = g.UniqueId,
+                });
+            }
         }
 
         var sectionsById = new Dictionary<string, ExchangeSection>(StringComparer.OrdinalIgnoreCase);

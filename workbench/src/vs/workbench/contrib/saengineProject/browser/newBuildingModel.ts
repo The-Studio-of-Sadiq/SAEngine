@@ -88,7 +88,15 @@ export interface INewBuildingSpec {
 	readonly wind?: { readonly exposure: string };
 	/** Walk 4 (W4A-6): the project's display units (the pack's suggestion unless changed). */
 	readonly units?: UnitSystem;
+	/**
+	 * #300: the grid as a grid system of its own: rotated by `angle` [°], or radial (rings at
+	 * `innerRadius` [mm] plus the X spacings, rays `rayAngles` [°] apart, the first at `angle`).
+	 */
+	readonly grid?: { readonly kind: 'rotated' | 'radial'; readonly angle: number; readonly innerRadius?: number; readonly rayAngles?: readonly number[] };
 }
+
+/** #300: the kinds of grid the wizard makes. */
+export type GridKind = 'orthogonal' | 'rotated' | 'radial';
 
 /** Walk 4 (W4A-6): the unit systems a new project can show its numbers in. */
 export type UnitSystem = 'SI' | 'USCustomary';
@@ -153,6 +161,10 @@ export interface INewBuildingForm {
 	 * (lengths in ft and the wind speed in mph in US customary units); SI when not set.
 	 */
 	readonly units?: UnitSystem;
+	/** #300: the grid's kind (orthogonal when not set), its angle [°] and a radial grid's first ring. */
+	readonly gridKind?: GridKind;
+	readonly gridAngle?: string;
+	readonly innerRadius?: string;
 }
 
 /** The unit lengths are typed in without a unit of their own: ft in US customary units, else mm. */
@@ -187,7 +199,9 @@ export function formInUnits(form: INewBuildingForm, units: UnitSystem): INewBuil
 		...form,
 		units,
 		gridX: again(form.gridX, spacing),
-		gridY: again(form.gridY, spacing),
+		// #300: a radial grid's Y bays are angles, not lengths.
+		gridY: form.gridKind === 'radial' ? form.gridY : again(form.gridY, spacing),
+		innerRadius: form.innerRadius === undefined ? undefined : again(form.innerRadius, { ...spacing, maxCount: 1 }),
 		groundHeight: again(form.groundHeight, { ...height, maxCount: 1 }),
 		typicalHeight: again(form.typicalHeight, { ...height, maxCount: 1 }),
 		heights: again(form.heights, height),
@@ -359,6 +373,40 @@ export function parseLengths(text: string, limits: { readonly min: number; reado
 	return { ok: true, values };
 }
 
+/** #300: a radial grid's bays: the angles between neighbouring rays [°] ("4×90", "6×30, 45"). */
+export function parseRayAngles(text: string): ParseResult {
+	const normalized = text.trim().replace(/\s*[×xX*]\s*/g, '×').replace(/°/g, '');
+	if (!normalized) {
+		return { ok: false, error: localize('angles.empty', "Enter the angles between the rays, e.g. 4×90 or 6×30.") };
+	}
+	const values: number[] = [];
+	for (const item of normalized.split(/[,;\s]+/).filter(Boolean)) {
+		const groups = /^(?:(?<count>\d+)×)?(?<value>\d+(?:\.\d+)?)$/.exec(item)?.groups;
+		const value = Number(groups?.value);
+		const count = groups?.count === undefined ? 1 : Number(groups.count);
+		if (!groups || !(value > 0 && value <= 180) || count < 1) {
+			return { ok: false, error: localize('angles.bad', "\"{0}\" is not an angle between rays (above 0°, at most 180°); write e.g. 4×90.", item) };
+		}
+		for (let i = 0; i < count; i++) {
+			values.push(value);
+		}
+	}
+	const total = values.reduce((a, b) => a + b, 0);
+	if (total > 360 + 1e-6) {
+		return { ok: false, error: localize('angles.total', "The angles add up to {0}°, more than a full circle (360°).", total) };
+	}
+	if (values.length > MAX_BAYS) {
+		return { ok: false, error: localize('lengths.tooMany', "At most {0} lengths.", MAX_BAYS) };
+	}
+	return { ok: true, values };
+}
+
+/** #300: the angle of a rotated or radial grid [°], as typed (blank is 0). */
+export function parseGridAngle(text: string | undefined): number | undefined {
+	const value = Number((text ?? '').trim().replace(',', '.') || '0');
+	return Number.isFinite(value) && value > -360 && value < 360 ? value : undefined;
+}
+
 /** Grid spacings (bays) along one axis [mm]. */
 export function parseSpacings(text: string, unit: 'mm' | 'ft' = 'mm'): ParseResult {
 	return parseLengths(text, { min: MIN_SPACING, max: MAX_SPACING, maxCount: MAX_BAYS }, unit);
@@ -493,7 +541,7 @@ export function storiesFromHeights(heights: readonly number[]): IStorySpec[] {
 }
 
 /** Which field an error belongs to, so the wizard shows it there. */
-export type FormField = 'name' | 'gridX' | 'gridY' | 'stories';
+export type FormField = 'name' | 'gridX' | 'gridY' | 'stories' | 'gridShape';
 
 export type SpecResult =
 	| { readonly ok: true; readonly spec: INewBuildingSpec }
@@ -510,8 +558,13 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 		errors.name = nameError;
 	}
 	const x = parseSpacings(form.gridX, lengthUnit(form));
-	const y = parseSpacings(form.gridY, lengthUnit(form));
+	const radial = form.gridKind === 'radial';
+	const y = radial ? parseRayAngles(form.gridY) : parseSpacings(form.gridY, lengthUnit(form));
 	const heights = storyHeights(form);
+	const shape = gridShape(form);
+	if (!shape.ok) {
+		errors.gridShape = shape.error;
+	}
 	if (!x.ok) {
 		errors.gridX = x.error;
 	}
@@ -521,7 +574,7 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 	if (!heights.ok) {
 		errors.stories = heights.error;
 	}
-	if (!x.ok || !y.ok || !heights.ok || nameError) {
+	if (!x.ok || !y.ok || !heights.ok || !shape.ok || nameError) {
 		return { ok: false, errors };
 	}
 	return {
@@ -540,8 +593,26 @@ export function buildSpec(form: INewBuildingForm, validateName: (name: string) =
 			occupancy: { use: form.use, category: form.category },
 			...otherPackSite(form),
 			...(form.units ? { units: form.units } : {}),
+			...(shape.grid ? { grid: radial ? { ...shape.grid, rayAngles: y.values } : shape.grid } : {}),
 		},
 	};
+}
+
+/** #300: the grid system the form asks for (none: the orthogonal main grid), or its error. */
+export function gridShape(form: INewBuildingForm): { ok: true; grid?: { kind: 'rotated' | 'radial'; angle: number; innerRadius?: number } } | { ok: false; error: string } {
+	const kind = form.gridKind ?? 'orthogonal';
+	if (kind === 'orthogonal') {
+		return { ok: true };
+	}
+	const angle = parseGridAngle(form.gridAngle);
+	if (angle === undefined) {
+		return { ok: false, error: localize('grid.angle', "Enter the grid's angle in degrees (e.g. 30).") };
+	}
+	if (kind === 'rotated') {
+		return { ok: true, grid: { kind, angle } };
+	}
+	const inner = parseLengths(form.innerRadius ?? '', { min: MIN_SPACING, max: MAX_SPACING, maxCount: 1 }, lengthUnit(form));
+	return inner.ok ? { ok: true, grid: { kind, angle, innerRadius: inner.values[0] } } : { ok: false, error: localize('grid.innerRadius', "First ring radius: {0}", inner.error) };
 }
 
 /**

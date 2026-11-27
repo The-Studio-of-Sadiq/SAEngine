@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
-import { drawPlanGrid, fitPlan, IPlanView, niceLength, polygonPoints } from './planSvg.js';
+import { drawPlanGrid, fitPlan, gridShapeExtent, IPlanView, niceLength, polygonPoints } from './planSvg.js';
 import {
 	equipmentOutline, equipmentOwnerLabel, findHost, hostDirection, IEquipmentLoad, IMep, IMepContext, openingPlanSize, openingPoint, Point, shaftOnStory, storyElements, storyExtent, toGlobal,
 } from './mepDocument.js';
@@ -108,6 +108,7 @@ function extent(document: IMep, context: IMepContext, story: string, extra: read
 	for (const g of context.grids.y) {
 		points.push([anchor[0], g.position]);
 	}
+	points.push(...gridShapeExtent(context.grids.others ?? []));
 	return points.length ? points : [[0, 0], [10000, 10000]];
 }
 

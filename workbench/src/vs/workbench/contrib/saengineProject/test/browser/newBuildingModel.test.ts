@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { gridLabel } from '../../../../services/saengineProject/common/gridLabels.js';
-import { BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, formatLengths, formFromSpec, gridLines, IWizardPlot, parseSpacings, plotFitWarning, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
+import { BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, formatLengths, formFromSpec, gridLines, IWizardPlot, parseRayAngles, parseSpacings, plotFitWarning, readGenerateResult, readGenerateSummary, readPendingBuilding, storyHeights, summarize } from '../../browser/newBuildingModel.js';
 
 /** The built-in building template saengine-default-building (python/src/saengine/codes/packs), as the wizard applies it. */
 const DEFAULT_SPEC = { name: 'Building', gridsX: [6000, 6000, 6000], gridsY: [5000, 5000], storyCount: 6, groundHeight: 3600, typicalHeight: 3200, system: 'rcFrame', concrete: 'C27.6', rebar: 'B420DWR', footing: 'isolated', occupancy: 'residential', occupancyCategory: 'II', location: 'dhaka', siteClass: 'SD', siteClassSource: 'assumed' };
@@ -229,5 +229,23 @@ suite('SAEngine - New Building wizard model', () => {
 		const site = result.spec.site;
 		assert.deepStrictEqual(site.spectral, { sms: 2.04, designSpectrum: [[0, 0.55], [0.2, 1.36]], sds: 1.5, sd1: 0.82 });
 		assert.strictEqual(site.hazardSource, source);
+	});
+
+	test('#300: a radial grid reads its bays as angles, a rotated one its angle', () => {
+		assert.deepStrictEqual(parseRayAngles('4×90'), { ok: true, values: [90, 90, 90, 90] });
+		assert.deepStrictEqual(parseRayAngles('2x45, 30°'), { ok: true, values: [45, 45, 30] });
+		assert.ok(!parseRayAngles('200').ok);
+		assert.ok(!parseRayAngles('3×150').ok); // 450° is more than a circle
+		const base = { ...BLANK_FORM, name: 'Round', gridX: '2×4000', storyCount: '1', groundHeight: '3000', typicalHeight: '3000' };
+		const radial = buildSpec({ ...base, gridY: '4×90', gridKind: 'radial', gridAngle: '15', innerRadius: '6000' }, () => undefined);
+		assert.ok(radial.ok);
+		assert.deepStrictEqual(radial.spec.grid, { kind: 'radial', angle: 15, innerRadius: 6000, rayAngles: [90, 90, 90, 90] });
+		const rotated = buildSpec({ ...base, gridY: '5000', gridKind: 'rotated', gridAngle: '30' }, () => undefined);
+		assert.ok(rotated.ok);
+		assert.deepStrictEqual(rotated.spec.grid, { kind: 'rotated', angle: 30 });
+		const noRadius = buildSpec({ ...base, gridY: '4×90', gridKind: 'radial', innerRadius: '' }, () => undefined);
+		assert.ok(!noRadius.ok && noRadius.errors.gridShape);
+		const plain = buildSpec({ ...base, gridY: '5000' }, () => undefined);
+		assert.ok(plain.ok && plain.spec.grid === undefined);
 	});
 });
