@@ -7,7 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -24,6 +24,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISaengineProject, ISaengineProjectService } from '../../../services/saengineProject/common/saengineProject.js';
+import { ProjectOpenContext } from '../../saengineProject/browser/projectMenu.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ExchangeFormat, isPlainNetworkUrl, officeBlocker, officeServerUrl } from '../common/automationModel.js';
 import { bag, callBackend, callBackendWith, saveProjectParts } from './automationBackend.js';
@@ -125,6 +126,7 @@ CommandsRegistry.registerCommand(EXPORT_EXCHANGE_COMMAND, (accessor, args: { rea
 
 const EXPORTS: readonly { readonly format: ExchangeFormat; readonly id: string; readonly title: ReturnType<typeof localize2> }[] = [
 	{ format: 's2k', id: 'saengine.export.s2k', title: localize2('export.s2k', "Export Analysis Model as .s2k Text") },
+	{ format: 'f2k', id: 'saengine.export.f2k', title: localize2('export.f2k', "Export Slab Model as SAFE .f2k Text") },
 	{ format: 'std', id: 'saengine.export.std', title: localize2('export.std', "Export Analysis Model as .std Commands") },
 	{ format: 'saf', id: 'saengine.export.saf', title: localize2('export.saf', "Export Analysis Model as SAF (.xlsx)") },
 	{ format: 'sdnf', id: 'saengine.export.sdnf', title: localize2('export.sdnf', "Export Steelwork as SDNF") },
@@ -168,7 +170,13 @@ async function exportAs(s: IServices, format: ExchangeFormat): Promise<void> {
 for (const entry of EXPORTS) {
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: entry.id, title: entry.title, category, f1: true });
+			super({
+				id: entry.id,
+				title: entry.title,
+				category,
+				f1: true,
+				...(entry.format === 'f2k' ? { menu: { id: MenuId.MenubarFileMenu, group: '4_save_print', order: 5, when: ProjectOpenContext } } : {}),
+			});
 		}
 		override run(accessor: ServicesAccessor): Promise<void> {
 			return exportAs(services(accessor), entry.format);

@@ -765,7 +765,7 @@ def derive_fem(
                     f"{label}: {e['msg'].removeprefix('Value error, ')}" for e in exc.errors()
                 ]
             }
-    if not parsed["bim"].elements:
+    if not parsed["bim"].elements and not parsed["bim"].additions.members:
         # FD-4: an empty building model (not built yet) is a failure, not "0 nodes, up to date".
         return {
             "problems": [

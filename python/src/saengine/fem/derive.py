@@ -6134,6 +6134,8 @@ def _on_segment_mask(
     points: np.ndarray, a: np.ndarray, b: np.ndarray, tolerance: float = 1e-3
 ) -> np.ndarray:
     """:func:`_on_segment` of each row of ``points``."""
+    if len(points) == 0:
+        return np.zeros(0, dtype=bool)
     axis = b - a
     length2 = float(axis @ axis)
     t = (points - a) @ axis / length2 if length2 else np.zeros(len(points))

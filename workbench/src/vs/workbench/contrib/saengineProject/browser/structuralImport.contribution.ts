@@ -22,7 +22,7 @@ import { StructuralImportFlows } from './structuralImportFlows.js';
 import { IImportStructuralCommandArgs, IMPORT_STRUCTURAL_UI_COMMAND, sameFolder, SHOW_IMPORT_REPORT_COMMAND } from './structuralImportModel.js';
 
 /*
- * Import from ETABS, STAAD.Pro or SAP2000 (≡ File menu, the sidebar's ≡ menu, the start page):
+ * Import from ETABS, SAFE, STAAD.Pro or SAP2000 (≡ File menu, the sidebar's ≡ menu, the start page):
  * the backend's `saengine.import.structural` writes the project; this is the UI around it and
  * the import report.
  */
@@ -48,8 +48,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: IMPORT_STRUCTURAL_UI_COMMAND,
-			title: localize2('saengine.importStructural', "Import from ETABS, STAAD or SAP2000..."),
-			metadata: { description: localize2('saengine.importStructural.description', "Creates a new project from an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file and shows what was imported.") },
+			title: localize2('saengine.importStructural', "Import from ETABS, SAFE, STAAD or SAP2000..."),
+			metadata: { description: localize2('saengine.importStructural.description', "Creates a new project from an ETABS (.e2k), SAFE (.f2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file and shows what was imported.") },
 			category,
 			f1: true,
 			icon: Codicon.cloudDownload,
@@ -70,7 +70,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: SHOW_IMPORT_REPORT_COMMAND,
 			title: localize2('saengine.showImportReport', "Show Import Report"),
-			metadata: { description: localize2('saengine.showImportReport.description', "Shows the report of the last import from ETABS, STAAD.Pro or SAP2000.") },
+			metadata: { description: localize2('saengine.showImportReport.description', "Shows the report of the last import from ETABS, SAFE, STAAD.Pro or SAP2000.") },
 			category,
 			f1: true,
 		});

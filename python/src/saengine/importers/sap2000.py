@@ -61,7 +61,7 @@ from saengine.library import objects as o
 
 FORMAT = "SAP2000"
 
-_RECORD = re.compile(r'([^\s=]+)=("[^"]*"|\S*)')
+_RECORD = re.compile(r'("[^"]+"|[^\s=]+)=("[^"]*"|\S*)')
 
 #: Tables the reader uses (others are listed as skipped).
 _USED = {
@@ -144,7 +144,10 @@ def tables(text: str) -> dict[str, list[dict[str, str]]]:
             continue
         if current is None or "=" not in line:
             continue
-        record = {k: v[1:-1] if v.startswith('"') else v for k, v in _RECORD.findall(line)}
+        record = {
+            k[1:-1] if k.startswith('"') else k: v[1:-1] if v.startswith('"') else v
+            for k, v in _RECORD.findall(line)
+        }
         if record:
             current.append(record)
     return result

@@ -364,6 +364,7 @@ export const ALLOWED_COMMANDS: readonly IAllowedCommand[] = [
 	{ id: 'saengine.boq.exportXlsx', description: 'Exports the bill of quantities with its costing and embodied carbon to Excel (asks where).' },
 	// Alpha 9 L12: the exchange exports and the web viewer, written to 11 Exports.
 	{ id: 'saengine.export.s2k', description: 'Exports the analysis model as a .s2k text file with its export report.' },
+	{ id: 'saengine.export.f2k', description: 'Exports the slab model as a SAFE .f2k text file with its export report.' },
 	{ id: 'saengine.export.std', description: 'Exports the analysis model as a .std command file with its export report.' },
 	{ id: 'saengine.export.saf', description: 'Exports the analysis model as SAF (Structural Analysis Format, .xlsx) with its export report.' },
 	{ id: 'saengine.export.sdnf', description: 'Exports the steel members and plates as SDNF for detailing software.' },

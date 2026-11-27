@@ -387,7 +387,7 @@ export function chartBars(rows: readonly IStudyRow[], metric: StudyMetric): ICha
 
 //#region Exchange and the office server
 
-export const EXCHANGE_FORMATS = ['s2k', 'std', 'saf', 'sdnf', 'cis2', 'webViewer'] as const;
+export const EXCHANGE_FORMATS = ['s2k', 'f2k', 'std', 'saf', 'sdnf', 'cis2', 'webViewer'] as const;
 export type ExchangeFormat = typeof EXCHANGE_FORMATS[number];
 
 /** The office server's address as the backend gets it, or undefined when it is not one. */

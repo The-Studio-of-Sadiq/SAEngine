@@ -188,6 +188,8 @@ class TextModel:
     #: Whether the file states the members' stiffness modifiers (all members, 1 or not): their
     #: values then go to SAEngine's cracked-section setting as the ETABS reader does.
     states_modifiers: bool = False
+    #: Whether imported floor areas should be analysed as FE shells (e.g. SAFE).
+    slabs_as_shells: bool = False
 
 
 # ─────────────────────────────────────── sections ───────────────────────────────────────
@@ -962,6 +964,8 @@ def build(model: TextModel, name: str | None = None) -> ImportedProject:
                 amount = down if abs(down) > 1e-12 else float(np.linalg.norm(total))
                 builder.not_carried_item("loads.noCase.area", target, amount, example)
     builder.self_weight = selfweight
+    if model.slabs_as_shells and added_areas:
+        builder.analysis["slabs"] = "shells"
     if model.states_modifiers:
         _stiffness(model, builder, report, added_frames, added_areas)
 
