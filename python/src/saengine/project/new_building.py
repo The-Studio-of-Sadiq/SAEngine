@@ -122,6 +122,21 @@ def spec_from_wizard(spec: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         "gridsY": [float(v) for v in spacings.get("y") or []],
         "stories": [{"name": n, "height": h} for n, h in zip(names, heights, strict=True)],
     }
+    # #300: the grid step's rotated orthogonal or radial grid (x spacings: the rings' on a
+    # radial grid, its bays the angles between the rays).
+    grid = spec.get("grid") or {}
+    kind = grid.get("kind") or "orthogonal"
+    if kind not in ("orthogonal", "rotated", "radial"):
+        raise NewBuildingError(f"unknown grid kind '{kind}'")
+    if kind != "orthogonal":
+        out["gridKind"] = kind
+        out["gridAngle"] = float(grid.get("angle") or 0.0)
+        out["gridOriginX"] = float(grid.get("originX") or 0.0)
+        out["gridOriginY"] = float(grid.get("originY") or 0.0)
+        if kind == "radial":
+            out["innerRadius"] = float(grid.get("innerRadius") or 0.0)
+            out["rayAngles"] = [float(v) for v in grid.get("rayAngles") or []]
+            out.pop("gridsY")
     system = spec.get("system")
     if system is not None:
         if system not in SYSTEMS:

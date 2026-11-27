@@ -838,13 +838,13 @@
 			"code": "R.04",
 			"group": "reinforcement",
 			"description": "Reinforcement B420DWR, 20 mm bars",
-			"quantity": 834.568,
+			"quantity": 838.271,
 			"unit": "kg",
 			"material": "B420DWR",
 			"diameter": 20.0,
 			"byStory": {
-				"L1": 582.099,
-				"L2": 84.568
+				"L1": 585.185,
+				"L2": 85.185
 			},
 			"breakdown": [
 				{
@@ -868,37 +868,37 @@
 					"element": "C2",
 					"story": "L1",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				},
 				{
 					"element": "C3",
 					"story": "L1",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				},
 				{
 					"element": "C4",
 					"story": "L1",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				},
 				{
 					"element": "C5",
 					"story": "L1",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				},
 				{
 					"element": "C6",
 					"story": "L1",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				},
 				{
 					"element": "C7",
 					"story": "L2",
 					"detail": "bar mark C1-V1 (bar bending schedule)",
-					"quantity": 84.568
+					"quantity": 85.185
 				}
 			]
 		},

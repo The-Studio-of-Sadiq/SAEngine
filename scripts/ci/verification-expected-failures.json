@@ -4,9 +4,6 @@
     "A9": [
       "Tip deflection, default 500 mm mesh",
       "Tip deflection, 100 mm mesh (finest allowed)"
-    ],
-    "DG10": [
-      "B1 bottom bar hook tail A - r - d (12 d)"
     ]
   }
 }

@@ -324,8 +324,15 @@ def standard_hook(
     """The standard hook of 8.1.2.1 (pp 1065-1066). Main bars: 180° + max(4 db, 65 mm) (a), 90° +
     12 db (b). ``transverse`` (stirrups and ties, (c)): 90° + 6 db for db <= 16 mm, 90° + 12 db
     for 19-25 mm, 135° + 6 db for db <= 25 mm; ``closed`` ties, and seismic hooks (d), 135° +
-    max(6 db, 75 mm)."""
-    bend = bend_diameter(db, transverse).value
+    max(6 db, 75 mm).
+
+    The bend is the one the bar schedule bends the bar on (:func:`saengine.drawings.bbs.
+    bend_radius`: the code's least bend or the schedule standard's minimum radius, whichever
+    is larger), so that the hook's straight tail as bent is the tail asked for (#386: Ø20 on
+    BS 8666's 70 mm radius, not the code's 60 mm)."""
+    from saengine.drawings.bbs import bend_radius
+
+    bend = 2 * bend_radius(db, transverse)
     shapes = _bar_shapes()
     if shapes is not None:  # Alpha 9 C5c: the pack's bends, hooks and links' bends
         clause = _shapes_cite()

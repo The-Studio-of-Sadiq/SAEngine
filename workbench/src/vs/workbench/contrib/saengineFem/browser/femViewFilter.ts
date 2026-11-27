@@ -12,6 +12,7 @@
 import type { FemCameraView } from '@saengine/fem-viewer';
 import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
+import { GridGeometry, isCircle, segment } from '../../../services/saengineProject/common/gridGeometry.js';
 
 /** The `.osmodel` fields this reads (the parsed file has them; the viewer's type does not). */
 export interface IFilterModel {
@@ -241,6 +242,45 @@ export function parsePlanPath(text: string): { readonly path: [number, number][]
 	return { path };
 }
 
+/**
+ * #300: the plan paths [m] of the floor plan's other grid systems' lines (`grids` of
+ * `05 Floor Plan`): a straight line from end to end; a ring through its crossings with the rays
+ * of its system round the centre (closed when no gap between them passes 180°), as its ring
+ * beams run.
+ */
+export function gridSystemPaths(grids: unknown): { readonly label: string; readonly ring: boolean; readonly path: [number, number][] }[] {
+	const geometry = new GridGeometry(grids);
+	const out: { label: string; ring: boolean; path: [number, number][] }[] = [];
+	const m = (p: readonly [number, number]): [number, number] => [round(p[0] / 1000), round(p[1] / 1000)];
+	for (const axis of geometry.axes.filter(a => a.system)) {
+		if (!isCircle(axis)) {
+			const [a, b] = segment(axis);
+			out.push({ label: axis.label, ring: false, path: [m(a), m(b)] });
+			continue;
+		}
+		const [cx, cy] = axis.origin;
+		const angle = (p: readonly [number, number]) => (Math.atan2(p[1] - cy, p[0] - cx) * 180 / Math.PI + 360) % 360;
+		const points = geometry.axes
+			.filter(r => r.system === axis.system && r.role === 'ray')
+			.map(r => geometry.tryIntersection(r.label, axis.label))
+			.filter((p): p is [number, number] => !!p)
+			.sort((p, q) => angle(p) - angle(q));
+		if (points.length < 2) {
+			continue;
+		}
+		// Start after the widest gap, so an open sector runs from its first ray to its last.
+		const angles = points.map(angle);
+		const gaps = angles.map((a, i) => ((angles[(i + 1) % angles.length] - a) + 360) % 360 || 360);
+		const widest = gaps.indexOf(Math.max(...gaps));
+		const ordered = [...points.slice(widest + 1), ...points.slice(0, widest + 1)];
+		if (gaps[widest] <= 180 + 1e-6) {
+			ordered.push(ordered[0]);
+		}
+		out.push({ label: axis.label, ring: true, path: ordered.map(m) });
+	}
+	return out;
+}
+
 /** A plan path as typed (the inverse of {@link parsePlanPath}). */
 export function formatPlanPath(path: readonly (readonly [number, number])[]): string {
 	const n = (v: number) => String(round(v));
@@ -251,7 +291,7 @@ export function formatPlanPath(path: readonly (readonly [number, number])[]): st
  * The View picker's choices: 3D, each level's plan, each grid line's elevation, each storey,
  * the perimeter developed, and the developed elevation along `custom` when one was given.
  */
-export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, string>, custom?: readonly (readonly [number, number])[]): { readonly choice: FemViewChoice; readonly label: string }[] {
+export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, string>, custom?: readonly (readonly [number, number])[], planGrids?: unknown): { readonly choice: FemViewChoice; readonly label: string }[] {
 	const levels = modelLevels(model);
 	const nameOf = (z: number, k: number) => names?.get(z) ?? (k === 0 ? localize('femView.base', "Base") : localize('femView.level', "Level {0}", k));
 	const grids = gridLines(model);
@@ -266,6 +306,13 @@ export function viewChoices(model: IFilterModel, names?: ReadonlyMap<number, str
 	}
 	for (const y of grids.y) {
 		choices.push({ choice: { kind: 'elevation', axis: 'y', at: y }, label: localize('femView.elevationY', "Elevation: y = {0} m", y.toFixed(2)) });
+	}
+	// #300: the other grid systems' lines (skewed, rays, rings): developed elevations along them.
+	for (const { label, ring, path } of gridSystemPaths(planGrids)) {
+		choices.push({
+			choice: { kind: 'developed', path, name: `grid ${label}` },
+			label: ring ? localize('femView.elevationRing', "Developed Elevation: Ring {0}", label) : localize('femView.elevationGrid', "Elevation: Grid {0}", label),
+		});
 	}
 	levels.forEach((z, k) => {
 		if (k > 0) {

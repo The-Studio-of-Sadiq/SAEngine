@@ -132,7 +132,7 @@ was widened to make a case pass; where SAEngine is off, the case fails.
 
 ## Results at the time of writing
 
-116 of the 118 cases pass (beta after 0.0.52, 27 Nov 2026, with the advanced analysis cases AX1-AX6 of #290 and the depth tests AG1-DG10 of #298); A9 and DG10 fail on the known issues below.
+117 of the 118 cases pass (beta after 0.0.52, 27 Nov 2026, with the advanced analysis cases AX1-AX6 of #290 and the depth tests AG1-DG10 of #298); A9 fails on the known issue below.
 Every case added since 0.0.45 passes. The table lists the largest deviation in each case (AH1
 compares no ratios: it passes when its checks hold):
 
@@ -196,7 +196,7 @@ compares no ratios: it passes when its checks hold):
 | AG2 | 1.0000 | 1 % | AG7 | 1.0020 | 1 % |
 | AG3 | 1.0000 | 1 % | AG8 | 1.0000 | 1 % |
 | AG4 | 1.0003 | 0.1 % | AG9 | 0.9964 | 2 % |
-| DG5 | 0.9999 | 0.5 % | DG10 | 0.9583 (fail) | 0.0001 % |
+| DG5 | 0.9999 | 0.5 % | DG10 | 1.0000 | 0.1 % |
 
 ## Known issues (failing cases)
 
@@ -204,14 +204,14 @@ compares no ratios: it passes when its checks hold):
   At the default mesh and at 100 mm (the smallest mesh size Project Settings accept) the tip
   deflection is about 8 % low (ratios 0.925 and 0.928). Only a 50 mm mesh, below the
   settings' minimum, comes within 5 % (0.972).
-- **DG10, hook tails of Ø20 and larger bars (#386).** The detailing sizes a beam bar's 90°
-  hook with the code's bend (6 db, r = 60 mm for Ø20: A = 320 mm), but the bar schedule bends
-  it on BS 8666's larger minimum radius (70 mm). As bent, the hook's straight tail is
-  A - r - d = 230 mm, short of the 12 db = 240 mm of the standard hook. The cutting lengths
-  round up to the same 6850 mm, and Ø16 is consistent; the rest of DG10 passes.
 
 ## Other observations recorded by the cases
 
+- **DG10 (fixed, #386).** The detailing sized a bar's 90° hook with the code's bend (6 db,
+  r = 60 mm for Ø20: A = 320 mm), while the bar schedule bends it on BS 8666's larger minimum
+  radius (70 mm), so the hook's straight tail as bent was 230 mm, short of the 12 db = 240 mm
+  of the standard hook. Hooks now take the bend the schedule uses (A = 330 mm); the cranked
+  corner bars' cutting length rounds up to 6875 mm.
 - **AX1 (fixed).** The linear buckling analysis took one cubic element per analysis piece, and
   the derived model does not subdivide frame members. A pin-ended column drawn as one member
   buckled at 12 EI/L² instead of π² EI/L², 21.6 % high (unconservative); a sway portal was

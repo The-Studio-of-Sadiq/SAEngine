@@ -154,3 +154,103 @@ def test_a_file_of_another_kind_is_refused(project: Path, tmp_path: Path) -> Non
     other.write_text('{"schema": "something/1"}', "utf-8")
     answer = revit_link.rpc_preview({"projectRoot": str(project), "path": str(other)})
     assert set(answer) == {"error"}
+
+
+def test_radial_grid_rings_export_as_revit_arcs_and_roundtrip(project: Path) -> None:
+    plan_path = project / "05 Floor Plan" / "floor-plan.json"
+    plan = json.loads(plan_path.read_text("utf-8"))
+    plan["grids"]["systems"] = [
+        {
+            "id": "RAD",
+            "kind": "radial",
+            "originX": 10000,
+            "originY": 5000,
+            "angle": 0,
+            "rays": [
+                {"label": "R0", "angle": 0},
+                {"label": "R45", "angle": 45},
+                {"label": "R90", "angle": 90},
+            ],
+            "rings": [
+                {"label": "R1", "radius": 6000},
+                {"label": "R2", "radius": 9000},
+            ],
+        },
+        {
+            "id": "FULL",
+            "kind": "radial",
+            "originX": 0,
+            "originY": 0,
+            "angle": 0,
+            "rays": [],
+            "rings": [{"label": "F1", "radius": 4000}],
+        },
+    ]
+    plan_path.write_text(json.dumps(plan), "utf-8")
+
+    path, document = exported(project)
+    assert not any("not exported" in n for n in document["notes"])
+
+    by_name = {g["name"]: g for g in document["grids"]}
+    # Rays at 0°, 45°, 90°: widest gap is 270° (90° → 360°), so arc runs 0° → 90° extended ±5°
+    # to -5° → 95°. cos(5°) = 0.9961947, sin(5°) = 0.0871557.
+    # R1 (r = 6000, centre (10000, 5000)):
+    #   start (-5°): (10000 + 5977.168, 5000 - 522.934) = [15977.2, 4477.1]
+    #   end   (95°): (10000 - 522.934, 5000 + 5977.168) = [9477.1, 10977.2]
+    # R2 (r = 9000, centre (10000, 5000)):
+    #   start (-5°): (10000 + 8965.752, 5000 - 784.402) = [18965.8, 4215.6]
+    #   end   (95°): (10000 - 784.402, 5000 + 8965.752) = [9215.6, 13965.8]
+    r1, r2 = by_name["R1"], by_name["R2"]
+    assert r1["axis"] is None and r1["position"] is None
+    assert r1["arc"] == {
+        "center": [10000.0, 5000.0],
+        "radius": 6000.0,
+        "startAngle": -5.0,
+        "endAngle": 95.0,
+    }
+    assert r1["start"] == pytest.approx([15977.2, 4477.1], abs=0.1)
+    assert r1["end"] == pytest.approx([9477.1, 10977.2], abs=0.1)
+
+    assert r2["axis"] is None and r2["position"] is None
+    assert r2["arc"] == {
+        "center": [10000.0, 5000.0],
+        "radius": 9000.0,
+        "startAngle": -5.0,
+        "endAngle": 95.0,
+    }
+    assert r2["start"] == pytest.approx([18965.8, 4215.6], abs=0.1)
+    assert r2["end"] == pytest.approx([9215.6, 13965.8], abs=0.1)
+
+    # No rays: 350° arc with a 10° gap centred on bubble_angle (-90°) -> -85° to 265°.
+    f1 = by_name["F1"]
+    assert f1["arc"] == {
+        "center": [0.0, 0.0],
+        "radius": 4000.0,
+        "startAngle": -85.0,
+        "endAngle": 265.0,
+    }
+
+    # Unchanged export produces no import changes.
+    assert revit_link.rpc_preview({"projectRoot": str(project), "path": str(path)})["changes"] == []
+
+    # Moved arc ring and new symmetric arc grid coming back from Revit: reported as non-applicable
+    # ("edit in Grid Systems"), never misclassified as straight grids and never crashing.
+    edited = copy.deepcopy(document)
+    next(g for g in edited["grids"] if g["name"] == "R1")["arc"]["radius"] = 6500.0
+    edited["grids"].append(
+        {
+            "name": "RVT_ARC",
+            "revitId": "rvt-arc-1",
+            "start": [348.6, -3984.8],
+            "end": [-348.6, -3984.8],
+            "arc": {"center": [0.0, 0.0], "radius": 4000.0, "startAngle": -85.0, "endAngle": 265.0},
+        }
+    )
+    back = write_back(project, edited)
+    preview = revit_link.rpc_preview({"projectRoot": str(project), "path": str(back)})
+    by_ref = {c["ref"]: c for c in preview["changes"]}
+    assert set(by_ref) == {"RAD:R1", "RVT_ARC"}
+    assert not by_ref["RAD:R1"]["applicable"]
+    assert "Grid Systems" in by_ref["RAD:R1"]["reason"]
+    assert not by_ref["RVT_ARC"]["applicable"]
+    assert "Grid Systems" in by_ref["RVT_ARC"]["reason"]

@@ -43,7 +43,7 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 | Feature | ETABS | SAP2000 | STAAD.Pro | SAFE | Robot | SAEngine status | Evidence | Part | Benchmark that would prove it |
 |---|---|---|---|---|---|---|---|---|---|
 | Cartesian grid lines | ✓ | ✓ | ✓ | ✓ | ✓ | Built, untested | python/src/saengine/library/floorplan.py (Grids); workbench/src/vs/workbench/contrib/saengineLibrary/browser/gridsEditor.ts | 5 | Coordinates of an imported published example building, round trip |
-| Skew / cylindrical / non-orthogonal grids | ✓ | ✓ | ✓ | ✓ | ✓ | Built (#300): `grids.systems` (rotated orthogonal, radial, angled lines) in floorplan.py, one geometry helper (grid_geometry.py, gridGeometry.ts), Floor Plan > Grid Systems..., drawn and snapped; columns turn with their system. Untested in the app | python/tests/test_grid_systems.py (30° frame = 0° frame) | 5 | Radial frame statics by hand |
+| Skew / cylindrical / non-orthogonal grids | ✓ | ✓ | ✓ | ✓ | ✓ | Built (#300): `grids.systems` (rotated orthogonal, radial, angled lines) in floorplan.py, one geometry helper (grid_geometry.py, gridGeometry.ts), Floor Plan > Grid Systems..., drawn and snapped; columns turn with their system. New Project wizard makes rotated and radial grids (grid_placement.py); Substructure, MEP plans and FEM elevations show every system; Revit arc grids | python/tests/test_grid_systems.py (30° frame = 0° frame), python/tests/test_grid_wizard.py | 5 | Radial frame statics by hand |
 | Storeys / levels | ✓ | – | ? | – | ✓ | Built, untested | python/src/saengine/library/floorplan.py | 5 | Storey heights against a published example |
 | Typical (similar) floors | ✓ | – | ? | – | ? | Built, untested | `similarTo` in python/src/saengine/library/floorplan.py; workbench/src/vs/workbench/contrib/saengineCad/browser/floorPlanTypical.ts; python/tests/test_floorplan.py | 5 | Typical-floor model gives the same results as the explicit model |
 | Building generator / templates | ✓ | ✓ | ✓ | ✓ | ? | Verified (DX4) | python/src/saengine/verification/cases/beta.py; python/src/saengine/library/generator.py | 5 | Gravity takedown of the generated building by hand |
@@ -294,7 +294,7 @@ The 7 Missing rows are:
 - Robot exchange
 
 **The 15 most important gaps for a practising RC building engineer in Bangladesh, in order:**
-1. ~~**Non-orthogonal grids are missing.**~~ Built in #300 (rotated, radial and angled grid systems); the New Project wizard still makes orthogonal grids only.
+1. ~~**Non-orthogonal grids are missing.**~~ Built in #300 (rotated, radial and angled grid systems), including the New Project wizard's rotated and radial grids.
 2. **Load cases cannot be defined by the user.** The case set is fixed, member loads are limited to D/SD/L/Lr, and joint loads are restricted.
 3. **Long-term cracked deflection of FE slabs is built but unverified (#302).** It is checked by hand cases only; it needs a published flat-plate benchmark. SAFE does this.
 4. **P-Delta is unverified** against a closed-form amplification.

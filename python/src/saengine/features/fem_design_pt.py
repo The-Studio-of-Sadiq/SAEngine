@@ -117,6 +117,14 @@ def _polyline(xs: np.ndarray, ys: np.ndarray, box: tuple[float, float, float, fl
     return f'<polyline fill="none" stroke="{colour}" stroke-width="1.6"{style} points="{pts}"/>'
 
 
+def axis_label(value: float) -> str:
+    """An axis value as an engineer reads it: whole numbers from 100 up ("1470", not
+    "1.47e+03"), else up to three significant figures ("3.5", "0.25")."""
+    if abs(value) >= 100:
+        return f"{value:.0f}"
+    return f"{value:.3g}"
+
+
 def strip_view(row: dict[str, Any], out_dir: Path) -> Path:
     """The strip view of a tendon group: its profile in the slab, the force along it after each
     loss and the fibre stresses at transfer and service with the pack's limits."""
@@ -149,7 +157,7 @@ def strip_view(row: dict[str, Any], out_dir: Path) -> Path:
         for value in (y_range[0], (y_range[0] + y_range[1]) / 2, y_range[1]):
             y = top + (y_range[1] - value) / ((y_range[1] - y_range[0]) or 1) * height
             parts.append(
-                f'<text x="{left - 6}" y="{y + 4:.1f}" text-anchor="end">{value:.3g}</text>'
+                f'<text x="{left - 6}" y="{y + 4:.1f}" text-anchor="end">{axis_label(value)}</text>'
             )
         parts.append(
             f'<text x="{left - 6}" y="{top + height + 14}" text-anchor="end" fill="#666">{unit}</text>'
