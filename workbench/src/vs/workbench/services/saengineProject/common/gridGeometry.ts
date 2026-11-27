@@ -297,3 +297,37 @@ export class GridGeometry {
 		return best && { first: best.first, second: best.second };
 	}
 }
+
+/** A grid line as drawn: a straight segment or a circle, with where its label bubbles go [mm]. */
+export interface IGridShape {
+	readonly label: string;
+	readonly system: string;
+	/** A straight line's drawn segment. */
+	readonly segment?: readonly [Point, Point];
+	/** A ring's centre and radius. */
+	readonly circle?: { readonly center: Point; readonly radius: number };
+	/** The centres of its label bubbles, `bubble` [mm] beyond its ends (a ray: its outer end; a ring: outside it). */
+	readonly bubbles: readonly Point[];
+}
+
+/**
+ * #300: the grid lines of `axes` as drawn by every plan view (floor plan, substructure, MEP),
+ * with bubbles of radius `bubble` [mm] at both ends of a straight line (a ray's only at its
+ * outer end) and outside a ring between the rays.
+ */
+export function gridShapes(axes: readonly IGridAxis[], bubble: number): IGridShape[] {
+	return axes.map((axis): IGridShape => {
+		if (isCircle(axis)) {
+			const u = axis.bubbleAngle * Math.PI / 180;
+			const d = axis.radius + bubble;
+			return { label: axis.label, system: axis.system, circle: { center: axis.origin, radius: axis.radius }, bubbles: [[axis.origin[0] + d * Math.cos(u), axis.origin[1] + d * Math.sin(u)]] };
+		}
+		const [start, end] = segment(axis);
+		const [dx, dy] = axis.direction;
+		const bubbles: Point[] = [[end[0] + dx * bubble, end[1] + dy * bubble]];
+		if (axis.role !== 'ray') {
+			bubbles.push([start[0] - dx * bubble, start[1] - dy * bubble]);
+		}
+		return { label: axis.label, system: axis.system, segment: [start, end], bubbles };
+	});
+}

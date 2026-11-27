@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
+import { GridGeometry, gridShapes, IGridShape } from '../../../services/saengineProject/common/gridGeometry.js';
 import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { codeSettingsStamp, FEM_CODE_TABLES_SOURCE, sourceStamp } from '../../../services/saengineProject/common/partSources.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
@@ -286,7 +287,7 @@ export interface IBimSlabOpening {
 export interface IMepContext {
 	/** By elevation, lowest first. */
 	readonly stories: readonly IStory[];
-	readonly grids: { readonly x: readonly IGridLine[]; readonly y: readonly IGridLine[] };
+	readonly grids: { readonly x: readonly IGridLine[]; readonly y: readonly IGridLine[]; readonly others?: readonly IGridShape[] };
 	readonly columns: readonly IColumn[];
 	readonly beams: readonly IBeam[];
 	readonly walls: readonly IWall[];
@@ -377,7 +378,9 @@ export function readMepContext(texts: IMepContextTexts): IMepContext {
 			const mechanical = isRecord(m.mechanical) ? m.mechanical : {};
 			return { id: String(m.id), unitWeight: num(mechanical.density, 2400) * GRAVITY / 1000 };
 		});
-	return { stories, grids: { x: gridLines(grids.x), y: gridLines(grids.y) }, columns, beams, walls, slabs, slabOpenings, concretes };
+	// #300: the other grid systems' lines too (the MEP plan draws them like the floor plan).
+	const others = gridShapes(new GridGeometry(grids).axes.filter(a => a.system), 800);
+	return { stories, grids: { x: gridLines(grids.x), y: gridLines(grids.y), others }, columns, beams, walls, slabs, slabOpenings, concretes };
 }
 
 const TOLERANCE = 1;

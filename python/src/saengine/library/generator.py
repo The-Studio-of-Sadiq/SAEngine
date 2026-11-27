@@ -297,9 +297,48 @@ class BuildingSpec(_Spec):
         description="Write template bars on the types (placeholders); default none: Design "
         "mode proposes them.",
     )
+    # #300: the grid of a new building as a rotated orthogonal or a radial grid system.
+    gridKind: Literal["orthogonal", "rotated", "radial"] = Field(
+        default="orthogonal",
+        description="orthogonal: the main grid; rotated: gridsX/gridsY in a grid system turned "
+        "by gridAngle about the grid origin; radial: rings at innerRadius plus the gridsX "
+        "spacings, rays at the rayAngles bays (gridsY is then worked out from them).",
+    )
+    gridAngle: float = Field(default=0.0, description="Rotated or radial: the system's angle [°].")
+    gridOriginX: float = Field(default=0.0, description="The system's origin or centre X [mm].")
+    gridOriginY: float = Field(default=0.0, description="The system's origin or centre Y [mm].")
+    innerRadius: float = Field(default=0.0, ge=0, description="Radial: the first ring [mm].")
+    rayAngles: list[Annotated[float, Field(gt=0, le=180)]] | None = Field(
+        default=None,
+        description="Radial: the angles between neighbouring rays [°]; adding up to 360 closes "
+        "the circle (the last bay joins the first ray).",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _radial_bays(cls, data: Any) -> Any:
+        """A radial grid's Y spacings: its bays as arc lengths at the middle ring, so the
+        member sizes see the spans the ring beams have there."""
+        if isinstance(data, dict) and data.get("gridKind") == "radial" and data.get("rayAngles"):
+            from saengine.library.grid_placement import radial_spacings
+
+            data = dict(data)
+            data["gridsY"] = radial_spacings(
+                float(data.get("innerRadius") or 0.0),
+                [float(v) for v in data.get("gridsX") or []],
+                [float(v) for v in data["rayAngles"]],
+            )
+        return data
 
     @model_validator(mode="after")
     def _stories(self) -> BuildingSpec:
+        if self.gridKind == "radial":
+            if self.innerRadius <= 0:
+                raise ValueError("a radial grid needs its first ring at a radius above 0")
+            if not self.rayAngles:
+                raise ValueError("a radial grid needs the angles between its rays")
+            if sum(self.rayAngles) > 360 + 1e-6:
+                raise ValueError("the angles between the rays add up to more than 360°")
         if self.stories is None and self.storyCount is None:
             raise ValueError("give the stories, or storyCount with the heights")
         # U2: the spans, storey heights and their counts by the floor plan's guardrails (the
@@ -1625,6 +1664,16 @@ def generate_building(spec: BuildingSpec | dict[str, Any], settings: Any = None)
     "settingsPatch", "notes", "summary"}``; the parts as JSON (validated by their models).
     """
     s = spec if isinstance(spec, BuildingSpec) else BuildingSpec.model_validate(spec)
+    if s.gridKind != "orthogonal":
+        # #300: generated on the grid's own axes, then placed in its rotated or radial system.
+        from saengine.library.grid_placement import place_in_system
+
+        return place_in_system(_generate_in_pack(s, settings), s)
+    return _generate_in_pack(s, settings)
+
+
+def _generate_in_pack(s: BuildingSpec, settings: Any) -> dict[str, Any]:
+    """:func:`generate_building` of the parsed ``s``, under its code pack."""
     if s.codePack:
         # C7: a pack that names its own default system (its systems carry the category height
         # limits the system choice reads: is-codes) is generated under it (its systems, period

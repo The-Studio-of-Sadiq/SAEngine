@@ -1489,6 +1489,9 @@ export class FemModelEditor extends EditorPane {
 			}
 			this.inputDisposables.add(reference);
 			this.floorPlanModel = reference.object.textEditorModel;
+			if (this.femModel) {
+				this.updateViews(this.femModel as unknown as IFilterModel); // #300: the other grid systems' elevations
+			}
 		} catch {
 			// A special structure, or a model outside a project: its elements select nothing elsewhere.
 		}
@@ -1705,7 +1708,8 @@ export class FemModelEditor extends EditorPane {
 
 	/** The View picker's choices for `model`, keeping the view shown when the model still has it. */
 	private updateViews(model: IFilterModel): void {
-		this.views = viewChoices(model, undefined, this.customPath);
+		const plan = parseJson(this.floorPlanModel);
+		this.views = viewChoices(model, undefined, this.customPath, typeof plan === 'object' && plan !== null ? (plan as { grids?: unknown }).grids : undefined);
 		const key = JSON.stringify(this.view);
 		const index = Math.max(0, this.views.findIndex(v => JSON.stringify(v.choice) === key));
 		this.viewControl?.setItems([

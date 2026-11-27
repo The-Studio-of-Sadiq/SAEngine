@@ -45,7 +45,7 @@ import { DEFAULT_CODE_TABLES, DEFAULT_MATERIALS, SETTINGS_SCHEMA } from '../../.
 import { ISaengineProject, ISaengineProjectService, partById, PROJECT_TYPES, ProjectType } from '../../../services/saengineProject/common/saengineProject.js';
 import {
 	BLANK_FORM, buildSpec, centralBay, fitSpacings, folderError, FOOTING_CHOICES, FormField, formatLengths, formatSummary, formFromSpec, formInUnits, GENERATE_BUILDING_COMMAND, IGenerateOutcome, IGenerateSummary, INewBuildingForm, IPendingBuilding, IWizardPlot, lengthUnit, OccupancyCategory,
-	parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
+	GridKind, gridShape, parseGridAngle, parseRayAngles, parseSpacings, PENDING_BUILDING_STORAGE_KEY, plotFitWarning, readGenerateResult, readPendingBuilding, SiteClass, storyHeights, summarize, SYSTEM_CHOICES,
 } from './newBuildingModel.js';
 import { ISoilLocationRequest, ISoilLocationResult, SOIL_LOCATION_COMMAND } from '../../saengineSoil/browser/soilDocument.js';
 import { SHOW_MODEL_VIEW_COMMAND } from './modelView.js';
@@ -884,23 +884,33 @@ export class NewBuildingWizard extends EditorPane {
 			if (ready) {
 				this.templateCustom = true;
 			}
+			const radial = this.form.gridKind === 'radial';
 			const x = parseSpacings(this.form.gridX, lengthUnit(this.form));
-			const y = parseSpacings(this.form.gridY, lengthUnit(this.form));
+			const y = radial ? parseRayAngles(this.form.gridY) : parseSpacings(this.form.gridY, lengthUnit(this.form));
 			const heights = storyHeights(this.form);
+			const shape = gridShape(this.form);
 			clearNode(planHost);
 			clearNode(elevationHost);
-			if (x.ok && y.ok) {
-				this.renderPlan(planHost, x.values, y.values);
+			if (x.ok && y.ok && shape.ok) {
+				if (radial) {
+					this.renderRadialPlan(planHost, shape.grid?.innerRadius ?? 0, x.values, y.values, shape.grid?.angle ?? 0);
+				} else {
+					this.renderPlan(planHost, x.values, y.values, shape.grid?.angle ?? 0);
+				}
 			}
 			if (x.ok && heights.ok) {
 				this.renderElevation(elevationHost, x.values, heights.values);
 			}
-			summary.textContent = x.ok && y.ok && heights.ok ? formatSummary(summarize(x.values, y.values, heights.values), this.form.units) : localize('newBuilding.previewWaiting', "The preview shows once the grids and storeys read correctly.");
+			const closed = radial && y.ok && Math.abs(y.values.reduce((a, b) => a + b, 0) - 360) < 1e-6;
+			const rays = y.ok ? y.values.length + (closed ? 0 : 1) : 0;
+			summary.textContent = !(x.ok && y.ok && heights.ok && shape.ok) ? localize('newBuilding.previewWaiting', "The preview shows once the grids and storeys read correctly.")
+				: radial ? localize('newBuilding.radialSummary', "{0} rings and {1} rays ({2}), {3} columns a floor, {4} storeys.", x.values.length + 1, rays, closed ? localize('newBuilding.fullCircle', "a full circle") : localize('newBuilding.sector', "a {0}° sector", y.values.reduce((a, b) => a + b, 0)), (x.values.length + 1) * rays, heights.values.length)
+					: formatSummary(summarize(x.values, y.values, heights.values), this.form.units);
 			systemHint.textContent = SYSTEM_CHOICES.find(s => s.value === this.form.system)?.description ?? '';
 			if (plotWarning.element) {
 				plotWarning.element.textContent = this.plot && x.ok && y.ok ? plotFitWarning(x.values, y.values, this.plot) ?? '' : '';
 			}
-			for (const [field, message] of [['gridX', x], ['gridY', y], ['stories', heights]] as const) {
+			for (const [field, message] of [['gridX', x], ['gridY', y], ['stories', heights], ['gridShape', shape]] as const) {
 				const element = errors.get(field);
 				if (element) {
 					element.textContent = message.ok || (!ready && !showErrors) ? '' : message.error;
@@ -912,18 +922,69 @@ export class NewBuildingWizard extends EditorPane {
 
 		// ── grids ──
 		const inFeet = lengthUnit(this.form) === 'ft';
-		this.section(form, localize('newBuilding.grids', "Grids"), inFeet
+		this.section(form, localize('newBuilding.grids', "Grids"), this.form.gridKind === 'radial'
+			? localize('newBuilding.gridsHintRadial', "Rings: the spacings outward from the first ring (\"2×6000\" is two 6 m bays). Rays: the angles between them, anticlockwise from the first ray (\"4×90\" is a full circle of four bays).")
+			: inFeet
 			? localize('newBuilding.gridsHintFt', "Spacings in ft, left to right and bottom to top: \"3×20, 15\" is three 20 ft bays and one of 15 ft. mm and m work too (6000mm, 6m).")
 			: localize('newBuilding.gridsHint', "Spacings in mm, left to right and bottom to top: \"3×6000, 4500\" is three 6 m bays and one of 4.5 m. m and ft work too (6m, 20ft)."));
-		for (const [field, label] of [['gridX', localize('newBuilding.gridX', "X (A, B, C ...)")], ['gridY', localize('newBuilding.gridY', "Y (1, 2, 3 ...)")]] as const) {
+		// #300: one grid step for every kind: the main grid, a rotated one, or a radial one.
+		const kind: GridKind = this.form.gridKind ?? 'orthogonal';
+		this.choices<GridKind>(form, localize('newBuilding.gridKind', "Grid"), [
+			{ value: 'orthogonal', label: localize('newBuilding.gridOrthogonal', "Orthogonal") },
+			{ value: 'rotated', label: localize('newBuilding.gridRotated', "Rotated") },
+			{ value: 'radial', label: localize('newBuilding.gridRadial', "Radial") },
+		], kind, value => {
+			if (value === kind) {
+				return;
+			}
+			this.form.gridKind = value;
+			if (value === 'radial' && !parseRayAngles(this.form.gridY).ok) {
+				this.form.gridY = '4×90';
+			} else if (kind === 'radial') {
+				this.form.gridY = inFeet ? '2×20' : '2×6000';
+			}
+			if (value === 'radial' && !this.form.innerRadius?.trim()) {
+				this.form.innerRadius = inFeet ? '20' : '6000';
+			}
+			// A rotated grid at 0° is the orthogonal one: start it at 30° (a radial grid's first
+			// ray may well be at 0°).
+			if (value === 'rotated' && !parseGridAngle(this.form.gridAngle)) {
+				this.form.gridAngle = '30';
+			} else if (value === 'radial' && !this.form.gridAngle?.trim()) {
+				this.form.gridAngle = '0';
+			}
+			this.templateCustom = true;
+			this.renderPage();
+		});
+		if (kind !== 'orthogonal') {
+			this.textInput(form, kind === 'radial' ? localize('newBuilding.firstRay', "First ray at, °") : localize('newBuilding.gridAngle', "Angle, °"), this.form.gridAngle ?? '', value => {
+				this.form.gridAngle = value;
+				updatePreview();
+			}, undefined, text => parseGridAngle(text) === undefined ? localize('newBuilding.gridAngleBad', "An angle in degrees, e.g. 30.") : undefined);
+		}
+		if (kind === 'radial') {
+			this.textInput(form, inFeet ? localize('newBuilding.innerRadiusFt', "First ring radius, ft") : localize('newBuilding.innerRadius', "First ring radius, mm"), this.form.innerRadius ?? '', value => {
+				this.form.innerRadius = value;
+				updatePreview();
+			});
+		}
+		errors.set('gridShape', append(form, $('p.error', { 'aria-live': 'polite' })));
+		const gridFields: ['gridX' | 'gridY', string, string | undefined][] = kind === 'radial' ? [
+			['gridX', localize('newBuilding.rings', "Rings (A, B, C ...), spacings outward"), undefined],
+			['gridY', localize('newBuilding.rays', "Rays (1, 2, 3 ...), angles between, °"), localize('newBuilding.raysPlaceholder', "e.g. 4×90 (360° closes the circle)")],
+		] : [
+			['gridX', localize('newBuilding.gridX', "X (A, B, C ...)"), undefined],
+			['gridY', localize('newBuilding.gridY', "Y (1, 2, 3 ...)"), undefined],
+		];
+		for (const [field, label, placeholder] of gridFields) {
 			const box = this.textInput(form, label, this.form[field], value => {
 				this.form[field] = value;
 				updatePreview();
-			});
+			}, placeholder);
 			inputs.set(field, box);
 			errors.set(field, append(form, $('p.error', { 'aria-live': 'polite' })));
 		}
-		const plot = this.plot;
+		const plot = kind === 'radial' ? undefined : this.plot;
 		if (plot) {
 			append(form, $('p.hint.indented.plot-hint', undefined, localize('newBuilding.plot', "The plot of {0} (01 Soil Report) is in the preview: the grid can take {1} × {2} m inside its setbacks, with the columns' faces inside. The new project takes the site, with the grid turned along the road side.", plot.project, (plot.width / 1000).toFixed(2), (plot.depth / 1000).toFixed(2))));
 			const fitRow = append(form, $('.form-actions.indented'));
@@ -950,7 +1011,7 @@ export class NewBuildingWizard extends EditorPane {
 				updatePreview();
 			}));
 			plotWarning.element = append(form, $('p.error', { 'aria-live': 'polite' }));
-		} else if (this.projectService.project) {
+		} else if (this.projectService.project && kind !== 'radial') {
 			append(form, $('p.hint.indented.plot-hint', undefined, localize('newBuilding.noPlot', "To fit the grid to the plot, draw the plot in the map of 01 Soil Report first.")));
 		}
 
@@ -1002,7 +1063,7 @@ export class NewBuildingWizard extends EditorPane {
 		updatePreview();
 		ready = true;
 		const result = buildSpec(this.form, value => this.opener.validateName(value));
-		const wrong = result.ok ? undefined : (['gridX', 'gridY', 'stories'] as const).find(f => result.errors[f]);
+		const wrong = result.ok ? undefined : (['gridX', 'gridY', 'stories', 'gridShape'] as const).find(f => result.errors[f]);
 		this.focusTarget = (wrong && inputs.get(wrong)) ?? inputs.get('gridX');
 	}
 
@@ -1255,7 +1316,7 @@ export class NewBuildingWizard extends EditorPane {
 	}
 
 	/** The plan: the plot and its buildable envelope (when there is one), grid lines with bubbles, columns at the intersections, beams, core walls. */
-	private renderPlan(parent: HTMLElement, x: readonly number[], y: readonly number[]): void {
+	private renderPlan(parent: HTMLElement, x: readonly number[], y: readonly number[], angle = 0): void {
 		const [width, height, margin] = [360, 280, 26];
 		const xs = [0, ...x.map((_, i) => x.slice(0, i + 1).reduce((a, b) => a + b, 0))];
 		const ys = [0, ...y.map((_, i) => y.slice(0, i + 1).reduce((a, b) => a + b, 0))];
@@ -1263,12 +1324,16 @@ export class NewBuildingWizard extends EditorPane {
 		const plot = this.plot?.plot ?? [];
 		const [minX, maxX] = [Math.min(0, ...plot.map(p => p[0])), Math.max(lx, ...plot.map(p => p[0]))];
 		const [minY, maxY] = [Math.min(0, ...plot.map(p => p[1])), Math.max(ly, ...plot.map(p => p[1]))];
-		const scale = Math.min((width - 2 * margin) / (maxX - minX), (height - 2 * margin) / (maxY - minY));
+		// #300: a rotated grid is drawn turned about the middle of the plan, scaled to fit turned.
+		const [c, s] = [Math.abs(Math.cos(angle * Math.PI / 180)), Math.abs(Math.sin(angle * Math.PI / 180))];
+		const [spanX, spanY] = [(maxX - minX) * c + (maxY - minY) * s, (maxX - minX) * s + (maxY - minY) * c];
+		const scale = Math.min((width - 2 * margin) / spanX, (height - 2 * margin) / spanY);
 		const ox = (width - (maxX - minX) * scale) / 2 - minX * scale;
 		const oy = (height + (maxY - minY) * scale) / 2 + minY * scale;
 		const px = (v: number) => ox + v * scale;
 		const py = (v: number) => oy - v * scale;
-		const svg = this.svg(parent, width, height, this.plot ? localize('newBuilding.planPlotAria', "Plan of the grids on the plot") : localize('newBuilding.planAria', "Plan of the grids"));
+		const frame = this.svg(parent, width, height, this.plot ? localize('newBuilding.planPlotAria', "Plan of the grids on the plot") : localize('newBuilding.planAria', "Plan of the grids"));
+		const svg = angle ? this.add(frame, 'g', { transform: `rotate(${-angle} ${px(lx / 2)} ${py(ly / 2)})` }) : frame;
 		if (this.plot) {
 			const points = (ring: readonly (readonly number[])[]) => ring.map(p => `${px(p[0]).toFixed(1)},${py(p[1]).toFixed(1)}`).join(' ');
 			this.add(svg, 'polygon', { class: 'plot', points: points(this.plot.plot) });
@@ -1309,6 +1374,62 @@ export class NewBuildingWizard extends EditorPane {
 		for (const vx of xs) {
 			for (const vy of ys) {
 				this.add(svg, 'rect', { class: 'column', x: px(vx) - size / 2, y: py(vy) - size / 2, width: size, height: size });
+			}
+		}
+	}
+
+	/**
+	 * #300: the plan of a radial grid: rings at `inner` plus the `rings` spacings [mm], rays
+	 * `bays` [°] apart from `angle`, beams along both and columns where they cross.
+	 */
+	private renderRadialPlan(parent: HTMLElement, inner: number, rings: readonly number[], bays: readonly number[], angle: number): void {
+		const [width, height, margin] = [360, 280, 30];
+		const radii = [inner, ...rings.map((_, i) => inner + rings.slice(0, i + 1).reduce((a, b) => a + b, 0))];
+		const total = bays.reduce((a, b) => a + b, 0);
+		const closed = Math.abs(total - 360) < 1e-6;
+		const angles = [angle, ...bays.map((_, i) => angle + bays.slice(0, i + 1).reduce((a, b) => a + b, 0))].slice(0, closed ? bays.length : undefined);
+		const outer = radii[radii.length - 1];
+		const scale = (Math.min(width, height) - 2 * margin) / (2 * outer);
+		const [cx, cy] = [width / 2, height / 2];
+		const at = (r: number, a: number): [number, number] => [cx + r * scale * Math.cos(a * Math.PI / 180), cy - r * scale * Math.sin(a * Math.PI / 180)];
+		const svg = this.svg(parent, width, height, localize('newBuilding.radialPlanAria', "Plan of the radial grid"));
+		// The bays between neighbouring rays (round the circle when it is closed).
+		const bayPairs = closed ? angles.map((a, k) => [a, a + bays[k]] as const) : angles.slice(0, -1).map((a, k) => [a, angles[k + 1]] as const);
+		for (const [i, r] of radii.entries()) {
+			if (closed) {
+				this.add(svg, 'circle', { class: 'grid', cx, cy, r: r * scale, fill: 'none' });
+			} else {
+				const [x0, y0] = at(r, angle);
+				const [x1, y1] = at(r, angle + total);
+				this.add(svg, 'path', { class: 'grid', fill: 'none', d: `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${(r * scale).toFixed(1)} ${(r * scale).toFixed(1)} 0 ${total > 180 ? 1 : 0} 0 ${x1.toFixed(1)} ${y1.toFixed(1)}` });
+			}
+			if (this.form.system !== 'flatSlab') {
+				for (const [from, to] of bayPairs) {
+					const [x0, y0] = at(r, from);
+					const [x1, y1] = at(r, to);
+					this.add(svg, 'line', { class: this.form.system === 'masonry' ? 'masonry-wall' : 'beam', x1: x0, y1: y0, x2: x1, y2: y1 });
+				}
+			}
+			const [bx, by] = at(r, closed ? angle + bays[0] / 2 : angle - 6);
+			this.add(svg, 'text', { class: 'label', x: bx, y: by }, gridLabel('x', i));
+		}
+		for (const [j, a] of angles.entries()) {
+			const [x0, y0] = at(Math.max(0, inner - 600), a);
+			const [x1, y1] = at(outer + 600, a);
+			this.add(svg, 'line', { class: 'grid', x1: x0, y1: y0, x2: x1, y2: y1 });
+			const [bx, by] = at(outer + 18 / scale, a);
+			this.add(svg, 'circle', { class: 'bubble', cx: bx, cy: by, r: 8 });
+			this.add(svg, 'text', { class: 'label', x: bx, y: by }, gridLabel('y', j));
+			if (this.form.system !== 'flatSlab') {
+				const [ix, iy] = at(inner, a);
+				const [ex, ey] = at(outer, a);
+				this.add(svg, 'line', { class: this.form.system === 'masonry' ? 'masonry-wall' : 'beam', x1: ix, y1: iy, x2: ex, y2: ey });
+			}
+			if (this.form.system !== 'masonry') {
+				for (const r of radii) {
+					const [qx, qy] = at(r, a);
+					this.add(svg, 'rect', { class: 'column', x: qx - 3, y: qy - 3, width: 6, height: 6 });
+				}
 			}
 		}
 	}

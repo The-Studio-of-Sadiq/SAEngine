@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { centroid } from '../../../../platform/saengine/common/geometry.js';
 import { sizeText } from '../../../services/saengineProject/common/displayUnits.js';
 import { storiesOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
-import { GridGeometry, isCircle, segment } from '../../../services/saengineProject/common/gridGeometry.js';
+import { GridGeometry, gridShapes } from '../../../services/saengineProject/common/gridGeometry.js';
 import { MemberGroup, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
 import type { IDraftShape } from './floorPlanDrafting.js';
 
@@ -426,20 +426,14 @@ export function floorPlanDrawing(layout: unknown, objects: unknown, storyId: str
 		}
 		// The other grid systems (rotated, radial, angled lines), at their own angle: a bubble past
 		// each end along the line (a ray's only at its outer end), a ring's outside it between the rays.
-		for (const axis of geometry.axes.filter(a => a.system)) {
-			if (isCircle(axis)) {
-				entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.grid, center: axis.origin, radius: axis.radius, linetypeScale: GRID_LINETYPE_SCALE });
-				const u = axis.bubbleAngle * Math.PI / 180;
-				const d = axis.radius + BUBBLE_RADIUS;
-				bubble(axis.label, [axis.origin[0] + d * Math.cos(u), axis.origin[1] + d * Math.sin(u)]);
-				continue;
+		for (const shape of gridShapes(geometry.axes.filter(a => a.system), BUBBLE_RADIUS)) {
+			if (shape.circle) {
+				entities.push({ kind: 'circle', layer: FLOOR_PLAN_LAYERS.grid, center: shape.circle.center, radius: shape.circle.radius, linetypeScale: GRID_LINETYPE_SCALE });
+			} else if (shape.segment) {
+				entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start: shape.segment[0], end: shape.segment[1], linetypeScale: GRID_LINETYPE_SCALE });
 			}
-			const [start, end] = segment(axis);
-			const [dx, dy] = axis.direction;
-			entities.push({ kind: 'line', layer: FLOOR_PLAN_LAYERS.grid, start, end, linetypeScale: GRID_LINETYPE_SCALE });
-			bubble(axis.label, [end[0] + dx * BUBBLE_RADIUS, end[1] + dy * BUBBLE_RADIUS]);
-			if (axis.role !== 'ray') {
-				bubble(axis.label, [start[0] - dx * BUBBLE_RADIUS, start[1] - dy * BUBBLE_RADIUS]);
+			for (const at of shape.bubbles) {
+				bubble(shape.label, at);
 			}
 		}
 	}

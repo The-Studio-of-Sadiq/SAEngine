@@ -6,6 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { svg } from '../../saengineSoil/browser/soilLog.js';
+import { drawGridShapes, gridShapeExtent } from '../../saengineMep/browser/planSvg.js';
 import { carriedColumns, foundationCenter, foundationOutlines, formatUtilisation, gridIntersections, gridPoint, IFoundation, IRaftResult, ISiteContext, ISubstructure, pileCaps, Point, toGlobal, toLocal } from './substructureDocument.js';
 
 /*
@@ -126,6 +127,7 @@ function extent(document: ISubstructure, context: ISiteContext, proposals: reado
 	for (const g of context.grids.y) {
 		points.push([points[0]?.[0] ?? 0, g.position]);
 	}
+	points.push(...gridShapeExtent(context.otherGrids ?? []));
 	for (const pile of document.piles) {
 		points.push(pile.position);
 	}
@@ -178,6 +180,9 @@ export function renderPlan(container: HTMLElement, document: ISubstructure, cont
 		svg(grid, 'circle', { cx: view.x(minX) - reach - 10, cy: y, r: 10, class: 'sub-grid-bubble' });
 		svg(grid, 'text', { x: view.x(minX) - reach - 10, y: y + 4, class: 'sub-grid-label', 'text-anchor': 'middle' }, line.label);
 	}
+
+	// #300: the other grid systems' lines (rotated, radial rays and rings, single lines).
+	drawGridShapes(grid, view, context.otherGrids ?? [], 'sub');
 
 	// The pile grid: its own setting-out, dashed, bubbles at the bottom and the right.
 	const pileGrid = document.pileGrid;

@@ -124,6 +124,21 @@ public sealed class ExchangeLevel
     public string? RevitId { get; set; }
 }
 
+public sealed class ExchangeGridArc
+{
+    [JsonPropertyName("center")]
+    public List<double> Center { get; set; } = [];
+
+    [JsonPropertyName("radius")]
+    public double Radius { get; set; }
+
+    [JsonPropertyName("startAngle")]
+    public double StartAngle { get; set; }
+
+    [JsonPropertyName("endAngle")]
+    public double EndAngle { get; set; }
+}
+
 public sealed class ExchangeGrid
 {
     [JsonPropertyName("id")]
@@ -143,6 +158,9 @@ public sealed class ExchangeGrid
 
     [JsonPropertyName("end")]
     public List<double>? End { get; set; }
+
+    [JsonPropertyName("arc")]
+    public ExchangeGridArc? Arc { get; set; }
 
     [JsonPropertyName("revitId")]
     public string? RevitId { get; set; }

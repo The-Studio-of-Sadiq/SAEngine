@@ -356,6 +356,25 @@ def _current(p: Any) -> tuple[Any, Any, Any, dict[str, Any] | None, list[str]]:
     return building, objects, materials, plan_json, notes
 
 
+def _ring_arc(ring: Any, ray_angles: list[float]) -> tuple[float, float]:
+    """The ring's arc ``(start_deg, end_deg)`` anticlockwise, extended 5° past the outer rays
+    and capped at 350° (Revit cannot create a closed circle grid)."""
+    ordered = sorted({a % 360.0 for a in ray_angles})
+    if not ordered:
+        start = ring.bubble_angle + 5.0
+        return start, start + 350.0
+    gaps = [
+        ((ordered[(i + 1) % len(ordered)] - a) % 360.0 or 360.0, a) for i, a in enumerate(ordered)
+    ]
+    gap, gap_start = max(gaps)
+    sweep = 360.0 - gap
+    if sweep + 10.0 >= 350.0:
+        start = ring.bubble_angle + 5.0
+        return start, start + 350.0
+    arc_start = (gap_start + gap) % 360.0
+    return arc_start - 5.0, arc_start + sweep + 5.0
+
+
 def build_exchange(project: str | Path, *, rebar: bool = True) -> dict[str, Any]:
     """The exchange document of the project at ``project`` (its folder or ``.saengine`` file);
     with ``rebar``, the designed reinforcement too."""
@@ -388,16 +407,47 @@ def build_exchange(project: str | Path, *, rebar: bool = True) -> dict[str, Any]
                         "end": [_r(v) for v in end],
                     }
                 )
-        # The other grid systems: straight lines at their own angle (Revit line grids); rings
-        # (arc grids) are left to the plan.
+        # The other grid systems: straight lines at their own angle (Revit line grids) and radial
+        # rings (Revit arc grids).
         from saengine.library.grid_geometry import GridGeometry
 
-        rings = 0
-        for a in GridGeometry(plan_json.get("grids") or {}).axes:
+        geom = GridGeometry(plan_json.get("grids") or {})
+        rays_by_system: dict[str, list[float]] = {}
+        for a in geom.axes:
+            if a.system and a.role == "ray":
+                rays_by_system.setdefault(a.system, []).append(a.orientation)
+        for a in geom.axes:
             if not a.system:
                 continue
             if a.circle:
-                rings += 1
+                sa, ea = _ring_arc(a, rays_by_system.get(a.system, []))
+                sa_r, ea_r = _r(sa), _r(ea)
+                cx, cy = a.origin
+                r = a.radius
+                start_pt = (
+                    cx + r * math.cos(math.radians(sa_r)),
+                    cy + r * math.sin(math.radians(sa_r)),
+                )
+                end_pt = (
+                    cx + r * math.cos(math.radians(ea_r)),
+                    cy + r * math.sin(math.radians(ea_r)),
+                )
+                grids.append(
+                    {
+                        "id": f"{a.system}:{a.label}",
+                        "name": a.label,
+                        "axis": None,
+                        "position": None,
+                        "start": [_r(v) for v in start_pt],
+                        "end": [_r(v) for v in end_pt],
+                        "arc": {
+                            "center": [_r(cx), _r(cy)],
+                            "radius": _r(r),
+                            "startAngle": sa_r,
+                            "endAngle": ea_r,
+                        },
+                    }
+                )
                 continue
             start, end = a.segment()
             grids.append(
@@ -409,10 +459,6 @@ def build_exchange(project: str | Path, *, rebar: bool = True) -> dict[str, Any]
                     "start": [_r(v) for v in start],
                     "end": [_r(v) for v in end],
                 }
-            )
-        if rings:
-            notes.append(
-                f"{rings} radial grid ring(s) not exported (Revit arc grids): kept in the plan."
             )
     levels = [
         {"id": s.id, "name": s.name, "elevation": _r(s.elevation)}
@@ -763,7 +809,13 @@ def preview_import(project: str | Path, path: str | Path) -> dict[str, Any]:
                     "reason": None
                     if ok
                     else (
-                        no_plan if not plan_ok else "the floor plan's grids run along x and y only"
+                        no_plan
+                        if not plan_ok
+                        else (
+                            "arc grids are edited in Grid Systems (05 Floor Plan)"
+                            if isinstance(g.get("arc"), dict)
+                            else "the floor plan's grids run along x and y only"
+                        )
                     ),
                     "data": {
                         "axis": axis,
@@ -776,13 +828,18 @@ def preview_import(project: str | Path, path: str | Path) -> dict[str, Any]:
         seen_grids.add(match)
         old = grids[match]
         if old.get("axis") is None:
-            # A line of another grid system: moved in Revit, it is edited in the plan's Grid
-            # Systems (a slanted line has no single position to move).
-            moved = any(
-                abs(float(a) - float(b)) > TOLERANCE
-                for key in ("start", "end")
-                for a, b in zip(old.get(key) or [], g.get(key) or [], strict=False)
-            )
+            # A line or ring of another grid system: moved in Revit, it is edited in the plan's
+            # Grid Systems (a slanted line or arc has no single position to move).
+            if isinstance(old.get("arc"), dict):
+                moved = _arc_moved(old["arc"], g.get("arc"))
+            elif g.get("arc") is not None:
+                moved = True
+            else:
+                moved = any(
+                    abs(float(a) - float(b)) > TOLERANCE
+                    for key in ("start", "end")
+                    for a, b in zip(old.get(key) or [], g.get(key) or [], strict=False)
+                )
             if moved:
                 add(
                     {
@@ -964,9 +1021,34 @@ def preview_import(project: str | Path, path: str | Path) -> dict[str, Any]:
     }
 
 
+def _arc_moved(old_arc: dict[str, Any], new_arc: Any) -> bool:
+    """Whether an arc grid's centre or radius changed beyond ``TOLERANCE``."""
+    if not isinstance(new_arc, dict):
+        return True
+    old_center, new_center = old_arc.get("center"), new_arc.get("center")
+    if not (
+        isinstance(old_center, list)
+        and isinstance(new_center, list)
+        and len(old_center) >= 2
+        and len(new_center) >= 2
+    ):
+        return True
+    try:
+        if not _close(old_center[:2], new_center[:2]):
+            return True
+        old_r = float(old_arc["radius"])
+        new_r = float(new_arc["radius"])
+    except (KeyError, TypeError, ValueError):
+        return True
+    return abs(old_r - new_r) > TOLERANCE
+
+
 def _grid_axis(g: dict[str, Any]) -> tuple[str | None, float]:
     """``("x", position)`` for a line along y (a constant x), ``("y", position)`` for one along
-    x, ``(None, 0)`` for a slanted line; read from ``start``/``end``, else ``axis``/``position``."""
+    x, ``(None, 0)`` for a slanted line or arc; read from ``start``/``end``, else
+    ``axis``/``position``."""
+    if isinstance(g.get("arc"), dict):
+        return None, 0.0
     start, end = g.get("start"), g.get("end")
     if isinstance(start, list) and isinstance(end, list) and len(start) >= 2 and len(end) >= 2:
         if abs(start[0] - end[0]) <= TOLERANCE:

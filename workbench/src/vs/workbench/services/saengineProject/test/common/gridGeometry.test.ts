@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GridGeometry } from '../../common/gridGeometry.js';
+import { GridGeometry, gridShapes } from '../../common/gridGeometry.js';
 
 /** The same grids as python/tests/test_grid_systems.py: the engine and the workbench agree. */
 const GRIDS = {
@@ -68,5 +68,18 @@ suite('SAEngine grid geometry', () => {
 		assert.ok(old.orthogonalOnly);
 		near(old.point({ x: 'B', y: '2' }), [6000, 5000]);
 		assert.ok(!g.orthogonalOnly);
+	});
+
+	test('#300: grid shapes put bubbles at both ends of a line, the outer end of a ray and outside a ring', () => {
+		const shapes = new Map(gridShapes(g.axes.filter(a => a.system), 400).map(s => [s.label, s]));
+		const ray = g.axis('R45')!;
+		const [, end] = shapes.get('R45')!.segment!;
+		assert.strictEqual(shapes.get('R45')!.bubbles.length, 1);
+		near(shapes.get('R45')!.bubbles[0], [end[0] + 400 * ray.direction[0], end[1] + 400 * ray.direction[1]]);
+		assert.strictEqual(shapes.get('Q')!.bubbles.length, 2);
+		const ring = shapes.get('C2')!;
+		assert.ok(ring.circle && !ring.segment);
+		const [bx, by] = ring.bubbles[0];
+		assert.ok(Math.abs(Math.hypot(bx - ring.circle.center[0], by - ring.circle.center[1]) - (ring.circle.radius + 400)) < 1e-6);
 	});
 });

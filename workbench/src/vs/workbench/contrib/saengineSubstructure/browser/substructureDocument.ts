@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { IGridLine } from '../../../services/saengineProject/common/gridLabels.js';
+import { GridGeometry, gridShapes, IGridShape } from '../../../services/saengineProject/common/gridGeometry.js';
 import { centroid, polygonArea } from '../../../../platform/saengine/common/geometry.js';
 import { formatNumber } from '../../saengineSoil/browser/soilDocument.js';
 import { defaultCodeName } from '../../../services/saengineProject/common/activeCodePack.js';
@@ -1049,6 +1050,8 @@ export interface ISiteContext {
 	readonly columns: readonly IColumnBase[];
 	readonly walls: readonly IWallBase[];
 	readonly grids: { readonly x: readonly IGridLine[]; readonly y: readonly IGridLine[] };
+	/** #300: the lines of the floor plan's other grid systems (rotated, radial, single lines), as drawn. */
+	readonly otherGrids?: readonly IGridShape[];
 	readonly boreholes: readonly { readonly id: string; readonly x: number; readonly y: number }[];
 	/** Finished ground level [mm] (project settings, foundation). */
 	readonly groundLevel: number;
@@ -1066,6 +1069,9 @@ export interface ISiteContext {
 	/** Ids of the footings still drawn in the building model (Part 6), which the substructure replaces. */
 	readonly bimFootings?: readonly string[];
 }
+
+/** The distance from a grid line's end to its bubble's centre on the substructure plan [mm]. */
+const OTHER_GRID_BUBBLE = 800;
 
 export const EMPTY_CONTEXT: ISiteContext = { columns: [], walls: [], grids: { x: [], y: [] }, boreholes: [], groundLevel: 0, baseLevel: 0, beamTypes: [], materials: [] };
 
@@ -1148,6 +1154,7 @@ export function readSiteContext(texts: ISiteTexts): ISiteContext {
 	return {
 		columns, walls,
 		grids: { x: gridLines(isRecord(grids) ? grids.x : undefined), y: gridLines(isRecord(grids) ? grids.y : undefined) },
+		otherGrids: gridShapes(new GridGeometry(grids).axes.filter(a => a.system), OTHER_GRID_BUBBLE),
 		boreholes, groundLevel, baseLevel, beamTypes,
 		materials: concrete.length ? concrete : used,
 		defaultMaterial,

@@ -283,6 +283,19 @@ class GridGeometry:
         return (best[1], best[2]) if best else None
 
 
+def system_point(system: Any, a: float, b: float) -> Point:
+    """A point of a grid system (model or JSON) in plan coordinates [mm]: on an orthogonal
+    system ``a, b`` are its local x and y [mm]; on a radial one the radius [mm] and the angle
+    [°] from the system's 0° direction."""
+    origin = (float(_get(system, "originX") or 0.0), float(_get(system, "originY") or 0.0))
+    angle = float(_get(system, "angle") or 0.0)
+    if _get(system, "kind") == "radial":
+        d = _unit(angle + b)
+        return origin[0] + a * d[0], origin[1] + a * d[1]
+    ex, ey = _unit(angle), _unit(angle + 90)
+    return origin[0] + a * ex[0] + b * ey[0], origin[1] + a * ex[1] + b * ey[1]
+
+
 def _swap(a: GridAxis, b: GridAxis) -> bool:
     """Whether a grid point names ``b`` first: Y before X and ring before ray are swapped."""
     return a.system == b.system and (a.role, b.role) in (("y", "x"), ("ring", "ray"))

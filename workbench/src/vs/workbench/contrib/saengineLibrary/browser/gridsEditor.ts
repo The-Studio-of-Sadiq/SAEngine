@@ -430,25 +430,38 @@ export class GridsEditor extends JsonDocumentEditor {
 	 * U2: removing a storey or a grid line asks first, naming it and the members placed on it
 	 * (they would refer to something that is gone). Other rows (towers, underlays) go at once.
 	 */
-	private async confirmRemove(path: string, entry: JsonValue): Promise<boolean> {
-		if (!isObject(entry) || (path !== 'stories' && path !== 'grids.x' && path !== 'grids.y')) {
+	private async confirmRemove(fullPath: string, entry: JsonValue): Promise<boolean> {
+		const path = fullPath.replace(/\.\d+(?=\.|$)/g, ''); // grids.systems.2.rays → grids.systems.rays
+		// #300: a line of another grid system (a point names it as its x or y, in either order),
+		// or a whole system (every one of its lines).
+		const systemLine = /^grids\.systems\.(x|y|rays|rings|lines)$/.test(path);
+		const wholeSystem = path === 'grids.systems';
+		if (!isObject(entry) || (path !== 'stories' && path !== 'grids.x' && path !== 'grids.y' && !systemLine && !wholeSystem)) {
 			return true;
 		}
 		const story = path === 'stories';
-		const id = String(story ? entry.id : entry.label);
-		const axis = path === 'grids.x' ? 'x' : 'y';
+		const id = String(story || wholeSystem ? entry.id : entry.label);
+		const labels = new Set(wholeSystem
+			? (['x', 'y', 'rays', 'rings', 'lines'] as const).flatMap(k => Array.isArray(entry[k]) ? (entry[k] as JsonValue[]).filter(isObject).map(l => String(l.label)) : [])
+			: [id]);
+		const keys = path === 'grids.x' ? ['x'] : path === 'grids.y' ? ['y'] : ['x', 'y'];
 		// A member names a storey by id (story, base, top) and a grid line by label (a point's x or y).
 		const refers = (value: JsonValue): boolean => Array.isArray(value) ? value.some(refers)
-			: isObject(value) && ((story ? ['story', 'base', 'top'].some(k => value[k] === id) : value[axis] === id)
+			: isObject(value) && ((story ? ['story', 'base', 'top'].some(k => value[k] === id) : keys.some(k => typeof value[k] === 'string' && labels.has(value[k] as string)))
 				|| Object.values(value).some(v => typeof v === 'object' && v !== null && refers(v)));
 		const members = MEMBER_LISTS.flatMap(key => Array.isArray(this.document?.[key]) ? this.document[key] as JsonValue[] : [])
 			.filter(m => isObject(m) && refers(m))
 			.map(m => isObject(m) ? String(m.id) : '');
-		const name = story ? String(entry.name ?? id) : id;
+		if (wholeSystem && !members.length) {
+			return true;
+		}
+		const name = story ? String(entry.name ?? id) : wholeSystem ? String(entry.name || id) : id;
 		return confirmDelete(this.dialogService, {
 			message: story
 				? localize('grids.removeStory', "Delete storey {0}?", name)
-				: localize('grids.removeGrid', "Delete grid line {0}?", id),
+				: wholeSystem
+					? localize('grids.removeSystem', "Delete grid system {0}?", name)
+					: localize('grids.removeGrid', "Delete grid line {0}?", id),
 			items: members,
 			consequences: members.length
 				? localize('grids.removeMembers', "{0} member(s) above are placed on it and will be in error until they are moved or deleted in the floor plan.", members.length)

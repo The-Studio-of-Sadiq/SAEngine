@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { svg } from '../../saengineSoil/browser/soilLog.js';
+import { IGridShape } from '../../../services/saengineProject/common/gridGeometry.js';
 
 /*
  * The scaffolding the plan views draw with (the MEP plans; the Substructure plan can use it
@@ -49,6 +50,35 @@ export function niceLength(target: number): number {
 export interface IPlanGrids {
 	readonly x: readonly { readonly label: string; readonly position: number }[];
 	readonly y: readonly { readonly label: string; readonly position: number }[];
+	/** #300: the other grid systems' lines, as drawn (`gridShapes`). */
+	readonly others?: readonly IGridShape[];
+}
+
+/**
+ * #300: the lines of the other grid systems (rotated, radial rays and rings, single lines) with
+ * their bubbles, into `group`; the classes as {@link drawPlanGrid}'s.
+ */
+export function drawGridShapes(group: SVGElement, view: Pick<IPlanView, 'x' | 'y'>, shapes: readonly IGridShape[], prefix: string): void {
+	for (const shape of shapes) {
+		if (shape.circle) {
+			svg(group, 'circle', { cx: view.x(shape.circle.center[0]), cy: view.y(shape.circle.center[1]), r: Math.abs(view.x(shape.circle.radius) - view.x(0)), fill: 'none', class: `${prefix}-grid-line` });
+		} else if (shape.segment) {
+			const [a, b] = shape.segment;
+			svg(group, 'line', { x1: view.x(a[0]), y1: view.y(a[1]), x2: view.x(b[0]), y2: view.y(b[1]), class: `${prefix}-grid-line` });
+		}
+		for (const [bx, by] of shape.bubbles) {
+			svg(group, 'circle', { cx: view.x(bx), cy: view.y(by), r: 10, class: `${prefix}-grid-bubble` });
+			svg(group, 'text', { x: view.x(bx), y: view.y(by) + 4, class: `${prefix}-grid-label`, 'text-anchor': 'middle' }, shape.label);
+		}
+	}
+}
+
+/** The plan points [mm] the other grid systems' lines reach (their bubbles and rings), for a view's fit. */
+export function gridShapeExtent(shapes: readonly IGridShape[]): [number, number][] {
+	return shapes.flatMap(g => [
+		...g.bubbles.map(([x, y]): [number, number] => [x, y]),
+		...(g.circle ? [[g.circle.center[0] - g.circle.radius, g.circle.center[1] - g.circle.radius], [g.circle.center[0] + g.circle.radius, g.circle.center[1] + g.circle.radius]] as [number, number][] : []),
+	]);
 }
 
 /**
@@ -70,5 +100,6 @@ export function drawPlanGrid(root: SVGElement, view: IPlanView, grids: IPlanGrid
 		svg(grid, 'circle', { cx: view.x(minX) - reach - 10, cy: y, r: 10, class: `${prefix}-grid-bubble` });
 		svg(grid, 'text', { x: view.x(minX) - reach - 10, y: y + 4, class: `${prefix}-grid-label`, 'text-anchor': 'middle' }, line.label);
 	}
+	drawGridShapes(grid, view, grids.others ?? [], prefix);
 	return grid;
 }

@@ -787,6 +787,60 @@
       "description": "Write template bars on the types (placeholders); default none: Design mode proposes them.",
       "title": "Reinforcement",
       "type": "boolean"
+    },
+    "gridKind": {
+      "default": "orthogonal",
+      "description": "orthogonal: the main grid; rotated: gridsX/gridsY in a grid system turned by gridAngle about the grid origin; radial: rings at innerRadius plus the gridsX spacings, rays at the rayAngles bays (gridsY is then worked out from them).",
+      "enum": [
+        "orthogonal",
+        "rotated",
+        "radial"
+      ],
+      "title": "Gridkind",
+      "type": "string"
+    },
+    "gridAngle": {
+      "default": 0.0,
+      "description": "Rotated or radial: the system's angle [°].",
+      "title": "Gridangle",
+      "type": "number"
+    },
+    "gridOriginX": {
+      "default": 0.0,
+      "description": "The system's origin or centre X [mm].",
+      "title": "Gridoriginx",
+      "type": "number"
+    },
+    "gridOriginY": {
+      "default": 0.0,
+      "description": "The system's origin or centre Y [mm].",
+      "title": "Gridoriginy",
+      "type": "number"
+    },
+    "innerRadius": {
+      "default": 0.0,
+      "description": "Radial: the first ring [mm].",
+      "minimum": 0,
+      "title": "Innerradius",
+      "type": "number"
+    },
+    "rayAngles": {
+      "anyOf": [
+        {
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 180,
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Radial: the angles between neighbouring rays [°]; adding up to 360 closes the circle (the last bay joins the first ray).",
+      "title": "Rayangles"
     }
   },
   "required": [
