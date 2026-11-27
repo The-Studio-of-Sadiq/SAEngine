@@ -6,6 +6,7 @@ from saengine.verification.cases import (
     advanced,
     analysis,
     beta,
+    bim_mep,
     correctness,
     depth,
     design,
@@ -61,6 +62,7 @@ CASES: list[Case] = [
     *fire.CASES,
     *hvac_air.CASES,
     *hvac_loads.CASES,
+    *bim_mep.CASES,
 ]
 BY_ID: dict[str, Case] = {case.id: case for case in CASES}
 

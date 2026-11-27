@@ -11,6 +11,9 @@ Writing DWG (the drawing sheets, :func:`write_dwg`) is the other direction, by `
 the same LibreDWG, found the same way (:func:`find_writer`), also run as its own process. It
 writes AutoCAD R2000 DWG (AC1015), which every current CAD program opens; its DWG writer is
 younger than its reader, so the DXF stays the sheet's master file and the DWG a copy for issue.
+LibreDWG 0.14's DXF reader rejects an MTEXT's rotation (group code 50), which ezdxf writes for
+every rotated note, so :func:`write_dwg` hands it a copy with each rotation turned into the
+equivalent text direction (codes 11/21/31) first (:func:`dwg_ready`).
 
 Where ``dwg2dxf`` is (:func:`find_converter`): the ``SAENGINE_LIBREDWG`` environment variable
 (the folder or the exe), then the copy bundled with SAEngine (``<app>/resources/libredwg``, next
@@ -226,6 +229,34 @@ def converted(
         yield convert(dwg, tmp, timeout, converter)
 
 
+def dwg_ready(dxf: str | Path, target: str | Path) -> int:
+    """Writes ``dxf`` to ``target`` as ``dxf2dwg`` reads it: every MTEXT's rotation (code 50, which
+    LibreDWG 0.14 rejects, failing the whole file) as the same text direction vector (codes
+    11/21/31, which DXF gives precedence anyway). Returns the number of MTEXT changed; a file
+    ezdxf cannot read is copied as it is (the converter then says what is wrong)."""
+    import math
+
+    import ezdxf
+
+    try:
+        doc = ezdxf.readfile(str(dxf))
+    except (OSError, ezdxf.DXFError):
+        shutil.copyfile(dxf, target)
+        return 0
+    changed = 0
+    for space in [*doc.layouts, *doc.blocks]:
+        for text in space.query("MTEXT"):
+            if not text.dxf.hasattr("rotation"):
+                continue
+            angle = math.radians(float(text.dxf.rotation))
+            text.dxf.discard("rotation")
+            if not text.dxf.hasattr("text_direction"):
+                text.dxf.text_direction = (math.cos(angle), math.sin(angle), 0.0)
+            changed += 1
+    doc.saveas(str(target))
+    return changed
+
+
 class WriterMissing(DwgError):
     """No ``dxf2dwg`` was found."""
 
@@ -253,7 +284,7 @@ def write_dwg(
     # Plain ASCII names in a working folder, as for dwg2dxf (the ANSI code page).
     with tempfile.TemporaryDirectory(prefix="dxf-", dir=dwg.parent) as tmp:
         work = Path(tmp)
-        shutil.copyfile(dxf, work / "in.dxf")
+        dwg_ready(dxf, work / "in.dxf")
         try:
             done = subprocess.run(
                 [str(exe), "-y", "-o", "out.dwg", "in.dxf"],

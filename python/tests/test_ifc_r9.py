@@ -170,6 +170,22 @@ def test_ifc2x3_two_bay_frame_counts_and_validates() -> None:
     _validate_clean(reopened)
 
 
+def test_ifc2x3_stairs_carry_their_shape_type() -> None:
+    # IFC2X3's IfcStair.ShapeType is required (PredefinedType came in IFC4); unset, a project
+    # with a stair failed the schema (#299).
+    from test_ifc import ADDITIONS, PLAN, STAIR_OBJECTS
+
+    from saengine.library.bim import Additions
+
+    building = generate(PLAN, "s").model_copy(
+        update={"additions": Additions.model_validate(ADDITIONS)}
+    )
+    ifc_file, _, _ = export_ifc(building, STAIR_OBJECTS, None, "Stair", schema="IFC2X3")
+    (stair,) = ifc_file.by_type("IfcStair")
+    assert stair.ShapeType == "STRAIGHT_RUN_STAIR"
+    _validate_clean(ifcopenshell.file.from_string(ifc_file.to_string()))
+
+
 def test_ifc2x3_maps_mep_and_architecture_cleanly() -> None:
     from test_ifc import OBJECTS, PLAN
 
