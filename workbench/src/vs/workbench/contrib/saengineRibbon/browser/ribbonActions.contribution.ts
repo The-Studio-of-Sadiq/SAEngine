@@ -966,6 +966,7 @@ addItem(RibbonMenus.ExportsArchive, '3_FormatValidation', 2, 'saengine.settings.
 addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 1, 'saengine.export.e2kOptions', localize('rib.out.e2kOptions', "ETABS .e2k Options..."), Codicon.export, 'large', { precondition: projectOpen });
 addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 2, 'saengine.export.s2k', localize('rib.out.s2k', "SAP2000 .s2k"), Codicon.export, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 3, 'saengine.export.std', localize('rib.out.std', "STAAD .std"), Codicon.export, 'small', { precondition: projectOpen });
+addItem(RibbonMenus.ExportsExchange, '1_AnalysisFormats', 4, 'saengine.export.f2k', localize('rib.out.f2k', "SAFE .f2k"), Codicon.export, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 1, 'saengine.export.saf', localize('rib.out.saf', "SAF (.xlsx)"), Codicon.table, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 2, 'saengine.export.cis2', localize('rib.out.cis2', "CIS/2"), Codicon.symbolStructure, 'small', { precondition: projectOpen });
 addItem(RibbonMenus.ExportsExchange, '2_ExchangeFormats', 3, 'saengine.export.sdnf', localize('rib.out.sdnf', "SDNF Steel"), Codicon.tools, 'small', { precondition: projectOpen });

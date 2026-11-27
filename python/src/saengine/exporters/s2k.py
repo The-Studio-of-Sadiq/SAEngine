@@ -65,14 +65,20 @@ def _v(value: Any) -> str:
     return f'"{text}"' if any(c in text for c in ' ,"=') or text == "" else text
 
 
-def _record(**fields: Any) -> str:
+def _record(_fields: dict[str, Any] | None = None, /, **fields: Any) -> str:
+    items = list(_fields.items()) if _fields is not None else []
+    items.extend(fields.items())
     parts = []
-    for key, value in fields.items():
+    for key, value in items:
         if value is None:
             continue
-        parts.append(
-            f"{key}={_n(value) if isinstance(value, int | float) and not isinstance(value, bool) else _v(value)}"
+        k = f'"{key}"' if " " in key else key
+        v = (
+            _n(value)
+            if isinstance(value, int | float) and not isinstance(value, bool)
+            else _v(value)
         )
+        parts.append(f"{k}={v}")
     return "   " + "   ".join(parts)
 
 

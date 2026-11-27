@@ -1,8 +1,9 @@
-"""Integrator glue: a new SAEngine project from an ETABS, STAAD.Pro or SAP2000 text file.
+"""Integrator glue: a new SAEngine project from an ETABS, STAAD.Pro, SAP2000 or SAFE text file.
 
 :func:`import_structural` picks the importer by the file's extension (``.e2k`` / ``.$et``:
 :mod:`saengine.importers.etabs`; ``.std``: :mod:`saengine.importers.staad`; ``.s2k`` /
-``.$2k``: :mod:`saengine.importers.sap2000`), writes the project into ``<dest>/<name>`` (the
+``.$2k``: :mod:`saengine.importers.sap2000`; ``.f2k`` / ``.$f2``:
+:mod:`saengine.importers.safe`), writes the project into ``<dest>/<name>`` (the
 parts 02-06, the manifest and ``import-report.json``; the other parts are filled in when the
 project is opened, or by :func:`saengine.pipeline.project` callers) and returns its report.
 Section names the file gives without dimensions are looked up in SAEngine's standard section
@@ -22,6 +23,8 @@ FORMATS = {
     ".std": "staad",
     ".s2k": "sap2000",
     ".$2k": "sap2000",
+    ".f2k": "safe",
+    ".$f2": "safe",
     # Alpha 9 L12: SAF, the open Excel exchange (read by saengine.exporters.saf).
     ".xlsx": "saf",
 }
@@ -78,8 +81,8 @@ def import_structural(
     kind = FORMATS.get(path.suffix.lower())
     if kind is None:
         raise StructuralImportError(
-            f"{path.name}: not an ETABS (.e2k), STAAD.Pro (.std) or SAP2000 (.s2k) text file "
-            "or a SAF workbook (.xlsx)"
+            f"{path.name}: not an ETABS (.e2k), STAAD.Pro (.std), SAP2000 (.s2k) or SAFE (.f2k) "
+            "text file or a SAF workbook (.xlsx)"
         )
     if not path.is_file():
         raise StructuralImportError(f"{path} does not exist")
@@ -100,6 +103,10 @@ def import_structural(
                     f"{path.name}: not a SAF workbook (no StructuralPointConnection sheet)"
                 )
             imported = import_saf(path, name)
+        elif kind == "safe":
+            from saengine.importers.safe import import_safe
+
+            imported = import_safe(path, name)
         else:
             from saengine.importers.sap2000 import import_sap2000
 

@@ -96,10 +96,11 @@ export const EXPORT_BVBS_FOLDER = 'bvbs';
  * report and answers `{path, reportPath, readablePath, report}` or `{error}`.
  */
 export const EXPORT_EXCHANGE_COMMAND = 'saengine.export.exchange';
-type ExchangeKind = 's2k' | 'std' | 'saf' | 'sdnf' | 'cis2';
+type ExchangeKind = 's2k' | 'f2k' | 'std' | 'saf' | 'sdnf' | 'cis2';
 /** The exchange formats: their folder of `11 Exports` and the extension of the file a row lists. */
 export const EXCHANGE_EXPORTS: { readonly [K in ExchangeKind]: { readonly folder: string; readonly extension: string } } = {
 	s2k: { folder: 'S2K', extension: '.s2k' },
+	f2k: { folder: 'F2K', extension: '.f2k' },
 	std: { folder: 'STD', extension: '.std' },
 	saf: { folder: 'SAF', extension: '.xlsx' },
 	sdnf: { folder: 'SDNF', extension: '.sdnf' },
@@ -318,7 +319,7 @@ export class ExportsEditor extends EditorPane {
 		}));
 		this.frame.element.classList.add('saengine-exports-editor');
 		this.frame.setTitle(localize('exports.title', "Exports"));
-		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k) and as .s2k, .std, SAF and CIS/2 files, the steelwork as SDNF, the exchange file of the Revit link, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule), the steel shop drawings with the NC files (DSTV) of the parts and the rebar CNC files (BVBS) for fabricators, and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
+		this.frame.setHelp(localize('exports.help', "What the project hands over: the design report, the building model as IFC, the floor plans as DXF, the analysis model for ETABS (.e2k) and as .s2k, .f2k (SAFE), .std, SAF and CIS/2 files, the steelwork as SDNF, the exchange file of the Revit link, the structural drawings (DXF sheets for LibreCAD, one PDF set and the bar bending schedule), the steel shop drawings with the NC files (DSTV) of the parts and the rebar CNC files (BVBS) for fabricators, and the bill of quantities as CSV. Each is made from its part and written to the 11 Exports folder. The project archive (.civil) holds the whole project in one file."));
 		this.list = $('.exports-list');
 		this.scrollable = this._register(new DomScrollableElement(this.list, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		append(this.frame.main, this.scrollable.getDomNode()).classList.add('exports-scroll');
@@ -620,6 +621,9 @@ export class ExportsEditor extends EditorPane {
 			exchange('s2k', Codicon.symbolStructure, localize('exports.s2k', "Analysis model as .s2k text"),
 				localize('exports.s2kDescription', "The analysis model as a .s2k text file (members, not mesh segments), with its loads, combinations, lumped masses and modal case, and a report of what could not be carried over."),
 				localize('exports.exportS2k', "Export .s2k"), localize('exports.exportS2kAgain', "Export .s2k Again")),
+			exchange('f2k', Codicon.symbolStructure, localize('exports.f2k', "Slab model as SAFE .f2k text"),
+				localize('exports.f2kDescription', "Slabs, beams, columns with their supports, walls, loads, load patterns, combinations and design strips along the grid lines as a SAFE .f2k text file, with a report of what could not be carried over."),
+				localize('exports.exportF2k', "Export .f2k"), localize('exports.exportF2kAgain', "Export .f2k Again")),
 			exchange('std', Codicon.symbolStructure, localize('exports.std', "Analysis model as .std commands"),
 				localize('exports.stdDescription', "The analysis model as a .std command file (members, not mesh segments), with its loads, combinations and modal case, and a report of what could not be carried over."),
 				localize('exports.exportStd', "Export .std"), localize('exports.exportStdAgain', "Export .std Again")),

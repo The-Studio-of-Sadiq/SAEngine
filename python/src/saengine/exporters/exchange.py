@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from saengine.exporters import cis2, s2k, saf, sdnf, std
+from saengine.exporters import cis2, f2k, s2k, saf, sdnf, std
 from saengine.exporters.analytical import (
     AnalyticalModel,
     ExchangeExportError,
@@ -51,6 +51,9 @@ def _text(
 FORMATS: dict[str, Format] = {
     "s2k": Format(
         "s2k", s2k.FORMAT_NAME, s2k.EXTENSION, s2k.EXPORT_FOLDER, _text(s2k.write_s2k, "\r\n")
+    ),
+    "f2k": Format(
+        "f2k", f2k.FORMAT_NAME, f2k.EXTENSION, f2k.EXPORT_FOLDER, _text(f2k.write_f2k, "\r\n")
     ),
     "std": Format(
         "std", std.FORMAT_NAME, std.EXTENSION, std.EXPORT_FOLDER, _text(std.write_std, "\r\n")

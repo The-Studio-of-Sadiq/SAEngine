@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { formatNumber } from '../../../services/saengineProject/common/formatting.js';
 
 /*
- * Importing a model of another structural program (ETABS .e2k, STAAD.Pro .std, SAP2000 .s2k)
+ * Importing a model of another structural program (ETABS .e2k, SAFE .f2k, STAAD.Pro .std, SAP2000 .s2k)
  * into a new SAEngine project. The backend parses the file and writes the project; this file
  * holds the command ids, their arguments and what the UI makes of the answer, the import report
  * (free of DOM and services, so that it can be tested on its own).
@@ -24,7 +24,7 @@ export const SHOW_IMPORT_REPORT_COMMAND = 'saengine.project.showImportReport';
 /** The last import (application storage): its project, file, time and report. */
 export const LAST_IMPORT_STORAGE_KEY = 'saengine.project.lastImport';
 
-export type StructuralFormat = 'etabs' | 'staad' | 'sap2000' | 'saf';
+export type StructuralFormat = 'etabs' | 'staad' | 'sap2000' | 'safe' | 'saf';
 
 export interface IStructuralFormatInfo {
 	readonly format: StructuralFormat;
@@ -42,19 +42,20 @@ export const STRUCTURAL_FORMATS: readonly IStructuralFormatInfo[] = [
 	{ format: 'etabs', label: localize('import.etabs', "ETABS"), extensions: ['e2k', '$et'] },
 	{ format: 'staad', label: localize('import.staad', "STAAD.Pro"), extensions: ['std'] },
 	{ format: 'sap2000', label: localize('import.sap2000', "SAP2000"), extensions: ['s2k', '$2k'] },
+	{ format: 'safe', label: localize('import.safe', "SAFE"), extensions: ['f2k', '$f2'] },
 	// Alpha 9 L12: SAF, the open Excel exchange (`saengine.exporters.saf`).
 	{ format: 'saf', label: localize('import.saf', "SAF"), extensions: ['xlsx'] },
 ];
 
-/** The file dialog's filters: all three together first, then each program's own. */
+/** The file dialog's filters: all formats together first, then each program's own. */
 export function importFilters(): { name: string; extensions: string[] }[] {
 	return [
-		{ name: localize('import.filterAllSaf', "ETABS, STAAD.Pro or SAP2000 text files, SAF workbooks"), extensions: STRUCTURAL_FORMATS.flatMap(f => [...f.extensions]) },
+		{ name: localize('import.filterAllSaf', "ETABS, SAFE, STAAD.Pro or SAP2000 text files, SAF workbooks"), extensions: STRUCTURAL_FORMATS.flatMap(f => [...f.extensions]) },
 		...STRUCTURAL_FORMATS.map(f => ({ name: localize('import.filterOne', "{0} (*.{1})", f.label, f.extensions.join(', *.')), extensions: [...f.extensions] })),
 	];
 }
 
-/** "ETABS", "STAAD.Pro", "SAP2000"; the backend's own name for another format. */
+/** "ETABS", "SAFE", "STAAD.Pro", "SAP2000"; the backend's own name for another format. */
 export function formatLabel(format: string | undefined): string {
 	const key = format?.toLowerCase();
 	return STRUCTURAL_FORMATS.find(f => f.format === key || f.label.toLowerCase() === key)?.label ?? format ?? localize('import.unknownFormat', "unknown format");

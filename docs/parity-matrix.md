@@ -239,11 +239,11 @@ scope by decision. The gaps and the first verifications to do are tracked on the
 
 | Feature | ETABS | SAP2000 | STAAD.Pro | SAFE | Robot | SAEngine status | Evidence | Part | Benchmark that would prove it |
 |---|---|---|---|---|---|---|---|---|---|
-| ETABS .e2k import | ✓ | ? | ? | ? | – | Built, untested (parser tests only) | python/src/saengine/importers/etabs.py; python/tests/test_import_etabs*.py | 11 | Round trip of verified cases with identical results |
-| ETABS .e2k export | ✓ | – | – | – | – | Built, untested | python/src/saengine/exporters/etabs.py; python/tests/test_export_etabs.py | 11 | Same |
-| SAP2000 .s2k import / export | ✓ | ✓ | ? | ? | ? | Built, untested | python/src/saengine/importers/sap2000.py, python/src/saengine/exporters/s2k.py | 11 | Same |
-| STAAD .std import / export | ✓ | ✓ | ✓ | – | ? | Built, untested | python/src/saengine/importers/staad.py, python/src/saengine/exporters/std.py | 11 | Same |
-| SAFE .f2k | ✓ | ? | – | ✓ | – | Missing. Searched f2k, fdb | – | 11 | – |
+| ETABS .e2k import | ✓ | ? | ? | ? | – | Built; round trip tested | python/src/saengine/importers/etabs.py; python/tests/test_import_etabs*.py; python/tests/test_exchange_round_trip.py (A3, AP3, DQ1: same counts, coordinates, sections, loads; member forces within 0.1 %); python/tests/test_exchange_public_examples.py | 11 | Open the export in a licensed ETABS |
+| ETABS .e2k export | ✓ | – | – | – | – | Built; round trip tested | python/src/saengine/exporters/etabs.py; python/tests/test_export_etabs.py; python/tests/test_exchange_round_trip.py (A3, AP3, DQ1: same counts, coordinates, sections, loads; member forces within 0.1 %) | 11 | Same |
+| SAP2000 .s2k import / export | ✓ | ✓ | ? | ? | ? | Built; round trip tested | python/src/saengine/importers/sap2000.py, python/src/saengine/exporters/s2k.py; python/tests/test_exchange_round_trip.py (A3, AP3, DQ1: same counts, coordinates, sections, loads; member forces within 0.1 %) | 11 | Open the export in a licensed SAP2000 |
+| STAAD .std import / export | ✓ | ✓ | ✓ | – | ? | Built; round trip tested | python/src/saengine/importers/staad.py, python/src/saengine/exporters/std.py; python/tests/test_exchange_round_trip.py (A3, AP3, DQ1: same counts, coordinates, sections, loads; member forces within 0.1 %) | 11 | Open the export in a licensed STAAD.Pro |
+| SAFE .f2k import / export | ✓ | ? | – | ✓ | – | Built; round trip tested (#305); frame/wall tables unverified | python/src/saengine/importers/safe.py, python/src/saengine/exporters/f2k.py; python/tests/test_exchange_f2k.py; python/tests/test_exchange_round_trip.py (A3, AP3, DQ1: same counts, coordinates, sections, loads; member forces within 0.1 %) | 11 | Open the export in a licensed SAFE |
 | Robot .rtd / .str | – | – | – | – | ✓ | Missing. Searched rtd, robot | – | 11 | – |
 | IFC export / import, including rebar | ✓ | ✓ | ? | ? | ✓ | Built, untested | python/src/saengine/library/ifc.py, python/src/saengine/library/architecture_ifc.py, python/src/saengine/library/ifc_rebar.py; python/tests/test_ifc.py | 6 | IFC validation of a sample |
 | DXF / DWG / PDF import as underlay | ✓ | ✓ | ✓ | ✓ | ✓ | Built, untested | python/src/saengine/library/architecture_dxf.py, python/src/saengine/library/dwg.py, python/src/saengine/library/pdf_underlay.py; workbench/src/vs/workbench/contrib/saengineCad/browser/floorPlanUnderlay.ts | 5 | – |
@@ -304,8 +304,8 @@ The 7 Missing rows are:
 8. **General member end releases and user point springs are missing.**
 9. **Strong-column/weak-beam and capacity-shear design are unverified.**
 10. **Auto-meshing and FE slab design are unverified on a whole slab.** The only evidence is a cross-check against other solvers.
-11. **ETABS/SAP/STAAD exchange has no result-level round-trip proof.** Consultants swap e2k files.
-12. **SAFE .f2k exchange is missing.**
+11. **ETABS/SAP/STAAD exchange is proved only by SAEngine's own round trips (#305).** The exports are not yet opened in the target programs.
+12. **SAFE .f2k exchange is built (#305), but its frame and wall tables are unverified.** Public SAFE samples hold no frame connectivity tables.
 13. **Retaining and basement wall design is unverified.** Only the earth-pressure coefficients are tested.
 14. **Drawings and schedules are not checked against a hand-detailed sheet.** The only check is the bar bending schedule unit tests.
 15. **Crack widths of FE slabs are built but unverified (#302).** They are checked by hand cases only; water-tank walls are covered by DK2.

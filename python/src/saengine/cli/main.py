@@ -10,7 +10,7 @@ Commands (see ``docs/cli.md`` for examples and the JSON schema)::
     saengine status <project> [--json]
     saengine export <project> --format ifc|dxf|csv|pdf|drawings|civil [--out PATH]
                     [--size A1|A2|A3] [--include-results]
-    saengine export <project> --format e2k|s2k|std|saf|sdnf|cis2|web [--out PATH]
+    saengine export <project> --format e2k|s2k|std|f2k|saf|sdnf|cis2|web [--out PATH]
     saengine office-server --workspace DIR [--host H] [--port P] [--certfile F --keyfile K]
     saengine import <file.civil> <dest folder> [--name NAME] [--overwrite]
     saengine versions status|list|save|diff|restore|issue <project> ...
@@ -406,13 +406,13 @@ def cmd_export_e2k(
 
 
 #: Alpha 9 L12: the exchange exports of ``saengine export`` (saengine.exporters.exchange).
-EXCHANGE_FORMATS = ("s2k", "std", "saf", "sdnf", "cis2", "web")
+EXCHANGE_FORMATS = ("s2k", "std", "f2k", "saf", "sdnf", "cis2", "web")
 
 
 def cmd_export_exchange(
     args: argparse.Namespace, out: Output, project: Any, out_path: Path | None
 ) -> int:
-    """``saengine export --format s2k|std|saf|sdnf|cis2|web <project>``: the analysis model in
+    """``saengine export --format s2k|std|f2k|saf|sdnf|cis2|web <project>``: the analysis model in
     another program's format (or the web viewer), with its export report beside it."""
     from saengine.exporters.exchange import rpc_export
 
@@ -450,7 +450,7 @@ def cmd_office_server(args: argparse.Namespace, out: Output) -> int:
 
 
 def cmd_import_structural(args: argparse.Namespace, out: Output) -> int:
-    """Integrator glue: ``saengine import <file.e2k|.std|.s2k> <dest>`` (saengine.importers)."""
+    """Integrator glue: ``saengine import <file.e2k|.std|.s2k|.f2k> <dest>`` (saengine.importers)."""
     from saengine.importers.project import StructuralImportError, import_structural
 
     try:
@@ -765,11 +765,11 @@ def build_parser() -> argparse.ArgumentParser:
                      help="civil: also archive the version history")  # fmt: skip
 
     sub = commands.add_parser("import", parents=[common],
-                              help="extract a .civil archive, or import an ETABS/STAAD/SAP2000 model",
+                              help="extract a .civil archive, or import an ETABS/SAFE/STAAD/SAP2000 model",
                               description="Extract a .civil archive into DEST/<project name>, or "
-                              "create a project there from an ETABS (.e2k), STAAD.Pro (.std) or "
+                              "create a project there from an ETABS (.e2k), SAFE (.f2k), STAAD.Pro (.std) or "
                               "SAP2000 (.s2k) text file.")  # fmt: skip
-    sub.add_argument("archive", help="the .civil, .e2k, .std or .s2k file")
+    sub.add_argument("archive", help="the .civil, .e2k, .f2k, .std or .s2k file")
     sub.add_argument("dest", help="the folder the project folder is created in")
     sub.add_argument("--name", help="the new project's name (default: the archived or model's one)")
     sub.add_argument("--overwrite", action="store_true", help="into an existing project folder")
