@@ -1046,6 +1046,8 @@ def boq_and_schedule(_: Path) -> Outcome:
     stirrup = next(r for r in schedule.rows if r.shape == "51")
     top = next(r for r in schedule.rows if r.dia == 16)
     bottom = [r for r in schedule.rows if r.dia == 20]
+    straight = next(r for r in bottom if "cranked" not in r.remarks)
+    cranked = next(r for r in bottom if "cranked" in r.remarks)
     tails = [r.dims["A"] - r.radius - r.dia for r in bottom]
 
     # ── the hand take-off (the estimating rules: bars over the members' centrelines, links on
@@ -1078,12 +1080,20 @@ def boq_and_schedule(_: Path) -> Outcome:
     sc = max(_up(max(6 * 10, 75) + r10 + 10, 5), 130)  # hook: ext + r + d, at least P = 130
     stirrup_len = _up(2 * (sa + sb + sc) - 2.5 * r10 - 5 * 10, 25)
     b_len = 6000 + 2 * (200 - 40 - 10)  # to the far column faces' bars: cover 40 + tie 10
+    # The corner bars of the beam are cranked 6 mm at 1 in 6 at each column to pass inside the
+    # column's bars (the detailing's practice): one ramp at each end, √(6² + 1) - 6 per unit
+    # of offset longer than straight.
+    crank = 2 * 6 * (math.sqrt(37) - 6)
     top_leg = 12 * 16 + r16 + 16
-    top_len = _up(top_leg + b_len + top_leg - r16 - 2 * 16, 25)
+    top_len = _up(top_leg + b_len + top_leg - r16 - 2 * 16 + crank, 25)
     bottom_leg = 12 * 20 + r20 + 20
-    bottom_len = _up(bottom_leg + b_len + bottom_leg - r20 - 2 * 20, 25)
+    bottom_plain = bottom_leg + b_len + bottom_leg - r20 - 2 * 20
+    bottom_len = _up(bottom_plain, 25)
+    bottom_cranked = _up(bottom_plain + crank, 25)
     mass_b1 = (
-        n_stirrups * stirrup_len * kg[10] + 2 * top_len * kg[16] + 3 * bottom_len * kg[20]
+        n_stirrups * stirrup_len * kg[10]
+        + 2 * top_len * kg[16]
+        + (bottom_len + 2 * bottom_cranked) * kg[20]
     ) / 1e3
     reference = Reference(
         source="Hand take-off by the estimating rules (concrete net of the overlaps, formwork "
@@ -1112,12 +1122,13 @@ def boq_and_schedule(_: Path) -> Outcome:
                 f"{fmt(stirrup_len)} mm"
             ),
             (
-                f"B1 top 2Ø16: B = {b_len}, A = C = 12 × 16 + {r16} + 16 = {top_leg}: "
-                f"{fmt(top_len)} mm"
+                f"B1 top 2Ø16 (cranked, + {fmt(crank, 3)} mm): B = {b_len}, A = C = 12 × 16 + "
+                f"{r16} + 16 = {top_leg}: {fmt(top_len)} mm"
             ),
             (
                 f"B1 bottom 3Ø20: r = max(BS 8666 70, 6d/2 = 60) = {r20}, A = C = 12 × 20 + {r20} "
-                f"+ 20 = {bottom_leg}: {fmt(bottom_len)} mm; the hook's tail A - r - d = 12d = 240 mm"
+                f"+ 20 = {bottom_leg}: middle bar {fmt(bottom_len)} mm, the two corner bars "
+                f"cranked {fmt(bottom_cranked)} mm; the hook's tail A - r - d = 12d = 240 mm"
             ),
             f"B1 bars: {fmt(mass_b1)} kg",
         ],
@@ -1147,10 +1158,17 @@ def boq_and_schedule(_: Path) -> Outcome:
             Quantity("B1 link cutting length", "mm", stirrup_len, stirrup.cutting_length, exact),
             Quantity("B1 top bar cutting length", "mm", top_len, top.cutting_length, exact),
             Quantity(
-                "B1 bottom bar cutting length",
+                "B1 bottom bar cutting length, straight",
                 "mm",
                 bottom_len,
-                max(r.cutting_length for r in bottom),
+                straight.cutting_length,
+                exact,
+            ),
+            Quantity(
+                "B1 bottom bar cutting length, cranked",
+                "mm",
+                bottom_cranked,
+                cranked.cutting_length,
                 exact,
             ),
             Quantity("B1 bottom bar hook tail A - r - d (12 d)", "mm", 12 * 20, min(tails), exact),
@@ -1160,12 +1178,10 @@ def boq_and_schedule(_: Path) -> Outcome:
             (
                 "saengine.boq.quantities.bill_of_quantities (the estimating rules) and saengine."
                 "drawings.detailing.detailing_model with bbs.bar_schedule for beam B11 (A1-B1). "
-                "KNOWN ISSUE (GitHub issue #386, docs/verification/README.md): the detailing "
-                "sizes the 90° hooks of the Ø20 bottom bars with the code's 6d bend (r = 60 mm, "
-                "A = 320 mm), while the schedule bends them on the BS 8666 minimum radius "
-                "(70 mm), so the bent hook's straight tail is A - r - d = 230 mm, short of the "
-                "12 d = 240 mm of the standard hook. The cutting length rounds up to the same "
-                "6850 mm. Ø16 is consistent (6d/2 = 48 mm > 32 mm)."
+                "Fixed (#386): the detailing sized the 90° hooks of Ø20 bars with the code's 6d "
+                "bend (r = 60 mm, A = 320 mm) while the schedule bends them on BS 8666's 70 mm, "
+                "so the bent tail was 230 mm, short of 12 d = 240 mm. The hooks now take the "
+                "schedule's bend (A = 330 mm)."
             )
         ],
     )
