@@ -3588,10 +3588,21 @@ export class FloorPlanEditor extends EditorPane implements ICadEditorPane {
 		if (!system) {
 			return;
 		}
-		const systems = Array.isArray(grids.systems) ? grids.systems : [];
-		this.write({ ...layout, grids: { ...grids, systems: [...systems, system] } });
-		this.setNotice(localize('gridSys.added', "Grid system {0} added; edit its lines in Grids & Stories.", String(system.id)));
-		this.openGrids();
+		// The shared action (`grid.system.add`, #280): the engine checks the system and adds it,
+		// as the terminal's `saengine grid system add` and the assistant do.
+		const added = system;
+		const done = () => {
+			this.setNotice(localize('gridSys.added', "Grid system {0} added; edit its lines in Grids & Stories.", String(added.id)));
+			this.openGrids();
+		};
+		const outcome = await this.memberAction([{ action: 'grid.system.add', params: added }], undefined, () => {
+			const systems = Array.isArray(grids.systems) ? grids.systems : [];
+			this.write({ ...layout, grids: { ...grids, systems: [...systems, added] } });
+			done();
+		});
+		if (outcome) {
+			done();
+		}
 	}
 
 	/**

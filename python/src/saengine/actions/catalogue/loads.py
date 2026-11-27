@@ -5,7 +5,7 @@ loads; values are checked by the loads model and the member load guardrails."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field
 
@@ -17,7 +17,26 @@ from saengine.actions.registry import action
 from saengine.actions.result import ActionResult
 from saengine.actions.view import ProjectView
 
-Case = Literal["D", "SD", "L", "Lr"]
+#: A load case: a built-in gravity case (D, SD, L, Lr) or one of the project's own load patterns
+#: (load.pattern.add).
+Case = str
+
+
+def _case(view: ProjectView, case: str) -> str:
+    """``case`` when loads may go to it: a built-in gravity case or a project load pattern."""
+    from saengine.library import load_patterns as lp
+
+    settings = view.read(SETTINGS, {})
+    own = [str(x.get("id")) for x in (settings or {}).get("loadPatterns") or []]
+    if case not in lp.BUILT_IN_IDS and case not in own:
+        refuse(
+            f"There is no load pattern '{case}': D, SD, L, Lr"
+            + (f" or the project's {', '.join(own)}" if own else "")
+            + " (load.pattern.add makes one).",
+            "case",
+            case,
+        )
+    return case
 
 
 # ── area loads ──
@@ -41,6 +60,14 @@ class AreaParams(Params):
         default=None, description="Roof live load [kN/m²] (an area load of roof use)."
     )
     partitions: float | None = Field(default=None, description="Partition allowance [kN/m²].")
+    otherLoad: float | None = Field(
+        default=None,
+        description="A further area load [kN/m²] in a project load pattern (otherPattern); 0 "
+        "removes it.",
+    )
+    otherPattern: str | None = Field(
+        default=None, description="The project load pattern of otherLoad (load.pattern.add)."
+    )
 
 
 @action(
@@ -54,6 +81,7 @@ class AreaParams(Params):
 )
 def load_area_set(view: ProjectView, p: AreaParams) -> ActionResult:
     from saengine.codes import context as code_context
+    from saengine.library import load_patterns as lp
 
     if p.L is not None and p.Lr is not None:
         refuse(
@@ -97,6 +125,22 @@ def load_area_set(view: ProjectView, p: AreaParams) -> ActionResult:
         area["finish"] = p.SD
     if p.partitions is not None:
         area["partitions"] = p.partitions
+    if p.otherPattern is not None:
+        if p.otherPattern in lp.BUILT_IN_IDS:
+            refuse(
+                "The other load goes to a project load pattern, not a built-in case.",
+                "otherPattern",
+                p.otherPattern,
+            )
+        area["otherPattern"] = _case(view, p.otherPattern)
+    if p.otherLoad is not None:
+        if p.otherLoad == 0:
+            area.pop("otherLoad", None)
+            area.pop("otherPattern", None)
+        else:
+            if not area.get("otherPattern"):
+                refuse("Give the other load's load pattern (otherPattern).", "otherPattern", None)
+            area["otherLoad"] = p.otherLoad
     view.put(SETTINGS, settings)
     assigned: list[str] = []
     if target:
@@ -190,7 +234,9 @@ class LineParams(Params):
     beams: list[str] | None = Field(default=None, description="Beam ids.")
     storeys: P.Storeys | None = Field(default=None, description="Or: every beam of these storeys.")
     value: float = Field(description="Uniform load [kN/m, down].")
-    case: Case = Field(default="SD", description="Load case: D, SD, L or Lr.")
+    case: Case = Field(
+        default="SD", description="Load case: D, SD, L, Lr or a project load pattern's id."
+    )
     thisStoryOnly: bool = Field(
         default=False, description="On a typical floor: only this storey, not its family."
     )
@@ -206,6 +252,7 @@ class LineParams(Params):
     example={"beams": ["B1"], "value": 5, "case": "SD"},
 )
 def load_line_add(view: ProjectView, p: LineParams) -> ActionResult:
+    _case(view, p.case)
     data = _loads(view)
     created: list[str] = []
     taken: set[str] = set()
@@ -251,6 +298,7 @@ class PointParams(Params):
     example={"member": "B1", "value": 20, "distance": 2500, "case": "L"},
 )
 def load_point_add(view: ProjectView, p: PointParams) -> ActionResult:
+    _case(view, p.case)
     plan = view.read(FLOOR_PLAN)
     group, member = P.find_member(plan, p.member)
     if group == "beams":
@@ -378,3 +426,80 @@ def load_wall_add(view: ProjectView, p: WallParams) -> ActionResult:
         f"{len(created)} beams.",
         created=created,
     )
+
+
+# ── changing and deleting member loads ──
+
+
+class LoadSetParams(Params):
+    ids: list[str] = Field(min_length=1, description="Member load ids (LL1, PL1, ...).")
+    value: float | None = Field(default=None, description="[kN/m or kN, down]")
+    case: Case | None = Field(default=None, description="D, SD, L, Lr or a project pattern.")
+    distance: float | None = Field(default=None, description="Point loads on beams [mm].")
+    thisStoryOnly: bool | None = None
+    note: str | None = None
+
+
+@action(
+    "load.set",
+    summary="Change member loads (line, point or wall): value, load case or pattern, distance, "
+    "typical-floor scope or note.",
+    params=LoadSetParams,
+    parts=("loads",),
+    kind="edit",
+    example={"ids": ["LL1"], "value": 6, "case": "L"},
+)
+def load_set(view: ProjectView, p: LoadSetParams) -> ActionResult:
+    from saengine.actions.catalogue._util import given
+
+    fields = {
+        k: v for k, v in given(p, "value", "case", "distance", "thisStoryOnly", "note").items()
+    }
+    if not fields:
+        refuse("Give what to change (value, case, distance, thisStoryOnly or note).", "ids", p.ids)
+    if p.case is not None:
+        _case(view, p.case)
+    data = _loads(view)
+    by_id = {x.get("id"): x for x in data["loads"]}
+    missing = [i for i in p.ids if i not in by_id]
+    if missing:
+        refuse(f"There is no member load {', '.join(missing)}.", "ids", missing)
+    for load_id in p.ids:
+        load = by_id[load_id]
+        if "distance" in fields and load.get("kind") != "point":
+            refuse(f"{load_id} is not a point load: it has no distance.", "distance", p.distance)
+        if "value" in fields and load.get("wall"):
+            refuse(
+                f"{load_id} is a wall load: its weight comes from the wall (load.wall.add).",
+                "value",
+                p.value,
+            )
+        for key, value in fields.items():
+            if value is None:
+                refuse(f"{key} cannot be empty.", key, None)
+            load[key] = value
+    view.put(LOADS, data)
+    return ActionResult(message=f"Changed {', '.join(p.ids)}: {', '.join(sorted(fields))}.")
+
+
+class LoadDeleteParams(Params):
+    ids: list[str] = Field(min_length=1, description="Member load ids (LL1, PL1, ...).")
+
+
+@action(
+    "load.delete",
+    summary="Delete member loads (line, point or wall) by their ids.",
+    params=LoadDeleteParams,
+    parts=("loads",),
+    kind="edit",
+    example={"ids": ["LL1"]},
+)
+def load_delete(view: ProjectView, p: LoadDeleteParams) -> ActionResult:
+    data = _loads(view)
+    have = {x.get("id") for x in data["loads"]}
+    missing = [i for i in p.ids if i not in have]
+    if missing:
+        refuse(f"There is no member load {', '.join(missing)}.", "ids", missing)
+    data["loads"] = [x for x in data["loads"] if x.get("id") not in p.ids]
+    view.put(LOADS, data)
+    return ActionResult(message=f"Deleted {', '.join(p.ids)}.")

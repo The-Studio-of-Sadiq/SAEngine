@@ -94,25 +94,63 @@ STEPS: dict[str, tuple[str, ...]] = {
 
 
 class StepParams(Params):
-    step: Literal["derive", "analyse", "design", "substructure", "boq", "report", "drawings"]
+    step: (
+        Literal[
+            "derive",
+            "analyse",
+            "design",
+            "substructure",
+            "boq",
+            "report",
+            "drawings",
+            "bim",
+            "analysis",
+            "ssi",
+            "pushover",
+            "mep",
+        ]
+        | None
+    ) = Field(
+        default=None,
+        description="A part of Run All: derive, analyse, design, substructure, boq, report, "
+        "drawings; or one of its steps alone: bim (building model), analysis, ssi, pushover, mep.",
+    )
+    steps: list[str] | None = Field(
+        default=None,
+        description="Or: these steps of Run All, run in Run All's order (bim derive analysis "
+        "ssi substructure design pushover mep boq report drawings).",
+    )
     strict: bool = Field(default=True, description="Fail the action when a step fails.")
 
 
 @action(
     "run.step",
     summary="Run part of Run All: derive (the analysis model), analyse, design (members and "
-    "foundations), substructure, boq, report or drawings.",
+    "foundations), substructure, boq, report or drawings; or any of its steps alone (bim, "
+    "analysis, ssi, pushover, mep, ...).",
     params=StepParams,
     parts=("bim", "fem", "substructure", "boq", "exports"),
     kind="run",
     example={"step": "analyse"},
 )
 def run_step(view: ProjectView, p: StepParams) -> ActionResult:
-    from saengine.pipeline.run_all import run_all
+    from saengine.pipeline.run_all import STEP_IDS, run_all
 
-    return _ran(
-        run_all(_project(view), steps=STEPS[p.step], should_stop=current_should_stop()), p.strict
-    )
+    if (p.step is None) == (p.steps is None):
+        refuse("Give a step or a list of steps (not both).", "step", p.step)
+    if p.steps is not None:
+        unknown = [s for s in p.steps if s not in STEP_IDS]
+        if unknown or not p.steps:
+            refuse(
+                f"Not steps of Run All: {', '.join(unknown) or '(none)'} (the steps: "
+                f"{', '.join(STEP_IDS)}).",
+                "steps",
+                p.steps,
+            )
+        steps = tuple(p.steps)
+    else:
+        steps = STEPS.get(str(p.step)) or (str(p.step),)
+    return _ran(run_all(_project(view), steps=steps, should_stop=current_should_stop()), p.strict)
 
 
 class ReinforceParams(Params):

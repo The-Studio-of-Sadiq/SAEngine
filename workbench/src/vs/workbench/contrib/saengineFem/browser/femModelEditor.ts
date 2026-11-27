@@ -59,6 +59,7 @@ import { femViewerTarget, ViewerTools } from './viewerTools.js';
 import { defaultClause } from '../../../services/saengineProject/common/activeCodePack.js';
 import { memberGroupOf } from '../../../services/saengineProject/common/floorPlanMembers.js';
 import { ISaengineModelSelectionService, ModelSelection } from '../../../services/saengineProject/common/modelSelection.js';
+import { describeFailure, IActionStep, ISaengineActionsService } from '../../../services/saengineProject/common/saengineActions.js';
 import { partById } from '../../../services/saengineProject/common/saengineProject.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -815,6 +816,7 @@ export class FemModelEditor extends EditorPane {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@ISaengineActionsService private readonly actionsService: ISaengineActionsService,
 	) {
 		super(FemModelEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 		this._register(modelSelectionService.onDidChangeSelection(({ selection, source }) => {
@@ -1535,7 +1537,7 @@ export class FemModelEditor extends EditorPane {
 		const options = {
 			contextViewService: this.contextViewService,
 			bimText: this.bimModel?.getValue(),
-			write: (text: string) => this.writeBuildingModel(text),
+			run: (step: IActionStep) => void this.runBuildingAction(step),
 		};
 		if (selection.kind === 'element') {
 			const element = this.femModel.elements.find(e => e.id === selection.id);
@@ -1553,16 +1555,26 @@ export class FemModelEditor extends EditorPane {
 		}
 	}
 
-	/** Writes the building model's new text as one undoable edit and saves it (the derivation reads it). */
-	private writeBuildingModel(text: string): void {
-		const model = this.bimModel;
-		if (!model || model.isDisposed() || model.getValue() === text) {
+	/**
+	 * Runs a shared editing action on the building model (`release.set`, `spring.set`): the
+	 * engine works it out on the text as shown and the window applies it as one undoable edit
+	 * (co-editing sees it as typing); then it is saved, since the derivation reads the file.
+	 */
+	private async runBuildingAction(step: IActionStep): Promise<void> {
+		const uri = this.bimModel?.uri;
+		try {
+			const outcome = await this.actionsService.run([step], { apply: true });
+			if (!outcome.ok) {
+				this.notificationService.notify({ severity: Severity.Warning, message: describeFailure([step], outcome) });
+				return;
+			}
+		} catch (error) {
+			this.notificationService.notify({ severity: Severity.Error, message: error instanceof Error ? error.message : String(error) });
 			return;
 		}
-		model.pushStackElement();
-		model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
-		model.pushStackElement();
-		void this.textFileService.save(model.uri).catch(() => undefined);
+		if (uri) {
+			void this.textFileService.save(uri).catch(() => undefined);
+		}
 	}
 
 	/**
